@@ -1,0 +1,11 @@
+# Nice to have
+
+- **agentik-r1, an untested respawn.** A launcher's successor might start after a tool packet deletes its repo's own `marketplace.json` but before the switch. What does it load from a folder-source marketplace whose file is gone? The cache should serve it, but nobody has tried. Test it once in a scratch `CLAUDE_CONFIG_DIR`, or install no tool packet's merge before the switch.
+- **agentik-r1, the mv/ln race.** Between `mv` and `ln -s` in a folder move, a writer could recreate the old folder and split state. The cold window removes the writers. A move helper that refuses while `lsof +D` shows the folder open would remove the race itself.
+- **agentik-r1-commons, bounded's suite.** `scripts/bounded` came over byte-identical, but its tests stayed in agentik-session's `tests/test_bounded.py`. Bringing that file here would test the canonical copy where it lives; the packet's reads did not name it.
+- **agentik-r1-commons, the marketplace's versions.** Each entry's version is the one on its repo's main on 2026-10-13, and `marketplace-check` checks only that it is semver. A local target that compares each entry with its checkout's `plugin/.claude-plugin/plugin.json` (no network) would show the drift after a release.
+- **agentik-r1-commons N1, sync's self-check.** `scripts/sync` refuses commons only by its resolved path, so a second clone of commons can be the target and be overwritten; a marker such as `bin/agentik` in the target could refuse it too.
+- **agentik-r1-commons N2, local-marketplace's inputs.** `make local-marketplace` splits an `AGENTIK_CODE` holding a space, passes an `AGENTIK_CODE` that does not exist, and exits 2 under `make -f <path>` run from another folder.
+- **agentik-r1-commons N3, the semver digits.** `marketplace-check`'s `\d` also accepts non-ASCII digits; `[0-9]` or `re.ASCII` would hold versions to ASCII.
+- **agentik-r1-commons N4, a ruling, not a defect.** `renamed` treats `NICE_TO_HAVE.md` and `CHANGELOG*` as records at any depth, and `design/`, `bugs/` and `history/` only at the repo's root.
+- **agentik-r1-commons N5, the front door's edge names.** A tool named `help` is listed but cannot be dispatched, since `agentik help` is the list; and `agentik help nosuch` exits 3, as not installed.

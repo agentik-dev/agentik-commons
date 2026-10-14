@@ -1,0 +1,26 @@
+# .hygiene-allow: <path-glob>: <group>[,<group>]; `*` stays inside one path segment.
+# Every row sits under its reason (packet agentik-r1-commons, ruling 6).
+
+# agentik-commons exists to name its sibling agentik tools and plugins: the README,
+# the records and packets, the backlog, the sibling paragraph, the marketplace,
+# its check and that check's test
+README.md: sibling
+NICE_TO_HAVE.md: sibling
+design/*.md: sibling
+docs/sibling.md: sibling
+.claude-plugin/marketplace.json: sibling
+scripts/marketplace-check: sibling
+tests/test_marketplace.py: sibling
+
+# a packet names its read-only sources by path
+design/packets/*.md: sibling,home
+
+# hygiene's own patterns name the old tools; its test assembles them at runtime
+scripts/hygiene: renamed
+tests/test_hygiene.py: renamed
+
+# the guide's alias paragraph lists the old names; the guide names the five tools
+GUIDE.md: renamed,sibling
+
+# the copyright line names its holder
+LICENSE: person

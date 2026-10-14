@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""marketplace-check: the shape of the `agentik` marketplace (agentik-r1 5.2).
+
+Usage: marketplace-check [--local] [FILE]
+
+FILE defaults to `.claude-plugin/marketplace.json`. The file is a JSON object
+named `agentik`, with `owner.name`, and five plugins, one per tool: session,
+decisions, respeak, relay and agents, each named once. Each plugin's `source` is
+`{"source": "git-subdir", "url": ..., "path": "plugin"}` and its `version` is
+semver. The url is `https://github.com/agentik-dev/agentik-<name>.git`; under
+`--local` (the file `make local-marketplace` writes) it is a `file://` url whose
+last path segment is `agentik-<name>`. Nothing is fetched: the check reads the
+file only.
+
+Exit codes report the task, not the content: 0 the file is valid, 1 a check
+said no (each on one stderr line), 2 usage or no readable file. Stdlib only.
+"""
+import json
+import re
+import sys
+from urllib.parse import unquote, urlsplit
+
+NAME = "agentik"
+TOOLS = ("session", "decisions", "respeak", "relay", "agents")
+PUBLIC = "https://github.com/agentik-dev/agentik-%s.git"
+DEFAULT = ".claude-plugin/marketplace.json"
+USAGE = "usage: marketplace-check [--local] [FILE]"
+SEMVER = re.compile(
+    r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\Z")
+
+
+def url_ok(url, tool, local):
+    if not isinstance(url, str):
+        return False
+    if not local:
+        return url == PUBLIC % tool
+    parts = urlsplit(url)
+    path = unquote(parts.path)
+    return (parts.scheme == "file" and parts.netloc == "" and path.startswith("/")
+            and path.rstrip("/").rsplit("/", 1)[-1] == "agentik-" + tool
+            and not parts.query and not parts.fragment)
+
+
+def problems(data, local):
+    """Each check that said no, one line each; [] when the file is valid."""
+    if not isinstance(data, dict):
+        return ["the top level is not an object"]
+    out = []
+    if data.get("name") != NAME:
+        out.append("name is not %r" % NAME)
+    owner = data.get("owner")
+    if not (isinstance(owner, dict) and isinstance(owner.get("name"), str) and owner["name"]):
+        out.append("owner.name is missing")
+    plugins = data.get("plugins")
+    if not isinstance(plugins, list):
+        return out + ["plugins is not a list"]
+    if len(plugins) != len(TOOLS):
+        out.append("plugins holds %d entries, not %d" % (len(plugins), len(TOOLS)))
+    names = [p.get("name") if isinstance(p, dict) else None for p in plugins]
+    if sorted(map(str, names)) != sorted(TOOLS):
+        out.append("plugin names are %s, not %s" % (", ".join(map(str, names)), ", ".join(TOOLS)))
+    for i, plugin in enumerate(plugins):
+        if not isinstance(plugin, dict):
+            out.append("plugins[%d] is not an object" % i)
+            continue
+        tool = plugin.get("name")
+        where = "plugins[%d] (%s)" % (i, tool)
+        source = plugin.get("source")
+        if not isinstance(source, dict):
+            out.append("%s: source is not an object" % where)
+            continue
+        if source.get("source") != "git-subdir":
+            out.append("%s: source.source is not 'git-subdir'" % where)
+        if tool not in TOOLS or not url_ok(source.get("url"), tool, local):
+            out.append("%s: source.url is not the %s url for agentik-%s"
+                       % (where, "file://" if local else "public", tool))
+        if source.get("path") != "plugin":
+            out.append("%s: source.path is not 'plugin'" % where)
+        version = plugin.get("version")
+        if not (isinstance(version, str) and SEMVER.match(version)):
+            out.append("%s: version is not semver" % where)
+    return out
+
+
+def main(argv):
+    args = argv[1:]
+    if args in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
+    local = "--local" in args
+    rest = [a for a in args if a != "--local"]
+    if len(rest) > 1 or any(a.startswith("-") for a in rest) or args.count("--local") > 1:
+        sys.stderr.write(USAGE + "\n")
+        return 2
+    path = rest[0] if rest else DEFAULT
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        sys.stderr.write("marketplace-check: cannot read %s: %s\n" % (path, exc))
+        return 2
+    try:
+        found = problems(json.loads(text), local)
+    except ValueError as exc:
+        found = ["not JSON: %s" % exc]
+    for line in found:
+        sys.stderr.write("marketplace-check: %s: %s\n" % (path, line))
+    if found:
+        return 1
+    print("marketplace-check: %s: %s, %d plugins, valid" % (path, NAME, len(TOOLS)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

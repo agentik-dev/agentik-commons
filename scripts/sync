@@ -1,0 +1,50 @@
+#!/bin/sh
+# sync: refresh the vendored copies in a tool repo (agentik-r1 7.3).
+#
+#   scripts/sync <repo>
+#
+# Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene and
+# scripts/bounded to <repo>/scripts/, then writes <repo>/scripts/vendored.sha256
+# in `shasum -a 256 -c` form, its paths from the repo's root; the repo's
+# `make check` runs that check. It touches nothing else and never commits: the
+# packet that runs it does. Exit 0 done; 2 usage, or a target that is not a git
+# checkout (or is this repo). CDPATH is never followed.
+set -eu
+
+usage() {
+	echo "usage: scripts/sync <repo>" >&2
+	exit 2
+}
+
+[ $# -eq 1 ] || usage
+case $1 in -*) usage ;; esac
+here=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P)
+if ! [ -d "$1" ] || ! [ -e "$1/.git" ]; then
+	echo "sync: $1 is not a git checkout" >&2
+	exit 2
+fi
+target=$(CDPATH= cd -P -- "$1" >/dev/null && pwd -P)
+if [ "$target" = "$here" ]; then
+	echo "sync: $target is agentik-commons itself, the source of the copies" >&2
+	exit 2
+fi
+if command -v shasum >/dev/null 2>&1; then
+	sum() { shasum -a 256 "$@"; }
+elif command -v sha256sum >/dev/null 2>&1; then
+	sum() { sha256sum "$@"; }
+else
+	echo "sync: neither shasum nor sha256sum is on PATH" >&2
+	exit 2
+fi
+
+mkdir -p "$target/scripts"
+for pair in "bin/agentik agentik" "scripts/hygiene hygiene" "scripts/bounded bounded"; do
+	set -- $pair
+	cp "$here/$1" "$target/scripts/.$2.sync.$$"
+	chmod 755 "$target/scripts/.$2.sync.$$"
+	mv -f "$target/scripts/.$2.sync.$$" "$target/scripts/$2"
+done
+(CDPATH= cd -P -- "$target" >/dev/null && sum scripts/agentik scripts/hygiene scripts/bounded) \
+	>"$target/scripts/.vendored.sync.$$"
+mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"
+echo "sync: $target/scripts: agentik, hygiene, bounded, vendored.sha256"
