@@ -242,7 +242,7 @@ The exit-code rule needs no change. The exact text and the paste line for the le
 
 0. Step 0 (§8.0).
 1. `agentik-r1-commons`, which has no live effect.
-2. The tool and profile packets, in parallel, merged without installing.
+2. The tool and profile packets, in parallel, reviewed on their branches. The tool branches merge only in the switch: four of the old marketplaces read the checkouts and one reads the public respeak repo, so a merge before the swap removes a live manifest.
 3. The switch (§8.3).
 4. The consumer packets. Until they land, the aliases carry the old callers.
 5. The cold window (§8.5).
@@ -265,8 +265,9 @@ Each packet needs step 0 first, clears its whole §6.2 row, vendors `scripts/{ag
 
 ### §8.3 The switch
 
-**Preconditions:** step 0 entered; tool packets merged; no relay night (`run`, `gate`, `plan`), helper or other install. Sessions and launchers may run (§8.4).
+**Preconditions:** step 0 entered; tool branches reviewed and merge-ready; no relay night (`run`, `gate`, `plan`), helper or other install. Sessions and launchers may run (§8.4).
 
+0. **Merge.** Merge the five tool branches; push none before step 4 passes.
 1. **CLIs first.** Install decisions (`uv tool uninstall claude-code-decisions && make install`), then agents, session and relay. No folder moves yet.
 2. **Local marketplace.** Run `make local-marketplace`, then `claude plugin marketplace add ~/.local/share/agentik/marketplace`.
 3. **Swap each plugin.** `claude plugin install <p>@agentik`, then `claude plugin disable <old id>`. Old IDs are uninstalled only in r2.
