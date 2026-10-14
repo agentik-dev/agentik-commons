@@ -496,6 +496,20 @@ class RenamedTest(unittest.TestCase):
         self.assertEqual(lf(d["groups"]["renamed"]), {"lines": len(OLD), "files": 1})
         self.assertEqual(paths, ["old.md"])
 
+    def test_a_slug_that_runs_on_past_the_name_does_not_hit(self):
+        # a public URL whose slug continues after a tool name is not an old id
+        # (research finding rf1-3); the old ids still hit before `@`, `:`, `/` and the end
+        slugs = ["https://example.com/blog/claude-code-" + "session-management-and-1m-context",
+                 "see claude-code-" + "agents-tips, claude-code-" + "decision" + "s_log"]
+        ids = ["claude-code-" + "session@claude-code-" + "session",
+               "/agents:status from claude-code-" + "agents:", "../claude-code-" + "respea" + "k/x",
+               "the claude-code-" + "decision" + "s."]
+        code, d, paths = self.scan({"slug.md": "\n".join(slugs) + "\n",
+                                    "ids.md": "\n".join(ids) + "\n"})
+        self.assertEqual(code, 1)
+        self.assertEqual(paths, ["ids.md"])
+        self.assertEqual(lf(d["groups"]["renamed"]), {"lines": len(ids), "files": 1})
+
     def test_live_files_only(self):
         text = OLD[4] + "\n"
         files = {name: text for name in (
