@@ -9,3 +9,4 @@
 - **agentik-r1-commons N3, the semver digits.** `marketplace-check`'s `\d` also accepts non-ASCII digits; `[0-9]` or `re.ASCII` would hold versions to ASCII.
 - **agentik-r1-commons N4, a ruling, not a defect.** `renamed` treats `NICE_TO_HAVE.md` and `CHANGELOG*` as records at any depth, and `design/`, `bugs/` and `history/` only at the repo's root.
 - **agentik-r1-commons N5, the front door's edge names.** A tool named `help` is listed but cannot be dispatched, since `agentik help` is the list; and `agentik help nosuch` exits 3, as not installed.
+- **rf1 (2026-10-14), the vendored copies, S3.** The research fixes changed the canonical `scripts/hygiene` (the `renamed` old ids end at a word boundary, rf1-3) and `scripts/bounded` (its docstring states the load rule, rf1-1). The five tool repos and the organization profile still vendor the earlier bytes; `scripts/sync <repo>` in each, at that repo's next packet, brings them over and rewrites `scripts/vendored.sha256`.
