@@ -68,7 +68,7 @@ Packets and sitting prompts' read lists cite a record as `record <file> --sectio
 
 - **may touch** is a closed list of full paths from the repo root; it always admits `history/sittings/*.md` and `history/sessions/NEXT`.
 - The `verify` row is required (doclint's GRANDFATHERED excepted: 11 in agentik-session, 17 in agentik-relay); each **acceptance** line is targeted (§5; relay's `packet.Unbounded` takes the same cells), with a measured baseline. SPENT (relay's `spent`, ar21) keeps the row, skips the suite rule. In the table every pipe is `\|` (the gate unescapes), so alternation is `grep -E` with a plain `|`; fixed strings, `grep -qF`.
-- Six sections, six header rows plus `verify`, under 9,216 bytes.
+- Six sections, six header rows plus `verify`, under 9,216 bytes. One recorded exception (2026-10-14): commons' spent packet `design/packets/agentik-r1-commons.md`, 9,913 bytes, kept as it was built, since a spent packet is a record.
 - A packet's charter opens with doclint's five rows; the budget row says so.
 - The builder decides inside the design of record, records each choice in the charter's handover with its consumer, and names at most one open fork for the owner.
 
