@@ -12,7 +12,7 @@
         "path": "plugin"
       },
       "description": "Profiles for Claude Code sittings: one resolved configuration per session, offered to the plugins that depend on it, and a doctor that checks the setup.",
-      "version": "2.0.0-alpha.14"
+      "version": "2.0.0-alpha.15"
     },
     {
       "name": "decisions",
@@ -32,7 +32,7 @@
         "path": "plugin"
       },
       "description": "Two-lane communication for agent swarms: a machine-facing shorthand for long sessions, and a translator that renders human-facing narratives in a layered tone.",
-      "version": "0.8.0"
+      "version": "0.8.1"
     },
     {
       "name": "relay",
