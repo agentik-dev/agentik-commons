@@ -263,6 +263,8 @@ The exit-code rule needs no change. The exact text and the paste line for the le
 
 Each packet needs step 0 first, clears its whole §6.2 row, vendors `scripts/{agentik,hygiene,bounded}`, deletes its `marketplace.json`, and has `renamed` 0 as an acceptance line.
 
+**Status (2026-10-14).** The switch (§8.3) has landed: the five tool packets and the profile packet are merged, the four command line tools are installed and `agentik` lists them (A1), the plugins install as `<name>@agentik` from the `agentik` marketplace, and the five `@agentik` plugins are enabled with the five old ones disabled (A4). The front door is `agentik <tool> <verb>`, and the organization profile's install lines show these forms as of this date. Not recorded here as done: proofs P1 to P3 (§9), the consumer packets and the cold window (§8.5); each is dated in this section when it lands.
+
 ### §8.3 The switch
 
 **Preconditions:** step 0 entered; tool branches reviewed and merge-ready; no relay night (`run`, `gate`, `plan`), helper or other install. Sessions and launchers may run (§8.4).
