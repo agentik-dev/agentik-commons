@@ -1,4 +1,4 @@
-"""scripts/sync <repo> (agentik-r1 7.3): the three vendored copies land
+"""scripts/sync <repo> (agentik-r1 7.3): the four vendored copies land
 byte-identical and executable under <repo>/scripts/, scripts/vendored.sha256
 verifies under `shasum -a 256 -c`, a drifted copy fails it, and usage or a
 target that is not a git checkout exits 2."""
@@ -11,7 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SYNC = ROOT / "scripts" / "sync"
 COPIES = {"scripts/agentik": "bin/agentik", "scripts/hygiene": "scripts/hygiene",
-          "scripts/bounded": "scripts/bounded"}
+          "scripts/bounded": "scripts/bounded",
+          "scripts/plugin-version-check": "scripts/plugin-version-check"}
 
 
 def sync(*args):
@@ -49,7 +50,8 @@ class SyncTest(unittest.TestCase):
         self.assertEqual([r.split("  ", 1)[1] for r in rows], list(COPIES))
         # nothing else is written, no scratch file is left
         self.assertEqual(sorted(os.listdir(Path(self.repo, "scripts"))),
-                         ["agentik", "bounded", "hygiene", "vendored.sha256"])
+                         ["agentik", "bounded", "hygiene", "plugin-version-check",
+                          "vendored.sha256"])
 
     def test_rerun_refreshes_a_drifted_copy(self):
         sync(self.repo)

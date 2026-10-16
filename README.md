@@ -13,7 +13,8 @@ It builds no tool: no `install` target, no plugin of its own.
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene` and `scripts/bounded` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
+| `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version (GUIDE §7) |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
 
 ## Make targets
 
