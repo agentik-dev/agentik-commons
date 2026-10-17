@@ -89,6 +89,38 @@ class MarketplaceTest(unittest.TestCase):
         data["plugins"][0]["source"]["url"] = "file://host/x/agentik-" + data["plugins"][0]["name"]
         self.assertEqual(check("--local", self.write(data))[0], 1)
 
+    def test_local_takes_a_well_formed_extra_entry(self):
+        data = copy.deepcopy(self.data)
+        for p in data["plugins"]:
+            p["source"]["url"] = Path("/code dir", "agentik-" + p["name"]).as_uri()
+        data["plugins"].append({
+            "name": "extra", "description": "A made-up plugin.", "version": "0.1.0",
+            "source": {"source": "git-subdir", "path": "plugin",
+                       "url": Path("/code dir", "agentik-extra").as_uri()}})
+        code, out, err = check("--local", self.write(data))
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(out.endswith(", 6 plugins, valid\n"), out)
+        self.assertEqual(check(self.write(data))[0], 1)  # the published file: the five only
+        cases = {
+            "https": lambda e: e["source"].update(
+                url="https://github.com/agentik-dev/agentik-extra.git"),
+            "path": lambda e: e["source"].update(path="."),
+            "kind": lambda e: e["source"].update(source="github"),
+            "segment": lambda e: e["source"].update(url="file:///code/agentik-other"),
+            "version": lambda e: e.update(version="1.2"),
+            "name": lambda e: e.update(name="Extra"),
+            "repeat": lambda e: (e.update(name="session"), e["source"].update(
+                url="file:///code/agentik-session")),
+        }
+        for name, mutate in cases.items():
+            broken = copy.deepcopy(data)
+            mutate(broken["plugins"][-1])
+            code, out, err = check("--local", self.write(broken))
+            self.assertEqual((code, out), (1, ""), name)
+            self.assertTrue(err.startswith("marketplace-check: "), name)
+        del data["plugins"][0]  # the five are still required
+        self.assertEqual(check("--local", self.write(data))[0], 1)
+
     def test_usage_exits_two(self):
         for args in (("--bogus",), ("a", "b"), ("--local", "--local"),
                      (os.path.join(self.tmp.name, "missing.json"),)):
