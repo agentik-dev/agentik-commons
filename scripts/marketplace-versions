@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""marketplace-versions: each marketplace line against its checkout's plugin.json.
+
+Usage: marketplace-versions [--if-complete] [FILE]
+
+FILE defaults to `.claude-plugin/marketplace.json`. Each entry of its `plugins`
+names a checkout, `$AGENTIK_CODE/agentik-<name>`, as `make local-marketplace` has
+it (AGENTIK_CODE defaults to this repo's parent folder), and the entry's `version`
+is compared with the `version` of that checkout's `plugin/.claude-plugin/plugin.json`.
+Installs read plugin.json, so a line that drifts breaks nothing; this shows the
+drift after a release. Nothing is fetched. The shape of the file is
+`marketplace-check`'s job.
+
+An entry whose checkout folder is absent is skipped with a note on stderr. Under
+--if-complete nothing is compared unless every entry's checkout is present: one
+note and exit 0, so a clone of this repo alone stays green under `make check`.
+
+Exit codes report the task, not the content: 0 every compared entry matches (one
+stdout line, but only the note when --if-complete compares nothing), 1 one stderr
+line per entry that trails, leads or differs from its plugin.json, whose checkout
+holds no readable version, or that has no valid name or version; 2 usage, or no
+readable marketplace (not JSON, no `plugins` list).
+Stdlib only.
+"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+DEFAULT = ".claude-plugin/marketplace.json"
+MANIFEST = Path("plugin", ".claude-plugin", "plugin.json")
+USAGE = "usage: marketplace-versions [--if-complete] [FILE]"
+NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+                    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?\Z")
+
+
+def precedence(version):
+    """A sort key in semver precedence, or None when it is not semver."""
+    m = SEMVER.match(version) if isinstance(version, str) else None
+    if not m:
+        return None
+    pre = m.group(4)
+    ids = (1,) if pre is None else (0, tuple(
+        (0, int(i)) if i.isdigit() else (1, i) for i in pre.split(".")))
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), ids)
+
+
+def relation(line, plugin):
+    """How a marketplace line stands to plugin.json's version, as a verb phrase."""
+    a, b = precedence(line), precedence(plugin)
+    if a is None or b is None or a == b:
+        return "differs from"
+    return "trails" if a < b else "leads"
+
+
+def plugin_version(checkout):
+    try:
+        doc = json.loads((checkout / MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return None
+    version = doc.get("version") if isinstance(doc, dict) else None
+    return version if isinstance(version, str) else None
+
+
+def compare(plugins, code, if_complete):
+    """(problems, notes, compared), the lines one each; compared is None when
+    --if-complete found a checkout absent and compared nothing."""
+    problems, notes, entries = [], [], []
+    for i, entry in enumerate(plugins):
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if not (isinstance(name, str) and NAME.match(name)):
+            problems.append("plugins[%d]: no valid name" % i)
+        elif not isinstance(entry.get("version"), str):
+            problems.append("%s: the marketplace line has no version" % name)
+        else:
+            entries.append((name, entry["version"], code / ("agentik-" + name)))
+    absent = [e for e in entries if not e[2].is_dir()]
+    if if_complete and absent:
+        return [], ["%d of %d checkouts absent under %s; not compared"
+                    % (len(absent), len(entries), code)], None
+    compared = 0
+    for name, line, checkout in entries:
+        if not checkout.is_dir():
+            notes.append("%s: no checkout at %s; skipped" % (name, checkout))
+            continue
+        compared += 1
+        version = plugin_version(checkout)
+        if version is None:
+            problems.append("%s: %s holds no readable version in %s"
+                            % (name, checkout.name, MANIFEST))
+        elif version != line:
+            problems.append("%s: the marketplace line %s %s plugin.json's %s"
+                            % (name, line, relation(line, version), version))
+    return problems, notes, compared
+
+
+def main(argv):
+    args = argv[1:]
+    if args in (["-h"], ["--help"]):
+        print(USAGE)
+        return 0
+    if_complete = "--if-complete" in args
+    rest = [a for a in args if a != "--if-complete"]
+    if len(rest) > 1 or any(a.startswith("-") for a in rest) or args.count("--if-complete") > 1:
+        sys.stderr.write(USAGE + "\n")
+        return 2
+    path = rest[0] if rest else DEFAULT
+    code = Path(os.environ.get("AGENTIK_CODE") or Path(__file__).resolve().parents[2])
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        sys.stderr.write("marketplace-versions: cannot read %s: %s\n" % (path, exc))
+        return 2
+    plugins = data.get("plugins") if isinstance(data, dict) else None
+    if not isinstance(plugins, list):
+        sys.stderr.write("marketplace-versions: %s: plugins is not a list\n" % path)
+        return 2
+    problems, notes, compared = compare(plugins, code, if_complete)
+    for line in notes:
+        sys.stderr.write("marketplace-versions: note: %s\n" % line)
+    for line in problems:
+        sys.stderr.write("marketplace-versions: %s: %s\n" % (path, line))
+    if problems:
+        return 1
+    if compared is not None:
+        print("marketplace-versions: %s: %d compared under %s, all match; %d skipped"
+              % (path, compared, code, len(notes)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

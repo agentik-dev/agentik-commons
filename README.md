@@ -13,11 +13,15 @@ It builds no tool: no `install` target, no plugin of its own.
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene` and `scripts/bounded` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
+| `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version (GUIDE §7) |
+| `scripts/marketplace-versions` | each marketplace line against its checkout's `plugin/.claude-plugin/plugin.json` under `AGENTIK_CODE`; exit 1, one line per entry that trails, leads or differs, or whose checkout has no readable version; no network |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
 
 ## Make targets
 
-- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, and the marketplace check.
+- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, and the marketplace check; then the versions compare, only when every tool's checkout is present under `AGENTIK_CODE`, so a clone of this repo alone stays green.
+- `make versions`: each marketplace line against its checkout's `plugin.json` (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder); an absent checkout is skipped with a note.
+- `make help`: the targets, one line each.
 - `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it.
 
 ## Tests

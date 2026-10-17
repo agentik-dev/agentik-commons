@@ -3,12 +3,14 @@
 #
 #   scripts/sync <repo>
 #
-# Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene and
-# scripts/bounded to <repo>/scripts/, then writes <repo>/scripts/vendored.sha256
-# in `shasum -a 256 -c` form, its paths from the repo's root; the repo's
-# `make check` runs that check. It touches nothing else and never commits: the
-# packet that runs it does. Exit 0 done; 2 usage, or a target that is not a git
-# checkout (or is this repo). CDPATH is never followed.
+# Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene,
+# scripts/bounded and scripts/plugin-version-check to <repo>/scripts/, then
+# writes <repo>/scripts/vendored.sha256 in `shasum -a 256 -c` form, its paths
+# from the repo's root; the repo's `make check` runs that check, and runs
+# plugin-version-check where the repo has a plugin/ (GUIDE §5). It touches
+# nothing else and never commits: the packet that runs it does. Exit 0 done;
+# 2 usage, or a target that is not a git checkout (or is this repo). CDPATH is
+# never followed.
 set -eu
 
 usage() {
@@ -38,13 +40,15 @@ else
 fi
 
 mkdir -p "$target/scripts"
-for pair in "bin/agentik agentik" "scripts/hygiene hygiene" "scripts/bounded bounded"; do
+for pair in "bin/agentik agentik" "scripts/hygiene hygiene" "scripts/bounded bounded" \
+	"scripts/plugin-version-check plugin-version-check"; do
 	set -- $pair
 	cp "$here/$1" "$target/scripts/.$2.sync.$$"
 	chmod 755 "$target/scripts/.$2.sync.$$"
 	mv -f "$target/scripts/.$2.sync.$$" "$target/scripts/$2"
 done
-(CDPATH= cd -P -- "$target" >/dev/null && sum scripts/agentik scripts/hygiene scripts/bounded) \
+(CDPATH= cd -P -- "$target" >/dev/null &&
+	sum scripts/agentik scripts/hygiene scripts/bounded scripts/plugin-version-check) \
 	>"$target/scripts/.vendored.sync.$$"
 mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"
-echo "sync: $target/scripts: agentik, hygiene, bounded, vendored.sha256"
+echo "sync: $target/scripts: agentik, hygiene, bounded, plugin-version-check, vendored.sha256"
