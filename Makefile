@@ -57,4 +57,5 @@ help:
 	@echo 'make versions           each marketplace line against its checkout plugin.json under'
 	@echo '                        AGENTIK_CODE (default this repo parent folder); an absent'
 	@echo '                        checkout is skipped with a note'
-	@echo 'make local-marketplace  the marketplace with file:// urls into AGENTIK_MARKETPLACE_DIR'
+	@echo 'make local-marketplace  the marketplace with file:// urls into AGENTIK_MARKETPLACE_DIR,'
+	@echo '                        plus the entries of AGENTIK_MARKETPLACE_OVERLAY when present'
