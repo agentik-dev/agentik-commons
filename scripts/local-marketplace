@@ -9,13 +9,14 @@ its five, in the overlay's order, rewrites every url to
 owner's file, kept outside every repo, for a plugin whose repo is not public: a
 JSON object whose `plugins` lists entries in the published form, so an entry
 moves to the published file unchanged once its repo is public. An absent
-overlay adds nothing: OUT is then the published file with `file://` urls.
-`make local-marketplace` runs this, then `marketplace-check --local OUT`, which
-holds each entry to its shape.
+overlay (no such file) adds nothing: OUT is then the published file with
+`file://` urls. `make local-marketplace` runs this, then
+`marketplace-check --local OUT`, which holds each entry to its shape.
 
-Nothing is written unless every input reads. Exit codes report the task, not
-the content: 0 written, 1 a file is not JSON or the overlay has no `plugins`
-list, 2 usage or a file that cannot be read; each failure is one stderr line.
+Nothing is written, and OUT's folder is not made, unless every input reads.
+NaN and Infinity are not JSON here. Exit codes report the task, not the
+content: 0 written, 1 a file is not JSON or the overlay has no `plugins` list,
+2 usage or a file that cannot be read; each failure is one stderr line.
 Stdlib only; nothing is fetched.
 """
 import json
@@ -34,14 +35,25 @@ class Refused(Exception):
         self.code = code
 
 
-def load(path):
+def not_json(name):
+    """NaN, Infinity and -Infinity: Python reads them, JSON has no such value."""
+    raise ValueError("%s is not a JSON value" % name)
+
+
+def load(path, absent=False):
+    """The JSON in path; None when absent is set and there is no such file (a
+    dangling symlink is present and unreadable)."""
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
+    except FileNotFoundError as exc:
+        if absent and not os.path.islink(path):
+            return None
+        raise Refused("cannot read %s: %s" % (path, exc), 2)
     except (OSError, UnicodeDecodeError) as exc:
         raise Refused("cannot read %s: %s" % (path, exc), 2)
     try:
-        return json.loads(text)
+        return json.loads(text, parse_constant=not_json)
     except ValueError as exc:
         raise Refused("%s: not JSON: %s" % (path, exc), 1)
 
@@ -50,8 +62,8 @@ def merged(published, code, overlay):
     data = load(published)
     if not (isinstance(data, dict) and isinstance(data.get("plugins"), list)):
         raise Refused("%s: plugins is not a list" % published, 1)
-    if os.path.lexists(overlay):
-        extra = load(overlay)
+    extra = load(overlay, absent=True)
+    if extra is not None:
         if not (isinstance(extra, dict) and isinstance(extra.get("plugins"), list)):
             raise Refused("%s: plugins is not a list" % overlay, 1)
         data["plugins"] += extra["plugins"]
@@ -73,6 +85,7 @@ def main(argv):
     published, code, overlay, out = args
     try:
         data = merged(published, code, overlay)
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
         with open(out, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(data, indent=2) + "\n")
     except Refused as exc:

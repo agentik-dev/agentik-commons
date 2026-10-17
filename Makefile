@@ -41,7 +41,6 @@ versions:
 # repo, for a plugin whose repo is not public (absent: none), written into
 # $(AGENTIK_MARKETPLACE_DIR) (agentik-r1 D1).
 local-marketplace:
-	@mkdir -p "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin"
 	$(PYTHON) scripts/local-marketplace .claude-plugin/marketplace.json "$(abspath $(AGENTIK_CODE))" \
 		"$(AGENTIK_MARKETPLACE_OVERLAY)" "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"
 	scripts/marketplace-check --local "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"

@@ -194,6 +194,40 @@ class MarketplaceTest(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn("plugin name session appears 2 times", p.stderr)
 
+    def test_overlay_nan_refused(self):
+        extra = {"name": "extra", "description": "@", "version": "0.1.0",
+                 "source": {"source": "git-subdir", "path": "plugin",
+                            "url": "https://github.com/agentik-dev/agentik-extra.git"}}
+        described = json.dumps(self.data["plugins"][0]["description"])
+        for constant in ("NaN", "Infinity", "-Infinity"):
+            text = json.dumps({"plugins": [extra]}).replace('"@"', constant)
+            p, path, _ = self.make_local(self.write(text, "overlay.json"))
+            self.assertNotEqual(p.returncode, 0, constant)
+            self.assertIn("local-marketplace: ", p.stderr, constant)
+            self.assertIn("not JSON", p.stderr, constant)
+            self.assertFalse(path.parent.exists(), constant)  # no folder made
+            published = json.dumps(self.data).replace(described, constant, 1)
+            code, out, err = check(self.write(published))
+            self.assertEqual((code, out), (1, ""), constant)
+            self.assertIn("not JSON", err, constant)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root reads a mode-000 folder")
+    def test_overlay_in_an_unreadable_folder_refused(self):
+        locked = os.path.join(self.tmp.name, "locked")
+        os.mkdir(locked)
+        extra = {"name": "extra", "description": "A made-up plugin.", "version": "0.1.0",
+                 "source": {"source": "git-subdir", "path": "plugin",
+                            "url": "https://github.com/agentik-dev/agentik-extra.git"}}
+        overlay = self.write({"plugins": [extra]}, os.path.join("locked", "overlay.json"))
+        os.chmod(locked, 0)
+        try:
+            p, path, _ = self.make_local(overlay)
+        finally:
+            os.chmod(locked, 0o755)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("local-marketplace: cannot read ", p.stderr)
+        self.assertFalse(path.parent.exists())  # no folder made
+
 
 if __name__ == "__main__":
     unittest.main()

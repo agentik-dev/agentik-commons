@@ -40,6 +40,11 @@ SEMVER = re.compile(
 ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 
 
+def not_json(name):
+    """NaN, Infinity and -Infinity: Python reads them, JSON has no such value."""
+    raise ValueError("%s is not a JSON value" % name)
+
+
 def url_ok(url, tool, local):
     if not isinstance(url, str):
         return False
@@ -120,7 +125,7 @@ def main(argv):
         sys.stderr.write("marketplace-check: cannot read %s: %s\n" % (path, exc))
         return 2
     try:
-        data = json.loads(text)
+        data = json.loads(text, parse_constant=not_json)
         found = problems(data, local)
     except ValueError as exc:
         found = ["not JSON: %s" % exc]
