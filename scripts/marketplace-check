@@ -9,8 +9,16 @@ decisions, respeak, relay and agents, each named once. Each plugin's `source` is
 `{"source": "git-subdir", "url": ..., "path": "plugin"}` and its `version` is
 semver. The url is `https://github.com/agentik-dev/agentik-<name>.git`; under
 `--local` (the file `make local-marketplace` writes) it is a `file://` url whose
-last path segment is `agentik-<name>`. Nothing is fetched: the check reads the
-file only.
+last path segment is `agentik-<name>`.
+
+Under `--local` the five are still required, and the file may hold further
+entries after them, from the owner's overlay (a plugin whose repo is not
+public). Each further entry has the same shape as the five's: a name matching
+`[a-z][a-z0-9]*(-[a-z0-9]+)*`, every name once (so an overlay that repeats one
+of the five fails), `git-subdir`, a `file://` url whose last segment is
+`agentik-<name>`, `path` `plugin` and a semver `version`. The valid line counts
+the entries found. Without `--local` the file holds exactly the five, on their
+public urls. Nothing is fetched: the check reads the file only.
 
 Exit codes report the task, not the content: 0 the file is valid, 1 a check
 said no (each on one stderr line), 2 usage or no readable file. Stdlib only.
@@ -29,6 +37,12 @@ SEMVER = re.compile(
     r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
     r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\Z")
+ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+
+
+def not_json(name):
+    """NaN, Infinity and -Infinity: Python reads them, JSON has no such value."""
+    raise ValueError("%s is not a JSON value" % name)
 
 
 def url_ok(url, tool, local):
@@ -56,24 +70,33 @@ def problems(data, local):
     plugins = data.get("plugins")
     if not isinstance(plugins, list):
         return out + ["plugins is not a list"]
-    if len(plugins) != len(TOOLS):
-        out.append("plugins holds %d entries, not %d" % (len(plugins), len(TOOLS)))
     names = [p.get("name") if isinstance(p, dict) else None for p in plugins]
-    if sorted(map(str, names)) != sorted(TOOLS):
-        out.append("plugin names are %s, not %s" % (", ".join(map(str, names)), ", ".join(TOOLS)))
+    if local:
+        out += ["plugins lacks %s" % tool for tool in TOOLS if tool not in names]
+        repeated = sorted({n for n in names if isinstance(n, str) and names.count(n) > 1})
+        out += ["plugin name %s appears %d times" % (n, names.count(n)) for n in repeated]
+    else:
+        if len(plugins) != len(TOOLS):
+            out.append("plugins holds %d entries, not %d" % (len(plugins), len(TOOLS)))
+        if sorted(map(str, names)) != sorted(TOOLS):
+            out.append("plugin names are %s, not %s"
+                       % (", ".join(map(str, names)), ", ".join(TOOLS)))
     for i, plugin in enumerate(plugins):
         if not isinstance(plugin, dict):
             out.append("plugins[%d] is not an object" % i)
             continue
         tool = plugin.get("name")
         where = "plugins[%d] (%s)" % (i, tool)
+        named = isinstance(tool, str) and bool(ID.match(tool)) if local else tool in TOOLS
+        if local and not named:
+            out.append("%s: name is not a lowercase id" % where)
         source = plugin.get("source")
         if not isinstance(source, dict):
             out.append("%s: source is not an object" % where)
             continue
         if source.get("source") != "git-subdir":
             out.append("%s: source.source is not 'git-subdir'" % where)
-        if tool not in TOOLS or not url_ok(source.get("url"), tool, local):
+        if not named or not url_ok(source.get("url"), tool, local):
             out.append("%s: source.url is not the %s url for agentik-%s"
                        % (where, "file://" if local else "public", tool))
         if source.get("path") != "plugin":
@@ -102,14 +125,15 @@ def main(argv):
         sys.stderr.write("marketplace-check: cannot read %s: %s\n" % (path, exc))
         return 2
     try:
-        found = problems(json.loads(text), local)
+        data = json.loads(text, parse_constant=not_json)
+        found = problems(data, local)
     except ValueError as exc:
         found = ["not JSON: %s" % exc]
     for line in found:
         sys.stderr.write("marketplace-check: %s: %s\n" % (path, line))
     if found:
         return 1
-    print("marketplace-check: %s: %s, %d plugins, valid" % (path, NAME, len(TOOLS)))
+    print("marketplace-check: %s: %s, %d plugins, valid" % (path, NAME, len(data["plugins"])))
     return 0
 
 

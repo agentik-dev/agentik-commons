@@ -8,7 +8,7 @@ It builds no tool: no `install` target, no plugin of its own.
 | path | what |
 |---|---|
 | `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>` from PATH; `agentik` lists the tools; exit 3 names the repo of a tool not on PATH |
-| `.claude-plugin/marketplace.json` | the `agentik` marketplace: five `git-subdir` entries on `github.com/agentik-dev`, checked by `scripts/marketplace-check` |
+| `.claude-plugin/marketplace.json` | the `agentik` marketplace as published: five `git-subdir` entries on `github.com/agentik-dev`, public repos only, checked by `scripts/marketplace-check`; a plugin whose repo is not public reaches the owner's machine through the local file's overlay only |
 | `GUIDE.md` | the conventions every tool repo follows: layout, naming, verbs, exit codes, README shape, install and hygiene |
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
@@ -22,7 +22,7 @@ It builds no tool: no `install` target, no plugin of its own.
 - `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, and the marketplace check; then the versions compare, only when every tool's checkout is present under `AGENTIK_CODE`, so a clone of this repo alone stays green.
 - `make versions`: each marketplace line against its checkout's `plugin.json` (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder); an absent checkout is skipped with a note.
 - `make help`: the targets, one line each.
-- `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it.
+- `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it with `marketplace-check --local`. The published file names public repos only; the local file adds, after the five, the entries of the overlay `AGENTIK_MARKETPLACE_OVERLAY` (default `~/.config/agentik/marketplace-local.json`, kept outside every repo), a JSON object whose `plugins` are in the published form, for a plugin whose repo is not public. An absent overlay adds nothing; one that cannot be read, is not JSON or has no `plugins` list fails the target, which then writes nothing. `scripts/local-marketplace` does the merge.
 
 ## Tests
 
