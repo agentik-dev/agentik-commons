@@ -14,7 +14,7 @@ It builds no tool: no `install` target, no plugin of its own.
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
 | `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version (GUIDE §7) |
-| `scripts/marketplace-versions` | each marketplace line against its checkout's `plugin/.claude-plugin/plugin.json` under `AGENTIK_CODE`; exit 1, one line per entry that trails or differs; no network |
+| `scripts/marketplace-versions` | each marketplace line against its checkout's `plugin/.claude-plugin/plugin.json` under `AGENTIK_CODE`; exit 1, one line per entry that trails, leads or differs, or whose checkout has no readable version; no network |
 | `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
 
 ## Make targets
