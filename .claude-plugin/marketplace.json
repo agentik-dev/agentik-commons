@@ -32,7 +32,7 @@
         "path": "plugin"
       },
       "description": "Two-lane communication for agent swarms: a machine-facing shorthand for long sessions, and a translator that renders human-facing narratives in a layered tone.",
-      "version": "0.8.1"
+      "version": "0.9.0"
     },
     {
       "name": "relay",
