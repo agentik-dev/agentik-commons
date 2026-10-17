@@ -7,6 +7,7 @@
 REPO := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 AGENTIK_CODE ?= $(patsubst %/,%,$(dir $(REPO)))
 AGENTIK_MARKETPLACE_DIR ?= $(HOME)/.local/share/agentik/marketplace
+AGENTIK_MARKETPLACE_OVERLAY ?= $(HOME)/.config/agentik/marketplace-local.json
 PYTHON ?= python3
 FRONT_DOOR_MAX_LINES := 100
 
@@ -36,15 +37,13 @@ versions:
 	AGENTIK_CODE="$(AGENTIK_CODE)" scripts/marketplace-versions
 
 # The same marketplace with file:// urls, one checkout per tool under
-# $(AGENTIK_CODE), written into $(AGENTIK_MARKETPLACE_DIR) (agentik-r1 D1).
+# $(AGENTIK_CODE), plus the entries of the owner's overlay, kept outside every
+# repo, for a plugin whose repo is not public (absent: none), written into
+# $(AGENTIK_MARKETPLACE_DIR) (agentik-r1 D1).
 local-marketplace:
 	@mkdir -p "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin"
-	$(PYTHON) -c 'import json, pathlib, sys; d = json.load(open(sys.argv[1])); \
-	[p["source"].update(url=pathlib.Path(sys.argv[2], "agentik-" + p["name"]).as_uri()) \
-	 for p in d["plugins"]]; \
-	open(sys.argv[3], "w").write(json.dumps(d, indent=2) + "\n")' \
-		.claude-plugin/marketplace.json "$(abspath $(AGENTIK_CODE))" \
-		"$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"
+	$(PYTHON) scripts/local-marketplace .claude-plugin/marketplace.json "$(abspath $(AGENTIK_CODE))" \
+		"$(AGENTIK_MARKETPLACE_OVERLAY)" "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"
 	scripts/marketplace-check --local "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"
 
 help:

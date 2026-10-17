@@ -1,7 +1,8 @@
 """The `agentik` marketplace (agentik-r1 5.2): the committed file passes
 scripts/marketplace-check, each broken shape exits 1, usage exits 2, and
 `make local-marketplace` writes the same entries with file:// urls into a
-scratch folder. Nothing reads the network."""
+scratch folder, plus an overlay's further entries, which `--local` holds to the
+five's shape. Every overlay is the test's own; nothing reads the network."""
 import copy
 import json
 import os
@@ -127,21 +128,71 @@ class MarketplaceTest(unittest.TestCase):
             code, out, _ = check(*args)
             self.assertEqual((code, out), (2, ""), args)
         self.assertEqual(check("--help")[0], 0)
+        merge = subprocess.run([str(ROOT / "scripts" / "local-marketplace"), "a", "b", "c"],
+                               capture_output=True, text=True)
+        self.assertEqual((merge.returncode, merge.stdout), (2, ""))
 
-    def test_make_local_marketplace(self):
+    def make_local(self, overlay):
+        """`make local-marketplace` with every input under the temp dir, the
+        owner's overlay never among them."""
         out = os.path.join(self.tmp.name, "market")
         code_dir = os.path.join(self.tmp.name, "code")
         p = subprocess.run(["make", "-s", "-C", str(ROOT), "local-marketplace",
-                            "AGENTIK_MARKETPLACE_DIR=" + out, "AGENTIK_CODE=" + code_dir],
+                            "AGENTIK_MARKETPLACE_DIR=" + out, "AGENTIK_CODE=" + code_dir,
+                            "AGENTIK_MARKETPLACE_OVERLAY=" + overlay],
                            capture_output=True, text=True)
+        return p, Path(out, ".claude-plugin", "marketplace.json"), code_dir
+
+    def test_make_local_marketplace_absent_overlay(self):
+        p, path, code_dir = self.make_local(os.path.join(self.tmp.name, "none.json"))
         self.assertEqual(p.returncode, 0, p.stderr)
-        written = json.loads(Path(out, ".claude-plugin", "marketplace.json").read_text())
+        self.assertTrue(p.stdout.endswith(", 5 plugins, valid\n"), p.stdout)
+        written = json.loads(path.read_text())
         urls = {p["name"]: p["source"]["url"] for p in written["plugins"]}
         self.assertEqual(urls, {t: Path(code_dir, "agentik-" + t).as_uri() for t in TOOLS})
-        # the same file otherwise: names, versions, paths and the rest match
-        for p in written["plugins"]:
+        # today's output, byte for byte: the published file with file:// urls
+        expected = copy.deepcopy(self.data)
+        for p in expected["plugins"]:
+            p["source"]["url"] = urls[p["name"]]
+        self.assertEqual(path.read_bytes(), (json.dumps(expected, indent=2) + "\n").encode())
+
+    def test_make_local_marketplace_overlay_adds_extra(self):
+        extra = {"name": "extra", "source": {
+                     "source": "git-subdir", "path": "plugin",
+                     "url": "https://github.com/agentik-dev/agentik-extra.git"},
+                 "description": "A made-up plugin whose repo is not public.",
+                 "version": "0.1.0"}
+        p, path, code_dir = self.make_local(self.write({"plugins": [extra]}, "overlay.json"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertTrue(p.stdout.endswith(", 6 plugins, valid\n"), p.stdout)
+        plugins = json.loads(path.read_text())["plugins"]
+        self.assertEqual(len(plugins), 6)
+        self.assertEqual(plugins[5]["source"]["url"], Path(code_dir, "agentik-extra").as_uri())
+        for p in plugins:
             p["source"]["url"] = "https://github.com/agentik-dev/agentik-%s.git" % p["name"]
-        self.assertEqual(written, self.data)
+        self.assertEqual(plugins, self.data["plugins"] + [extra])  # the five unchanged
+
+    def test_make_local_marketplace_bad_overlay_fails(self):
+        p, path, _ = self.make_local(os.path.join(self.tmp.name, "none.json"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        before = path.read_bytes()
+        os.mkdir(os.path.join(self.tmp.name, "dir.json"))
+        unwritten = {
+            "not JSON": self.write("{", "o1.json"),
+            "no plugins": self.write({"plugin": []}, "o2.json"),
+            "a list": self.write([], "o3.json"),
+            "plugins an object": self.write({"plugins": {}}, "o4.json"),
+            "unreadable": os.path.join(self.tmp.name, "dir.json"),
+        }
+        for name, overlay in unwritten.items():
+            p, _, _ = self.make_local(overlay)
+            self.assertNotEqual(p.returncode, 0, name)
+            self.assertIn("local-marketplace: ", p.stderr, name)
+            self.assertEqual(path.read_bytes(), before, name)  # nothing new written
+        session = next(e for e in self.data["plugins"] if e["name"] == "session")
+        p, _, _ = self.make_local(self.write({"plugins": [session]}, "o5.json"))
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("plugin name session appears 2 times", p.stderr)
 
 
 if __name__ == "__main__":
