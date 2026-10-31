@@ -12,7 +12,7 @@
         "path": "plugin"
       },
       "description": "Profiles for Claude Code sittings: one resolved configuration per session, offered to the plugins that depend on it, and a doctor that checks the setup.",
-      "version": "2.0.0-alpha.32"
+      "version": "2.0.0-alpha.33"
     },
     {
       "name": "decisions",
@@ -52,7 +52,7 @@
         "path": "plugin"
       },
       "description": "Delegate Claude Code work to the lane that fits it: read-only review on API-billed headless agents under a budget cap, mechanical work on a local model, and cost reports.",
-      "version": "1.3.1"
+      "version": "1.3.2"
     }
   ]
 }
