@@ -102,7 +102,7 @@ Verbs stay, except agents'; session gains `--version`, agents `doctor`.
 
 - **Form.** The old name points at the new code, with no shim, so the hook path is unchanged.
 - **Note.** Under the old name, with stderr a terminal and a verb other than `hook`: one stderr line, `claude-session: renamed; use 'agentik session …' (ends 2026-12-31)`. Hooks, pipes and gates see nothing.
-- **End.** 2026-12-31, in r2, once `renamed` (§6.1) finds no live caller. The date can only move later.
+- **End.** 2026-12-31, in r2, once `renamed` (§6.1) finds no live caller. The date can only move later. Amended 2026-10-31, the owner's word: `claude-api-agent`, `claude-fanout` and `claude-costs` ended early with the verbs they named (agentik-agents a-s17).
 - **Printed lines.** `agentik relay resume <row>`, `agentik session run --chain <name>`.
 - **render.** Its wording stays until r2, which re-renders each scope once.
 
