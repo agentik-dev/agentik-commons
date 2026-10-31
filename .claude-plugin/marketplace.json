@@ -31,8 +31,8 @@
         "url": "https://github.com/agentik-dev/agentik-respeak.git",
         "path": "plugin"
       },
-      "description": "Two-lane communication for agent swarms: a machine-facing shorthand for long sessions, and a translator that renders human-facing narratives in a layered tone.",
-      "version": "0.11.0"
+      "description": "A narrator for agent work: a translator agent and one skill render human-facing narratives in ELI5, BLUF or technical mode, in a layered tone.",
+      "version": "0.12.3"
     },
     {
       "name": "relay",
