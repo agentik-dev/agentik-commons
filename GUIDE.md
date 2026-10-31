@@ -71,7 +71,7 @@ Packets and sitting prompts' read lists cite a record as `record <file> --sectio
 - Six sections, six header rows plus `verify`, under 9,216 bytes. One recorded exception (2026-10-14): commons' spent packet `design/packets/agentik-r1-commons.md`, 9,913 bytes, kept as it was built, since a spent packet is a record.
 - A packet's charter opens with doclint's five rows; the budget row says so.
 - The builder decides inside the design of record, records each choice in the charter's handover with its consumer, and names at most one open fork for the owner.
-- A sitting's records (the merge message to a file outside the repo, the note under `history/sessions/`, the record commit by explicit path) go through the agents plugin's `agents:scribe`, on Sonnet, from the hand-back, the repo and the records wanted; the coordinator reads its six lines and does not write them inline (a-s14, 2026-10-29; a-s15, 2026-10-31).
+- A sitting's records (the merge message to a file outside the repo, the note under `history/sessions/`, the record commit by explicit path) go through the agents plugin's `agents:scribe` by default, where the plugin is installed, on Sonnet, from the hand-back, the repo and the records wanted; the coordinator reads its six lines (a-s14, 2026-10-29; a-s15, 2026-10-31).
 
 ## §10 One command surface (agentik-r1 §7.2)
 
