@@ -19,12 +19,12 @@ Read, by sections only: design/04 §7 item 4, §6, §5 step 4; `~/code/agentik-s
 ## 2. Rulings and acceptance
 
 1. **The canonical form is generic by name.** The session-specific strings in `install.py` (`SHARE`, `NAME`, the `/session:install-cli` remedy, the state folder's old-name fallback, the `claude-session` link and note, the runner's name) become values the tool passes, read from one small per-tool place the builder names, so a copy stays byte-identical across tools. Session keeps its own module this packet: its adoption is a later packet, recorded in NICE, since the wall forbids writing there and the suite must stay unchanged.
-2. **`scripts/sync`** copies the canonical module and launcher into a repo's `plugin/lib/` or `plugin/bin/` when the repo has a `plugin/`, adds `plugin/bin/agentik`, and lists each in `vendored.sha256`. A repo with no `plugin/` gets what it gets today.
+2. **`scripts/sync`** copies the canonical module and launcher into a repo's `plugin/lib/` or `plugin/bin/` when the repo has a `plugin/lib/`, adds `plugin/bin/agentik`, and lists each in `vendored.sha256`. A repo with no `plugin/lib/` gets what it gets today.
 3. **GUIDE:** §5 and §10 say what `install-cli` is, the exit codes, the forward-only refresh; entry 6's floor stated as design/04 says.
 
 | what | reads |
 |---|---|
-| placement | `sync` into a temp git repo with a `plugin/` places the copies and the door; with no `plugin/`, today's set, unchanged byte for byte |
+| placement | `sync` into a temp git repo with a `plugin/lib/` places the copies and the door; with no `plugin/lib/`, today's set, unchanged byte for byte |
 | drift | a one-byte change in a placed copy fails `shasum -c` |
 | generic | the canonical module, given a tool name `agentik-x` in a temp HOME under `PATH=/usr/bin:/bin`, freezes, writes a launcher that runs `--version`, prunes, refuses backward; a 3.9 run |
 | session unchanged | `git -C ~/code/agentik-session diff --stat` empty, written by nothing here; report a read of whether session's suite would pass against the placed copy, or what it would need |
