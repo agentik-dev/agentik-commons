@@ -2,8 +2,10 @@
 plugin.json under AGENTIK_CODE: all matching exits 0, one line per entry that
 trails, leads or differs exits 1, an absent checkout is skipped with a note,
 --if-complete compares nothing while one is absent, and usage or an unreadable
-marketplace exits 2. Every checkout is a temp folder; no real one is read, and
-nothing reads the network."""
+marketplace exits 2. The `suite` line is compared with `plugins/suite`'s
+plugin.json in the repo holding the file. Every checkout is a temp folder; no
+real one is read, but this repo's own suite manifest, and nothing reads the
+network."""
 import json
 import os
 import shutil
@@ -156,6 +158,7 @@ class MarketplaceVersionsTest(unittest.TestCase):
         make = ["make", "-s", "-C", str(ROOT), "AGENTIK_CODE=" + self.code]
         p = subprocess.run(make + ["versions"], capture_output=True, text=True, env=BASE)
         self.assertEqual((p.returncode, p.stderr), (0, ""))
+        self.assertIn("6 compared", p.stdout)  # the five and suite, from this repo
         first = json.loads(FILE.read_text())["plugins"][0]
         self.checkout(first["name"], first["version"] + "-1")
         p = subprocess.run(make + ["versions"], capture_output=True, text=True, env=BASE)
@@ -163,6 +166,44 @@ class MarketplaceVersionsTest(unittest.TestCase):
         self.assertIn("%s: the marketplace line" % first["name"], p.stderr)
         p = subprocess.run(make + ["-n", "check"], capture_output=True, text=True, env=BASE)
         self.assertIn("scripts/marketplace-versions --if-complete", p.stdout)
+
+    def suite_repo(self, line, manifest):
+        """A temp repo holding a marketplace of suite alone and plugins/suite's
+        manifest at that version (None: no manifest); the marketplace's path."""
+        repo = Path(self.tmp.name, "commons")
+        d = repo / "plugins" / "suite" / ".claude-plugin"
+        d.mkdir(parents=True, exist_ok=True)
+        if manifest is not None:
+            (d / "plugin.json").write_text(json.dumps({"name": "suite", "version": manifest}))
+        market = repo / ".claude-plugin" / "marketplace.json"
+        market.parent.mkdir(exist_ok=True)
+        market.write_text(json.dumps({"name": "agentik", "plugins": [
+            {"name": "suite", "version": line}]}))
+        return str(market)
+
+    def test_suite_is_compared_with_plugins_suite_in_the_files_repo(self):
+        code, out, err = self.run_it(self.suite_repo("0.1.0", "0.1.0"))
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("1 compared", out)
+        # no checkout under AGENTIK_CODE is wanted for suite, so --if-complete compares it
+        self.assertIn("1 compared", self.run_it("--if-complete", self.suite_repo("0.1.0", "0.1.0"))[1])
+        for line, manifest, said in (("0.1.0", "0.2.0", "suite: the marketplace line 0.1.0 trails "
+                                      "plugin.json's 0.2.0"),
+                                     ("0.1.0", None, "suite: suite holds no readable version in "
+                                      + os.path.join(".claude-plugin", "plugin.json"))):
+            if manifest is None:
+                Path(self.tmp.name, "commons", "plugins", "suite", ".claude-plugin",
+                     "plugin.json").unlink()
+            code, out, err = self.run_it(self.suite_repo(line, manifest))
+            self.assertEqual((code, out), (1, ""), said)
+            self.assertEqual(len(err.splitlines()), 1, err)
+            self.assertTrue(err.rstrip("\n").endswith(": " + said), err)
+
+    def test_the_committed_suite_line_matches_its_manifest(self):
+        line = [p for p in json.loads(FILE.read_text())["plugins"] if p["name"] == "suite"]
+        manifest = json.loads((ROOT / "plugins" / "suite" / ".claude-plugin" /
+                               "plugin.json").read_text())
+        self.assertEqual([p["version"] for p in line], [manifest["version"]])
 
     def test_shape(self):
         self.assertTrue(SCRIPT.read_text().startswith("#!/usr/bin/env python3\n"))

@@ -3,7 +3,8 @@
 
 # agentik-commons exists to name its sibling agentik tools and plugins: the README,
 # the records and packets, the backlog, the sibling paragraph, the marketplace,
-# its check and that check's test
+# its check and that check's test, and the suite's manifest, whose dependencies
+# are three of them
 README.md: sibling
 NICE_TO_HAVE.md: sibling
 design/*.md: sibling
@@ -11,6 +12,7 @@ docs/sibling.md: sibling
 .claude-plugin/marketplace.json: sibling
 scripts/marketplace-check: sibling
 tests/test_marketplace.py: sibling
+plugins/suite/.claude-plugin/plugin.json: sibling
 
 # a packet names its read-only sources by path
 design/packets/*.md: sibling,home

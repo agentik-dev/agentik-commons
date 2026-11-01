@@ -3,14 +3,16 @@
 
 Usage: local-marketplace PUBLISHED CODE OVERLAY OUT
 
-Reads the published marketplace PUBLISHED, appends the entries of OVERLAY after
-its five, in the overlay's order, rewrites every url to
+Reads the published marketplace PUBLISHED, drops its `suite` entry (this Mac
+installs the tools by name, and suite's manifest lives in commons, not in a
+checkout of its own), appends the entries of OVERLAY after the five, in the
+overlay's order, rewrites every url to
 `file://CODE/agentik-<name>` and writes the result to OUT. The overlay is the
 owner's file, kept outside every repo, for a plugin whose repo is not public: a
 JSON object whose `plugins` lists entries in the published form, so an entry
 moves to the published file unchanged once its repo is public. An absent
-overlay (no such file) adds nothing: OUT is then the published file with
-`file://` urls. `make local-marketplace` runs this, then
+overlay (no such file) adds nothing: OUT is then the published file, less
+suite, with `file://` urls. `make local-marketplace` runs this, then
 `marketplace-check --local OUT`, which holds each entry to its shape.
 
 Nothing is written, and OUT's folder is not made, unless every input reads.
@@ -25,6 +27,7 @@ import sys
 from pathlib import Path
 
 USAGE = "usage: local-marketplace PUBLISHED CODE OVERLAY OUT"
+SUITE = "suite"
 
 
 class Refused(Exception):
@@ -62,6 +65,8 @@ def merged(published, code, overlay):
     data = load(published)
     if not (isinstance(data, dict) and isinstance(data.get("plugins"), list)):
         raise Refused("%s: plugins is not a list" % published, 1)
+    data["plugins"] = [p for p in data["plugins"]
+                       if not (isinstance(p, dict) and p.get("name") == SUITE)]
     extra = load(overlay, absent=True)
     if extra is not None:
         if not (isinstance(extra, dict) and isinstance(extra.get("plugins"), list)):

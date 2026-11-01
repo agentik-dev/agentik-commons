@@ -53,6 +53,16 @@
       },
       "description": "See every agent on this Mac, run a session's mechanical subagents on a local model through a loopback router, and write a repo's records from a hand-back.",
       "version": "1.5.1"
+    },
+    {
+      "name": "suite",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/agentik-dev/agentik-commons.git",
+        "path": "plugins/suite"
+      },
+      "description": "The suite in one install: a manifest whose dependencies are session, decisions and agents, which Claude Code installs and enables with it.",
+      "version": "0.1.0"
     }
   ]
 }
