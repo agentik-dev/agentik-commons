@@ -209,6 +209,22 @@ class PluginTest(unittest.TestCase):
                 self.assertIn("whitespace or a CR", err)
                 self.assertEqual(self.snapshot(), before)
 
+    def test_a_name_out_of_range_is_refused_under_a_utf8_locale(self):
+        for word in ("Foo", "fé"):
+            for where in ("conf", "manifest"):
+                with self.subTest(word=word, where=where):
+                    conf = self.lib / "agentik-tool.conf"
+                    if where == "conf":
+                        conf.write_text("tool_name=agentik-%s\n" % word, encoding="utf-8")
+                    else:
+                        conf.unlink(missing_ok=True)
+                        self.manifest.write_text(json.dumps({"name": word}), encoding="utf-8")
+                    before = self.snapshot()
+                    code, out, err = self.sync_in(self.repo, LC_ALL="en_US.UTF-8", LANG="en_US.UTF-8")
+                    self.assertEqual((code, out), (2, ""), err)
+                    self.assertIn("names no tool", err)
+                    self.assertEqual(self.snapshot(), before)
+
     def test_a_plugin_that_names_no_tool_writes_nothing(self):
         for text in (None, "not json", '{"version": "1.0.0"}', '{"name": "Bad Name"}', '{"name": "1x"}'):
             with self.subTest(text=text):

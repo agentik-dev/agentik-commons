@@ -47,7 +47,10 @@ else
 	exit 2
 fi
 
-# The tool's name, read before anything is written.
+# The tool's name, read before anything is written. The C locale makes the name check's ranges
+# bytes, never a locale's collation, where [a-z] holds F and a letter may be é.
+LC_ALL=C
+export LC_ALL
 conf=$target/plugin/lib/agentik-tool.conf
 tool=
 word=
