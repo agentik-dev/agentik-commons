@@ -23,7 +23,9 @@ so `\\|` in a code span stays in one cell) and writes nothing.
   cells      a row without the header's cell count (rule 3)
   long       a row over 400 characters (rule 4)
   duplicate  a `#` or `id` used twice (rule 5)
-  number     a `#` that is not ASCII digits, a row the reader takes for a header
+  number     a `#` that is not ASCII digits, a row the reader takes for a header,
+             or digits with a leading zero, `01` beside `1`, which the reader
+             reads as the same step (`^[1-9][0-9]*$`, refuter round 1's F1)
   level      a `level` cell not `S1` to `S4` (rule 5)
   state      a `state` that opens with none of open, building, waiting:, watch:,
              done (rule 5)
@@ -54,7 +56,8 @@ STATES = ("open", "building", "waiting:", "watch:", "done")
 CELL = re.compile(r"(?<!\\)\|")
 SEPARATOR = re.compile(r"^:?-+:?$")
 LEVEL = re.compile(r"^S[1-4]$")
-NUMBER = re.compile(r"[0-9]+")
+DIGITS = re.compile(r"[0-9]+")
+NUMBER = re.compile(r"[1-9][0-9]*")
 STATE = re.compile(r"^(?:open|building|waiting:|watch:|done)(?:\s|$)")
 REPO = re.compile(r"^[a-z][a-z0-9-]*$")
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -123,8 +126,11 @@ def fields(kind, n, row, keys, say):
         say(n, "level", '"%s" is not S1 to S4' % cell["level"])
     if kind != HANDOFF:
         return
-    if not NUMBER.fullmatch(key):
+    if not DIGITS.fullmatch(key):
         say(n, "number", '# "%s" is not a number: the backlog reader takes the row for a header' % key)
+    elif not NUMBER.fullmatch(key):
+        say(n, "number", '# "%s" is not ^[1-9][0-9]*$: the backlog reader reads it as step %d'
+            % (key, int(key)))
     if not REPO.match(cell["repo"]) or cell["repo"].startswith(PREFIX):
         say(n, "repo", '"%s" is not a bare short name (^[a-z][a-z0-9-]*$, no `%s` prefix):'
             " `--order` matches it exactly" % (cell["repo"], PREFIX))

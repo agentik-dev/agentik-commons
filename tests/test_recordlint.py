@@ -143,6 +143,20 @@ class RecordlintTest(unittest.TestCase):
                         'HANDOFF.md:11: number: # "17a" is not a number: the backlog reader takes the row'
                         " for a header")
 
+    def test_f1_a_leading_zero_is_not_a_number(self):
+        # refuter round 1's F1: the reader reads `01` as step 1, so beside `1` it passed as two
+        one = "| 1 | x | S2 | hq | y | open |"
+        self.assertLint({"HANDOFF.md": handoff(one, "| 01 | z | S2 | hq | y | open |")}, 2,
+                        'HANDOFF.md:12: number: # "01" is not ^[1-9][0-9]*$: the backlog reader reads it'
+                        " as step 1")
+        self.assertLint({"HANDOFF.md": handoff("| 0 | z | S2 | hq | y | open |")}, 2,
+                        'HANDOFF.md:11: number: # "0" is not ^[1-9][0-9]*$: the backlog reader reads it'
+                        " as step 0")
+        self.assertLint({"HANDOFF.md": handoff(one, one)}, 2,
+                        "HANDOFF.md:12: duplicate: # 1 again, first at line 11")
+        self.assertLint({"HANDOFF.md": handoff(one, "| 10 | z | S2 | hq | y | open |")}, 0,
+                        "HANDOFF.md: held: 2 rows")
+
     def test_a_bad_level(self):
         rows = ("| n1 | S5 | a | b | c | d |", "| n2 | s2 | a | b | c | d |", "| n3 |  | a | b | c | d |")
         self.assertLint({"NICE_TO_HAVE.md": nice(*rows)}, 2,
