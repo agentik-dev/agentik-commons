@@ -4,20 +4,24 @@
 Usage: marketplace-check [--local] [FILE]
 
 FILE defaults to `.claude-plugin/marketplace.json`. The file is a JSON object
-named `agentik`, with `owner.name`, and five plugins, one per tool: session,
-decisions, respeak, relay and agents, each named once. Each plugin's `source` is
-`{"source": "git-subdir", "url": ..., "path": "plugin"}` and its `version` is
-semver. The url is `https://github.com/agentik-dev/agentik-<name>.git`; under
-`--local` (the file `make local-marketplace` writes) it is a `file://` url whose
-last path segment is `agentik-<name>`.
+named `agentik`, with `owner.name`, and six plugins, each named once: the five
+tools, session, decisions, respeak, relay and agents, and `suite`, the
+manifest-only plugin in this repo whose dependencies install three of them (hq
+design/04 section 5). Each tool's `source` is `{"source": "git-subdir", "url":
+..., "path": "plugin"}`, its url `https://github.com/agentik-dev/agentik-<name>.git`;
+suite's is commons' own url, `https://github.com/agentik-dev/agentik-commons.git`,
+with `path` `plugins/suite`. Every `version` is semver.
 
-Under `--local` the five are still required, and the file may hold further
-entries after them, from the owner's overlay (a plugin whose repo is not
-public). Each further entry has the same shape as the five's: a name matching
+Under `--local` (the file `make local-marketplace` writes) each url is a
+`file://` url whose last path segment is `agentik-<name>`; the five are still
+required, suite is absent (this Mac installs the tools by name, and suite
+present is one problem line), and the file may hold further entries after the
+five, from the owner's overlay (a plugin whose repo is not public). Each further
+entry has the same shape as the five's: a name matching
 `[a-z][a-z0-9]*(-[a-z0-9]+)*`, every name once (so an overlay that repeats one
 of the five fails), `git-subdir`, a `file://` url whose last segment is
 `agentik-<name>`, `path` `plugin` and a semver `version`. The valid line counts
-the entries found. Without `--local` the file holds exactly the five, on their
+the entries found. Without `--local` the file holds exactly the six, on their
 public urls. Nothing is fetched: the check reads the file only.
 
 Exit codes report the task, not the content: 0 the file is valid, 1 a check
@@ -30,7 +34,11 @@ from urllib.parse import unquote, urlsplit
 
 NAME = "agentik"
 TOOLS = ("session", "decisions", "respeak", "relay", "agents")
+SUITE = "suite"
+PUBLISHED = TOOLS + (SUITE,)
 PUBLIC = "https://github.com/agentik-dev/agentik-%s.git"
+COMMONS = PUBLIC % "commons"
+SUITE_PATH = "plugins/suite"
 DEFAULT = ".claude-plugin/marketplace.json"
 USAGE = "usage: marketplace-check [--local] [FILE]"
 SEMVER = re.compile(
@@ -49,7 +57,7 @@ def url_ok(url, tool, local):
     if not isinstance(url, str):
         return False
     if not local:
-        return url == PUBLIC % tool
+        return url == (COMMONS if tool == SUITE else PUBLIC % tool)
     parts = urlsplit(url)
     path = unquote(parts.path)
     return (parts.scheme == "file" and parts.netloc == "" and path.startswith("/")
@@ -75,21 +83,26 @@ def problems(data, local):
         out += ["plugins lacks %s" % tool for tool in TOOLS if tool not in names]
         repeated = sorted({n for n in names if isinstance(n, str) and names.count(n) > 1})
         out += ["plugin name %s appears %d times" % (n, names.count(n)) for n in repeated]
-    else:
-        if len(plugins) != len(TOOLS):
-            out.append("plugins holds %d entries, not %d" % (len(plugins), len(TOOLS)))
-        if sorted(map(str, names)) != sorted(TOOLS):
-            out.append("plugin names are %s, not %s"
-                       % (", ".join(map(str, names)), ", ".join(TOOLS)))
+    elif sorted(map(str, names)) != sorted(PUBLISHED):
+        # one line: what is lacking, when that is all, else the names found
+        if len(set(names)) == len(names) and set(names) < set(PUBLISHED):
+            out.append("plugins lacks %s" % ", ".join(t for t in PUBLISHED if t not in names))
+        else:
+            out.append("plugins holds %d entries, %s, not the %d: %s"
+                       % (len(plugins), ", ".join(map(str, names)), len(PUBLISHED),
+                          ", ".join(PUBLISHED)))
     for i, plugin in enumerate(plugins):
         if not isinstance(plugin, dict):
             out.append("plugins[%d] is not an object" % i)
             continue
         tool = plugin.get("name")
         where = "plugins[%d] (%s)" % (i, tool)
-        named = isinstance(tool, str) and bool(ID.match(tool)) if local else tool in TOOLS
+        named = isinstance(tool, str) and bool(ID.match(tool)) if local else tool in PUBLISHED
         if local and not named:
             out.append("%s: name is not a lowercase id" % where)
+        if local and tool == SUITE:
+            out.append("%s: suite is in a local file; this Mac installs the tools by name" % where)
+            continue
         source = plugin.get("source")
         if not isinstance(source, dict):
             out.append("%s: source is not an object" % where)
@@ -98,9 +111,11 @@ def problems(data, local):
             out.append("%s: source.source is not 'git-subdir'" % where)
         if not named or not url_ok(source.get("url"), tool, local):
             out.append("%s: source.url is not the %s url for agentik-%s"
-                       % (where, "file://" if local else "public", tool))
-        if source.get("path") != "plugin":
-            out.append("%s: source.path is not 'plugin'" % where)
+                       % (where, "file://" if local else "public",
+                          "commons" if tool == SUITE else tool))
+        path = SUITE_PATH if tool == SUITE else "plugin"
+        if source.get("path") != path:
+            out.append("%s: source.path is not %r" % (where, path))
         version = plugin.get("version")
         if not (isinstance(version, str) and SEMVER.match(version)):
             out.append("%s: version is not semver" % where)

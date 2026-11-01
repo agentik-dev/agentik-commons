@@ -7,6 +7,9 @@ FILE defaults to `.claude-plugin/marketplace.json`. Each entry of its `plugins`
 names a checkout, `$AGENTIK_CODE/agentik-<name>`, as `make local-marketplace` has
 it (AGENTIK_CODE defaults to this repo's parent folder), and the entry's `version`
 is compared with the `version` of that checkout's `plugin/.claude-plugin/plugin.json`.
+The `suite` entry names no checkout of its own: its line is compared with
+`plugins/suite/.claude-plugin/plugin.json` in the repo that holds FILE (FILE's
+folder's parent, as `.claude-plugin/marketplace.json` sits in this repo).
 Installs read plugin.json, so a line that drifts breaks nothing; this shows the
 drift after a release. Nothing is fetched. The shape of the file is
 `marketplace-check`'s job.
@@ -30,6 +33,9 @@ from pathlib import Path
 
 DEFAULT = ".claude-plugin/marketplace.json"
 MANIFEST = Path("plugin", ".claude-plugin", "plugin.json")
+SUITE = "suite"
+SUITE_DIR = Path("plugins", "suite")
+SUITE_MANIFEST = Path(".claude-plugin", "plugin.json")
 USAGE = "usage: marketplace-versions [--if-complete] [FILE]"
 NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 SEMVER = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
@@ -55,18 +61,19 @@ def relation(line, plugin):
     return "trails" if a < b else "leads"
 
 
-def plugin_version(checkout):
+def plugin_version(checkout, manifest=MANIFEST):
     try:
-        doc = json.loads((checkout / MANIFEST).read_text(encoding="utf-8"))
+        doc = json.loads((checkout / manifest).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
         return None
     version = doc.get("version") if isinstance(doc, dict) else None
     return version if isinstance(version, str) else None
 
 
-def compare(plugins, code, if_complete):
+def compare(plugins, code, if_complete, home):
     """(problems, notes, compared), the lines one each; compared is None when
-    --if-complete found a checkout absent and compared nothing."""
+    --if-complete found a checkout absent and compared nothing. home is the repo
+    that holds the marketplace file, where suite's manifest sits."""
     problems, notes, entries = [], [], []
     for i, entry in enumerate(plugins):
         name = entry.get("name") if isinstance(entry, dict) else None
@@ -74,22 +81,24 @@ def compare(plugins, code, if_complete):
             problems.append("plugins[%d]: no valid name" % i)
         elif not isinstance(entry.get("version"), str):
             problems.append("%s: the marketplace line has no version" % name)
+        elif name == SUITE:
+            entries.append((name, entry["version"], home / SUITE_DIR, SUITE_MANIFEST))
         else:
-            entries.append((name, entry["version"], code / ("agentik-" + name)))
+            entries.append((name, entry["version"], code / ("agentik-" + name), MANIFEST))
     absent = [e for e in entries if not e[2].is_dir()]
     if if_complete and absent:
         return [], ["%d of %d checkouts absent under %s; not compared"
                     % (len(absent), len(entries), code)], None
     compared = 0
-    for name, line, checkout in entries:
+    for name, line, checkout, manifest in entries:
         if not checkout.is_dir():
             notes.append("%s: no checkout at %s; skipped" % (name, checkout))
             continue
         compared += 1
-        version = plugin_version(checkout)
+        version = plugin_version(checkout, manifest)
         if version is None:
             problems.append("%s: %s holds no readable version in %s"
-                            % (name, checkout.name, MANIFEST))
+                            % (name, checkout.name, manifest))
         elif version != line:
             problems.append("%s: the marketplace line %s %s plugin.json's %s"
                             % (name, line, relation(line, version), version))
@@ -118,7 +127,8 @@ def main(argv):
     if not isinstance(plugins, list):
         sys.stderr.write("marketplace-versions: %s: plugins is not a list\n" % path)
         return 2
-    problems, notes, compared = compare(plugins, code, if_complete)
+    home = Path(path).resolve().parent.parent
+    problems, notes, compared = compare(plugins, code, if_complete, home)
     for line in notes:
         sys.stderr.write("marketplace-versions: note: %s\n" % line)
     for line in problems:

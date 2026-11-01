@@ -1,8 +1,10 @@
 """The `agentik` marketplace (agentik-r1 5.2): the committed file passes
 scripts/marketplace-check, each broken shape exits 1, usage exits 2, and
 `make local-marketplace` writes the same entries with file:// urls into a
-scratch folder, plus an overlay's further entries, which `--local` holds to the
-five's shape. Every overlay is the test's own; nothing reads the network."""
+scratch folder, less the `suite` entry, plus an overlay's further entries, which
+`--local` holds to the five's shape. The published file holds the five tools and
+suite (hq design/04 section 5), suite on commons' own url and `plugins/suite`.
+Every overlay is the test's own; nothing reads the network."""
 import copy
 import json
 import os
@@ -15,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / "scripts" / "marketplace-check"
 FILE = ROOT / ".claude-plugin" / "marketplace.json"
 TOOLS = ["agents", "decisions", "relay", "respeak", "session"]
+SIX = sorted(TOOLS + ["suite"])
+SUITE_SOURCE = {"source": "git-subdir", "path": "plugins/suite",
+                "url": "https://github.com/agentik-dev/agentik-commons.git"}
 
 
 def check(*args, cwd=ROOT):
@@ -40,12 +45,54 @@ class MarketplaceTest(unittest.TestCase):
         self.assertEqual((code, err), (0, ""))
         self.assertIn("valid", out)
         self.assertEqual(self.data["name"], "agentik")
-        self.assertEqual(sorted(p["name"] for p in self.data["plugins"]), TOOLS)
+        self.assertEqual(sorted(p["name"] for p in self.data["plugins"]), SIX)
+        self.assertEqual(self.data["plugins"][-1]["name"], "suite")  # after the five
         for p in self.data["plugins"]:
-            self.assertEqual(p["source"], {
+            self.assertEqual(p["source"], SUITE_SOURCE if p["name"] == "suite" else {
                 "source": "git-subdir", "path": "plugin",
                 "url": "https://github.com/agentik-dev/agentik-%s.git" % p["name"]})
             self.assertLess(len(p["description"]), 200)
+        self.assertTrue(out.endswith(", 6 plugins, valid\n"), out)
+
+    def on_file_urls(self):
+        """The five, on file:// urls, as `make local-marketplace` writes them."""
+        data = copy.deepcopy(self.data)
+        data["plugins"] = [p for p in data["plugins"] if p["name"] != "suite"]
+        for p in data["plugins"]:
+            p["source"]["url"] = Path("/code dir", "agentik-" + p["name"]).as_uri()
+        return data
+
+    def test_the_suite_entry_each_break_is_one_line(self):
+        at = len(self.data["plugins"]) - 1
+        suite = lambda d: d["plugins"][at]
+        cases = {
+            "missing": (lambda d: d["plugins"].pop(at), "plugins lacks suite"),
+            "url": (lambda d: suite(d)["source"].update(
+                url="https://github.com/agentik-dev/agentik-suite.git"),
+                "plugins[5] (suite): source.url is not the public url for agentik-commons"),
+            "path": (lambda d: suite(d)["source"].update(path="plugin"),
+                     "plugins[5] (suite): source.path is not 'plugins/suite'"),
+            "version": (lambda d: suite(d).update(version="0.1"),
+                        "plugins[5] (suite): version is not semver"),
+        }
+        for name, (mutate, line) in cases.items():
+            code, out, err = self.broken(mutate)
+            self.assertEqual((code, out), (1, ""), name)
+            self.assertEqual(len(err.splitlines()), 1, (name, err))
+            self.assertTrue(err.rstrip("\n").endswith(": " + line), (name, err))
+        # under --local suite is absent; present, it is one line, the rest valid
+        data = self.on_file_urls()
+        code, out, err = check("--local", self.write(data))
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(out.endswith(", 5 plugins, valid\n"), out)
+        entry = copy.deepcopy(self.data["plugins"][at])
+        entry["source"]["url"] = Path("/code dir", "agentik-suite").as_uri()
+        data["plugins"].append(entry)
+        code, out, err = check("--local", self.write(data))
+        self.assertEqual((code, out), (1, ""))
+        self.assertEqual(len(err.splitlines()), 1, err)
+        self.assertTrue(err.rstrip("\n").endswith(
+            ": plugins[5] (suite): suite is in a local file; this Mac installs the tools by name"), err)
 
     def broken(self, mutate):
         data = copy.deepcopy(self.data)
@@ -81,9 +128,7 @@ class MarketplaceTest(unittest.TestCase):
 
     def test_local_wants_file_urls(self):
         self.assertEqual(check("--local", str(FILE))[0], 1)
-        data = copy.deepcopy(self.data)
-        for p in data["plugins"]:
-            p["source"]["url"] = Path("/code dir", "agentik-" + p["name"]).as_uri()
+        data = self.on_file_urls()
         path = self.write(data)
         self.assertEqual(check("--local", path)[0], 0)
         self.assertEqual(check(path)[0], 1)
@@ -91,9 +136,7 @@ class MarketplaceTest(unittest.TestCase):
         self.assertEqual(check("--local", self.write(data))[0], 1)
 
     def test_local_takes_a_well_formed_extra_entry(self):
-        data = copy.deepcopy(self.data)
-        for p in data["plugins"]:
-            p["source"]["url"] = Path("/code dir", "agentik-" + p["name"]).as_uri()
+        data = self.on_file_urls()
         data["plugins"].append({
             "name": "extra", "description": "A made-up plugin.", "version": "0.1.0",
             "source": {"source": "git-subdir", "path": "plugin",
@@ -101,7 +144,7 @@ class MarketplaceTest(unittest.TestCase):
         code, out, err = check("--local", self.write(data))
         self.assertEqual((code, err), (0, ""))
         self.assertTrue(out.endswith(", 6 plugins, valid\n"), out)
-        self.assertEqual(check(self.write(data))[0], 1)  # the published file: the five only
+        self.assertEqual(check(self.write(data))[0], 1)  # the published file: the six only
         cases = {
             "https": lambda e: e["source"].update(
                 url="https://github.com/agentik-dev/agentik-extra.git"),
@@ -150,8 +193,9 @@ class MarketplaceTest(unittest.TestCase):
         written = json.loads(path.read_text())
         urls = {p["name"]: p["source"]["url"] for p in written["plugins"]}
         self.assertEqual(urls, {t: Path(code_dir, "agentik-" + t).as_uri() for t in TOOLS})
-        # today's output, byte for byte: the published file with file:// urls
+        # today's output, byte for byte: the published file, less suite, with file:// urls
         expected = copy.deepcopy(self.data)
+        expected["plugins"] = [p for p in expected["plugins"] if p["name"] != "suite"]
         for p in expected["plugins"]:
             p["source"]["url"] = urls[p["name"]]
         self.assertEqual(path.read_bytes(), (json.dumps(expected, indent=2) + "\n").encode())
@@ -170,7 +214,8 @@ class MarketplaceTest(unittest.TestCase):
         self.assertEqual(plugins[5]["source"]["url"], Path(code_dir, "agentik-extra").as_uri())
         for p in plugins:
             p["source"]["url"] = "https://github.com/agentik-dev/agentik-%s.git" % p["name"]
-        self.assertEqual(plugins, self.data["plugins"] + [extra])  # the five unchanged
+        five = [p for p in self.data["plugins"] if p["name"] != "suite"]
+        self.assertEqual(plugins, five + [extra])  # the five unchanged, suite left out
 
     def test_make_local_marketplace_bad_overlay_fails(self):
         p, path, _ = self.make_local(os.path.join(self.tmp.name, "none.json"))
