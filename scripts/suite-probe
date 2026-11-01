@@ -1,0 +1,345 @@
+#!/usr/bin/env python3
+"""suite-probe: `install suite@agentik` into a temp HOME, then read what Claude Code wrote.
+
+Usage: suite-probe [--keep] [--code DIR] [--claude PATH]
+
+Run by hand, never by `make check` (hq design/04 section 5, section 7 item 7;
+packet c2, acts 4 and 5). Under a fresh temp dir T it clones this checkout's
+HEAD and, at main, each checkout `DIR/agentik-<name>` that suite's manifest
+names as a dependency (DIR: --code, else AGENTIK_CODE, else the folder above
+this repo's main checkout) into `T/code/`; writes `T/market/.claude-plugin/
+marketplace.json` from this HEAD's file, its entries for suite and the
+dependencies only, each url `file://T/code/agentik-<name>` and suite's the
+commons clone; then runs, each as `env -i HOME=T PATH=/usr/bin:/bin:<a folder
+holding only claude> DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+under a sandbox that denies outbound IP, `claude plugin marketplace add T/market`,
+`claude plugin install suite@agentik` and the two `list` verbs. No prompt, no
+session, nothing that reaches a model.
+
+It prints what `installed_plugins.json` holds against each clone's version; every
+file a clone tracks under `plugin/` present in the installed copy, `lib/`
+included, and each tracked executable still executable; then each tool's bare
+commands, as its own bare-machine test runs them, against the installed copy,
+env exactly HOME=T, PATH=/usr/bin:/bin, CLAUDE_PLUGIN_ROOT and
+CLAUDE_PLUGIN_DATA. Last, the version question (design/04 section 6): the last
+dependency's clone gets a bumped, committed plugin.json; `marketplace update
+agentik` and `update <name>@agentik`, once with the entry's `version` left at the
+old value and once with it removed; it prints whether the update installed each
+bump. Nothing outside T is written; T is removed unless --keep.
+
+Output: one line per step, `ok`, `FAIL` or `note`, and last `suite-probe: go` or
+`suite-probe: stop: <why>`. Exit 0 go, 1 a step failed or a stop, 2 usage or a
+missing prerequisite. Stdlib only.
+"""
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+USAGE = "usage: suite-probe [--keep] [--code DIR] [--claude PATH]"
+ROOT = Path(__file__).resolve().parents[1]
+SUITE = "suite"
+MARKET = "agentik"
+NO_IP = "(version 1)(allow default)(deny network-outbound (remote ip))"
+NO_NET = "(version 1)(allow default)(deny network*)"
+EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+          "PostToolBatch", "PreCompact", "Stop", "StopFailure", "SessionEnd")
+FAILS = []
+
+
+def say(kind, text):
+    print("%-4s %s" % (kind, text), flush=True)
+    if kind == "FAIL":
+        FAILS.append(text)
+
+
+def check(cond, text):
+    say("ok" if cond else "FAIL", text)
+    return cond
+
+
+def git(*argv, cwd=None):
+    return subprocess.run(["git", *argv], cwd=cwd, check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def last(text):
+    lines = [ln for ln in (text or "").splitlines() if ln.strip()]
+    return lines[-1][:160] if lines else ""
+
+
+class Probe:
+    def __init__(self, t, code, claude):
+        self.t, self.code = t, code
+        self.bin = t / "claude-bin"
+        self.bin.mkdir()
+        (self.bin / "claude").symlink_to(claude)
+
+    def claude(self, *argv):
+        env = {"HOME": str(self.t), "PATH": "/usr/bin:/bin:%s" % self.bin,
+               "DISABLE_AUTOUPDATER": "1", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+        cmd = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in env.items()] + ["claude", *argv]
+        r = subprocess.run(["/usr/bin/sandbox-exec", "-p", NO_IP] + cmd, cwd=str(self.t),
+                           capture_output=True, text=True, timeout=600)
+        say("note", "claude %s: exit %d: %s" % (" ".join(argv), r.returncode,
+                                                last(r.stdout + "\n" + r.stderr)))
+        return r
+
+    def installed(self):
+        """{name: (version, installPath)} for the agentik entries Claude Code recorded."""
+        found = sorted(self.t.joinpath(".claude").rglob("installed_plugins.json"))
+        if not found:
+            return None, {}
+        doc = json.loads(found[0].read_text())
+        out = {}
+        for key, rows in (doc.get("plugins") or {}).items():
+            name, _, market = key.partition("@")
+            rows = rows if isinstance(rows, list) else [rows]
+            if market == MARKET and rows:
+                out[name] = (rows[-1].get("version"), rows[-1].get("installPath"))
+        return found[0], out
+
+    def env(self, root, name):
+        data = self.t / ".claude" / "plugins" / "data" / ("%s-%s" % (name, MARKET))
+        data.mkdir(parents=True, exist_ok=True)
+        return {"HOME": str(self.t), "PATH": "/usr/bin:/bin", "CLAUDE_PLUGIN_ROOT": str(root),
+                "CLAUDE_PLUGIN_DATA": str(data)}
+
+    def run(self, name, root, argv, cwd, stdin="", net=True):
+        cmd = [str(Path(root, "bin", "agentik-" + name)), *argv]
+        if not net:
+            cmd = ["/usr/bin/sandbox-exec", "-p", NO_NET] + cmd
+        r = subprocess.run(cmd, input=stdin, cwd=str(cwd), env=self.env(root, name),
+                           capture_output=True, text=True, timeout=120)
+        if "decoy" in r.stdout + r.stderr:
+            say("FAIL", "%s %s: a decoy loaded" % (name, " ".join(argv)))
+        return r
+
+
+def expect(r, code, what, also=True):
+    return check(r.returncode == code and also, "%s: exit %d (want %d)" % (what, r.returncode, code))
+
+
+def bare_agents(p, name, root, version):
+    cwd = p.t / "work-agents"
+    cwd.mkdir()
+    (cwd / "json.py").write_text("raise SystemExit('decoy json.py imported')\n")
+    sessions = p.t / ".local" / "state" / "agentik-session" / "sessions"
+    r = p.run(name, root, ["status"], cwd)
+    expect(r, 1, "%s status, no sessions dir" % name, "cannot read the sessions dir" in r.stderr)
+    sessions.mkdir(parents=True, exist_ok=True)
+    expect(p.run(name, root, ["status"], cwd), 0, "%s status" % name)
+    expect(p.run(name, root, ["status", "--json"], cwd), 0, "%s status --json" % name)
+    expect(p.run(name, root, ["route", "--check"], cwd, net=False), 1,
+           "%s route --check, the network denied" % name)
+    expect(p.run(name, root, ["doctor"], cwd, net=False), 0, "%s doctor, the network denied" % name)
+    r = p.run(name, root, ["--version"], cwd)
+    expect(r, 0, "%s --version" % name, r.stdout == "agentik-%s %s\n" % (name, version))
+
+
+def bare_ledger(p, name, root, version, clone):
+    repo = p.t / "work-ledger"
+    repo.mkdir()
+    git("init", "-q", cwd=repo)
+    # the sample ledger and its questions file, the two files of the clone's fixture
+    for f in sorted((clone / "tests" / "fixtures" / "sectioned").glob("*.md")):
+        shutil.copy(f, repo / f.name)
+    (repo / "NICE_TO_HAVE.md").write_text("# Nice to have\n\n- **S3 · tests: a bare item.** One line.\n")
+    run = lambda *a: p.run(name, root, list(a), repo)
+    r = run("show", "1")
+    expect(r, 0, "%s show 1" % name, "**Plain words.**" in r.stdout)
+    r = run("find", "Plain")
+    expect(r, 0, "%s find Plain" % name, r.stdout == "1 Plain words (Every session)\n")
+    r = run("new", "--title", "Bare", "--stands", "s", "--choice", "c?", "--option", "A: a.",
+            "--option", "B: b.", "--recommend", "Yes.")
+    number = re.search(r"\b(\d+)\b", r.stdout)
+    expect(r, 0, "%s new" % name, number is not None)
+    number = number.group(1) if number else "0"
+    r = run("ask")
+    expect(r, 0, "%s ask, no narrator installed" % name,
+           r.stderr.endswith("the questions stay as written\n"))
+    expect(run("answer", number, "--pick", "A (Recommended)", "--source", "the suite probe",
+               "--text", "Bare holds.", "--area", "build"), 0, "%s answer %s" % (name, number))
+    r = run("show", number)
+    expect(r, 0, "%s show %s" % (name, number), "Bare holds." in r.stdout)
+    expect(run("render"), 0, "%s render" % name)
+    expect(run("render", "--check"), 0, "%s render --check" % name)
+    r = run("backlog")
+    expect(r, 0, "%s backlog" % name, "bare item" in r.stdout)
+    r = run("--version")
+    expect(r, 0, "%s --version" % name, r.stdout == "agentik-%s %s\n" % (name, version))
+
+
+def bare_session(p, name, root, version, clone):
+    repo = p.t / "work-session"
+    repo.mkdir()
+    git("init", "-q", cwd=repo)
+    script = p.t / "transcript.jsonl"
+    shutil.copy(clone / "tests" / "fixtures" / "meter" / "under-80.jsonl", script)
+    rows = p.t / ".local" / "state" / "agentik-session" / "hooks.jsonl"
+    before = len(rows.read_text().splitlines()) if rows.exists() else 0
+    for event in EVENTS:
+        payload = {"session_id": "sess-probe", "transcript_path": str(script), "cwd": str(repo),
+                   "hook_event_name": event, "permission_mode": "default", "tool_name": "Bash",
+                   "tool_input": {"command": "true"}, "tool_use_id": "t1"}
+        r = subprocess.run([str(Path(root, "hooks", "run")), event], input=json.dumps(payload),
+                           cwd=str(repo), env=p.env(root, name), capture_output=True, text=True,
+                           timeout=60)
+        valid = True
+        if event == "SessionStart":
+            try:
+                json.loads(r.stdout)
+            except ValueError:
+                valid = False
+        expect(r, 0, "%s hooks/run %s%s" % (name, event, ", stdout JSON" if event ==
+                                            "SessionStart" else ""), valid)
+    after = len(rows.read_text().splitlines()) if rows.exists() else 0
+    check(after == before + len(EVENTS), "%s: %d hook rows written, one per event" % (name, after - before))
+    r = p.run(name, root, ["--version"], repo)
+    expect(r, 0, "%s --version" % name, r.stdout.split()[-1:] == [version])
+
+
+def bits(name, root, clone):
+    """Every file the clone tracks under plugin/ is in the copy; each executable still is."""
+    tracked = git("ls-files", "-s", "plugin", cwd=clone).splitlines()
+    missing, lost, exes = [], [], []
+    for row in tracked:
+        mode, rel = row.split()[0], row.split("\t", 1)[1][len("plugin/"):]
+        path = Path(root, rel)
+        if not path.exists():
+            missing.append(rel)
+        elif mode == "100755":
+            exes.append(rel)
+            if not os.access(path, os.X_OK):
+                lost.append(rel)
+    check(not missing, "%s: %d tracked files in the copy%s" % (
+        name, len(tracked) - len(missing), ", missing: " + ", ".join(missing[:5]) if missing else ""))
+    check(not lost, "%s: exec bits on %s%s" % (name, ", ".join(exes) or "none",
+                                               "; lost: " + ", ".join(lost) if lost else ""))
+    if git("ls-files", "plugin/lib", cwd=clone):
+        check(Path(root, "lib").is_dir(), "%s: lib/ in the copy" % name)
+
+
+def version_question(p, name, clone, market):
+    """Bump the clone's plugin.json, update with the entry's version old, then removed."""
+    manifest = clone / "plugin" / ".claude-plugin" / "plugin.json"
+    answers = []
+    for case in ("left at the old value", "removed"):
+        doc = json.loads(manifest.read_text())
+        major, minor, patch = re.match(r"(\d+)\.(\d+)\.(\d+)", doc["version"]).groups()
+        bumped = "%s.%s.%d" % (major, minor, int(patch) + 1)
+        manifest.write_text(manifest.read_text().replace(
+            '"version": "%s"' % doc["version"], '"version": "%s"' % bumped, 1))
+        git("-c", "user.name=probe", "-c", "user.email=probe@invalid", "commit", "-q", "-am",
+            "probe: bump %s" % bumped, cwd=clone)
+        data = json.loads(market.read_text())
+        entry = [e for e in data["plugins"] if e["name"] == name][0]
+        if case == "removed":
+            entry.pop("version", None)
+        market.write_text(json.dumps(data, indent=2) + "\n")
+        p.claude("plugin", "marketplace", "update", MARKET)
+        p.claude("plugin", "update", "%s@%s" % (name, MARKET))
+        got = p.installed()[1].get(name, (None, None))[0]
+        answers.append((case, entry.get("version"), bumped, got))
+        say("note", "version question: %s's entry version %s (%s); plugin.json %s; "
+            "after update installed %s: %s" % (name, case, entry.get("version", "none"), bumped,
+                                               got, "the bump installs" if got == bumped
+                                               else "the bump does not install"))
+    return answers
+
+
+def probe(t, code, claude):
+    p = Probe(t, code, claude)
+    commons = t / "code" / "agentik-commons"
+    head = git("rev-parse", "HEAD", cwd=ROOT)
+    git("clone", "-q", "--no-hardlinks", str(ROOT), str(commons))
+    git("checkout", "-q", "-B", "main", head, cwd=commons)
+    say("note", "commons cloned at %s" % head[:7])
+    deps = json.loads((commons / "plugins" / SUITE / ".claude-plugin" / "plugin.json")
+                      .read_text())["dependencies"]
+    names = [d if isinstance(d, str) else d["name"] for d in deps]
+    clones, versions = {}, {}
+    for name in names:
+        src = code / ("agentik-" + name)
+        clones[name] = t / "code" / ("agentik-" + name)
+        git("clone", "-q", "--no-hardlinks", "--branch", "main", src.as_uri(), str(clones[name]))
+        versions[name] = json.loads((clones[name] / "plugin" / ".claude-plugin" / "plugin.json")
+                                    .read_text())["version"]
+        say("note", "%s cloned at main %s, plugin.json %s"
+            % (name, git("rev-parse", "--short", "HEAD", cwd=clones[name]), versions[name]))
+    data = json.loads((commons / ".claude-plugin" / "marketplace.json").read_text())
+    data["plugins"] = [e for e in data["plugins"] if e["name"] in names + [SUITE]]
+    for e in data["plugins"]:
+        e["source"]["url"] = (commons if e["name"] == SUITE else clones[e["name"]]).as_uri()
+    versions[SUITE] = [e for e in data["plugins"] if e["name"] == SUITE][0]["version"]
+    market = t / "market" / ".claude-plugin" / "marketplace.json"
+    market.parent.mkdir(parents=True)
+    market.write_text(json.dumps(data, indent=2) + "\n")
+    p.claude("plugin", "marketplace", "add", str(t / "market"))
+    p.claude("plugin", "marketplace", "list")
+    p.claude("plugin", "install", "%s@%s" % (SUITE, MARKET))
+    p.claude("plugin", "list")
+    where, got = p.installed()
+    say("note", "installed_plugins.json: %s" % (where.relative_to(t) if where else "absent"))
+    for name in [SUITE] + names:
+        v, root = got.get(name, (None, None))
+        check(v == versions[name], "%s@%s installed at %s (want %s), %s"
+              % (name, MARKET, v, versions[name], root))
+    if any(n not in got for n in names):
+        return "install %s@%s did not install %s" % (SUITE, MARKET, ", ".join(
+            n for n in names if n not in got))
+    for name in names:
+        bits(name, got[name][1], clones[name])
+    for name in sorted(names, key=lambda n: n != "agents"):  # agents first: it reads no state
+        root, clone = got[name][1], clones[name]
+        if name == "agents":
+            bare_agents(p, name, root, versions[name])
+        elif name == "session":
+            bare_session(p, name, root, versions[name], clone)
+        else:
+            bare_ledger(p, name, root, versions[name], clone)
+    version_question(p, names[-1], clones[names[-1]], market)
+    return None
+
+
+def main(argv):
+    args, keep, code, claude = argv[1:], False, None, None
+    while args:
+        a = args.pop(0)
+        if a in ("-h", "--help"):
+            print(USAGE)
+            return 0
+        if a == "--keep":
+            keep = True
+        elif a in ("--code", "--claude") and args:
+            code, claude = (args.pop(0), claude) if a == "--code" else (code, args.pop(0))
+        else:
+            sys.stderr.write(USAGE + "\n")
+            return 2
+    if not code:
+        code = os.environ.get("AGENTIK_CODE") or str(
+            Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=ROOT)).parents[1])
+    claude = claude or shutil.which("claude")
+    if not claude or not os.access(claude, os.X_OK) or not os.access("/usr/bin/sandbox-exec", os.X_OK):
+        sys.stderr.write("suite-probe: no claude on PATH (or --claude), or no sandbox-exec\n")
+        return 2
+    t = Path(tempfile.mkdtemp(prefix="suite-probe-")).resolve()
+    say("note", "T is %s" % t)
+    try:
+        stop = probe(t, Path(code), os.path.realpath(claude))
+    finally:
+        if not keep:
+            shutil.rmtree(str(t), ignore_errors=True)
+    if stop or FAILS:
+        print("suite-probe: stop: %s" % (stop or "%d steps failed" % len(FAILS)))
+        return 1
+    print("suite-probe: go")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
