@@ -9,15 +9,16 @@
 # from the repo's root; the repo's `make check` runs that check, and runs
 # plugin-version-check where the repo has a plugin/ (GUIDE §5).
 #
-# A repo with a plugin/ also gets, in the same file, scripts/agentik_install.py
+# A repo with a plugin/lib/ also gets, in the same file, scripts/agentik_install.py
 # at plugin/lib/agentik_install.py, scripts/plugin-launcher at
 # plugin/bin/agentik-<tool> and bin/agentik at plugin/bin/agentik (GUIDE §10).
 # <tool> is plugin/lib/agentik-tool.conf's tool_name when that file exists; when
 # not, plugin/.claude-plugin/plugin.json's name, and this writes the file once
 # from it, the tool's own to edit, never listed. It touches nothing else and
 # never commits: the packet that runs it does, and bumps the plugin (GUIDE §7).
+# A plugin/ with no lib/ gets the set a repo with no plugin/ gets.
 # Exit 0 done; 2 usage, a target that is not a git checkout (or is this repo),
-# or a plugin/ that names no tool, with nothing written. CDPATH is never followed.
+# or a plugin/lib/ that names no tool, with nothing written. CDPATH is never followed.
 set -eu
 
 usage() {
@@ -50,7 +51,7 @@ fi
 conf=$target/plugin/lib/agentik-tool.conf
 tool=
 word=
-if [ -d "$target/plugin" ]; then
+if [ -d "$target/plugin/lib" ]; then
 	if [ -f "$conf" ]; then
 		tool=$(sed -n 's/^tool_name=//p' "$conf" | head -n 1)
 	else

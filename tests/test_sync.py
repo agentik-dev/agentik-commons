@@ -1,7 +1,7 @@
 """scripts/sync <repo> (agentik-r1 7.3): the four vendored copies land
 byte-identical and executable under <repo>/scripts/, scripts/vendored.sha256
 verifies under `shasum -a 256 -c`, a drifted copy fails it, and usage or a
-target that is not a git checkout exits 2. A repo with a plugin/ also gets the
+target that is not a git checkout exits 2. A repo with a plugin/lib/ also gets the
 canonical module, its launcher and the door (hq design/04 §7 item 4; packet c1)."""
 import hashlib
 import json
@@ -118,6 +118,8 @@ class PluginTest(unittest.TestCase):
         subprocess.run(["git", "-C", self.repo, "init", "-q"], check=True)
         self.manifest = Path(self.repo, "plugin", ".claude-plugin", "plugin.json")
         self.manifest.parent.mkdir(parents=True)
+        self.lib = Path(self.repo, "plugin", "lib")
+        self.lib.mkdir()
         self.manifest.write_text(json.dumps(
             {"author": {"name": "someone"}, "name": "x", "version": "1.2.3"}))
 
@@ -157,7 +159,6 @@ class PluginTest(unittest.TestCase):
 
     def test_a_tools_own_conf_is_kept_and_names_the_launcher(self):
         conf = Path(self.repo, "plugin/lib/agentik-tool.conf")
-        conf.parent.mkdir()
         text = ("tool_name=agentik-other\nremedy=/other:install-cli\nrunner=agentik-other\n"
                 "old_name=agentik-old\nold_state=\n")
         conf.write_text(text)
@@ -167,6 +168,25 @@ class PluginTest(unittest.TestCase):
         self.assertTrue(Path(self.repo, "plugin/bin/agentik-other").is_file())
         self.assertFalse(Path(self.repo, "plugin/bin/agentik-x").exists())
         self.assertEqual(verify(self.repo)[0], 0)
+
+    def test_a_plugin_with_no_lib_is_todays_set_and_its_bin_stands(self):
+        self.lib.rmdir()
+        relay = Path(self.repo, "plugin", "bin", "agentik-relay")
+        relay.parent.mkdir()
+        relay.write_bytes(b"#!/bin/sh\n# the tool's own\n")
+        relay.chmod(0o750)
+        self.manifest.write_text(json.dumps({"name": "relay", "version": "1.2.3"}))
+        code, out, err = sync(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, bounded, plugin-version-check, "
+                         "vendored.sha256\n" % self.repo)
+        expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
+                           for c in COPIES)
+        self.assertEqual(Path(self.repo, "scripts", "vendored.sha256").read_text(), expected)
+        self.assertEqual(relay.read_bytes(), b"#!/bin/sh\n# the tool's own\n")
+        self.assertEqual(relay.stat().st_mode & 0o777, 0o750)
+        self.assertEqual(self.snapshot(), {*COPIES, "scripts/vendored.sha256",
+                                           "plugin/.claude-plugin/plugin.json", "plugin/bin/agentik-relay"})
 
     def test_a_plugin_that_names_no_tool_writes_nothing(self):
         for text in (None, "not json", '{"version": "1.0.0"}', '{"name": "Bad Name"}', '{"name": "1x"}'):
