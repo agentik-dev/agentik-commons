@@ -1,5 +1,6 @@
 # agentik-commons: the tools' shared ground. It builds no tool, so it has no
-# install target and no plugin of its own (agentik-r1 A9). `make help` lists the
+# install target; it holds one manifest-only plugin, `suite`, in plugins/suite
+# (hq design/04 sections 5 and 11). `make help` lists the
 # targets; `make check` compares the marketplace's versions only when every
 # tool's checkout is present under $(AGENTIK_CODE), so a clone of commons alone
 # stays green.
