@@ -307,6 +307,25 @@ def _write_door(path, door):
     _replace(path, write)
 
 
+def _door(path, door):
+    """The shared `agentik` door moves forward only, as a launcher does: absent or older, it is
+    written; equal or newer, it stays byte for byte; a link, or a VERSION line here or there that
+    does not read as a version, leaves it alone. None, or the line that says why it stayed."""
+    if not os.path.lexists(path):
+        _write_door(path, door)
+        return None
+    if os.path.islink(path):
+        return "the door %s is a link; left alone" % path
+    theirs = (read_launcher(path) or {}).get("version")
+    ours = (read_launcher(door) or {}).get("version")
+    a, b = order(theirs), order(ours)
+    if a is None or b is None:
+        return "the door %s has no version to compare (%s there, %s here); left alone" % (path, theirs, ours)
+    if b > a:
+        _write_door(path, door)
+    return None
+
+
 def _clear_marker(env, conf):
     state = env.get("XDG_STATE_HOME") or os.path.join(env.get("HOME", ""), ".local", "state")
     folder = os.path.join(state, conf["tool_name"])
@@ -351,7 +370,7 @@ def _locked_install(prefix, share, env, conf, ps_timeout=60):
     tree = _freeze(share, lib, manifest, door, conf["runner"])
     code = os.path.join(share, tree)
     launcher = os.path.join(bin_dir, name)
-    _write_door(os.path.join(bin_dir, DOOR), door)
+    note = _door(os.path.join(bin_dir, DOOR), door)
     link = os.path.join(bin_dir, old) if old else None
     if link:
         _replace(link, lambda temp: os.symlink(name, temp))
@@ -362,6 +381,8 @@ def _locked_install(prefix, share, env, conf, ps_timeout=60):
         pruned, lines = 1, ["prune-trees: %s" % e]
     if pruned:
         lines.append("the prune failed; every old tree kept")
+    if note:
+        lines.insert(0, note)
     _clear_marker(env, conf)
     return {"launcher": launcher, "tree": code, "version": ver, "door": os.path.join(bin_dir, DOOR),
             "link": link, "pruned": lines}

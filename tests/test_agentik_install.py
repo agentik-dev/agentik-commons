@@ -154,6 +154,23 @@ class Generic(Base):
             self.assertIn("prune-trees: removed 3, kept 3", out)
             self.assertEqual(self.trees(), sorted(["old3", "old4", tree]))
 
+    def test_the_door_moves_forward_only(self):
+        plugin = self.plugin()
+        self.install(plugin)
+        door = self.bin("agentik")
+        ours = door.read_bytes()
+        text = ours.decode()
+        line = re.search(r"(?m)^VERSION=.*$", text).group(0)
+        for theirs, moves, says in (("VERSION=0.0.1", True, False), ("VERSION=99.0.0", False, False),
+                                    (line + "\n# a local edit", False, False), ("", False, True),
+                                    ("VERSION=banana", False, True)):
+            with self.subTest(theirs=theirs):
+                door.write_text(text.replace(line, theirs, 1))
+                before = door.read_bytes()
+                out = self.install(plugin)
+                self.assertEqual(door.read_bytes(), ours if moves else before)
+                self.assertEqual("left alone" in out, says, out)
+
     def test_a_reinstall_is_the_same_tree(self):
         plugin = self.plugin()
         self.install(plugin)
