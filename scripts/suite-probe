@@ -19,7 +19,8 @@ session, nothing that reaches a model.
 It prints what `installed_plugins.json` holds against each clone's version; every
 file a clone tracks under `plugin/` present in the installed copy, `lib/`
 included, and each tracked executable still executable; then each tool's bare
-commands, as its own bare-machine test runs them, against the installed copy,
+commands, as its own bare-machine test and session's `scripts/bare-proof` run
+them, `gate` and `install-cli` excepted, against the installed copy,
 env exactly HOME=T, PATH=/usr/bin:/bin, CLAUDE_PLUGIN_ROOT and
 CLAUDE_PLUGIN_DATA. Last, the version question (design/04 section 6): the last
 dependency's clone gets a bumped, committed plugin.json; `marketplace update
@@ -121,7 +122,9 @@ class Probe:
 
 
 def expect(r, code, what, also=True):
-    return check(r.returncode == code and also, "%s: exit %d (want %d)" % (what, r.returncode, code))
+    good = r.returncode == code and also
+    return check(good, "%s: exit %d (want %d)%s" % (what, r.returncode, code, "" if good else
+                                                    ": " + last(r.stdout + "\n" + r.stderr)))
 
 
 def bare_agents(p, name, root, version):
@@ -201,6 +204,43 @@ def bare_session(p, name, root, version, clone):
     check(after == before + len(EVENTS), "%s: %d hook rows written, one per event" % (name, after - before))
     r = p.run(name, root, ["--version"], repo)
     expect(r, 0, "%s --version" % name, r.stdout.split()[-1:] == [version])
+    # admission record: exit 0 and its ledger line (scripts/bare-proof); bad input exits 2
+    sid = "sess-probe"
+    r = p.run(name, root, ["admission", "record", "--session", sid], repo,
+              stdin=json.dumps({"kind": "start", "interactive": False}))
+    state = p.t / ".local" / "state"
+    lines = sum(sum(1 for ln in f.read_text(errors="replace").splitlines() if sid in ln)
+                for f in state.rglob("ledger.jsonl") if f.parent.name == "admission")
+    expect(r, 0, "%s admission record, %d ledger line" % (name, lines), lines == 1)
+    r = p.run(name, root, ["admission", "record", "--session", sid], repo, stdin="not json\n")
+    expect(r, 2, "%s admission record, not JSON" % name,
+           r.stderr.startswith("agentik-%s: " % name))
+    # charter open and close in the temp git repo (scripts/bare-proof's two named forms)
+    r = p.run(name, root, ["charter", "open", "--dir", "history/sittings", "probe"], repo)
+    charter = r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else ""
+    landed = os.path.realpath(os.path.join(str(repo), charter)) if charter else ""
+    expect(r, 0, "%s charter open, %s" % (name, charter or "no file"),
+           landed.startswith(os.path.realpath(str(repo)) + os.sep) and os.path.isfile(landed))
+    expect(p.run(name, root, ["charter", "close", "--exit", "X", charter or "none"], repo), 0,
+           "%s charter close --exit X FILE" % name)
+    # the state's writers, then every reader, as the test's _readers_run, with its inputs; it
+    # asks no exit, only no traceback, so these are the bare home's: measure refuses the test's
+    # line (no rateLimits) with 2, and doctor fails with 2 on what PATH=/usr/bin:/bin lacks
+    r = p.run(name, root, ["mod", "start", "--session", sid], repo)
+    expect(r, 0, "%s mod start" % name, "Traceback" not in r.stderr)
+    r = p.run(name, root, ["measure", "record", "--session", sid], repo,
+              stdin=json.dumps({"context": {"window": 200000}}))
+    expect(r, 2, "%s measure record, the test's line refused" % name,
+           "Traceback" not in r.stderr and "refuses rateLimits" in r.stderr)
+    for argv in (("status", "--json"), ("report",), ("report", "--hooks"), ("rules",),
+                 ("budget",)):
+        r = p.run(name, root, list(argv), repo)
+        expect(r, 0, "%s %s" % (name, " ".join(argv)), "Traceback" not in r.stderr)
+    r = p.run(name, root, ["doctor"], repo)
+    expect(r, 2, "%s doctor, %s" % (name, last(r.stdout)), "Traceback" not in r.stderr and
+           last(r.stdout) == "doctor: failing: claude, plugin, relay")
+    say("note", "%s: gate and install-cli not run (the wall: no gate verb under a temp HOME; "
+        "install-cli writes a launcher)" % name)
 
 
 def bits(name, root, clone):
