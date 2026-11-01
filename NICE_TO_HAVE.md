@@ -41,3 +41,10 @@
 
 - S4: the marketplace `version` lines and `scripts/marketplace-versions` may go (hq design/04 §6's row): `scripts/suite-probe` shows `claude plugin update agents@agentik` installs a bumped `plugin.json` both with the entry's version left at the old value (1.5.1 to 1.5.2) and with it removed (1.5.2 to 1.5.3). Measured on `file://` git-subdir sources under a temp HOME, not a GitHub url; the drop is a later packet's, hq's to place.
 - S4: `claude plugin validate plugins/suite` warns twice, no `author` and no icon (ICON_MISSING); the manifest holds the packet's four fields only.
+
+## From c2's refuter round 1 (`design/packets/c2-suite-a1.md`, act 4)
+
+- S4: `marketplace-check` does not pin suite's place after the five; `test_committed_file_is_valid` does.
+- S4: `suite-probe` checks each installed file's presence and exec bit, not its content, and reads agents' `route --check` and `doctor` by exit only.
+- S4: `env -i` drops `TMPDIR`, so a tool's temp files under the probe may land in `/tmp`, outside `$T`.
+- S4: the published GitHub path, `marketplace add agentik-dev/agentik-commons`, is not probed (no network); only `file://` sources are.
