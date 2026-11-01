@@ -52,7 +52,7 @@
         "path": "plugin"
       },
       "description": "See every agent on this Mac, run a session's mechanical subagents on a local model through a loopback router, and write a repo's records from a hand-back.",
-      "version": "1.4.0"
+      "version": "1.5.1"
     }
   ]
 }
