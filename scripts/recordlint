@@ -61,7 +61,7 @@ HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 FENCE = re.compile(r"^(```|~~~)")
 STEP = re.compile(r"^([0-9]+)\. (.*)$")
 WHAT = {"more": "an indented line", "bullet": "a bullet", "step": "a numbered item",
-        "fence": "a fenced line", "prose": "prose", "heading": "a heading below `##`"}
+        "fence": "a fenced line", "prose": "prose", "heading": "a heading deeper than `##`"}
 USAGE = "usage: recordlint [FILE...]  (each a HANDOFF.md or a NICE_TO_HAVE.md)"
 
 
@@ -226,7 +226,7 @@ def check(path):
     if not held:
         return ["%s: skip: no canonical header `| %s |`" % (path, " | ".join(HEADERS[kind]))], False
     if not found:
-        return ["%s: held: %d rows" % (path, rows)], False
+        return ["%s: held: %d row%s" % (path, rows, "" if rows == 1 else "s")], False
     return ["%s:%d: %s: %s" % (path, n, rule, detail) for n, rule, detail in found], True
 
 
