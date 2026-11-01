@@ -1,0 +1,6 @@
+{
+  "name": "suite",
+  "version": "0.1.0",
+  "description": "The agentik suite in one install: a manifest with no code of its own, whose dependencies, three of the tools, Claude Code installs and enables with it.",
+  "dependencies": ["session", "decisions", "agents"]
+}
