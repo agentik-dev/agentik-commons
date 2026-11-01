@@ -1,7 +1,10 @@
 """scripts/sync <repo> (agentik-r1 7.3): the four vendored copies land
 byte-identical and executable under <repo>/scripts/, scripts/vendored.sha256
 verifies under `shasum -a 256 -c`, a drifted copy fails it, and usage or a
-target that is not a git checkout exits 2."""
+target that is not a git checkout exits 2. A repo with a plugin/ also gets the
+canonical module, its launcher and the door (hq design/04 §7 item 4; packet c1)."""
+import hashlib
+import json
 import os
 import subprocess
 import tempfile
@@ -85,6 +88,112 @@ class SyncTest(unittest.TestCase):
     def test_shape(self):
         self.assertTrue(SYNC.read_text().startswith("#!/bin/sh\n"))
         self.assertEqual(subprocess.run(["sh", "-n", str(SYNC)]).returncode, 0)
+
+    def test_no_plugin_is_todays_set_byte_for_byte(self):
+        code, out, err = sync(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, bounded, plugin-version-check, "
+                         "vendored.sha256\n" % os.path.realpath(self.repo))
+        expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
+                           for c in COPIES)
+        self.assertEqual(Path(self.repo, "scripts", "vendored.sha256").read_text(), expected)
+        self.assertEqual(sorted(os.listdir(self.repo)), [".git", "scripts"])
+
+
+PLACED = {"plugin/lib/agentik_install.py": "scripts/agentik_install.py",
+          "plugin/bin/agentik-x": "scripts/plugin-launcher", "plugin/bin/agentik": "bin/agentik"}
+RUNNER = '''import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import agentik_install as a
+raise SystemExit(a.install_cli() if sys.argv[1] == "install-cli" else print(a.version()))
+'''
+
+
+class PluginTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = os.path.join(os.path.realpath(self.tmp.name), "tool repo")
+        os.mkdir(self.repo)
+        subprocess.run(["git", "-C", self.repo, "init", "-q"], check=True)
+        self.manifest = Path(self.repo, "plugin", ".claude-plugin", "plugin.json")
+        self.manifest.parent.mkdir(parents=True)
+        self.manifest.write_text(json.dumps(
+            {"author": {"name": "someone"}, "name": "x", "version": "1.2.3"}))
+
+    def snapshot(self):
+        return {str(p.relative_to(self.repo)) for p in Path(self.repo).rglob("*")
+                if ".git" not in p.parts and p.is_file()}
+
+    def test_places_the_copies_and_the_door(self):
+        code, out, err = sync(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        for copy, source in PLACED.items():
+            self.assertEqual(Path(self.repo, copy).read_bytes(), Path(ROOT, source).read_bytes(), copy)
+        self.assertFalse(os.access(Path(self.repo, "plugin/lib/agentik_install.py"), os.X_OK))
+        for copy in ("plugin/bin/agentik-x", "plugin/bin/agentik"):
+            self.assertTrue(os.access(Path(self.repo, copy), os.X_OK), copy)
+        code, out = verify(self.repo)
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(out.splitlines()), sorted(c + ": OK" for c in [*COPIES, *PLACED]))
+        # the names are the tool's, written once and listed nowhere
+        conf = Path(self.repo, "plugin/lib/agentik-tool.conf").read_text()
+        self.assertIn("tool_name=agentik-x\nremedy=/x:install-cli\nrunner=agentik-x\n", conf)
+        self.assertNotIn("agentik-tool.conf", Path(self.repo, "scripts/vendored.sha256").read_text())
+        self.assertEqual(self.snapshot(), {*COPIES, *PLACED, "scripts/vendored.sha256",
+                                           "plugin/.claude-plugin/plugin.json", "plugin/lib/agentik-tool.conf"})
+
+    def test_a_one_byte_change_in_a_placed_copy_fails_the_check(self):
+        sync(self.repo)
+        for copy in PLACED:
+            path = Path(self.repo, copy)
+            good = path.read_bytes()
+            path.write_bytes(good[:-1] + bytes([good[-1] ^ 1]))
+            code, out = verify(self.repo)
+            self.assertNotEqual(code, 0, copy)
+            self.assertIn(copy + ": FAILED", out)
+            path.write_bytes(good)
+            self.assertEqual(verify(self.repo)[0], 0)
+
+    def test_a_tools_own_conf_is_kept_and_names_the_launcher(self):
+        conf = Path(self.repo, "plugin/lib/agentik-tool.conf")
+        conf.parent.mkdir()
+        text = ("tool_name=agentik-other\nremedy=/other:install-cli\nrunner=agentik-other\n"
+                "old_name=agentik-old\nold_state=\n")
+        conf.write_text(text)
+        self.assertEqual(sync(self.repo)[0], 0)
+        self.assertEqual(sync(self.repo)[0], 0)
+        self.assertEqual(conf.read_text(), text)
+        self.assertTrue(Path(self.repo, "plugin/bin/agentik-other").is_file())
+        self.assertFalse(Path(self.repo, "plugin/bin/agentik-x").exists())
+        self.assertEqual(verify(self.repo)[0], 0)
+
+    def test_a_plugin_that_names_no_tool_writes_nothing(self):
+        for text in (None, "not json", '{"version": "1.0.0"}', '{"name": "Bad Name"}', '{"name": "1x"}'):
+            with self.subTest(text=text):
+                if text is None:
+                    self.manifest.unlink()
+                else:
+                    self.manifest.write_text(text)
+                before = self.snapshot()
+                code, out, err = sync(self.repo)
+                self.assertEqual((code, out), (2, ""))
+                self.assertIn("names no tool", err)
+                self.assertEqual(self.snapshot(), before)
+
+    @unittest.skipUnless(os.access("/usr/bin/python3", os.X_OK), "no /usr/bin/python3 on this machine")
+    def test_the_placed_copy_installs_under_a_bare_path(self):
+        sync(self.repo)
+        Path(self.repo, "plugin/lib/agentik-x").write_text(RUNNER)
+        home = os.path.join(os.path.realpath(self.tmp.name), "home")
+        os.mkdir(home)
+        env = {"HOME": home, "PATH": "/usr/bin:/bin"}
+        launcher = Path(self.repo, "plugin/bin/agentik-x")
+        p = subprocess.run([str(launcher), "install-cli"], env=env, capture_output=True, text=True)
+        self.assertEqual((p.returncode, p.stderr), (0, ""))
+        p = subprocess.run([os.path.join(home, ".local/bin/agentik-x"), "--version"], env=env,
+                           capture_output=True, text=True)
+        self.assertEqual((p.returncode, p.stdout), (0, "1.2.3\n"))
 
 
 if __name__ == "__main__":

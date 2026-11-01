@@ -1,5 +1,5 @@
 #!/bin/sh
-# sync: refresh the vendored copies in a tool repo (agentik-r1 7.3).
+# sync: refresh the vendored copies in a tool repo (agentik-r1 7.3, hq design/04 §7 item 4).
 #
 #   scripts/sync <repo>
 #
@@ -7,10 +7,17 @@
 # scripts/bounded and scripts/plugin-version-check to <repo>/scripts/, then
 # writes <repo>/scripts/vendored.sha256 in `shasum -a 256 -c` form, its paths
 # from the repo's root; the repo's `make check` runs that check, and runs
-# plugin-version-check where the repo has a plugin/ (GUIDE §5). It touches
-# nothing else and never commits: the packet that runs it does. Exit 0 done;
-# 2 usage, or a target that is not a git checkout (or is this repo). CDPATH is
-# never followed.
+# plugin-version-check where the repo has a plugin/ (GUIDE §5).
+#
+# A repo with a plugin/ also gets, in the same file, scripts/agentik_install.py
+# at plugin/lib/agentik_install.py, scripts/plugin-launcher at
+# plugin/bin/agentik-<tool> and bin/agentik at plugin/bin/agentik (GUIDE §10).
+# <tool> is plugin/lib/agentik-tool.conf's tool_name when that file exists; when
+# not, plugin/.claude-plugin/plugin.json's name, and this writes the file once
+# from it, the tool's own to edit, never listed. It touches nothing else and
+# never commits: the packet that runs it does, and bumps the plugin (GUIDE §7).
+# Exit 0 done; 2 usage, a target that is not a git checkout (or is this repo),
+# or a plugin/ that names no tool, with nothing written. CDPATH is never followed.
 set -eu
 
 usage() {
@@ -39,16 +46,64 @@ else
 	exit 2
 fi
 
-mkdir -p "$target/scripts"
-for pair in "bin/agentik agentik" "scripts/hygiene hygiene" "scripts/bounded bounded" \
-	"scripts/plugin-version-check plugin-version-check"; do
-	set -- $pair
-	cp "$here/$1" "$target/scripts/.$2.sync.$$"
-	chmod 755 "$target/scripts/.$2.sync.$$"
-	mv -f "$target/scripts/.$2.sync.$$" "$target/scripts/$2"
-done
-(CDPATH= cd -P -- "$target" >/dev/null &&
-	sum scripts/agentik scripts/hygiene scripts/bounded scripts/plugin-version-check) \
-	>"$target/scripts/.vendored.sync.$$"
+# The tool's name, read before anything is written.
+conf=$target/plugin/lib/agentik-tool.conf
+tool=
+word=
+if [ -d "$target/plugin" ]; then
+	if [ -f "$conf" ]; then
+		tool=$(sed -n 's/^tool_name=//p' "$conf" | head -n 1)
+	else
+		word=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["name"])' \
+			"$target/plugin/.claude-plugin/plugin.json" 2>/dev/null) || word=
+		tool=agentik-$word
+	fi
+	case ${tool#agentik-} in
+	"" | *[!a-z0-9-]* | [!a-z]*) tool= ;;
+	esac
+	case $tool in
+	agentik-*) ;;
+	*)
+		echo "sync: $target/plugin names no tool: neither a tool_name in plugin/lib/agentik-tool.conf nor a usable name in plugin/.claude-plugin/plugin.json" >&2
+		exit 2
+		;;
+	esac
+fi
+
+place() { # source under this repo, destination under the target, mode
+	dir=$target/${2%/*}
+	temp=$dir/.${2##*/}.sync.$$
+	mkdir -p "$dir"
+	cp "$here/$1" "$temp"
+	chmod "$3" "$temp"
+	mv -f "$temp" "$target/$2"
+}
+
+place bin/agentik scripts/agentik 755
+place scripts/hygiene scripts/hygiene 755
+place scripts/bounded scripts/bounded 755
+place scripts/plugin-version-check scripts/plugin-version-check 755
+listed="scripts/agentik scripts/hygiene scripts/bounded scripts/plugin-version-check"
+said="agentik, hygiene, bounded, plugin-version-check, vendored.sha256"
+if [ -n "$tool" ]; then
+	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
+	place scripts/plugin-launcher "plugin/bin/$tool" 755
+	place bin/agentik plugin/bin/agentik 755
+	if ! [ -f "$conf" ]; then
+		cat >"$conf.sync.$$" <<EOF
+# This tool's names, for the canonical install-cli and launchers (GUIDE §10); not a vendored copy.
+tool_name=$tool
+remedy=/$word:install-cli
+runner=$tool
+old_name=
+old_state=
+EOF
+		mv -f "$conf.sync.$$" "$conf"
+	fi
+	listed="$listed plugin/lib/agentik_install.py plugin/bin/$tool plugin/bin/agentik"
+fi
+# shellcheck disable=SC2086 # the paths are this script's own, with no space
+(CDPATH= cd -P -- "$target" >/dev/null && sum $listed) >"$target/scripts/.vendored.sync.$$"
 mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"
-echo "sync: $target/scripts: agentik, hygiene, bounded, plugin-version-check, vendored.sha256"
+echo "sync: $target/scripts: $said"
+[ -z "$tool" ] || echo "sync: $target/plugin: lib/agentik_install.py, bin/$tool, bin/agentik"
