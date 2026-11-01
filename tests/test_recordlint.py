@@ -202,6 +202,7 @@ class RecordlintTest(unittest.TestCase):
                         " the one section the backlog reader takes")
 
     def test_a_handoff_at_8192_bytes(self):
+        # GUIDE §4: a byte ceiling is tested at it, the last byte under passing
         self.assertLint({"HANDOFF.md": padded(handoff, GREEN_HANDOFF, 8191)}, 0, "HANDOFF.md: held: 5 rows")
         self.assertLint({"HANDOFF.md": padded(handoff, GREEN_HANDOFF, 8192)}, 2,
                         "HANDOFF.md:1: size: 8,192 B, the bound is under 8,192 B; a done row leaves as one"
@@ -209,8 +210,8 @@ class RecordlintTest(unittest.TestCase):
 
     def test_a_nice_at_24576_bytes(self):
         self.assertLint({"NICE_TO_HAVE.md": padded(nice, GREEN_NICE, 24575)}, 0, "NICE_TO_HAVE.md: held: 2 rows")
-        self.assertLint({"NICE_TO_HAVE.md": padded(nice, GREEN_NICE, 24577)}, 2,
-                        "NICE_TO_HAVE.md:1: size: 24,577 B, the bound is under 24,576 B; move the oldest S4"
+        self.assertLint({"NICE_TO_HAVE.md": padded(nice, GREEN_NICE, 24576)}, 2,
+                        "NICE_TO_HAVE.md:1: size: 24,576 B, the bound is under 24,576 B; move the oldest S4"
                         " rows, appended, to history/NICE-overflow.md; the frozen archive is never edited")
 
     def test_usage_exits_one_and_writes_nothing(self):
