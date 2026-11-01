@@ -7,6 +7,7 @@
 # are three of them
 README.md: sibling
 NICE_TO_HAVE.md: sibling
+history/NICE-2026-11-01.md: sibling
 design/*.md: sibling
 docs/sibling.md: sibling
 .claude-plugin/marketplace.json: sibling

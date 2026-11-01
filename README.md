@@ -20,13 +20,14 @@ It builds no tool: no `install` target.
 | `GUIDE.md` | the conventions every tool repo follows: layout, naming, verbs, exit codes, README shape, install and hygiene |
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
+| `scripts/recordlint [FILE...]` | holds `HANDOFF.md` and `NICE_TO_HAVE.md` to their tables (GUIDE §9): one `path:line: rule: detail` line per finding, exit 2; a file without its header is skipped |
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
 | `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version (GUIDE §7) |
 | `scripts/suite-probe` | run by hand, never by `make check`: clones this HEAD and the three tools' mains into a temp HOME, runs `claude plugin marketplace add` and `install suite@agentik` there with no model reached, reads `installed_plugins.json`, the exec bits and each tool's bare commands against the installed copies, then whether `update` installs a bump with and without the entry's `version` |
 | `scripts/marketplace-versions` | each marketplace line against its checkout's `plugin/.claude-plugin/plugin.json` under `AGENTIK_CODE`, suite's against `plugins/suite`; exit 1, one line per entry that trails, leads or differs, or whose checkout has no readable version; no network |
 | `scripts/agentik_install.py` | the canonical `install-cli`: freeze, launcher, prune and forward refresh, generic by name, stdlib at Python 3.9 (GUIDE §10) |
 | `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
 
 ## Make targets
 

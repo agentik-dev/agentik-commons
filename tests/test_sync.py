@@ -1,4 +1,4 @@
-"""scripts/sync <repo> (agentik-r1 7.3): the four vendored copies land
+"""scripts/sync <repo> (agentik-r1 7.3): the five vendored copies land
 byte-identical and executable under <repo>/scripts/, scripts/vendored.sha256
 verifies under `shasum -a 256 -c`, a drifted copy fails it, and usage or a
 target that is not a git checkout exits 2. A repo with a plugin/lib/ also gets the
@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SYNC = ROOT / "scripts" / "sync"
 COPIES = {"scripts/agentik": "bin/agentik", "scripts/hygiene": "scripts/hygiene",
+          "scripts/recordlint": "scripts/recordlint",
           "scripts/bounded": "scripts/bounded",
           "scripts/plugin-version-check": "scripts/plugin-version-check"}
 
@@ -53,8 +54,21 @@ class SyncTest(unittest.TestCase):
         self.assertEqual([r.split("  ", 1)[1] for r in rows], list(COPIES))
         # nothing else is written, no scratch file is left
         self.assertEqual(sorted(os.listdir(Path(self.repo, "scripts"))),
-                         ["agentik", "bounded", "hygiene", "plugin-version-check",
+                         ["agentik", "bounded", "hygiene", "plugin-version-check", "recordlint",
                           "vendored.sha256"])
+
+    def test_recordlint_lands_beside_hygiene_at_755_and_is_listed(self):
+        # packet c3 act 3 (hq design/05 §4): the records rule is vendored with hygiene
+        code, out, err = sync(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        placed = Path(self.repo, "scripts", "recordlint")
+        self.assertEqual(placed.read_bytes(), Path(ROOT, "scripts", "recordlint").read_bytes())
+        self.assertEqual(placed.stat().st_mode & 0o777, 0o755)
+        rows = Path(self.repo, "scripts", "vendored.sha256").read_text().splitlines()
+        digest = hashlib.sha256(placed.read_bytes()).hexdigest()
+        self.assertIn("%s  scripts/recordlint" % digest, rows)
+        names = [r.split("  ", 1)[1] for r in rows]
+        self.assertEqual(names.index("scripts/recordlint"), names.index("scripts/hygiene") + 1)
 
     def test_rerun_refreshes_a_drifted_copy(self):
         sync(self.repo)
@@ -92,7 +106,7 @@ class SyncTest(unittest.TestCase):
     def test_no_plugin_is_todays_set_byte_for_byte(self):
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
-        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, bounded, plugin-version-check, "
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
                          "vendored.sha256\n" % os.path.realpath(self.repo))
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
@@ -178,7 +192,7 @@ class PluginTest(unittest.TestCase):
         self.manifest.write_text(json.dumps({"name": "relay", "version": "1.2.3"}))
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
-        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, bounded, plugin-version-check, "
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
                          "vendored.sha256\n" % self.repo)
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
