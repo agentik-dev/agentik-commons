@@ -12,9 +12,9 @@ AGENTIK_MARKETPLACE_OVERLAY ?= $(HOME)/.config/agentik/marketplace-local.json
 PYTHON ?= python3
 FRONT_DOOR_MAX_LINES := 100
 
-.PHONY: check test lint hygiene marketplace-check versions local-marketplace help
+.PHONY: check test lint hygiene recordlint marketplace-check versions local-marketplace help
 
-check: test lint hygiene marketplace-check
+check: test lint hygiene recordlint marketplace-check
 	AGENTIK_CODE="$(AGENTIK_CODE)" scripts/marketplace-versions --if-complete
 
 test:
@@ -28,6 +28,11 @@ lint:
 
 hygiene:
 	scripts/hygiene
+
+# HANDOFF.md and NICE_TO_HAVE.md held to their tables (hq design/05 §4); a file
+# without its canonical header, or absent, prints skip and passes.
+recordlint:
+	scripts/recordlint
 
 marketplace-check:
 	scripts/marketplace-check
@@ -47,12 +52,13 @@ local-marketplace:
 	scripts/marketplace-check --local "$(AGENTIK_MARKETPLACE_DIR)/.claude-plugin/marketplace.json"
 
 help:
-	@echo 'make check              test, lint, hygiene and marketplace-check, then the versions'
+	@echo 'make check              test, lint, hygiene, recordlint and marketplace-check, then the versions'
 	@echo '                        compare, but only when every checkout is present under'
 	@echo '                        AGENTIK_CODE (else one note, and check stays green)'
 	@echo 'make test               the stdlib unittest suite'
 	@echo 'make lint               sh -n on the front door and sync, the front door line bound'
 	@echo 'make hygiene            the hygiene scan of this repo'
+	@echo 'make recordlint         HANDOFF.md and NICE_TO_HAVE.md against their tables'
 	@echo 'make marketplace-check  the shape of .claude-plugin/marketplace.json'
 	@echo 'make versions           each marketplace line against its checkout plugin.json under'
 	@echo '                        AGENTIK_CODE (default this repo parent folder); an absent'
