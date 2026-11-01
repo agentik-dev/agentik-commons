@@ -171,6 +171,28 @@ class Generic(Base):
                 self.assertEqual(door.read_bytes(), ours if moves else before)
                 self.assertEqual("left alone" in out, says, out)
 
+    def test_the_launcher_and_names_read_a_conf_alike(self):
+        body = conf("agentik-x").replace("runner=agentik-x\n", "") + "runner=agentik-x"
+        crlf = body.replace("\n", "\r\n")
+        for text, ok in ((body, True), (body + "\n", True), ("# a note\n\n" + body + "\n", True),
+                         ("  " + body, False), (body.replace("runner=", " runner="), False),
+                         (body + " ", False), (body + "\t\n", False), (crlf, False),
+                         (crlf + "\r\n", False), ("\t\n" + body, False),
+                         (body.replace("runner=agentik-x", 'runner=a"b\\c'), False)):
+            with self.subTest(text=text):
+                self.setUp()
+                plugin = self.plugin()
+                (plugin / "lib" / "agentik-tool.conf").write_bytes(text.encode())
+                try:
+                    read = load_module().names(str(plugin / "lib"))["runner"] == "agentik-x"
+                except ValueError:
+                    read = False
+                code, out, _ = self.run_tool(plugin / "bin" / "agentik-x", "hook", "SessionStart")
+                refused = "its hooks do nothing" in out
+                if refused:
+                    json.loads(out)
+                self.assertEqual((read, not refused), (ok, ok), out)
+
     def test_a_reinstall_is_the_same_tree(self):
         plugin = self.plugin()
         self.install(plugin)

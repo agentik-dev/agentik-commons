@@ -128,9 +128,12 @@ def names(lib=None):
     when it is absent or malformed."""
     path = os.path.join(lib or _lib(), CONF)
     found = {}
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
+    # Split on LF alone and refuse a line with whitespace or a CR at either end, as the launcher's
+    # `read` loop does, so an indented or CRLF file fails here and at sync, never at hook time.
+    with open(path, encoding="utf-8", newline="") as fh:
+        for line in fh.read().split("\n"):
+            if line != line.strip(" \t\r\v\f"):
+                raise ValueError("%s: whitespace or a CR around a line: %r" % (CONF, line[:80]))
             if not line or line.startswith("#"):
                 continue
             m = _CONF_LINE.match(line)

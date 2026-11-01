@@ -53,6 +53,10 @@ tool=
 word=
 if [ -d "$target/plugin/lib" ]; then
 	if [ -f "$conf" ]; then
+		if grep -Eq '^[[:space:]]|[[:space:]]$' "$conf"; then
+			echo "sync: $conf has whitespace or a CR around a line, which install-cli and the launcher refuse" >&2
+			exit 2
+		fi
 		tool=$(sed -n 's/^tool_name=//p' "$conf" | head -n 1)
 	else
 		word=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["name"])' \

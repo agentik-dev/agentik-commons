@@ -11,16 +11,21 @@ who=${0##*/}
 refuse() {   # the reason, then this launcher's own arguments
     why=$1
     if [ "$2" != hook ]; then echo "$who: $why" >&2; exit 3; fi
-    [ "$3" != SessionStart ] || printf '{"systemMessage": "%s: %s; its hooks do nothing"}\n' "$who" "$why"
+    msg="$who: $why; its hooks do nothing"   # a JSON string, with no fork: a hook may have no PATH
+    case $msg in *[\\\"[:cntrl:]]*) msg="a plugin launcher: its lib/agentik-tool.conf names what a JSON string cannot hold; its hooks do nothing" ;; esac
+    [ "$3" != SessionStart ] || printf '{"systemMessage": "%s"}\n' "$msg"
     exit 0
 }
 conf=$root/lib/agentik-tool.conf
 [ -f "$conf" ] && [ -r "$conf" ] || refuse "no names in this plugin, at lib/agentik-tool.conf" "$@"
 tool= runner=
-while IFS== read -r key value; do
-    case $key in
-        tool_name) tool=$value ;;
-        runner) runner=$value ;;
+# Whole lines, the last one read with no final newline too; whitespace or a CR at either end
+# refuses, as names() in agentik_install.py does.
+while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+        [[:space:]]* | *[[:space:]]) refuse "whitespace or a CR around a line of lib/agentik-tool.conf" "$@" ;;
+        tool_name=*) tool=${line#*=} ;;
+        runner=*) runner=${line#*=} ;;
     esac
 done < "$conf"
 who=${tool:-$who}

@@ -188,6 +188,27 @@ class PluginTest(unittest.TestCase):
         self.assertEqual(self.snapshot(), {*COPIES, "scripts/vendored.sha256",
                                            "plugin/.claude-plugin/plugin.json", "plugin/bin/agentik-relay"})
 
+    def sync_in(self, *args, **extra):
+        """sync under a temp HOME and XDG_*, with `extra` over a bare environment."""
+        home = os.path.join(os.path.realpath(self.tmp.name), "home")
+        env = {"HOME": home, "PATH": "/usr/bin:/bin", "XDG_CONFIG_HOME": home + "/.config",
+               "XDG_CACHE_HOME": home + "/.cache", "XDG_STATE_HOME": home + "/.local/state",
+               "XDG_DATA_HOME": home + "/.local/share"}
+        p = subprocess.run([str(SYNC), *args], capture_output=True, text=True, env=dict(env, **extra))
+        return p.returncode, p.stdout, p.stderr
+
+    def test_a_conf_with_whitespace_or_a_cr_around_a_line_writes_nothing(self):
+        good = "tool_name=agentik-x\nremedy=/x:install-cli\nrunner=agentik-x\nold_name=\nold_state=\n"
+        for text in ("  " + good, good.replace("runner", " runner"), good.replace("\n", "\r\n"),
+                     good + " \n", good.replace("old_state=\n", "old_state=\t")):
+            with self.subTest(text=text):
+                (self.lib / "agentik-tool.conf").write_bytes(text.encode())
+                before = self.snapshot()
+                code, out, err = self.sync_in(self.repo)
+                self.assertEqual((code, out), (2, ""))
+                self.assertIn("whitespace or a CR", err)
+                self.assertEqual(self.snapshot(), before)
+
     def test_a_plugin_that_names_no_tool_writes_nothing(self):
         for text in (None, "not json", '{"version": "1.0.0"}', '{"name": "Bad Name"}', '{"name": "1x"}'):
             with self.subTest(text=text):
