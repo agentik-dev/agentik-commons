@@ -85,7 +85,8 @@ def problems(data, local):
         out += ["plugin name %s appears %d times" % (n, names.count(n)) for n in repeated]
     elif sorted(map(str, names)) != sorted(PUBLISHED):
         # one line: what is lacking, when that is all, else the names found
-        if len(set(names)) == len(names) and set(names) < set(PUBLISHED):
+        found = set(map(str, names))  # a name may be a list or a dict, never hashed as one
+        if len(found) == len(names) and found < set(PUBLISHED):
             out.append("plugins lacks %s" % ", ".join(t for t in PUBLISHED if t not in names))
         else:
             out.append("plugins holds %d entries, %s, not the %d: %s"

@@ -126,6 +126,17 @@ class MarketplaceTest(unittest.TestCase):
         self.assertEqual(check(self.write("{"))[0], 1)
         self.assertEqual(check(self.write("[]"))[0], 1)
 
+    def test_a_name_that_is_a_dict_or_a_list_is_problem_lines_not_a_traceback(self):
+        for name in ({"x": 1}, ["x"]):
+            for args in ((), ("--local",)):
+                data = self.on_file_urls() if args else copy.deepcopy(self.data)
+                data["plugins"][0]["name"] = name
+                code, out, err = check(*args, self.write(data))
+                self.assertEqual((code, out), (1, ""), (name, args))
+                self.assertNotIn("Traceback", err)
+                self.assertTrue(err and all(ln.startswith("marketplace-check: ")
+                                            for ln in err.splitlines()), (name, args, err))
+
     def test_local_wants_file_urls(self):
         self.assertEqual(check("--local", str(FILE))[0], 1)
         data = self.on_file_urls()
