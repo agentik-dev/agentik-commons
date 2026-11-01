@@ -214,6 +214,19 @@ class RecordlintTest(unittest.TestCase):
                         "NICE_TO_HAVE.md:1: size: 24,576 B, the bound is under 24,576 B; move the oldest S4"
                         " rows, appended, to history/NICE-overflow.md; the frozen archive is never edited")
 
+    @unittest.skipIf(os.geteuid() == 0, "root reads a mode-000 file")
+    def test_an_unreadable_file_is_one_finding(self):
+        path = Path(self.dir, "NICE_TO_HAVE.md")
+        path.write_text(nice(*GREEN_NICE), encoding="utf-8")
+        path.chmod(0)
+        try:
+            # the default pair: the readable file still prints its line, then the finding
+            self.assertEqual(self.run_lint({"HANDOFF.md": handoff(*GREEN_HANDOFF)}),
+                             (2, "HANDOFF.md: held: 5 rows\n"
+                                 "NICE_TO_HAVE.md:0: unreadable: Permission denied\n", ""))
+        finally:
+            path.chmod(0o644)
+
     def test_usage_exits_one_and_writes_nothing(self):
         for args in (("-x",), ("notes.md",), ("HANDOFF.md", "--json")):
             code, out, err = self.run_lint(None, *args)

@@ -34,6 +34,8 @@ so `\\|` in a code span stays in one cell) and writes nothing.
   order      a HANDOFF table outside the first `##` after the build-order marker
              comment, the one section the reader takes
   size       HANDOFF.md at 8,192 B or NICE_TO_HAVE.md at 24,576 B (rule 6)
+  unreadable a file that is there but cannot be read, at line 0, with the
+             system's reason; never a traceback
 """
 import os
 import re
@@ -222,8 +224,11 @@ def check(path):
         raise UsageError("%s is neither a %s nor a %s" % (path, HANDOFF, NICE))
     if not os.path.isfile(path):
         return ["%s: skip: no such file" % path], False
-    with open(path, "rb") as handle:
-        data = handle.read()
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read()
+    except OSError as exc:
+        return ["%s:0: unreadable: %s" % (path, exc.strerror or exc)], True
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as exc:
