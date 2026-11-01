@@ -1,6 +1,8 @@
 """scripts/recordlint (hq design/05 §4, packet c3): HANDOFF.md and NICE_TO_HAVE.md
 held to design/05 §2's tables. Each fixture is built here, in a temporary directory,
 and each test reads the exact stdout and exit: 0 clean, 2 on a finding, 1 on usage.
+Each run is `/usr/bin/python3 scripts/recordlint`, the 3.9 floor made explicit, since the
+shebang is `env python3` (hq entry 6); the shape test runs it once by its shebang.
 The build-order marker is assembled at runtime, as the script assembles it, so the
 hygiene scan's sibling group finds no tool name in this file."""
 import os
@@ -12,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RECORDLINT = ROOT / "scripts" / "recordlint"
+FLOOR = "/usr/bin/python3"
 MARKER = "<!-- " + "decision" + "s: build order -->"
 HANDOFF_HEADER = "| # | item | level | repo | where | state |"
 NICE_HEADER = "| id | level | area | finding | evidence | from |"
@@ -58,7 +61,8 @@ class RecordlintTest(unittest.TestCase):
     def run_lint(self, files=None, *args):
         for name, text in (files or {}).items():
             Path(self.dir, name).write_text(text, encoding="utf-8")
-        p = subprocess.run([str(RECORDLINT), *args], capture_output=True, text=True, cwd=self.dir)
+        floor = [FLOOR] if os.access(FLOOR, os.X_OK) else []
+        p = subprocess.run([*floor, str(RECORDLINT), *args], capture_output=True, text=True, cwd=self.dir)
         return p.returncode, p.stdout, p.stderr
 
     def assertLint(self, files, code, *lines):
@@ -66,7 +70,9 @@ class RecordlintTest(unittest.TestCase):
         self.assertEqual(got, (code, "".join(line + "\n" for line in lines), ""))
 
     def test_shape_the_floor_and_the_mode(self):
-        self.assertTrue(RECORDLINT.read_text().startswith("#!/usr/bin/python3\n"))
+        self.assertTrue(RECORDLINT.read_text().startswith("#!/usr/bin/env python3\n"))
+        by_shebang = subprocess.run([str(RECORDLINT), "--help"], capture_output=True, cwd=self.dir)
+        self.assertEqual(by_shebang.returncode, 0)
         self.assertTrue(os.access(RECORDLINT, os.X_OK))
         py_compile.compile(str(RECORDLINT), cfile=os.path.join(self.dir, "c.pyc"), doraise=True)
 

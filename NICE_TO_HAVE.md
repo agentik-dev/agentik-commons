@@ -17,3 +17,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n4 | S4 | `README.md` | the `make check` line names no recordlint, though check runs it after hygiene; c3's may-touch row admitted only the scripts rows | `README.md:34` | 2026-11-01, c3's builder; hq's decision, rides commons' next packet |
 | n5 | S4 | `scripts/recordlint` | a `<br>` or a list inside a cell passes unchecked, though GUIDE §9's Cells rule is one line, no list, no `<br>` | `GUIDE.md:75` | 2026-11-01, c3's refuter round 1 |
 | n6 | S4 | `scripts/recordlint` | bullets above the first `##` pass, rule 2 holding only the lines under a `##`, though design/05 §2's shape is a title and one head paragraph | `GUIDE.md:75`; `scripts/recordlint:171` | 2026-11-01, c3's refuter round 1 |
+
+## From packet c4
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n7 | S4 | `.claude-plugin/marketplace.json` | design/04 §6's drop of the marketplace `version` lines is not built; a packet when a commons change rides | hq `design/04-self-contained-plugins.md` §6, hq `history/handoff-done.md` item 17 | 2026-11-01, h1's refuter F1 |
