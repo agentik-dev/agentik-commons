@@ -15,7 +15,9 @@ It builds no tool: no `install` target, no plugin of its own.
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
 | `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version (GUIDE §7) |
 | `scripts/marketplace-versions` | each marketplace line against its checkout's `plugin/.claude-plugin/plugin.json` under `AGENTIK_CODE`; exit 1, one line per entry that trails, leads or differs, or whose checkout has no readable version; no network |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256` |
+| `scripts/agentik_install.py` | the canonical `install-cli`: freeze, launcher, prune and forward refresh, generic by name, stdlib at Python 3.9 (GUIDE §10) |
+| `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/bounded` and `scripts/plugin-version-check` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/`, also the two above and the door, listed there too |
 
 ## Make targets
 
