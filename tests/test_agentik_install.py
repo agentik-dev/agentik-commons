@@ -421,6 +421,16 @@ class Prune(unittest.TestCase):
         self.mod.prune(self.share, "new", keep=1, ps=ps)
         self.assertEqual(self.names(), [".lock", "c", "new"])
 
+    def test_a_live_tree_at_a_path_boundary(self):
+        for tail, live in ((",/other", ["b"]), (";next", ["b"]), (")", ["b"]), ("=1", ["b"]), ("", ["b"]),
+                           ("/f", ["b"]), ("x", []), ("-old/f", [])):
+            with self.subTest(tail=tail):
+                self.setUp()
+                ps = self.ps('echo "1 env AGENTIK_PRUNE_PROBE=$AGENTIK_PRUNE_PROBE"; echo "2 run --roots=%s/b%s"'
+                             % (self.share, tail))
+                self.assertEqual(self.mod.prune(self.share, "new", keep=1, ps=ps)[0], 0)
+                self.assertEqual(self.names(), sorted([".lock", "new"] + live))
+
     def test_on_doubt_nothing_goes(self):
         for body in ("exit 1", "echo no environment here"):
             code, lines = self.mod.prune(self.share, "new", keep=1, ps=self.ps(body))

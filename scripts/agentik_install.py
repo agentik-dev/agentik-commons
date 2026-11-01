@@ -445,11 +445,16 @@ def processes(ps, timeout=60):
 _PATHS = r"(?<![^\s:='\"])/[^\s:'\"]*"
 
 
-def named(text, share):
-    """The entry names right under `share` that a process text names. Each absolute path in
-    the text is compared by realpath (a symlink or a doubled slash still names its tree);
-    the share's own spellings are matched literally too, so a share path with a space,
-    which no path token can hold, still counts."""
+_NAME_CHAR = re.compile(r"[A-Za-z0-9._-]")
+
+
+def named(text, share, entries):
+    """Which of `entries`, the names right under `share`, a process text names. Each absolute
+    path in the text is compared by realpath (a symlink or a doubled slash still names its
+    tree); the share's own spellings are matched literally too, so a share path with a space,
+    which no path token can hold, still counts. An entry counts at a path boundary: what
+    follows its name is the end, or anything a name does not hold (`,` `;` `)` `=`), so a
+    list or an option still names it, and `<share>/<tree>x` does not; on doubt it counts."""
     real = os.path.realpath(share).rstrip("/")
     found = set()
     for root in {str(share).rstrip("/"), real}:
@@ -461,7 +466,8 @@ def named(text, share):
             continue
         if resolved.startswith(real + "/"):
             found.add(resolved[len(real) + 1:].split("/", 1)[0])
-    return found
+    return {e for e in entries
+            if any(f == e or (f.startswith(e) and not _NAME_CHAR.match(f[len(e)])) for f in found)}
 
 
 def _remove(path):
@@ -482,9 +488,9 @@ def prune(share, new, keep=KEEP, ps="ps", ps_timeout=60):
     text, why = processes(ps, ps_timeout)
     if text is None:
         return 0, ["prune-trees: %s; keeping every tree" % why]
-    live = named(text, share)
     entries = sorted((n for n in os.listdir(share) if not n.startswith(".")),
                      key=lambda n: (os.lstat(os.path.join(share, n)).st_mtime_ns, n), reverse=True)
+    live = named(text, share, entries)
     newest = set(entries[:keep]) | {new}
     seen = [n for n in entries if n in live]
     lines = []
