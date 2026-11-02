@@ -12,7 +12,7 @@
         "path": "plugin"
       },
       "description": "Profiles for Claude Code sittings: one resolved configuration per session, offered to the plugins that depend on it, and a doctor that checks the setup.",
-      "version": "2.0.0-alpha.43"
+      "version": "2.0.0-alpha.45"
     },
     {
       "name": "decisions",
@@ -52,7 +52,7 @@
         "path": "plugin"
       },
       "description": "See every agent on this Mac, run a session's mechanical subagents on a local model through a loopback router, and write a repo's records from a hand-back.",
-      "version": "1.5.1"
+      "version": "1.5.3"
     },
     {
       "name": "suite",
