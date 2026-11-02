@@ -31,7 +31,7 @@ It builds no tool: no `install` target.
 
 ## Make targets
 
-- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, and the marketplace check; then the versions compare, only when every tool's checkout is present under `AGENTIK_CODE`, so a clone of this repo alone stays green.
+- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, the records lint (`scripts/recordlint` on `HANDOFF.md` and `NICE_TO_HAVE.md`), and the marketplace check; then the versions compare, only when every tool's checkout is present under `AGENTIK_CODE`, so a clone of this repo alone stays green.
 - `make versions`: each marketplace line against its checkout's `plugin.json` (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder); an absent checkout is skipped with a note.
 - `make help`: the targets, one line each.
 - `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it with `marketplace-check --local`. The published file names public repos only; the local file leaves out `suite` (this Mac installs the tools by name) and adds, after the five, the entries of the overlay `AGENTIK_MARKETPLACE_OVERLAY` (default `~/.config/agentik/marketplace-local.json`, kept outside every repo), a JSON object whose `plugins` are in the published form, for a plugin whose repo is not public. An absent overlay adds nothing; one that cannot be read, is not JSON or has no `plugins` list fails the target, which then writes nothing. `scripts/local-marketplace` does the merge.
