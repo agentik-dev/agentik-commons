@@ -3,6 +3,7 @@ counts only. Every private term here is invented, and every fixture is assembled
 runtime, so this file scans clean under the tree scan itself (packet h1)."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -10,7 +11,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "hygiene"
 ENV = "AGENTIK_HYGIENE_PRIVATE"
-PRIVATE = "private\tzorbla[x]-ops\nperson\tglimmerwic[k]\n"
+PRIVATE = "private\tzorbla[x]-ops\nperson\tglimmerwic[k]\nemail\tsnorkelwi[x]\n"
 TERM = "the zorbla" + "x-ops mirror"            # the private group
 PERSON = "by Glimmer" + "wick"                  # the person group
 HOME = "see /Us" + "ers/alice/notes"            # the home group
@@ -18,6 +19,9 @@ SIBLING = "load resp" + "eak first"             # the sibling group
 OLD_NAME = "agent-" + "relay"                   # the renamed group
 MATCHED = ["zorbla" + "x-ops", "glimmer" + "wick", "/us" + "ers/alice"]
 TRAILER = "Co-Authored-By: Some One <noreply" + "@example.com>"
+GENERIC_MAIL = "noreply" + "@example.com"     # the generic email group
+PRIVATE_MAIL = "Snorkel" + "wix"               # a private row of the email group
+CHUNK = 1024 * 1024
 
 
 def setUpModule():
@@ -43,9 +47,10 @@ def git(repo, *args):
                           text=True, env=env).stdout.strip()
 
 
-def run(repo, *args):
+def run(repo, *args, env_extra=None):
     env = dict(os.environ, **GIT_ENV)
     env[ENV] = PRIVATE_FILE
+    env.update(env_extra or {})
     p = subprocess.run([str(SCRIPT), "--repo", repo, *args], capture_output=True,
                        text=True, env=env)
     return p.returncode, p.stdout, p.stderr
@@ -190,6 +195,135 @@ class CommitsTest(unittest.TestCase):
         code, out, err = run(self.repo, "--help")
         self.assertEqual(code, 0)
         self.assertIn("--commits RANGE", out)
+
+    # The refuter's fold, round 1 (F1, F3, F4, F7, F8, F9).
+
+    def subject_only(self, message):
+        # git refuses a message of sign-off lines alone unless told verbatim
+        git(self.repo, "commit", "-q", "--allow-empty", "--cleanup=verbatim", "-m", message)
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def test_c13_an_untracked_allow_row_blesses_nothing(self):
+        self.commit({"x.md": TERM + "\n"})
+        Path(self.repo, ".hygiene-allow").write_text("x.md: private\n")  # never committed
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d)), (1, {("x.md", "private"): 1}))
+
+    def test_c14_the_allowlist_is_the_range_tips_not_the_checkouts(self):
+        git(self.repo, "checkout", "-q", "main")
+        self.commit({".hygiene-allow": "x.md: private\n"}, "main allows")
+        git(self.repo, "checkout", "-q", "-B", "work", "main")
+        self.commit({"x.md": TERM + "\n"}, delete=[".hygiene-allow"])
+        git(self.repo, "checkout", "-q", "main")  # the checkout allows, the tip does not
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d)), (1, {("x.md", "private"): 1}))
+        git(self.repo, "checkout", "-q", "-b", "kept", "work")
+        self.commit({".hygiene-allow": "x.md: private\n"}, "the tip allows")
+        git(self.repo, "rm", "-q", "--cached", ".hygiene-allow")
+        os.unlink(os.path.join(self.repo, ".hygiene-allow"))  # the working tree has none
+        code, d = self.scan("main..kept")
+        self.assertEqual((code, d["files"]), (0, []))
+
+    def test_c15_a_trailer_skips_the_generic_email_alone_and_only_in_trailer_position(self):
+        hits = {self.commit({}, "s\n\nCo-Authored-By: " + PRIVATE_MAIL + " <" + GENERIC_MAIL + ">"),
+                self.commit({}, "s\n\nSigned-off-by: " + TERM),
+                self.commit({}, "s\n\nSigned-off-by: x " + GENERIC_MAIL + "\n\nlast paragraph"),
+                self.subject_only("Signed-off-by: " + GENERIC_MAIL)}
+        self.commit({}, "s\n\nbody\n\n" + TRAILER + "\nSigned-off-by: x <" + GENERIC_MAIL + ">")
+        code, d = self.scan()
+        self.assertEqual(code, 1)
+        self.assertEqual(self.outside(d), {("(commit message)", "email"): 3,
+                                           ("(commit message)", "private"): 1})
+        self.assertEqual(set(d["commits"]["hit"]), {sha[:12] for sha in hits})
+
+    def test_c16_a_replace_ref_or_graft_hides_no_commit(self):
+        leak = self.commit({"a.txt": TERM + "\n"}, "leaky")
+        tip = self.commit({"a.txt": "c\n"}, "tidy")
+        git(self.repo, "checkout", "-q", "-b", "twin", "main")
+        twin = self.commit({"a.txt": "harmless\n"}, "leaky")
+        git(self.repo, "checkout", "-q", "work")
+        git(self.repo, "replace", leak, twin)
+        code, d = self.scan()
+        self.assertEqual((code, d["commits"]["scanned"]), (1, 2))
+        git(self.repo, "replace", "-d", leak)
+        git(self.repo, "replace", "--graft", tip, "main")
+        code, d = self.scan()
+        self.assertEqual((code, d["commits"]), (1, {"scanned": 2, "hit": [leak[:12]]}))
+
+    def test_c17_git_environment_never_redirects_either_scan(self):
+        decoy = tempfile.TemporaryDirectory()
+        self.addCleanup(decoy.cleanup)
+        git(decoy.name, "init", "-q", "-b", "main")
+        Path(decoy.name, "README.md").write_text("clean\n")
+        git(decoy.name, "add", "README.md")
+        git(decoy.name, "commit", "-q", "-m", "decoy")
+        self.commit({"x.md": TERM + "\n"})
+        env = {"GIT_DIR": os.path.join(decoy.name, ".git"), "GIT_WORK_TREE": decoy.name,
+               "GIT_INDEX_FILE": os.path.join(decoy.name, ".git", "index")}
+        for args in (("--json", "--commits", "main..work"), ("--json",)):
+            code, out, err = run(self.repo, *args, env_extra=env)
+            self.assertEqual((code, err), (1, ""), args)
+            self.assertIn({"path": "x.md", "group": "private", "lines": 1},
+                          json.loads(out)["files"], args)
+
+    def test_c18_the_commits_touching_the_allowlist_are_named(self):
+        self.commit({"a.md": "a\n"})
+        allow = self.commit({".hygiene-allow": "a.md: person\n"}, "allow")
+        self.commit({"b.md": "b\n"})
+        code, d = self.scan()
+        self.assertEqual((code, d["commits"]["allowlist_changed"]), (0, [allow[:12]]))
+        text = run(self.repo, "--commits", "main..work")[1]
+        self.assertIn("allowlist changed in the range: " + allow[:12], text.splitlines())
+        code, d = self.scan(allow + "..work")
+        self.assertNotIn("allowlist_changed", d["commits"])
+        self.assertNotIn("allowlist", run(self.repo, "--commits", allow + "..work")[1])
+
+    def test_c19_a_root_commit_is_scanned_whatever_log_showroot_says(self):
+        git(self.repo, "config", "log.showRoot", "false")
+        git(self.repo, "checkout", "-q", "--orphan", "root")
+        git(self.repo, "rm", "-q", "-r", "--cached", ".")
+        root = self.commit({"r.md": TERM + "\n"}, "root")
+        code, d = self.scan("root")
+        self.assertEqual((code, d["commits"]), (1, {"scanned": 1, "hit": [root[:12]]}))
+
+    def test_c20_a_blob_git_cannot_read_is_the_failure_exit(self):
+        self.commit({"blob.bin": b"\0\1" + HOME.encode()})
+        bindir = tempfile.TemporaryDirectory()
+        self.addCleanup(bindir.cleanup)
+        fake = Path(bindir.name, "git")
+        fake.write_text('#!/bin/sh\ncase " $* " in *" cat-file blob "*) exit 3;; esac\n'
+                        'exec "%s" "$@"\n' % shutil.which("git"))
+        fake.chmod(0o755)
+        path = bindir.name + os.pathsep + os.environ.get("PATH", "")
+        code, out, err = run(self.repo, "--commits", "main..work", env_extra={"PATH": path})
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("cat-file", err)
+
+    def test_c21_an_external_diff_or_textconv_hides_no_line(self):
+        git(self.repo, "config", "diff.external", "/usr/bin/true")
+        git(self.repo, "config", "diff.tc.textconv", "/usr/bin/true")
+        Path(self.repo, ".git", "info").mkdir(exist_ok=True)
+        Path(self.repo, ".git", "info", "attributes").write_text("*.txt diff=tc\n")
+        self.commit({"a.txt": TERM + "\n"})
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d)), (1, {("a.txt", "private"): 1}))
+
+    def test_c22_a_match_across_a_pieces_cut_is_seen_once(self):
+        # the diff's `+` and TERM's "the " put the match's start 3 bytes before the cut
+        self.commit({"long.txt": "x" * (CHUNK - 8) + TERM + "\n"})
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d), d["oversize"]),
+                         (1, {("long.txt", "private"): 1}, 1))
+
+    def test_c23_a_quoted_path_is_unquoted(self):
+        self.commit({'q"uote\\d.md': PERSON + "\n"})
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d)), (1, {('q"uote\\d.md', "person"): 1}))
+
+    def test_c24_no_allow_row_covers_a_message(self):
+        self.commit({".hygiene-allow": "*: person\n"}, "s\n\n" + PERSON)
+        code, d = self.scan()
+        self.assertEqual((code, self.outside(d)), (1, {("(commit message)", "person"): 1}))
 
 
 if __name__ == "__main__":
