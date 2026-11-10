@@ -52,7 +52,25 @@ only (a `renamed` count of 0 reads `outside_files`); then the outside rows in
 `files`, `hits_outside_allowlist` and `oversize`. The text table shows `lines`
 and `files`, then the outside rows.
 
-Usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]
+`--commits RANGE` scans a git revision range instead of the tree (packet h1), so a
+term a branch adds and a later commit removes is red before its merge. Each
+commit's added lines (`git log -p`, streamed, never held whole; a line over 1 MiB
+comes in pieces, each led by the last 4 KiB of the one before, counted once and in
+`oversize`) count on their path under the path rules above, and a new file's path
+is a line; a removed or context line never counts. A binary's new blob is scanned
+as the tree scan scans a binary. Each line of each message is scanned under every
+group but `sibling` and `renamed` (public tool names), the `email` group skipping
+a `Co-Authored-By:` or `Signed-off-by:` trailer, an identity git publishes in the
+header anyway; its rows name `(commit message)` and no allowlist row covers them.
+`renamed` reads live files and is not scanned on history. The allowlist is the
+working tree's, the head's, for every commit: a row added and dropped inside the
+range blesses nothing. A merge's message is scanned, never its diff: what it
+brings is in the range or behind it. `commits` gives the number scanned and the
+12-hex shas with a hit outside the allowlist. A range git cannot read, or a git
+that fails mid-stream, exits 2: a cut stream is never clean. An empty value, or
+one opening `-`, is a usage error.
+
+Usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private] [--commits RANGE]
 Exit codes report the task, not the content (the agentik guide): 0 when no hit
 lies outside the allowlist, 1 when one does (a check said no), 2 on usage, a bad
 line in the allowlist or the private list, git failing, a file it cannot read
@@ -116,7 +134,20 @@ CHARTER = re.compile(r"history/sittings/(\d{4}-\d{2}-\d{2})-(\d+)(?:-([^/]+))?\.
 BINARY_GROUPS = ("home", "secret", "email")
 PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t]{8,}")
 SECRET_ALLOW_ROOT = ["tests", "fixtures"]
-USAGE = "usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]"
+USAGE = ("usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]"
+         " [--commits RANGE]")
+MESSAGE = "(commit message)"
+MESSAGE_SKIP = ("sibling", "renamed")
+TRAILER = re.compile(r"(?:co-authored-by|signed-off-by):", re.IGNORECASE)
+SHORT = 12
+START, END = b"\x00\x01", b"\x00\x02"
+# The flags no config moves: quoting, signatures, colour, external diffs, textconv,
+# renames, merges' diffs, the index width, prefixes, the root's diff, a relative
+# diff, a submodule's inner diff, the output encoding.
+LOG = ("-c", "core.quotePath=false", "-c", "log.showSignature=false", "log", "-p",
+       "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-merges=off",
+       "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--root", "--no-relative",
+       "--submodule=short", "--encoding=UTF-8", "--format=%x00%x01%H%n%B%x00%x02")
 
 
 class UsageError(Exception):
@@ -143,7 +174,8 @@ def why(exc):
 
 
 def parse_args(argv):
-    opts = {"json": False, "allow": None, "repo": ".", "require_private": False}
+    opts = {"json": False, "allow": None, "repo": ".", "require_private": False,
+            "commits": None}
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -151,9 +183,11 @@ def parse_args(argv):
             opts["json"] = True
         elif arg == "--require-private":
             opts["require_private"] = True
-        elif arg in ("--allow", "--repo"):
+        elif arg in ("--allow", "--repo", "--commits"):
             if i + 1 >= len(argv):
                 raise UsageError("%s needs a value" % arg)
+            if arg == "--commits" and (not argv[i + 1] or argv[i + 1].startswith("-")):
+                raise UsageError("--commits needs a revision range, not empty or opening -")
             opts[arg[2:]] = argv[i + 1]
             i += 1
         elif arg in ("-h", "--help"):
@@ -287,27 +321,33 @@ def stream(full):
     break (a text's newline, a binary's non-printable byte), so no line or run is split;
     a carry past LINE_CARRY is scanned and only its last OVERLAP kept."""
     with open(full, "rb") as fh:
+        yield from stream_fh(fh)
+
+
+def stream_fh(fh):
+    """`stream` over an open binary file or pipe: the codec and the binary test are the
+    first chunk's."""
+    chunk = fh.read(CHUNK)
+    codec = utf16(chunk)
+    binary = not codec and b"\0" in chunk[:BINARY_PROBE]
+    decoder = None if binary else codecs.getincrementaldecoder(codec or "utf-8")("replace")
+    carry = b"" if binary else ""
+    while chunk:
+        buf = carry + (chunk if binary else decoder.decode(chunk))
+        if binary:
+            m = LAST_BREAK.search(buf)
+            cut = m.start() + 1 if m else 0
+        else:
+            cut = buf.rfind("\n") + 1
+        yield from pieces(buf[:cut], binary)
+        carry = buf[cut:]
+        if len(carry) > LINE_CARRY:
+            yield from pieces(carry, binary)
+            carry = carry[-OVERLAP:]
         chunk = fh.read(CHUNK)
-        codec = utf16(chunk)
-        binary = not codec and b"\0" in chunk[:BINARY_PROBE]
-        decoder = None if binary else codecs.getincrementaldecoder(codec or "utf-8")("replace")
-        carry = b"" if binary else ""
-        while chunk:
-            buf = carry + (chunk if binary else decoder.decode(chunk))
-            if binary:
-                m = LAST_BREAK.search(buf)
-                cut = m.start() + 1 if m else 0
-            else:
-                cut = buf.rfind("\n") + 1
-            yield from pieces(buf[:cut], binary)
-            carry = buf[cut:]
-            if len(carry) > LINE_CARRY:
-                yield from pieces(carry, binary)
-                carry = carry[-OVERLAP:]
-            chunk = fh.read(CHUNK)
-        if not binary:
-            carry += decoder.decode(b"", final=True)
-        yield from pieces(carry, binary)
+    if not binary:
+        carry += decoder.decode(b"", final=True)
+    yield from pieces(carry, binary)
 
 
 def read_lines(path, full):
@@ -415,6 +455,167 @@ def scan(repo, entries, compiled):
             "files": outside, "oversize": oversize}
 
 
+def unquote(path):
+    """A diff header's path: git C-quotes one holding a quote, a backslash or a control
+    byte (octal for the rest, `core.quotePath=false` keeps UTF-8 as it is)."""
+    if len(path) < 2 or path[0] != '"' or path[-1] != '"':
+        return path
+    raw, out, i = path[1:-1].encode("utf-8", "surrogateescape"), bytearray(), 0
+    simple = {ord(k): v for k, v in zip('abtnvfr"\\', b'\a\b\t\n\v\f\r"\\')}
+    while i < len(raw):
+        octal = raw[i + 1:i + 4]
+        if raw[i] == 0x5c and len(octal) == 3 and all(0x30 <= b <= 0x37 for b in octal):
+            out.append(int(octal, 8) & 0xff)
+            i += 4
+        elif raw[i] == 0x5c and i + 1 < len(raw) and raw[i + 1] in simple:
+            out.append(simple[raw[i + 1]])
+            i += 2
+        else:
+            out.append(raw[i])
+            i += 1
+    return out.decode("utf-8", "surrogateescape")
+
+
+def header_path(rest):
+    """P from `a/P b/P` (or both sides quoted), what follows `diff --git `: under
+    --no-renames both sides are the same path, so the line splits at its middle
+    whatever P holds."""
+    return unquote(rest[:(len(rest) - 1) // 2])[2:]
+
+
+def log_pieces(fh):
+    """The stream's lines as (bytes, more), newline dropped: a line over CHUNK comes in
+    pieces, each after the first led by the last OVERLAP bytes of the one before, so a
+    match across a cut is seen; `more` marks every piece of a line but its last."""
+    tail = b""
+    while True:
+        piece = fh.readline(CHUNK)
+        if not piece:
+            if tail:
+                yield b"", False  # a last line without its newline ends here
+            return
+        more = not piece.endswith(b"\n")
+        if not more:
+            piece = piece[:-1]
+        yield tail + piece, more
+        tail = piece[-OVERLAP:] if more else b""
+
+
+def scan_commits(repo, rng, entries, compiled):
+    """Counts per group over the range's added lines (on their path) and its messages'
+    lines (on MESSAGE), in the tree scan's shape plus `commits`: the number scanned and
+    the short shas with a hit outside the allowlist. A line counts once per group,
+    however many pieces it came in. Git failing, the log or a blob, is a Failure."""
+    compiled = [(name, rx) for name, rx in compiled if name not in LIVE_ONLY]
+    order = list(dict.fromkeys(name for name, _ in compiled))
+    message_rx = [(name, rx) for name, rx in compiled if name not in MESSAGE_SKIP]
+    trailer_rx = [(name, rx) for name, rx in message_rx if name != "email"]
+    rules, rows, hit = {}, {}, []
+
+    def live(path):
+        if path not in rules:
+            rules[path] = [(name, rx) for name, rx in compiled
+                           if not (name in RECORDS_SKIP and path.startswith(RECORDS))]
+        return rules[path]
+
+    def outside(path, name):
+        return path == MESSAGE or not allowed(path, name, entries)
+
+    def count(sha, path, names):
+        for name in names:
+            rows[(path, name)] = rows.get((path, name), 0) + 1
+            if sha not in hit and outside(path, name):
+                hit.append(sha)
+
+    def matches(text, rxs, names=ALL):
+        return {name for name, rx in rxs
+                if (names is ALL or name in names) and rx.search(text)}
+
+    def blob(sha, path, oid):
+        child = subprocess.Popen(["git", "-C", repo, "cat-file", "blob", oid],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        try:
+            for line, names in stream_fh(child.stdout):
+                count(sha, path, matches(line, live(path), names))
+        finally:
+            child.stdout.close()
+            code = child.wait()
+        if code != 0:
+            raise Failure("git cat-file of a blob failed in %s: exit %d" % (repo, code))
+
+    scanned, oversize, sha = 0, 0, None
+    mode, path, oid = None, None, None
+    cont, kind, where, rxs, found = False, None, None, None, set()
+    try:
+        proc = subprocess.Popen(["git", "-C", repo] + list(LOG)
+                                + ["--end-of-options", rng, "--"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except OSError as exc:
+        raise Failure("git log of the range failed in %s: %s" % (repo, why(exc))) from None
+    try:
+        for piece, more in log_pieces(proc.stdout):
+            if not cont:  # a line's first piece: what it is
+                kind = None
+                if piece.startswith(START):
+                    sha, mode = piece[len(START):].decode("ascii", "replace")[:SHORT], "msg"
+                    scanned += 1
+                elif mode == "msg":
+                    first = piece.decode("utf-8", "replace")
+                    kind, where = "msg", MESSAGE
+                    rxs = trailer_rx if TRAILER.match(first) else message_rx
+                elif piece.startswith(b"diff --git "):
+                    mode, oid = "header", None
+                    path = header_path(piece[len(b"diff --git "):]
+                                       .decode("utf-8", "surrogateescape"))
+                elif mode == "header":
+                    if piece.startswith(b"new file mode "):
+                        count(sha, path, matches(path, live(path)))
+                    elif piece.startswith(b"index "):
+                        oid = piece.split()[1].split(b"..")[-1].decode("ascii", "replace")
+                    elif piece.startswith(b"Binary files ") and oid and oid.strip("0"):
+                        blob(sha, path, oid)
+                    elif piece.startswith(b"@@"):
+                        mode = "hunk"
+                elif mode == "hunk" and piece.startswith(b"+"):
+                    kind, where, rxs, piece = "add", path, live(path), piece[1:]
+            if kind:
+                text = piece
+                if kind == "msg":
+                    end = piece.find(END)
+                    if end >= 0:  # the message ends; what follows on the line is git's
+                        text, mode = piece[:end], "diff"
+                found |= matches(text.decode("utf-8", "replace"), rxs)
+                if mode == "diff" and kind == "msg":
+                    kind = None
+            if more:
+                oversize += not cont
+                cont = True
+                continue
+            if found:
+                count(sha, where, found)
+            cont, found = False, set()
+    finally:
+        proc.stdout.close()
+        code = proc.wait()
+    if code != 0:
+        raise Failure("git log of the range failed in %s: exit %d" % (repo, code))
+    groups = {name: {"lines": 0, "files": 0, "outside_lines": 0, "outside_files": 0}
+              for name in order}
+    rows_outside = []
+    for (where, name), lines in sorted(rows.items(),
+                                       key=lambda kv: (kv[0][0], order.index(kv[0][1]))):
+        groups[name]["lines"] += lines
+        groups[name]["files"] += 1
+        if outside(where, name):
+            rows_outside.append({"path": where, "group": name, "lines": lines})
+            groups[name]["outside_lines"] += lines
+            groups[name]["outside_files"] += 1
+    return {"groups": groups,
+            "hits_outside_allowlist": sum(f["lines"] for f in rows_outside),
+            "files": rows_outside, "oversize": oversize,
+            "commits": {"scanned": scanned, "hit": hit}}
+
+
 def render(result):
     rows = ["%-8s %6s %6s" % ("group", "lines", "files")]
     for name in result["groups"]:
@@ -427,6 +628,10 @@ def render(result):
             rows.append("%s  %s  %d" % (f["path"], f["group"], f["lines"]))
     if result["oversize"]:
         rows.append("oversize (streamed): %d" % result["oversize"])
+    if "commits" in result:
+        c = result["commits"]
+        rows.append("commits: %d scanned, %d with a hit outside the allowlist%s"
+                    % (c["scanned"], len(c["hit"]), ": " + " ".join(c["hit"]) if c["hit"] else ""))
     rows.append("hits outside allowlist: %d" % result["hits_outside_allowlist"])
     return "\n".join(rows)
 
@@ -442,7 +647,10 @@ def main(argv):
         compiled = COMPILED + private
         known = [name for name, _ in compiled]
         entries = load_allow(allow, opts["allow"] is not None, known, bool(private))
-        result = scan(repo, entries, compiled)
+        if opts["commits"] is not None:
+            result = scan_commits(repo, opts["commits"], entries, compiled)
+        else:
+            result = scan(repo, entries, compiled)
     except Help:
         print(USAGE)
         return 0
