@@ -22,3 +22,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n7 | S4 | `.claude-plugin/marketplace.json` | design/04 §6's drop of the marketplace `version` lines is not built; a packet when a commons change rides | hq `design/04-self-contained-plugins.md` §6, hq `history/handoff-done.md` item 17 | 2026-11-01, h1's refuter F1 |
+
+## From packet h1 (commit range)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n8 | S4 | `scripts/hygiene` | `--commits` never reads a merge's diff (R7), so a line an evil merge adds that neither side holds goes unscanned; `--diff-merges=cc` lines could be scanned once | `design/packets/h1-commit-range.md` R7, §4 | 2026-11-09, packet h1 |
+| n9 | S4 | `scripts/hygiene` | `--commits` scans messages, not the author and committer headers, which a push publishes too | `design/packets/h1-commit-range.md` §4 | 2026-11-09, packet h1 |
