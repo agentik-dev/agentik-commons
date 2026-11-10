@@ -12,9 +12,11 @@ by a 4 KiB overlap), with the first chunk's codec, and counted as `oversize`
 (ADV11-3): every byte is scanned, memory stays bounded. A file starting with a UTF-16
 BOM, or whose first 8 KB have NULs on 90% or more of the odd or the even bytes
 (not both), is decoded as UTF-16 and scanned as text. Else a file whose first
-8 KB hold a NUL is binary: it is scanned for the `home`, `secret` and `email`
-groups only (ADV10-17), over its printable runs of 8 or more bytes (as `strings`
-would), one line per run. `.hygiene-allow` lists
+8 KB hold a NUL is binary: it is scanned for the in-file `home`, `secret` and
+`email` patterns only (ADV10-17), over its printable runs of 8 or more bytes (as
+`strings` would), one line per run, and for the private list's rows over its whole
+content, decoded as UTF-8 with bad bytes replaced, one line per file (per chunk when
+streamed; packet h2). `.hygiene-allow` lists
 exceptions, one per line: `<path-glob>: <group>[,<group>]`, `#` comments; a
 glob's `*` stays inside one path segment; a `secret` exception outside
 `tests/fixtures/` is a usage error. Under `history/sittings/` (charters are
@@ -44,7 +46,8 @@ it names that this file lacks is a new group, one this file has gains the
 patterns. A regex from the list is never printed, not even in an error: a bad
 line is reported by its number. An absent list prints one stderr line and the
 scan runs on the generic groups; `--require-private` makes an absent or
-unreadable list exit 2.
+unreadable list, or one holding no term, exit 2 with one line naming it, nothing
+scanned (packet h2).
 
 `--json` gives each group `lines` and `files`, every hit with the allowlisted
 ones, and `outside_lines` and `outside_files`, the hits outside the allowlist
@@ -81,7 +84,7 @@ Exit codes report the task, not the content (the agentik guide): 0 when no hit
 lies outside the allowlist, 1 when one does (a check said no), 2 on usage, a bad
 line in the allowlist or the private list, git failing, a file it cannot read
 (one stderr line), any other error, or `--require-private` without a readable
-list; `--help` prints the usage and exits 0. Stdlib only; one
+list holding a term; `--help` prints the usage and exits 0. Stdlib only; one
 file, its canonical copy in agentik-commons, vendored into each repo by
 `scripts/sync` and pinned in `scripts/vendored.sha256`.
 
@@ -137,7 +140,9 @@ LIVE_BRIEFS = ("history/sessions/PROMPT-*", "history/sessions/BRIEF-*")
 LIVE_FILE = ".hygiene-live"
 UNSUFFIXED = "-"
 CHARTER = re.compile(r"history/sittings/(\d{4}-\d{2}-\d{2})-(\d+)(?:-([^/]+))?\.md\Z")
-BINARY_GROUPS = ("home", "secret", "email")
+BINARY_GROUPS = ("home", "secret", "email")  # their in-file patterns, over printable runs
+PRIVATE_ONLY = ("the private list's rows",)  # a binary's whole content: those rows alone
+GENERIC = {id(rx) for _, rx in COMPILED}
 PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t]{8,}")
 SECRET_ALLOW_ROOT = ["tests", "fixtures"]
 USAGE = ("usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]"
@@ -228,12 +233,14 @@ def load_private(path, required):
             raw = fh.read()
     except FileNotFoundError:
         if required:
-            raise NoPrivateList("no private list at %s (--require-private)" % path)
+            raise NoPrivateList("no private list at %s; nothing scanned (--require-private)"
+                                % path)
         sys.stderr.write("hygiene: no private list at %s; generic groups only\n" % path)
         return []
     except (OSError, UnicodeDecodeError):
         if required:
-            raise NoPrivateList("the private list at %s is unreadable (--require-private)" % path)
+            raise NoPrivateList("the private list at %s is unreadable; nothing scanned"
+                                " (--require-private)" % path)
         sys.stderr.write("hygiene: the private list at %s is unreadable; generic groups only\n"
                          % path)
         return []
@@ -249,6 +256,9 @@ def load_private(path, required):
             entries.append((group, re.compile(regex, re.IGNORECASE)))
         except re.error:
             raise UsageError("%s:%d: bad entry (group<TAB>regex)" % (path, n)) from None
+    if required and not entries:
+        raise NoPrivateList("the private list at %s holds no term; nothing scanned"
+                            " (--require-private)" % path)
     return entries
 
 
@@ -368,10 +378,22 @@ def utf16(data):
     return None
 
 
+def wanted(names, name, rx):
+    """Whether a row scans a line: every row a text line; the in-file rows of
+    BINARY_GROUPS a binary's printable run; the private rows alone its whole content."""
+    if names is ALL:
+        return True
+    if names is PRIVATE_ONLY:
+        return id(rx) not in GENERIC
+    return name in names and id(rx) in GENERIC
+
+
 def pieces(buf, binary):
-    """The scanned lines of a whole buffer: a text's lines, or a binary's printable runs."""
+    """The scanned lines of a whole buffer: a text's lines, or a binary's printable runs
+    and its whole content for the private rows."""
     if binary:
-        return [(m.group().decode("ascii"), BINARY_GROUPS) for m in PRINTABLE_RUN.finditer(buf)]
+        return [(m.group().decode("ascii"), BINARY_GROUPS) for m in PRINTABLE_RUN.finditer(buf)
+                ] + [(buf.decode("utf-8", "replace"), PRIVATE_ONLY)]
     return [(line, ALL) for line in buf.splitlines()]
 
 
@@ -412,7 +434,8 @@ def stream_fh(fh):
 def read_lines(path, full):
     """([(line, groups)], oversize) for one entry: its path, then a symlink's
     target, a text file's lines (UTF-16 decoded), or a binary's printable runs
-    (for BINARY_GROUPS only); a file over READ_CAP is streamed."""
+    (for BINARY_GROUPS' in-file patterns) and its whole content (for the private
+    rows); a file over READ_CAP is streamed."""
     rows = [(path, ALL)]
     if os.path.islink(full):
         target = os.readlink(full)
@@ -492,7 +515,7 @@ def scan(repo, entries, compiled):
             for line, names in lines:
                 hit = set()
                 for name, rx in live:
-                    if name in hit or (names is not ALL and name not in names):
+                    if name in hit or not wanted(names, name, rx):
                         continue
                     if rx.search(line):
                         hit.add(name)
@@ -591,8 +614,7 @@ def scan_commits(repo, rng, entries, compiled):
                 hit.append(sha)
 
     def matches(text, rxs, names=ALL):
-        return {name for name, rx in rxs
-                if (names is ALL or name in names) and rx.search(text)}
+        return {name for name, rx in rxs if wanted(names, name, rx) and rx.search(text)}
 
     def msg_line(found, found_t, blank):
         """A message line's match sets, held by paragraph: whether a line is in the
