@@ -704,6 +704,42 @@ class PrivateListTest(unittest.TestCase):
         self.assertEqual((code, hits, d["commits"]["hit"]),
                          (1, {("pic.png", "person"): 1}, [sha]))
 
+    def both(self, base, path):
+        """The hits of the tree and of the range base..main, each with its exit."""
+        tree = self.outside(env={ENV: path})
+        rng = self.outside("--commits", base + "..main", env={ENV: path})
+        return (tree[0], tree[1]), (rng[0], rng[1])
+
+    def test_h7_an_anchored_private_row_finds_its_term_at_a_run_edge(self):
+        # h2 round 1, F1: at f0fba84 a private home or email row met a run's edges
+        term = "zorbl" + "axquux"
+        base = self.commit("empty")
+        Path(self.repo, "x.bin").write_bytes(b"\0\1" + term.encode() + b"\0\1")
+        Path(self.repo, "x.txt").write_text("a\n" + term + "\n")
+        # a term shorter than a run, alone on a line of a binary: the anchors meet a newline
+        Path(self.repo, "y.bin").write_bytes(b"\0\1\n" + ("qw" + "zx").encode() + b"\n\0")
+        self.commit("adds the files")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text("home\t^zorbl[a]xquux\nemail\tzorbl[a]xquux$\n"
+                                  "short\t^qw[z]x$\n")
+            want = (1, {("x.bin", "home"): 1, ("x.bin", "email"): 1, ("x.txt", "home"): 1,
+                        ("x.txt", "email"): 1, ("y.bin", "short"): 1})
+            self.assertEqual(self.both(base, path), (want, want))
+
+    def test_h8_one_occurrence_counts_once_in_home(self):
+        # h2 round 1, F5: the generic home row and a private home row on one occurrence
+        text = "/Us" + "ers/zorbl" + "ax"
+        base = self.commit("empty")
+        Path(self.repo, "h.bin").write_bytes(b"\0\1" + text.encode() + b"\0")
+        Path(self.repo, "h.txt").write_text(text + "\n")
+        self.commit("adds the files")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text("home\tzorbl[a]x\n")
+            want = (1, {("h.bin", "home"): 1, ("h.txt", "home"): 1})
+            self.assertEqual(self.both(base, path), (want, want))
+
 
 if __name__ == "__main__":
     unittest.main()
