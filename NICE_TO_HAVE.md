@@ -31,3 +31,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n9 | S4 | `scripts/hygiene` | `--commits` scans messages, not the author and committer headers, which a push publishes too | `design/packets/h1-commit-range.md` §4 | 2026-11-09, packet h1 |
 | n10 | S4 | `scripts/hygiene` | `--commits` misses a term in a UTF-16 file whose first NUL lies past git's 8000-byte binary probe: git diffs it as text, its `+` lines read as UTF-8; the tree scan finds it | the refuter's `p5`: `MISS UTF-16 BOM, first NUL past 8000 exit=0`, the tree scan of the same file `exit=1` | 2026-11-09, h1's refuter round 1, F5 |
 | n11 | S4 | `scripts/hygiene` | a NUL in a commit message (an object made with `hash-object --literally`) cuts `%B` at the NUL, so a term after it is not scanned | the refuter's `p10`: `MISS NUL in a message before the term exit=0`, then `cat-file holds the term: True` | 2026-11-09, h1's refuter round 1, F6 |
+
+## From packet h2 (binary, empty list)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n12 | S4 | `scripts/hygiene` | a private term under an encoding inside a binary (UTF-16, base64, deflate as in PNG zTXt, zip, PDF) is not found, nor a non-ASCII term a streamed chunk's cut splits | `design/packets/h2-binary-empty-list.md` ruling 6; `scripts/hygiene` `stream_fh`, the cut at `LAST_BREAK` | 2026-11-10, packet h2 |
