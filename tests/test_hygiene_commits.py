@@ -167,7 +167,7 @@ class CommitsTest(unittest.TestCase):
         self.assertNotIn(("history/sittings/2026-01-01-1.md", "sibling"), hits)
         self.assertNotIn("renamed", d["groups"])  # a live-files group, never on history
         self.assertEqual(hits[("blob.bin", "home")], 1)
-        self.assertNotIn(("blob.bin", "private"), hits)  # a binary: home, secret, email only
+        self.assertEqual(hits[("blob.bin", "private")], 1)  # a binary's private rows (h2)
         self.assertEqual(hits[("docs/zorbla" + "x-ops.md", "private")], 1)  # a new path is a line
 
     def test_c10_a_merge_scans_its_message_and_never_its_diff_twice(self):
