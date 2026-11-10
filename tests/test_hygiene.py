@@ -76,7 +76,7 @@ class HygieneTest(unittest.TestCase):
         Path(self.repo, "docs", "allowed.md").write_text(FIXTURES["sibling"] + "\n")
         Path(self.repo, "docs", "deep").mkdir()
         Path(self.repo, "docs", "deep", "x.md").write_text(FIXTURES["sibling"] + "\n")
-        Path(self.repo, "blob.bin").write_bytes(b"\0\1" + FIXTURES["person"].encode())
+        Path(self.repo, "blob.bin").write_bytes(b"\0\1" + FIXTURES["lan"].encode())
         Path(self.repo, "untracked.txt").write_text(FIXTURES["domain"] + "\n")
         Path(self.repo, ".hygiene-allow").write_text(
             "# comment\ndocs/*.md: sibling\nlan.txt: lan,home\n")
@@ -145,7 +145,8 @@ class HygieneTest(unittest.TestCase):
         self.check_text_table()  # folded, so the README's test count holds
 
     def test_nul_file_scans_secret_and_email(self):
-        # ADV10-17: a NUL file's printable runs are scanned for home, secret and email
+        # ADV10-17: a NUL file's printable runs are scanned for home, secret and email;
+        # h2: its whole content for the private rows
         with tempfile.TemporaryDirectory() as repo:
             git(repo, "init", "-q")
             data = (b"\0 abcd" + b"@" + b"example.org sk-an" + b"t" + b"-abcdefghij\n"
@@ -156,7 +157,7 @@ class HygieneTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(sorted((f["path"], f["group"], f["lines"]) for f in d["files"]),
                              [("b.bin", "email", 1), ("b.bin", "home", 1),
-                              ("b.bin", "secret", 1)])
+                              ("b.bin", "person", 1), ("b.bin", "secret", 1)])
 
     def check_text_table(self):
         code, out, _ = run(self.repo)
@@ -283,10 +284,11 @@ class HygieneTest(unittest.TestCase):
                    + b"\0\x01")
             Path(repo, "a.png").write_bytes(png)
             code, d = self.json_in(repo)
-            # one run of 8+ bytes carries the home path; the 7-byte run and the
-            # person text are not evaluated in a binary
+            # one run of 8+ bytes carries the home path; the 7-byte run is not evaluated
+            # for home; the person text is a private row's hit (h2)
             self.assertEqual(code, 1)
-            self.assertEqual(d["files"], [{"path": "a.png", "group": "home", "lines": 1}])
+            self.assertEqual(d["files"], [{"path": "a.png", "group": "home", "lines": 1},
+                                          {"path": "a.png", "group": "person", "lines": 1}])
             self.assertEqual(d["oversize"], 0)
             # UTF-16 (a BOM, or NULs on 90% of the odd or even bytes) is text (ADV10-8)
             text = "/Us" + "ers/alice/x\n" + FIXTURES["person"] + "\n"
@@ -297,7 +299,8 @@ class HygieneTest(unittest.TestCase):
             Path(repo, "big.txt").write_bytes(("/Us" + "ers/alice\n").encode() * 500000)
             code, d = self.json_in(repo)
             self.assertEqual(sorted((f["path"], f["group"], f["lines"]) for f in d["files"]),
-                             [("a.png", "home", 1), ("be.md", "home", 1), ("be.md", "person", 1),
+                             [("a.png", "home", 1), ("a.png", "person", 1),
+                              ("be.md", "home", 1), ("be.md", "person", 1),
                               ("big.txt", "home", 500000), ("le.md", "home", 1),
                               ("le.md", "person", 1)])
             self.assertEqual(d["oversize"], 1)
@@ -597,6 +600,145 @@ class ReadErrorTest(unittest.TestCase):
                     self.one_line_two(repo)
                 finally:
                     locked.chmod(0o644)
+
+
+class PrivateListTest(unittest.TestCase):
+    """Packet h2: a private term in a binary is a hit in both scans (n11), and
+    --require-private wants a list holding a term (n12). Terms invented, assembled."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        git(self.repo, "init", "-q", "-b", "main")
+        Path(self.repo, "a.md").write_text("clean\n")
+        self.commit("base")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def commit(self, message):
+        git(self.repo, "add", "-A")
+        git(self.repo, "-c", "user.name=t", "-c", "user.email=t" + "@x.invalid",
+            "commit", "-q", "--allow-empty", "-m", message)
+        out = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"],
+                             capture_output=True, text=True, check=True).stdout
+        return out.strip()[:12]
+
+    def one_line(self, path, *args):
+        code, out, err = run(self.repo, *args, env={ENV: path})
+        self.assertEqual((code, out), (2, ""), (path, args))
+        self.assertEqual(len(err.splitlines()), 1, err)
+        self.assertIn(path, err)
+        self.assertIn("nothing scanned", err)
+
+    def outside(self, *args, env=None):
+        code, out, err = run(self.repo, "--json", *args, env=env)
+        d = json.loads(out)
+        return code, {(f["path"], f["group"]): f["lines"] for f in d["files"]}, d
+
+    def test_h1_require_private_and_a_list_with_no_term_exit_two(self):
+        base = self.commit("empty")
+        Path(self.repo, "p.md").write_text(FIXTURES["person"] + "\n")
+        self.commit("adds a term")
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, text in (("c.tsv", "# a comment\n  # another\n"),
+                               ("b.tsv", "\n  \n\t\n"), ("z.tsv", "")):
+                path = os.path.join(tmp, name)
+                Path(path).write_text(text)
+                self.one_line(path, "--require-private")
+                self.one_line(path, "--require-private", "--commits", base + "..main")
+
+    def test_h2_require_private_missing_or_unreadable_says_nothing_scanned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = os.path.join(tmp, "bad.tsv")
+            Path(bad).write_bytes(b"person\t\xff\n")
+            for path in (os.path.join(tmp, "none.tsv"), tmp, bad):
+                self.one_line(path, "--require-private")
+                self.one_line(path, "--require-private", "--commits", "HEAD")
+
+    def test_h3_without_the_flag_an_empty_list_is_unchanged(self):
+        Path(self.repo, "p.md").write_text(FIXTURES["person"] + "\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "c.tsv")
+            Path(path).write_text("# a comment\n")
+            self.assertEqual(run(self.repo, env={ENV: path})[::2], (0, ""))
+            Path(self.repo, "h.md").write_text(FIXTURES["home"] + "\n")
+            self.assertEqual(run(self.repo, env={ENV: path})[::2], (1, ""))
+
+    def test_h4_a_private_term_in_a_binary_is_a_hit_in_the_tree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text(PRIVATE + "accent\tz[\u00e9]nobia\nshort\tqw[z]x\n")
+            files = {"run.bin": b"\0\1" + FIXTURES["person"].encode(),
+                     "upper.bin": b"\0\xc3\xa9" + FIXTURES["person"].upper().encode() + b"\xff",
+                     "accent.bin": b"\0\0" + ("z" + "\u00e9nobia").encode() + b"\0",
+                     "short.bin": b"\0\0" + ("qw" + "zx").encode() + b"\0\x01",
+                     "lan.bin": b"\0\0" + FIXTURES["lan"].encode() + b"\0",
+                     "sib.bin": b"\0\0" + FIXTURES["sibling"].encode() + b"\0"}
+            for name, data in files.items():
+                Path(self.repo, name).write_bytes(data)
+            code, hits, _ = self.outside(env={ENV: path})
+            self.assertEqual((code, hits), (1, {("run.bin", "person"): 1,
+                                                ("upper.bin", "person"): 1,
+                                                ("accent.bin", "accent"): 1,
+                                                ("short.bin", "short"): 1}))
+            for args in ((), ("--json",)):
+                _, out, err = run(self.repo, *args, env={ENV: path})
+                for token in MATCHED + ["qw" + "zx", "n" + "obia"]:
+                    self.assertNotIn(token, (out + err).lower(), args)
+
+    def test_h5_a_streamed_binary_is_searched_whole(self):
+        Path(self.repo, "big.bin").write_bytes(b"\0" + b"\x01" * (5 << 20)
+                                               + FIXTURES["private"].encode() + b"\0")
+        code, hits, d = self.outside()
+        self.assertEqual((code, hits, d["oversize"]), (1, {("big.bin", "private"): 1}, 1))
+
+    def test_h6_a_private_term_in_a_binary_is_a_hit_in_the_range(self):
+        base = self.commit("empty")
+        Path(self.repo, "pic.png").write_bytes(b"PNG\0\0\0" + FIXTURES["person"].encode()
+                                               + b"\0\x01")
+        sha = self.commit("adds a picture")
+        Path(self.repo, "pic.png").unlink()
+        self.commit("drops it")
+        code, hits, d = self.outside("--commits", base + "..main")
+        self.assertEqual((code, hits, d["commits"]["hit"]),
+                         (1, {("pic.png", "person"): 1}, [sha]))
+
+    def both(self, base, path):
+        """The hits of the tree and of the range base..main, each with its exit."""
+        tree = self.outside(env={ENV: path})
+        rng = self.outside("--commits", base + "..main", env={ENV: path})
+        return (tree[0], tree[1]), (rng[0], rng[1])
+
+    def test_h7_an_anchored_private_row_finds_its_term_at_a_run_edge(self):
+        # h2 round 1, F1: at f0fba84 a private home or email row met a run's edges
+        term = "zorbl" + "axquux"
+        base = self.commit("empty")
+        Path(self.repo, "x.bin").write_bytes(b"\0\1" + term.encode() + b"\0\1")
+        Path(self.repo, "x.txt").write_text("a\n" + term + "\n")
+        # a term shorter than a run, alone on a line of a binary: the anchors meet a newline
+        Path(self.repo, "y.bin").write_bytes(b"\0\1\n" + ("qw" + "zx").encode() + b"\n\0")
+        self.commit("adds the files")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text("home\t^zorbl[a]xquux\nemail\tzorbl[a]xquux$\n"
+                                  "short\t^qw[z]x$\n")
+            want = (1, {("x.bin", "home"): 1, ("x.bin", "email"): 1, ("x.txt", "home"): 1,
+                        ("x.txt", "email"): 1, ("y.bin", "short"): 1})
+            self.assertEqual(self.both(base, path), (want, want))
+
+    def test_h8_one_occurrence_counts_once_in_home(self):
+        # h2 round 1, F5: the generic home row and a private home row on one occurrence
+        text = "/Us" + "ers/zorbl" + "ax"
+        base = self.commit("empty")
+        Path(self.repo, "h.bin").write_bytes(b"\0\1" + text.encode() + b"\0")
+        Path(self.repo, "h.txt").write_text(text + "\n")
+        self.commit("adds the files")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text("home\tzorbl[a]x\n")
+            want = (1, {("h.bin", "home"): 1, ("h.txt", "home"): 1})
+            self.assertEqual(self.both(base, path), (want, want))
 
 
 if __name__ == "__main__":
