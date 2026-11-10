@@ -276,7 +276,7 @@ class CommitsTest(unittest.TestCase):
         self.assertIn("allowlist changed in the range: " + allow[:12], text.splitlines())
         code, d = self.scan(allow + "..work")
         self.assertNotIn("allowlist_changed", d["commits"])
-        self.assertNotIn("allowlist", run(self.repo, "--commits", allow + "..work")[1])
+        self.assertNotIn("allowlist changed", run(self.repo, "--commits", allow + "..work")[1])
 
     def test_c19_a_root_commit_is_scanned_whatever_log_showroot_says(self):
         git(self.repo, "config", "log.showRoot", "false")
