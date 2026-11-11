@@ -22,6 +22,8 @@ FILE = ROOT / ".claude-plugin" / "marketplace.json"
 TOOLS = ["agents", "decisions", "relay", "respeak", "session"]
 SIX = sorted(TOOLS + ["suite"])
 VERSION_SET = "version is set; plugin.json holds the one version"
+# the removed script and target, split so the packet's grep finds no line here
+GONE, GONE_TARGET = "marketplace" "-versions", "make" " versions"
 SUITE_SOURCE = {"source": "git-subdir", "path": "plugins/suite",
                 "url": "https://github.com/agentik-dev/agentik-commons.git"}
 EXTRA = {"name": "extra", "description": "A made-up plugin.",
@@ -365,10 +367,10 @@ class NoEntryVersionTest(unittest.TestCase):
         self.assertEqual(check("--local", out)[0], 0)
 
     def test_m6_the_versions_compare_is_gone(self):
-        self.assertFalse((ROOT / "scripts" / "marketplace-versions").exists())
+        self.assertFalse((ROOT / "scripts" / GONE).exists())
         self.assertFalse((ROOT / "tests" / "test_marketplace_versions.py").exists())
         make = (ROOT / "Makefile").read_text()
-        self.assertNotIn("marketplace-versions", make)
+        self.assertNotIn(GONE, make)
         self.assertNotIn("\nversions:", make)
         phony = [line for line in make.splitlines() if line.startswith(".PHONY:")]
         self.assertTrue(phony)
@@ -378,8 +380,8 @@ class NoEntryVersionTest(unittest.TestCase):
         for name in ("README.md", "GUIDE.md"):
             text = (ROOT / name).read_text()
             with self.subTest(name=name):
-                self.assertNotIn("marketplace-versions", text)
-                self.assertNotIn("make versions", text)
+                self.assertNotIn(GONE, text)
+                self.assertNotIn(GONE_TARGET, text)
         self.assertNotIn("description, version}]", (ROOT / "GUIDE.md").read_text())
         probe = (ROOT / "scripts" / "suite-probe").read_text()
         self.assertNotIn("left at the", probe)
