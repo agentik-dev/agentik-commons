@@ -4,22 +4,29 @@ scripts/marketplace-check, each broken shape exits 1, usage exits 2, and
 scratch folder, less the `suite` entry, plus an overlay's further entries, which
 `--local` holds to the five's shape. The published file holds the five tools and
 suite (hq design/04 section 5), suite on commons' own url and `plugins/suite`.
+No entry holds a `version`: plugin.json is the one pin (packet m1, M1 to M7).
 Every overlay is the test's own; nothing reads the network."""
 import copy
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / "scripts" / "marketplace-check"
+LOCAL = ROOT / "scripts" / "local-marketplace"
 FILE = ROOT / ".claude-plugin" / "marketplace.json"
 TOOLS = ["agents", "decisions", "relay", "respeak", "session"]
 SIX = sorted(TOOLS + ["suite"])
+VERSION_SET = "version is set; plugin.json holds the one version"
 SUITE_SOURCE = {"source": "git-subdir", "path": "plugins/suite",
                 "url": "https://github.com/agentik-dev/agentik-commons.git"}
+EXTRA = {"name": "extra", "description": "A made-up plugin.",
+         "source": {"source": "git-subdir", "path": "plugin",
+                    "url": "https://github.com/agentik-dev/agentik-extra.git"}}
 
 
 def check(*args, cwd=ROOT):
@@ -73,7 +80,7 @@ class MarketplaceTest(unittest.TestCase):
             "path": (lambda d: suite(d)["source"].update(path="plugin"),
                      "plugins[5] (suite): source.path is not 'plugins/suite'"),
             "version": (lambda d: suite(d).update(version="0.1"),
-                        "plugins[5] (suite): version is not semver"),
+                        "plugins[5] (suite): %s" % VERSION_SET),
         }
         for name, (mutate, line) in cases.items():
             code, out, err = self.broken(mutate)
@@ -116,13 +123,15 @@ class MarketplaceTest(unittest.TestCase):
             "path": lambda d: d["plugins"][0]["source"].update(path="."),
             "string": lambda d: d["plugins"][0].update(source="./plugin"),
             "version": lambda d: d["plugins"][0].update(version="1.2"),
-            "noversion": lambda d: d["plugins"][0].pop("version"),
             "list": lambda d: d.update(plugins={}),
         }
         for name, mutate in cases.items():
             code, out, err = self.broken(mutate)
             self.assertEqual((code, out), (1, ""), name)
             self.assertTrue(err.startswith("marketplace-check: "), name)
+        err = self.broken(cases["version"])[2]
+        self.assertTrue(err.rstrip("\n").endswith(
+            ": plugins[0] (session): %s" % VERSION_SET), err)
         self.assertEqual(check(self.write("{"))[0], 1)
         self.assertEqual(check(self.write("[]"))[0], 1)
 
@@ -149,7 +158,7 @@ class MarketplaceTest(unittest.TestCase):
     def test_local_takes_a_well_formed_extra_entry(self):
         data = self.on_file_urls()
         data["plugins"].append({
-            "name": "extra", "description": "A made-up plugin.", "version": "0.1.0",
+            "name": "extra", "description": "A made-up plugin.",
             "source": {"source": "git-subdir", "path": "plugin",
                        "url": Path("/code dir", "agentik-extra").as_uri()}})
         code, out, err = check("--local", self.write(data))
@@ -173,6 +182,9 @@ class MarketplaceTest(unittest.TestCase):
             code, out, err = check("--local", self.write(broken))
             self.assertEqual((code, out), (1, ""), name)
             self.assertTrue(err.startswith("marketplace-check: "), name)
+            if name == "version":
+                self.assertTrue(err.rstrip("\n").endswith(
+                    ": plugins[5] (extra): %s" % VERSION_SET), err)
         del data["plugins"][0]  # the five are still required
         self.assertEqual(check("--local", self.write(data))[0], 1)
 
@@ -215,8 +227,7 @@ class MarketplaceTest(unittest.TestCase):
         extra = {"name": "extra", "source": {
                      "source": "git-subdir", "path": "plugin",
                      "url": "https://github.com/agentik-dev/agentik-extra.git"},
-                 "description": "A made-up plugin whose repo is not public.",
-                 "version": "0.1.0"}
+                 "description": "A made-up plugin whose repo is not public."}
         p, path, code_dir = self.make_local(self.write({"plugins": [extra]}, "overlay.json"))
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertTrue(p.stdout.endswith(", 6 plugins, valid\n"), p.stdout)
@@ -251,7 +262,7 @@ class MarketplaceTest(unittest.TestCase):
         self.assertIn("plugin name session appears 2 times", p.stderr)
 
     def test_overlay_nan_refused(self):
-        extra = {"name": "extra", "description": "@", "version": "0.1.0",
+        extra = {"name": "extra", "description": "@",
                  "source": {"source": "git-subdir", "path": "plugin",
                             "url": "https://github.com/agentik-dev/agentik-extra.git"}}
         described = json.dumps(self.data["plugins"][0]["description"])
@@ -271,10 +282,7 @@ class MarketplaceTest(unittest.TestCase):
     def test_overlay_in_an_unreadable_folder_refused(self):
         locked = os.path.join(self.tmp.name, "locked")
         os.mkdir(locked)
-        extra = {"name": "extra", "description": "A made-up plugin.", "version": "0.1.0",
-                 "source": {"source": "git-subdir", "path": "plugin",
-                            "url": "https://github.com/agentik-dev/agentik-extra.git"}}
-        overlay = self.write({"plugins": [extra]}, os.path.join("locked", "overlay.json"))
+        overlay = self.write({"plugins": [EXTRA]}, os.path.join("locked", "overlay.json"))
         os.chmod(locked, 0)
         try:
             p, path, _ = self.make_local(overlay)
@@ -283,6 +291,100 @@ class MarketplaceTest(unittest.TestCase):
         self.assertNotEqual(p.returncode, 0)
         self.assertIn("local-marketplace: cannot read ", p.stderr)
         self.assertFalse(path.parent.exists())  # no folder made
+
+
+
+class NoEntryVersionTest(unittest.TestCase):
+    """Packet m1, M1 to M7: no entry holds a `version`; plugin.json is the one pin."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.bare = json.loads(FILE.read_text())
+        for plugin in self.bare["plugins"]:
+            plugin.pop("version", None)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write(self, data, name="m.json"):
+        path = os.path.join(self.tmp.name, name)
+        Path(path).write_text(json.dumps(data))
+        return path
+
+    def five_local(self):
+        data = json.loads(json.dumps(self.bare))
+        data["plugins"] = [p for p in data["plugins"] if p["name"] != "suite"]
+        for plugin in data["plugins"]:
+            plugin["source"]["url"] = "file:///code/agentik-%s" % plugin["name"]
+        return data
+
+    def test_m1_no_committed_entry_holds_a_version(self):
+        data = json.loads(FILE.read_text())
+        self.assertEqual([p["name"] for p in data["plugins"] if "version" in p], [])
+
+    def test_m2_the_six_without_a_version_are_valid(self):
+        code, out, err = check(self.write(self.bare))
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("6 plugins, valid", out)
+
+    def test_m3_a_version_on_an_entry_is_one_problem_line(self):
+        for index, name in ((0, "session"), (5, "suite")):
+            with self.subTest(name=name):
+                data = json.loads(json.dumps(self.bare))
+                self.assertEqual(data["plugins"][index]["name"], name)
+                data["plugins"][index]["version"] = "1.2.3"
+                code, out, err = check(self.write(data))
+                self.assertEqual((code, out), (1, ""))
+                self.assertEqual(err.count("\n"), 1, err)
+                self.assertIn("plugins[%d] (%s): version is set" % (index, name), err)
+                self.assertIn("plugin.json", err)
+
+    def test_m4_local_holds_the_same_rule(self):
+        data = self.five_local()
+        code, out, err = check("--local", self.write(data))
+        self.assertEqual((code, err), (0, ""))
+        data["plugins"].append(dict(EXTRA, version="0.1.0", source=dict(
+            EXTRA["source"], url="file:///code/agentik-extra")))
+        code, out, err = check("--local", self.write(data))
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1, err)
+        self.assertIn("plugins[5] (extra): version is set", err)
+
+    def test_m5_local_marketplace_writes_no_version_an_overlays_dropped(self):
+        published = self.write(json.loads(FILE.read_text()), "published.json")
+        overlay = self.write({"plugins": [dict(EXTRA, version="0.1.0")]}, "overlay.json")
+        out = os.path.join(self.tmp.name, "out", ".claude-plugin", "marketplace.json")
+        os.makedirs(os.path.dirname(out))
+        p = subprocess.run([sys.executable, str(LOCAL), published,
+                            os.path.join(self.tmp.name, "code"), overlay, out],
+                           capture_output=True, text=True, cwd=ROOT)
+        self.assertEqual((p.returncode, p.stderr), (0, ""))
+        written = json.loads(Path(out).read_text())
+        self.assertEqual(len(written["plugins"]), 6)  # the five and the overlay's
+        self.assertEqual([e["name"] for e in written["plugins"] if "version" in e], [])
+        self.assertEqual(check("--local", out)[0], 0)
+
+    def test_m6_the_versions_compare_is_gone(self):
+        self.assertFalse((ROOT / "scripts" / "marketplace-versions").exists())
+        self.assertFalse((ROOT / "tests" / "test_marketplace_versions.py").exists())
+        make = (ROOT / "Makefile").read_text()
+        self.assertNotIn("marketplace-versions", make)
+        self.assertNotIn("\nversions:", make)
+        phony = [line for line in make.splitlines() if line.startswith(".PHONY:")]
+        self.assertTrue(phony)
+        self.assertNotIn("versions", " ".join(phony).split())
+
+    def test_m7_the_docs_and_the_probe_name_one_pin(self):
+        for name in ("README.md", "GUIDE.md"):
+            text = (ROOT / name).read_text()
+            with self.subTest(name=name):
+                self.assertNotIn("marketplace-versions", text)
+                self.assertNotIn("make versions", text)
+        self.assertNotIn("description, version}]", (ROOT / "GUIDE.md").read_text())
+        probe = (ROOT / "scripts" / "suite-probe").read_text()
+        self.assertNotIn("left at the", probe)
+        self.assertIn("Every `version` is plugin.json's",
+                      " ".join((ROOT / "scripts" / "marketplace-check").read_text().split()))
 
 
 if __name__ == "__main__":

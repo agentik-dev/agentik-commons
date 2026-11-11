@@ -7,7 +7,9 @@ Reads the published marketplace PUBLISHED, drops its `suite` entry (this Mac
 installs the tools by name, and suite's manifest lives in commons, not in a
 checkout of its own), appends the entries of OVERLAY after the five, in the
 overlay's order, rewrites every url to
-`file://CODE/agentik-<name>` and writes the result to OUT. The overlay is the
+`file://CODE/agentik-<name>`, drops a `version` key from every entry, the
+overlay's included (plugin.json holds the one version), and writes the result
+to OUT. The overlay is the
 owner's file, kept outside every repo, for a plugin whose repo is not public: a
 JSON object whose `plugins` lists entries in the published form, so an entry
 moves to the published file unchanged once its repo is public. An absent
@@ -73,6 +75,8 @@ def merged(published, code, overlay):
             raise Refused("%s: plugins is not a list" % overlay, 1)
         data["plugins"] += extra["plugins"]
     for plugin in data["plugins"]:
+        if isinstance(plugin, dict):
+            plugin.pop("version", None)  # an older overlay still passes --local
         if (isinstance(plugin, dict) and isinstance(plugin.get("source"), dict)
                 and isinstance(plugin.get("name"), str)):
             plugin["source"]["url"] = Path(code, "agentik-" + plugin["name"]).as_uri()
