@@ -11,8 +11,7 @@
         "url": "https://github.com/agentik-dev/agentik-session.git",
         "path": "plugin"
       },
-      "description": "Profiles for Claude Code sittings: one resolved configuration per session, offered to the plugins that depend on it, and a doctor that checks the setup.",
-      "version": "2.0.0-alpha.45"
+      "description": "Profiles for Claude Code sittings: one resolved configuration per session, offered to the plugins that depend on it, and a doctor that checks the setup."
     },
     {
       "name": "decisions",
@@ -21,8 +20,7 @@
         "url": "https://github.com/agentik-dev/agentik-decisions.git",
         "path": "plugin"
       },
-      "description": "Verbs over one sectioned DECISIONS.md per repo: show, find, new, ask, answer and render, plus doctor and backlog. A repo owns its ledger; the plugin carries no data.",
-      "version": "0.11.0"
+      "description": "Verbs over one sectioned DECISIONS.md per repo: show, find, new, ask, answer and render, plus doctor and backlog. A repo owns its ledger; the plugin carries no data."
     },
     {
       "name": "respeak",
@@ -31,8 +29,7 @@
         "url": "https://github.com/agentik-dev/agentik-respeak.git",
         "path": "plugin"
       },
-      "description": "A narrator for agent work: a translator agent and one skill render human-facing narratives in ELI5, BLUF or technical mode, in a layered tone.",
-      "version": "0.12.3"
+      "description": "A narrator for agent work: a translator agent and one skill render human-facing narratives in ELI5, BLUF or technical mode, in a layered tone."
     },
     {
       "name": "relay",
@@ -41,8 +38,7 @@
         "url": "https://github.com/agentik-dev/agentik-relay.git",
         "path": "plugin"
       },
-      "description": "Queued packet runs, one child per worktree: resume, status, plan, gate, report and doctor over the relay binary, plus the guards: one commit per act, no remote writes.",
-      "version": "0.2.0"
+      "description": "Queued packet runs, one child per worktree: resume, status, plan, gate, report and doctor over the relay binary, plus the guards: one commit per act, no remote writes."
     },
     {
       "name": "agents",
@@ -51,8 +47,7 @@
         "url": "https://github.com/agentik-dev/agentik-agents.git",
         "path": "plugin"
       },
-      "description": "See every agent on this Mac, run a session's mechanical subagents on a local model through a loopback router, and write a repo's records from a hand-back.",
-      "version": "1.5.3"
+      "description": "See every agent on this Mac, run a session's mechanical subagents on a local model through a loopback router, and write a repo's records from a hand-back."
     },
     {
       "name": "suite",
@@ -61,8 +56,7 @@
         "url": "https://github.com/agentik-dev/agentik-commons.git",
         "path": "plugins/suite"
       },
-      "description": "The suite in one install: a manifest whose dependencies are session, decisions and agents, which Claude Code installs and enables with it.",
-      "version": "0.1.0"
+      "description": "The suite in one install: a manifest whose dependencies are session, decisions and agents, which Claude Code installs and enables with it."
     }
   ]
 }

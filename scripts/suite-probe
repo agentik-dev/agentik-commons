@@ -23,9 +23,9 @@ commands, as its own bare-machine test and session's `scripts/bare-proof` run
 them, `gate` and `install-cli` excepted, against the installed copy,
 env exactly HOME=T, PATH=/usr/bin:/bin, CLAUDE_PLUGIN_ROOT and
 CLAUDE_PLUGIN_DATA. Last, the version question (design/04 section 6): the last
-dependency's clone gets a bumped, committed plugin.json; `marketplace update
-agentik` and `update <name>@agentik`, once with the entry's `version` left at the
-old value and once with it removed; it prints whether the update installed each
+dependency's clone gets a bumped, committed plugin.json, its marketplace entry
+holding no `version` (plugin.json is the one pin); `marketplace update agentik`
+and `update <name>@agentik`, and the probe fails unless the update installed the
 bump. Nothing outside T is written; T is removed unless --keep.
 
 Output: one line per step, `ok`, `FAIL` or `note`, and last `suite-probe: go` or
@@ -264,32 +264,22 @@ def bits(name, root, clone):
         check(Path(root, "lib").is_dir(), "%s: lib/ in the copy" % name)
 
 
-def version_question(p, name, clone, market):
-    """Bump the clone's plugin.json, update with the entry's version old, then removed."""
+def version_question(p, name, clone):
+    """Bump the clone's plugin.json, its entry holding no version, and update: the
+    bump installs or the probe fails."""
     manifest = clone / "plugin" / ".claude-plugin" / "plugin.json"
-    answers = []
-    for case in ("left at the old value", "removed"):
-        doc = json.loads(manifest.read_text())
-        major, minor, patch = re.match(r"(\d+)\.(\d+)\.(\d+)", doc["version"]).groups()
-        bumped = "%s.%s.%d" % (major, minor, int(patch) + 1)
-        manifest.write_text(manifest.read_text().replace(
-            '"version": "%s"' % doc["version"], '"version": "%s"' % bumped, 1))
-        git("-c", "user.name=probe", "-c", "user.email=probe@invalid", "commit", "-q", "-am",
-            "probe: bump %s" % bumped, cwd=clone)
-        data = json.loads(market.read_text())
-        entry = [e for e in data["plugins"] if e["name"] == name][0]
-        if case == "removed":
-            entry.pop("version", None)
-        market.write_text(json.dumps(data, indent=2) + "\n")
-        p.claude("plugin", "marketplace", "update", MARKET)
-        p.claude("plugin", "update", "%s@%s" % (name, MARKET))
-        got = p.installed()[1].get(name, (None, None))[0]
-        answers.append((case, entry.get("version"), bumped, got))
-        say("note", "version question: %s's entry version %s (%s); plugin.json %s; "
-            "after update installed %s: %s" % (name, case, entry.get("version", "none"), bumped,
-                                               got, "the bump installs" if got == bumped
-                                               else "the bump does not install"))
-    return answers
+    doc = json.loads(manifest.read_text())
+    major, minor, patch = re.match(r"(\d+)\.(\d+)\.(\d+)", doc["version"]).groups()
+    bumped = "%s.%s.%d" % (major, minor, int(patch) + 1)
+    manifest.write_text(manifest.read_text().replace(
+        '"version": "%s"' % doc["version"], '"version": "%s"' % bumped, 1))
+    git("-c", "user.name=probe", "-c", "user.email=probe@invalid", "commit", "-q", "-am",
+        "probe: bump %s" % bumped, cwd=clone)
+    p.claude("plugin", "marketplace", "update", MARKET)
+    r = p.claude("plugin", "update", "%s@%s" % (name, MARKET))
+    got = p.installed()[1].get(name, (None, None))[0]
+    return expect(r, 0, "version question: %s's plugin.json bumped to %s, no entry version; "
+                  "after update installed %s" % (name, bumped, got), got == bumped)
 
 
 def probe(t, code, claude):
@@ -299,8 +289,9 @@ def probe(t, code, claude):
     git("clone", "-q", "--no-hardlinks", str(ROOT), str(commons))
     git("checkout", "-q", "-B", "main", head, cwd=commons)
     say("note", "commons cloned at %s" % head[:7])
-    deps = json.loads((commons / "plugins" / SUITE / ".claude-plugin" / "plugin.json")
-                      .read_text())["dependencies"]
+    suite = json.loads((commons / "plugins" / SUITE / ".claude-plugin" / "plugin.json")
+                       .read_text())
+    deps = suite["dependencies"]
     names = [d if isinstance(d, str) else d["name"] for d in deps]
     clones, versions = {}, {}
     for name in names:
@@ -315,7 +306,7 @@ def probe(t, code, claude):
     data["plugins"] = [e for e in data["plugins"] if e["name"] in names + [SUITE]]
     for e in data["plugins"]:
         e["source"]["url"] = (commons if e["name"] == SUITE else clones[e["name"]]).as_uri()
-    versions[SUITE] = [e for e in data["plugins"] if e["name"] == SUITE][0]["version"]
+    versions[SUITE] = suite["version"]  # plugin.json's; no entry holds a version
     market = t / "market" / ".claude-plugin" / "marketplace.json"
     market.parent.mkdir(parents=True)
     market.write_text(json.dumps(data, indent=2) + "\n")
@@ -342,7 +333,7 @@ def probe(t, code, claude):
             bare_session(p, name, root, versions[name], clone)
         else:
             bare_ledger(p, name, root, versions[name], clone)
-    version_question(p, names[-1], clones[names[-1]], market)
+    version_question(p, names[-1], clones[names[-1]])
     return None
 
 

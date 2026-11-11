@@ -6,7 +6,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n1 | S3 | `scripts/marketplace-versions` | each marketplace `version` line compared with its plugin.json on the remote's main, not only the local checkout; needs the network, not built | `scripts/marketplace-versions:14`, "Nothing is fetched"; the archive's line 13 | 2026-10-14, a plugin changed under an old version; open on main 2026-11-01, c3 |
 
 ## From packet c3
 
@@ -16,12 +15,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n3 | S4 | `scripts/recordlint` | `item` over 80 characters, which the reader trims (`backlog.py:275`), and `id` not `n<k>` (design/05 §2) pass unchecked | design/05 §2 | 2026-11-01, c3's builder |
 | n5 | S4 | `scripts/recordlint` | a `<br>` or a list inside a cell passes unchecked, though GUIDE §9's Cells rule is one line, no list, no `<br>` | `GUIDE.md:75` | 2026-11-01, c3's refuter round 1 |
 | n6 | S4 | `scripts/recordlint` | bullets above the first `##` pass, rule 2 holding only the lines under a `##`, though design/05 §2's shape is a title and one head paragraph | `GUIDE.md:75`; `scripts/recordlint:171` | 2026-11-01, c3's refuter round 1 |
-
-## From packet c4
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n7 | S4 | `.claude-plugin/marketplace.json` | design/04 §6's drop of the marketplace `version` lines is not built; a packet when a commons change rides | hq `design/04-self-contained-plugins.md` §6, hq `history/handoff-done.md` item 17 | 2026-11-01, h1's refuter F1 |
 
 ## From packet h1 (commit range)
 

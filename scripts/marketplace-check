@@ -10,7 +10,8 @@ manifest-only plugin in this repo whose dependencies install three of them (hq
 design/04 section 5). Each tool's `source` is `{"source": "git-subdir", "url":
 ..., "path": "plugin"}`, its url `https://github.com/agentik-dev/agentik-<name>.git`;
 suite's is commons' own url, `https://github.com/agentik-dev/agentik-commons.git`,
-with `path` `plugins/suite`. Every `version` is semver.
+with `path` `plugins/suite`. Every `version` is plugin.json's: an entry holding one
+is a problem line.
 
 Under `--local` (the file `make local-marketplace` writes) each url is a
 `file://` url whose last path segment is `agentik-<name>`; the five are still
@@ -20,7 +21,7 @@ five, from the owner's overlay (a plugin whose repo is not public). Each further
 entry has the same shape as the five's: a name matching
 `[a-z][a-z0-9]*(-[a-z0-9]+)*`, every name once (so an overlay that repeats one
 of the five fails), `git-subdir`, a `file://` url whose last segment is
-`agentik-<name>`, `path` `plugin` and a semver `version`. The valid line counts
+`agentik-<name>` and `path` `plugin`, and holds no `version`. The valid line counts
 the entries found. Without `--local` the file holds exactly the six, on their
 public urls. Nothing is fetched: the check reads the file only.
 
@@ -41,10 +42,6 @@ COMMONS = PUBLIC % "commons"
 SUITE_PATH = "plugins/suite"
 DEFAULT = ".claude-plugin/marketplace.json"
 USAGE = "usage: marketplace-check [--local] [FILE]"
-SEMVER = re.compile(
-    r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-    r"(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\Z")
 ID = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 
 
@@ -117,9 +114,8 @@ def problems(data, local):
         path = SUITE_PATH if tool == SUITE else "plugin"
         if source.get("path") != path:
             out.append("%s: source.path is not %r" % (where, path))
-        version = plugin.get("version")
-        if not (isinstance(version, str) and SEMVER.match(version)):
-            out.append("%s: version is not semver" % where)
+        if "version" in plugin:
+            out.append("%s: version is set; plugin.json holds the one version" % where)
     return out
 
 
