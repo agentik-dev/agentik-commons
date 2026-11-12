@@ -4,11 +4,12 @@
 #   scripts/sync <repo>
 #
 # Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene,
-# scripts/recordlint, scripts/bounded and scripts/plugin-version-check to
-# <repo>/scripts/, then
+# scripts/recordlint, scripts/bounded, scripts/plugin-version-check and
+# scripts/plugin-description-bytes to <repo>/scripts/, then
 # writes <repo>/scripts/vendored.sha256 in `shasum -a 256 -c` form, its paths
 # from the repo's root; the repo's `make check` runs that check, and runs
-# plugin-version-check where the repo has a plugin/ (GUIDE §5), and its doclint
+# plugin-version-check and plugin-description-bytes where the repo has a plugin/
+# (GUIDE §1, §5), and its doclint
 # target runs recordlint (hq design/05 §4).
 #
 # A repo with a plugin/lib/ also gets, in the same file, scripts/agentik_install.py
@@ -94,8 +95,9 @@ place scripts/hygiene scripts/hygiene 755
 place scripts/recordlint scripts/recordlint 755
 place scripts/bounded scripts/bounded 755
 place scripts/plugin-version-check scripts/plugin-version-check 755
-listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/bounded scripts/plugin-version-check"
-said="agentik, hygiene, recordlint, bounded, plugin-version-check, vendored.sha256"
+place scripts/plugin-description-bytes scripts/plugin-description-bytes 755
+listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/bounded scripts/plugin-version-check scripts/plugin-description-bytes"
+said="agentik, hygiene, recordlint, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
 if [ -n "$tool" ]; then
 	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
 	place scripts/plugin-launcher "plugin/bin/$tool" 755
