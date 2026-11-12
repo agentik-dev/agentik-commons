@@ -1,4 +1,4 @@
-"""scripts/sync <repo> (agentik-r1 7.3): the five vendored copies land
+"""scripts/sync <repo> (agentik-r1 7.3): the six vendored copies land
 byte-identical and executable under <repo>/scripts/, scripts/vendored.sha256
 verifies under `shasum -a 256 -c`, a drifted copy fails it, and usage or a
 target that is not a git checkout exits 2. A repo with a plugin/lib/ also gets the
@@ -16,7 +16,8 @@ SYNC = ROOT / "scripts" / "sync"
 COPIES = {"scripts/agentik": "bin/agentik", "scripts/hygiene": "scripts/hygiene",
           "scripts/recordlint": "scripts/recordlint",
           "scripts/bounded": "scripts/bounded",
-          "scripts/plugin-version-check": "scripts/plugin-version-check"}
+          "scripts/plugin-version-check": "scripts/plugin-version-check",
+          "scripts/plugin-description-bytes": "scripts/plugin-description-bytes"}
 
 
 def sync(*args):
@@ -54,7 +55,8 @@ class SyncTest(unittest.TestCase):
         self.assertEqual([r.split("  ", 1)[1] for r in rows], list(COPIES))
         # nothing else is written, no scratch file is left
         self.assertEqual(sorted(os.listdir(Path(self.repo, "scripts"))),
-                         ["agentik", "bounded", "hygiene", "plugin-version-check", "recordlint",
+                         ["agentik", "bounded", "hygiene", "plugin-description-bytes", "plugin-version-check",
+                          "recordlint",
                           "vendored.sha256"])
 
     def test_recordlint_lands_beside_hygiene_at_755_and_is_listed(self):
@@ -107,7 +109,7 @@ class SyncTest(unittest.TestCase):
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
         self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
-                         "vendored.sha256\n" % os.path.realpath(self.repo))
+                         "plugin-description-bytes, vendored.sha256\n" % os.path.realpath(self.repo))
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
         self.assertEqual(Path(self.repo, "scripts", "vendored.sha256").read_text(), expected)
@@ -193,7 +195,7 @@ class PluginTest(unittest.TestCase):
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
         self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
-                         "vendored.sha256\n" % self.repo)
+                         "plugin-description-bytes, vendored.sha256\n" % self.repo)
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
         self.assertEqual(Path(self.repo, "scripts", "vendored.sha256").read_text(), expected)
