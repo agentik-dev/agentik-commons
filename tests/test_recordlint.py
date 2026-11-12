@@ -24,7 +24,7 @@ NON_ROW_UNDER = "under a `##`: only table rows belong there"
 REPO_RULE = "is not a bare short name (^[a-z][a-z0-9-]*$, no `agentik-` prefix): `--order` matches it exactly"
 GREEN_HANDOFF = ("| 17 | the rule, `a \\| b` | S2 | hq | design/05 | open |",
                  "| 18 | the tool | S3 | session | packet c3 | building c3 |",
-                 "| 19 | a wait | S1 | suite | the owner | waiting: the owner's word |",
+                 "| 19 | a wait | S1 | suite | the owner | waiting: the owner: the word |",
                  "| 20 | a watch | S4 | relay | the night | watch: the next night's line |",
                  "| 21 | landed | S3 | hq | design/05 | done 2026-11-01 abc1234 |")
 GREEN_NICE = ("| n1 | S2 | `scripts/sync` | a `x \\| y` finding | sync:114 | 2026-11-01 c3 |",
@@ -178,6 +178,14 @@ class RecordlintTest(unittest.TestCase):
         self.assertLint({"HANDOFF.md": handoff(*rows)}, 2, *(
             'HANDOFF.md:%d: state: "%s" opens with none of open, building, waiting:, watch:, done' % (11 + i, s)
             for i, s in enumerate(states)))
+
+    def test_a_waiting_cell_names_what_it_waits_on(self):
+        ok = ("owner 94", "row 22; after the trial", "the owner: makes the repo public; and more", "relay ar100-entry13")
+        bad = ("the owner makes the repo public", "owner", "row x", "soon", "relay ar100 and more words", "the owner:")
+        rows = ["| %d | x | S2 | hq | y | waiting: %s |" % (i, s) for i, s in enumerate(ok + bad, 1)]
+        self.assertLint({"HANDOFF.md": handoff(*rows)}, 2, *(
+            'HANDOFF.md:%d: state: "waiting: %s" waits on none of owner <n>, row <n>, the owner: <text>, <repo> <branch>'
+            % (11 + len(ok) + i, s) for i, s in enumerate(bad)))
 
     def test_a_wrong_cell_count(self):
         self.assertLint({"HANDOFF.md": handoff("| 1 | x | S2 | hq | open |", "| 2 | x | S2 | hq | y | z | open |")}, 2,
