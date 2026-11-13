@@ -549,7 +549,7 @@ class PlanTruthTest(Home):
         steps = self.plan("alpha", PATH=path)["steps"]
         self.assertEqual({s["state"] for s in steps if s["n"] <= 6}, {"ok"})
         code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
-        self.assertIn("steps 1 to 6 read ok", err)
+        self.assertIn("setup has nothing left to do", err)
         self.assertNotIn("run each", err)
         self.assertIn("run: %s doctor" % os.path.join(self.bindir, "agentik-alpha"), out)
         # no claude on PATH: the hint names it, and no line sends the reader to claude

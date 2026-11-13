@@ -62,7 +62,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; this version cannot place it, so run `{path}`
-- `setup.suite.unread`: holds no version line, and this command is at `{want}`; this version cannot place it, so run `{path}`
+- `setup.suite.unread`: holds no version line; this version cannot place it, so run `{path}`
 - `setup.suite.missing`: not placed, and this version cannot place it; run `{path}` instead
 - `setup.door.ok`: in place
 - `setup.door.missing`: not placed; the first install-cli run in step 4 places it
@@ -74,5 +74,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.todo`: next: run each `run:` line above, in order, then `{tool}` setup --dry-run again.
 - `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.
-- `hint.setup.rest`: next: steps 1 to 6 hold no line to run; each row that is not ok says what is left.
-- `hint.setup.done`: next: steps 1 to 6 read ok, so setup has nothing left to do; the lines of step 7 check each plugin.
+- `hint.setup.rest`: next: steps 1 to 6 hold no line to run. Each row not marked ok says what is left.
+- `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
