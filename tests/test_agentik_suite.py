@@ -32,7 +32,7 @@ MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
-STDLIB = {"ast", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
+STDLIB = {"ast", "datetime", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
           "select", "signal", "subprocess", "tempfile", "time"}
 
 sys.path.insert(0, str(LIB))
