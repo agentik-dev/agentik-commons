@@ -51,3 +51,11 @@ The suite's `install-cli`, the root `setup`, a `make install`, GUIDE §11, a too
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, the private hygiene list, a relay ledger. The report: head sha, gate ids and exits, acceptance 1 to 8 at the pin and now; the probe's hand-run lines in the builder's record alone, since they name other checkouts.
+
+## 7. Review 1's fix
+
+Ruling: F1, F2 and F3 on the branch, each with a test red at 795ea2d; L5 rides; L1, L2, L4 and L7 are NICE n48 to n51; L3 and L6 stay with the review. The version stays 0.4.0 and its commit 4f332e4 stays where it is, so F3 and L5 touch `plugins/suite/` after it.
+- F1 `door-probe` leaves out a checkout whose makefile holds a recipe line `make -n` runs: a `+` after any `@`, `-` or blank, or a `$(MAKE)` or `${MAKE}`, with one note for both
+- F2 `door-probe` skips a folder in DIR it cannot read, with no Traceback
+- F3 the suite's `--json` remedy for an unknown word names the nearest only when it is a verb, else `<tool> --help`
+- L5 the door's head comment: the tool's or the suite's code wherever it execs one, bare and help included
