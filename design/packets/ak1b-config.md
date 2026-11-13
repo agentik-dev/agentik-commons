@@ -58,3 +58,21 @@ P13's `covers` rule (its first caller, su2 or in4, builds it); `doctor`, `status
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, the private hygiene list. The report: head sha, gate id and line, acceptance 1 to 11 at the pin and now.
+
+## 7. Review 1's fix
+
+Ruling: all thirteen on the branch, each with a test red at 58db52d; the schema lead rides.
+- F1 config reads share the describes' one 2 s wall
+- F2 a slow tool adds no time past it
+- F3 stdout read to a 1 MiB cap
+- F4 no wait on a pipe an escaped child holds
+- F5 bad `warnings` dropped
+- F6 bad `choices` dropped
+- F7 a removed cwd: no repo layer
+- F8 the suite's nearest key
+- F9 a failed config read named as such at each level
+- F10 `--changed`, `--user-files` name the silent tools
+- F11 a value outside its choices named
+- F12 `config .key`: the name's usage line
+- F13 an unopenable file: no line number
+- Lead: only `agentik.describe/1` counts
