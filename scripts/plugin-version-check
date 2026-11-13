@@ -19,30 +19,39 @@ covers every change: the check passes, `since` null and nothing listed.
 
 A second read covers what the branch changed. A branch that merges a bumped main
 moves the version on its own first-parent line, so the first read passes it while
-the landing leaves main red. HEAD's merge base with `refs/heads/main`, else with
-`refs/remotes/origin/main`, gives the branch's own paths: those under plugin/ that
-differ from the merge base to HEAD, plus the uncommitted ones, less plugin.json.
-When any is listed, the working tree's version (a bump in flight counts) must be
-above the merge base's by semver precedence: numeric parts by number, a release
-above its pre-releases, build metadata ignored; a merge base with no version reads
-below any. The read has nothing to say when the merge base is HEAD (on main, or
-detached at a commit main holds) or HEAD has no commit: the first read's output,
-unchanged. With neither ref, or no merge base (an orphan branch, a shallow clone
-that lacks it), it is skipped: the first read's exit alone.
+the landing leaves main red. HEAD's merge bases with `refs/heads/main`, else with
+`refs/remotes/origin/main`, every one `git merge-base --all` prints (a criss-cross
+has more than one), each give the branch's own paths: those under plugin/ that
+differ from that base to HEAD, plus the uncommitted ones, less plugin.json. Where
+any is listed, the working tree's version (a bump in flight counts) must be above
+that base's by semver precedence: numeric parts by number, a release above its
+pre-releases, build metadata ignored; a base with no version reads below any. The
+check fails when any base fails, so the result never turns on commit dates. The
+read has nothing to say when the merge base is HEAD (on main, or detached at a
+commit main holds) or HEAD has no commit: the first read's output, unchanged. With
+neither ref, or no merge base (an orphan branch, a shallow clone that lacks it), it
+is skipped: the first read's exit alone. The check only reads: every git call takes
+`--no-optional-locks`, so `git status` never rewrites .git/index.
 
 Output: on 0 one stdout line, which ends `; above <version> at the merge base with
-main` where the second read compared versions and `; no merge base with main, the
-branch's own changes not read` where it was skipped; on 1 one stderr line per
-changed file, the first read's form where it lists the file, else the second's;
-under --json one stdout object, `{"version": ..., "since": "<sha>" or null,
-"changed": [...], "base": ...}`, with the same exit. `changed` is the first read's;
-`base` is `{"ref", "merge_base", "version", "changed"}`, null where the second read
-was skipped, and absent where it had nothing to say.
+main` where the second read compared versions (naming, where there is more than one
+base, the highest version among the bases that listed a path) and `; no merge base
+with main, the branch's own changes not read` where it was skipped; on 1 one stderr
+line per changed file, the first read's form where it lists the file, else the
+second's, naming the base of highest version the file is not above; under --json
+one stdout object, `{"version": ..., "since": "<sha>" or null, "changed": [...],
+"base": ...}`, with the same exit. `changed` is the first read's; `base` is `{"ref",
+"merge_base", "version", "changed"}` for the base of highest version among those
+that compared, which the text names (with no comparison, the lowest sha), null where
+the second read was skipped, and absent where it had nothing to say; `bases`, every
+base's object in sha order, is present only where there is more than one.
 
 Exit codes report the task, not the content: 0 nothing under plugin/ changed since
 the version did, 1 a file did (a check said no), 2 usage, not inside a git work
 tree, git missing or failing, no readable string `version` in the working tree's
-plugin.json, or a branch's own path listed and either version not semver-shaped.
+plugin.json, or a branch's own path listed at a base with a version and either
+version not semver-shaped (a base with no version is below any version, so exit 2
+does not apply there).
 Stdlib only. Canonical in agentik-commons, vendored into each plugin repo's
 scripts/ by its `scripts/sync`.
 """
@@ -56,8 +65,9 @@ PLUGIN = "plugin/"
 MANIFEST = "plugin/.claude-plugin/plugin.json"
 USAGE = "usage: plugin-version-check [--json] [--repo DIR]"
 # the user's git config must not change what the walk sees
-GIT = ["git", "-c", "log.follow=false", "-c", "log.showSignature=false",
-       "-c", "diff.relative=false", "-c", "core.quotePath=false"]
+# and `git status` must not refresh .git/index: the check only reads
+GIT = ["git", "--no-optional-locks", "-c", "log.follow=false",
+       "-c", "log.showSignature=false", "-c", "diff.relative=false", "-c", "core.quotePath=false"]
 ABSENT = object()  # no file, unreadable JSON, or no `version` key at a revision
 NOT_READ = object()  # the merge base is HEAD, or no commit: nothing of the branch's own
 BASE_REFS = ("refs/heads/main", "refs/remotes/origin/main")
@@ -129,41 +139,55 @@ def precedence(version):
                           for i in m.group(4).split("."))
 
 
-def merge_base(repo):
-    """(ref, sha) of HEAD's merge base with main, else origin/main; None for neither."""
+def merge_bases(repo):
+    """(ref, shas) of HEAD's merge bases with main, else origin/main, the shas sorted (a
+    criss-cross has more than one); None for neither."""
     for ref in BASE_REFS:
         if git(repo, "rev-parse", "--verify", "-q", ref + "^{commit}", ok=(0, 1))[0]:
             continue
         # 1: no merge base; 128: history a shallow clone lacks. Either way, none.
-        code, out = git(repo, "merge-base", "HEAD", ref, ok=(0, 1, 128))
+        code, out = git(repo, "merge-base", "--all", "HEAD", ref, ok=(0, 1, 128))
         if code == 0 and out.strip():
-            return ref, out.decode("ascii").split()[0]
+            return ref, sorted(out.decode("ascii").split())
     return None
 
 
 def read_base(repo, version, pending):
-    """The second read: (base, below, compared). base is NOT_READ, None or the dict."""
-    found = merge_base(repo)
+    """The second read: (base, bases, below, compared). base is NOT_READ, None or the dict
+    the text names; bases every base's dict where there is more than one, else None; below
+    maps each path not above a base to the highest such base listing it."""
+    found = merge_bases(repo)
     if found is None:
-        return None, [], False
-    ref, sha = found
-    if sha == git(repo, "rev-parse", "HEAD")[1].decode("ascii").strip():
-        return NOT_READ, [], False
-    paths = sorted((diff_names(repo, sha) | pending) - {MANIFEST})
-    had = version_at(repo, sha)
-    had = None if had is ABSENT else had
-    base = {"ref": ref, "merge_base": sha, "version": had, "changed": paths}
-    if not paths or had is None:
-        return base, [], False
-    if precedence(version) is None or precedence(had) is None:
-        raise Failed("version %s and version %s at the merge base with main (%s) cannot be "
-                     "ordered: not semver-shaped" % (version, had, sha[:12]))
-    return base, ([] if precedence(version) > precedence(had) else paths), True
+        return None, None, {}, False
+    ref, shas = found
+    if git(repo, "rev-parse", "HEAD")[1].decode("ascii").strip() in shas:
+        return NOT_READ, None, {}, False
+    bases, compared = [], []
+    for sha in shas:
+        paths = sorted((diff_names(repo, sha) | pending) - {MANIFEST})
+        had = version_at(repo, sha)
+        had = None if had is ABSENT else had
+        bases.append({"ref": ref, "merge_base": sha, "version": had, "changed": paths})
+        if not paths or had is None:
+            continue
+        if precedence(version) is None or precedence(had) is None:
+            raise Failed("version %s and version %s at the merge base with main (%s) cannot "
+                         "be ordered: not semver-shaped" % (version, had, sha[:12]))
+        compared.append(bases[-1])
+    # highest version first; the sort is stable, so a tie keeps the lower sha first
+    compared.sort(key=lambda b: precedence(b["version"]), reverse=True)
+    below = {}
+    for base in compared:
+        if precedence(version) <= precedence(base["version"]):
+            for path in base["changed"]:
+                below.setdefault(path, base)
+    return ((compared or bases)[0], bases if len(bases) > 1 else None, below,
+            bool(compared))
 
 
 def run(repo):
-    """(version, since, changed, base, below, compared): since None for a bump in flight;
-    base, below and compared from read_base."""
+    """(version, since, changed, base, bases, below, compared): since None for a bump in
+    flight; the rest from read_base."""
     code, out = git(repo, "rev-parse", "--is-inside-work-tree", ok=(0, 128))
     if code != 0 or out.strip() != b"true":
         raise Failed("%s is not inside a git work tree" % repo)
@@ -176,7 +200,7 @@ def run(repo):
         raise Failed("%s holds no readable string version" % MANIFEST)
     has_head = git(repo, "rev-parse", "--verify", "-q", "HEAD^{commit}", ok=(0, 1))[0] == 0
     if not has_head:
-        return version, None, [], NOT_READ, [], False
+        return version, None, [], NOT_READ, None, {}, False
     pending = uncommitted(repo)
     if version_at(repo, "HEAD") != version:
         since, changed = None, []
@@ -204,21 +228,23 @@ def main(argv):
         sys.stderr.write("plugin-version-check: %s is not a directory\n" % repo)
         return 2
     try:
-        version, since, changed, base, below, compared = run(repo)
+        version, since, changed, base, bases, below, compared = run(repo)
     except Failed as exc:
         sys.stderr.write("plugin-version-check: %s\n" % exc)
         return 2
     lines = {p: "changed since %s set version %s; bump plugin.json's version"
              % (since[:12], version) for p in changed}
-    for path in below:
+    for path, at in below.items():
         lines.setdefault(path, "changed on this branch since its merge base with main (%s, "
                          "version %s); version %s is not above it: bump plugin.json's "
                          "version"
-                         % (base["merge_base"][:12], base["version"], version))
+                         % (at["merge_base"][:12], at["version"], version))
     if as_json:
         doc = {"version": version, "since": since, "changed": changed}
         if base is not NOT_READ:
             doc["base"] = base
+        if bases is not None:
+            doc["bases"] = bases
         print(json.dumps(doc))
     elif not lines:
         if since is None:
