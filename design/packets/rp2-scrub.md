@@ -3,8 +3,8 @@
 | item | value |
 |---|---|
 | from | agentik-hq's brief rp2 of 2026-11-13, R1 to R8; hq design/22 §3 items 4, 6, 7, 13 and §9; level S3 |
-| pin | branch `rp1-shapes` at 23330e2 (reviewed, waiting in the landing queue); worktree `.claude/worktrees/rp2-scrub`, branch `rp2-scrub`; nothing linked |
-| wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` process, no agent; every hostile line assembled at run time, made-up names |
+| pin | branch `rp1-shapes` at 23330e2 (in the landing queue); worktree `.claude/worktrees/rp2-scrub`, branch `rp2-scrub`; nothing linked |
+| wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` process, no agent; made-up names |
 | may touch | `plugins/suite/lib/agentik_suite/scrub.py`; `tests/test_rp2_scrub.py`; this packet; `history/sittings/2026-11-13-19.md` |
 | verify | `make check`, once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 12 below; `python3 -m unittest tests.test_rp2_scrub` OK; verify green |
@@ -18,7 +18,7 @@
 
 The repo keeps no `DECISIONS.md`; `GUIDE.md` binds. Cited: hq entry 6 (`/usr/bin/python3`, a 3.9 floor, the standard library alone), hq entry 37 (made-up names in fixtures and the packet).
 
-- R1, what stands. One new module, `plugins/suite/lib/agentik_suite/scrub.py`, and its tests. It prints nothing and holds no catalogue id. It imports `agentik_hygiene`, `os`, `re`, `subprocess` and `unicodedata` and nothing outside `STDLIB`. No tool's name stands in it: the public words reach it as data.
+- R1, what stands. One new module, `plugins/suite/lib/agentik_suite/scrub.py`, and its tests. It prints nothing. It imports `agentik_hygiene`, `os`, `re`, `subprocess` and `unicodedata` and nothing outside `STDLIB`. No tool's name stands in it: the public words reach it as data.
 - R2, the signatures.
   - `machine(env, cwd, public, logins=()) -> m`. Reads, when called and writing nowhere: the home folder; the login; the host's short and full names; git's global `user.name` and `user.email` (one `git config` each, from PATH); the checkout root of `cwd` and its folder name; the user file's `checkouts`; the value, 8 bytes or longer, of each variable of `env` whose name holds `TOKEN`, `KEY`, `SECRET`, `PASS`, `AUTH` or `CREDENTIAL`; the scanner's `home`, `lan`, `secret` and `email` groups; the private list's rows, its path found from `env` by the scanner's own rule. `public` is `{"marketplace": NAME, "tools": {tool: "OWNER/REPO"}}`. `logins` are more names of kind `user`. A private list that exists and cannot be read raises `scrub.PrivateUnreadable`; no list is `m["private"] == "none"`.
   - `clean(text) -> text`: the design's 4(e).
