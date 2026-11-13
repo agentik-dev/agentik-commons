@@ -21,7 +21,8 @@ PS_ARGS = ("-axo", "pid,ppid,uid,etime,command")
 WALL = 1.0
 BEAT_CAP = 1 << 16
 WRAPPERS = ("sh", "bash", "zsh", "dash", "env")
-VALUED = ("-X", "-W", "-o", "-u")
+VALUED = ("-X", "-W", "-o")  # after any wrapper, the next word is the flag's value
+ENV_VALUED = ("-u",)  # after `env` alone (`env -u NAME prog`); after python or a shell, a plain flag
 # A run on the way: `-c` or `-m`, attached to its value (`-mfoo`) or anywhere in a short
 # cluster (`-ce`, `-lc`); a `-X` or `-W` word is its value's, never a run. A bare `-` (the
 # program read from stdin) is no match either.
@@ -122,12 +123,13 @@ def head(words):
     """The index of the command's head, or None: none left, or a -c, -m or bare - on the way."""
     i = 0
     while i < len(words) and _wrapper(words[i]):
+        valued = VALUED + ENV_VALUED if os.path.basename(words[i]) == "env" else VALUED
         i += 1
         while i < len(words):
             word = words[i]
             if word == "-" or RUN.match(word):
                 return None
-            if word in VALUED:
+            if word in valued:
                 i += 2
             elif word.startswith("-") or ASSIGN.match(word):
                 i += 1

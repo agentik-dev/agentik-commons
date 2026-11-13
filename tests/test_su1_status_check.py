@@ -105,6 +105,16 @@ class MatchAndDeclarationTest(StatusHome):
             self.listing(row)
             self.assertEqual(self.check(), (1, LAMP + "\n", ""), row)
 
+    def test_dash_u_takes_a_value_after_env_alone(self):
+        """R5 amended by review 1's ruling (L1): after a python or a shell, `-u` is a plain flag."""
+        self.declare(beat=False)
+        for row in ("python3 -u /opt/bin/lampd watch", "/usr/bin/python3 -u -B /opt/bin/lampd watch",
+                    "env -u HOME /opt/bin/lampd watch"):
+            self.listing(row)
+            self.assertEqual(self.check(), (0, "", ""), row)
+        self.listing("env -u lampd watch")
+        self.assertEqual(self.check(), (1, LAMP + "\n", ""))
+
     def test_a5_one_line_for_the_one_missing(self):
         self.declare(beat=False, more="  bulb:\n    match: bulbd run\n    start: bulbd run --loud\n")
         self.listing("/opt/bin/lampd watch")
