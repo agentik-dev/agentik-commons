@@ -30,8 +30,32 @@ def _read_json(path):
 
 
 def manifest(lib):
-    found = _read_json(os.path.join(os.path.dirname(lib), ".claude-plugin", "plugin.json"))
+    """The manifest: in a frozen tree the copy beside the code, so the installed command plans
+    the default set too; in the plugin its .claude-plugin/plugin.json."""
+    if agentik_install.is_frozen(lib):
+        path = os.path.join(lib, agentik_install.MANIFEST)
+    else:
+        path = os.path.join(os.path.dirname(lib), ".claude-plugin", agentik_install.MANIFEST)
+    found = _read_json(path)
     return found if isinstance(found, dict) else {}
+
+
+def own_command(lib, tool):
+    """The path that runs this command: <plugin>/bin/<tool> in a plugin, <lib>/<runner> in a
+    frozen tree, the runner's name from the conf."""
+    if not agentik_install.is_frozen(lib):
+        return os.path.join(os.path.dirname(lib), "bin", tool)
+    try:
+        return os.path.join(lib, agentik_install.names(lib)["runner"])
+    except (OSError, ValueError):
+        return os.path.join(lib, tool)
+
+
+def own_door(lib):
+    """The door this command's install-cli writes: the plugin's bin/agentik, or the tree's."""
+    if agentik_install.is_frozen(lib):
+        return os.path.join(lib, agentik_install.DOOR)
+    return os.path.join(os.path.dirname(lib), "bin", agentik_install.DOOR)
 
 
 def default_set(lib):
@@ -135,30 +159,32 @@ def build(names, env, lib, tool, version):
         else:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.unread",
                                command, want=want))
-    step4_runs = any(s["command"] for s in steps if s["n"] == 4)
 
-    # 5: the suite's own launcher, which no verb places yet, and the door, which install-cli places
+    # 5: the suite's own launcher and the door, each placed by this command's own install-cli
     own = os.path.join(bindir, tool)
     read = agentik_install.read_launcher(own)
-    here = shlex.quote(os.path.join(os.path.dirname(lib), "bin", tool))  # as a run: line
+    place = "%s install-cli" % shlex.quote(own_command(lib, tool))
     if read is None:
-        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", path=here))
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", place))
     elif read.get("version") == version:
         steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.ok", version=version))
     elif read.get("version"):
-        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.behind",
-                           have=read["version"], want=version, path=here))
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.behind", place,
+                           have=read["version"], want=version))
     else:
-        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.unread",
-                           want=version, path=here))
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.unread", place,
+                           want=version))
     door = os.path.join(bindir, agentik_install.DOOR)
-    if os.path.isfile(door):
+    fate = agentik_install.door_fate(door, own_door(lib))
+    if fate == "keep":
         steps.append(_step(5, "door", "ok", shown(door, home), "setup.door.ok"))
-    elif placed and not step4_runs:
-        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place",
-                           "%s install-cli" % shlex.quote(placed[0])))
+    elif fate in ("link", "unversioned"):
+        mid = {"link": "setup.door.link", "unversioned": "setup.door.unversioned"}[fate]
+        steps.append(_step(5, "door", "ok", shown(door, home), mid))
+    elif steps[-1]["command"]:
+        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.above"))
     else:
-        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.missing"))
+        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place", place))
 
     # 6: ~/.local/bin on PATH
     entries = [os.path.normpath(p) for p in search.split(os.pathsep) if p]

@@ -2,13 +2,13 @@
 
 | item | value |
 |---|---|
-| from | agentik-hq's brief ak2b-reach of 2026-11-13, R1 to R9; hq design/15's row ak2, its second part (§3 items 1 and 4, §7.1 step 5, §9); level S3 |
+| from | agentik-hq's brief ak2b-reach of 2026-11-13, R1 to R9; hq design/15's row ak2, its second part; level S3 |
 | pin | agentik-commons main d795d4a (suite 0.5.0); worktree `.claude/worktrees/ak2b-reach`, branch `ak2b-reach`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`, never `make install`; no relay verb or binary; no `claude` process; every run in a temp HOME; made-up names |
-| may touch | `scripts/agentik_install.py`; `plugins/suite/lib/agentik_install.py`; `plugins/suite/lib/agentik_suite/install.py`; `plugins/suite/lib/agentik_suite/plan.py`; `plugins/suite/lib/agentik_suite/cli.py` (R4's lines alone); `plugins/suite/lib/agentik_suite/messages.md` (R8's lines alone); `setup`; `Makefile`; `tests/test_ak2b_reach.py`; `tests/test_agentik_suite.py` (`PlanTruthTest` alone); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-13-8.md` |
+| may touch | `scripts/agentik_install.py`; `plugins/suite/lib/agentik_install.py`; `plugins/suite/lib/agentik_suite/install.py`; `plugins/suite/lib/agentik_suite/plan.py`; `plugins/suite/lib/agentik_suite/cli.py` (R4's lines alone); `plugins/suite/lib/agentik_suite/config.py` (the dash, one line); `plugins/suite/lib/agentik_suite/messages.md` (R8's lines alone); `setup`; `Makefile`; `tests/test_ak2b_reach.py`; `tests/test_agentik_suite.py` (`PlanTruthTest` alone); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-13-8.md` |
 | verify | `make voice`, then `make check`, each once, through the gate queue, `--strict` |
 | acceptance | 1 to 9 below; `python3 -m unittest tests.test_ak2b_reach` OK; verify green |
-| budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls. `claude-opus-5-5` |
+| budget | a commit per ruling group, this packet first; about 90 tool calls. `claude-opus-5-5` |
 
 ## 1. The owner's words
 
@@ -25,7 +25,7 @@ The repo keeps no `DECISIONS.md` and no `CLAUDE.md`; `GUIDE.md` binds. Cited: hq
   - `install(prefix=None, env=None, dry_run=False)` returns what it returns today plus `door_fate`, read before any write, and `on_path`: true when `<prefix>/bin` is an entry of `env["PATH"]`, compared by `normpath`. With `dry_run` it takes no lock and writes nothing; `tree` is None and `pruned` is empty.
   - `install_cli` prints one more line when `on_path` is false: `<prefix>/bin is not on PATH; add: export PATH="<prefix>/bin:$PATH"`.
 - R3, the verb: `install-cli [--prefix P]`, a write, so it takes `--dry-run` and `-y`. A new module `plugins/suite/lib/agentik_suite/install.py` holds `do_install_cli(cmd, nouns)`. It calls `agentik_install.install`, never `install_cli`, and prints from the catalogue: the result on stdout in one line (the launcher, its version, the tree), the door's fate when it is not `write`, each `pruned` line, and on stderr one hint with the `export PATH` line when `on_path` is false. `--json`: `schema` `agentik.install-cli/1`, `ok`, `launcher`, `tree`, `version`, `door`, `door_fate`, `on_path`, `dry_run`. An `OSError`, `KeyError` or `ValueError` from `install` is exit 1 with one line. `--prefix` joins `VALUE_FLAGS`; a word after the verb is exit 2.
-- R4, `cli.py`, these lines and no other: `install-cli` appended to `VERBS` and `WRITES`; `"--prefix": ("prefix", "install-cli")` in `VALUE_FLAGS`; `install` added to the package import; a method `do_install_cli` directly under `do_version`; and the dash. A catalogue id holds no dash, so a verb's ids and its method are found with the dash as `_` (`verb.install_cli`, `usage.install_cli`, `do_install_cli`). The module's docstring is left to the join.
+- R4, `cli.py`, these lines and no other: `install-cli` appended to `VERBS` and `WRITES`; `"--prefix": ("prefix", "install-cli")` in `VALUE_FLAGS`; `install` added to the package import; a method `do_install_cli` directly under `do_version`; and the dash. A catalogue id holds no dash, so a verb's ids and its method are found with the dash as `_` (`verb.install_cli`, `usage.install_cli`, `do_install_cli`); `config.py`'s `describe` reads a verb's summary so too, one line. The module's docstring is left to the join.
 - R5, `plan.py`.
   - `manifest(lib)` reads `lib/plugin.json` where `agentik_install.is_frozen(lib)`, so the installed command plans the default set.
   - The path a row names for this command is `<plugin>/bin/<tool>` in a plugin and `<lib>/<runner>` in a frozen tree, the runner's name from the conf.
@@ -59,8 +59,8 @@ Each in `Home`, the prefix a second temp folder. Measured at d795d4a: lines 1 to
 
 ## 5. The landing
 
-`plugin.json` stays at 0.5.0: the join takes 0.6.0, merging this branch first, then `ak3-setup`, then `ak3d-doctor`.
+`plugin.json` stays at 0.5.0: the join takes 0.6.0.
 
 ## 6. Forbidden reads and report
 
-`~/.local/state`, transcripts, the private hygiene list, the real HOME. The report: head sha, gate ids and exits, acceptance 1 to 9 at the pin and now.
+`~/.local/state`, transcripts, the private hygiene list, the real HOME. The report: head sha, gate ids and exits, acceptance 1 to 9 now.
