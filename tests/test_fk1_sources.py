@@ -238,7 +238,7 @@ class FkTest(unittest.TestCase):
             h = self.home(name)
             want = json.loads(self.cli(h, "describe", "sources", "--json", T)[1])["tools"]
             code, out, err = self.cli(h, "describe", "sources", "--json", T, PATH=empty,
-                                      argv=["/usr/bin/python3", str(LAUNCHER)])
+                                      argv=["/usr/bin/python3", str(LIB / "agentik-suite")])
             self.assertEqual(code, 0, name + err)
             got = json.loads(out)["tools"]
             keys = ("tool", "kind", "plugin", "root", "version", "found", "declared", "seen")

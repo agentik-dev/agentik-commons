@@ -13,7 +13,7 @@ import json
 import os
 import time
 
-from . import plan, settings, term, tools
+from . import plan, settings, sources, term, tools
 
 SUITE_READ = {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}
 GROUP_PAST = 20
@@ -29,7 +29,7 @@ KEY_LINE = {"timed out": "err.config.silent", "unreadable": "err.config.silent",
             "read unreadable": "err.config.read.unreadable"}
 READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable"}
 SUITE_SUMMARIES = ("checkouts", "kind", "watcher.match", "watcher.start", "watcher.beat",
-                   "watcher.writer")
+                   "watcher.writer", "sources")
 
 
 def shown_value(value):
@@ -435,6 +435,8 @@ def do_describe(cmd, nouns):
     if not nouns:
         cmd.t.json(r.suite_describe())
         return 0
+    if nouns[0] == "sources":
+        return _describe_sources(cmd, r, nouns[1:])
     if nouns[0] != "config":
         raise Usage("extra_word", "err.extra", "%s describe --help" % cmd.tool,
                     word=nouns[0], where="%s describe" % cmd.tool)
@@ -453,4 +455,26 @@ def do_describe(cmd, nouns):
                     "%s config %s" % (cmd.tool, r.suite), name=r.suite, key=key,
                     near=near or "", tool=cmd.tool)
     cmd.t.json(cfg)
+    return 0
+
+
+def _describe_sources(cmd, r, nouns):
+    """`describe sources --json [TOOL]` (row fk1-sources R7): the finder's rows, one for TOOL, or
+    each name the suite knows less itself, then each declared name."""
+    if len(nouns) > 1:
+        cmd._no_nouns(nouns[1:])
+    try:
+        cwd = os.getcwd()
+    except OSError:  # a removed folder: no repo's entries
+        cwd = None
+    if nouns:
+        names, more = [nouns[0]], False
+    else:
+        names, more = [n for n in tools.plugin_names(cmd.env, cmd.lib) if n != r.suite], True
+    try:
+        rows = sources.read(cmd.env, cwd, names, more=more)
+    except settings.Fault as f:
+        raise cmd.Usage("bad_file", "err.config.file", "%s config suite" % cmd.tool,
+                        fault=r.fault_text(f), tool=cmd.tool, name=r.suite)
+    cmd.t.json({"schema": sources.SCHEMA, "ok": True, "tools": rows})
     return 0
