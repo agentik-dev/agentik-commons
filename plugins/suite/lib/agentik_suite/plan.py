@@ -140,7 +140,7 @@ def build(names, env, lib, tool, version):
     # 5: the suite's own launcher, which no verb places yet, and the door, which install-cli places
     own = os.path.join(bindir, tool)
     read = agentik_install.read_launcher(own)
-    here = shown(os.path.join(os.path.dirname(lib), "bin", tool), home)
+    here = shlex.quote(os.path.join(os.path.dirname(lib), "bin", tool))  # as a run: line
     if read is None:
         steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", path=here))
     elif read.get("version") == version:

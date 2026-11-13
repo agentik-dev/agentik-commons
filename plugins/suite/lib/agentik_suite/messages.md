@@ -64,7 +64,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; this version cannot place it, so run `{path}`
 - `setup.suite.unread`: holds no version line; this version cannot place it, so run `{path}`
-- `setup.suite.missing`: not placed, and this version cannot place it; run `{path}` instead
+- `setup.suite.missing`: not placed; a later version places it. Until then, run `{path}`
 - `setup.door.ok`: in place
 - `setup.door.missing`: not placed; the first install-cli run in step 4 places it
 - `setup.door.place`: not placed; the install-cli line below places it
@@ -77,5 +77,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.todo`: next: run each `run:` line above, in order, then `{tool}` setup --dry-run again.
 - `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.
-- `hint.setup.rest`: next: steps 1 to 6 hold no line to run. Each row not marked ok says what is left.
+- `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
+- `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.

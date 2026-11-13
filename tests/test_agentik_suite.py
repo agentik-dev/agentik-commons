@@ -616,6 +616,37 @@ class PlanTruthTest(Home):
         got = self.by_subject("notes")
         self.assertEqual(got[(3, "notes@agentik")]["command"], "claude plugin install notes@agentik")
 
+    def test_m3_l1_the_hint_when_only_the_path_line_is_left(self):
+        """Review 2's L1: steps 1 to 5 ok, ~/.local/bin off PATH: the hint names the add line."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik-suite", version())
+        self.place("agentik", "0")
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertIn("add to your shell profile", out)
+        self.assertNotIn("run each", err)
+        self.assertIn("the line marked add", err)
+
+    def test_m3_l2_a_set_up_machine_is_no_dead_end(self):
+        """Review 2's L2: a set-up machine's plan, whose suite launcher no verb places, says so."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik", "0")
+        path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
+        self.assertNotIn("hold no line", err)
+        self.assertIn("what this version can", err)
+        self.assertIn("a later version places it", out)
+
+    def test_m3_l4_step_fives_path_is_one_shell_word(self):
+        """Review 2's L4: the path in step 5's detail is quoted as a run: line's is."""
+        root = os.path.join(self.home, "pl ug", "suite")
+        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), "setup", "--dry-run",
+                            "--json", "alpha"], capture_output=True, text=True, env=self.env(),
+                           timeout=60)
+        detail = [s for s in json.loads(p.stdout)["steps"] if s["id"] == "suite"][0]["detail"]
+        words = shlex.split(detail.split(" run ", 1)[1])
+        self.assertEqual(words, [os.path.join(root, "bin", "agentik-suite")], detail)
+
     def test_m1_a_blocked_plan_promises_no_line_it_withholds(self):
         """Review 2's F1: with step 1 blocked no run: line is printed, so the door's row names none."""
         self.whole({"alpha": "1.0.0"})

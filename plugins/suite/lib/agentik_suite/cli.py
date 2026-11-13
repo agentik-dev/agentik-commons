@@ -264,16 +264,18 @@ class Command:
     @staticmethod
     def _closing(steps):
         """The closing hint by state: what to install when step 1 is blocked; done when steps 1
-        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names a line; else the
-        rows that say what is left."""
+        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names one; the add line
+        when it is all that is left; else what this version can do is done."""
         blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
         if blocked:
             return "hint.setup.blocked", {"missing": ", ".join(blocked)}
         early = [s for s in steps if s["n"] <= 6]
         if all(s["state"] == "ok" for s in early):
             return "hint.setup.done", {}
-        if any(s["command"] for s in early):
+        if any(s["command"] and s["line"] == "run" for s in early):
             return "hint.setup.todo", {}
+        if any(s["command"] for s in early):
+            return "hint.setup.path", {}
         return "hint.setup.rest", {}
 
 
