@@ -48,6 +48,14 @@ sys.exit(2)
 """
 
 
+def text(path):
+    with open(path) as fh:
+        return fh.read()
+
+
+read_text = text
+
+
 def fixture(name):
     with open(os.path.join(FIX, name)) as fh:
         return json.load(fh)
@@ -78,7 +86,7 @@ class ReadHome(StatusHome):
     def answer(self, answers=None, **more):
         """Each read by its argv's first word (`describe` is `describe --json`)."""
         path = answers or os.path.join(self.side, "demo.answers")
-        table = json.load(open(path))
+        table = json.loads(text(path))
         for word, a in more.items():
             key = "describe --json" if word == "describe" else word
             if isinstance(a, str):
@@ -101,7 +109,7 @@ class ReadHome(StatusHome):
             text = edit(text)
         self.write(self.ps, text)
 
-    def calls(self, name="demo"):
+    def logged(self, name="demo"):
         try:
             with open(os.path.join(self.side, name + ".calls")) as fh:
                 return fh.read().splitlines()
@@ -140,12 +148,12 @@ class BaseCaseTest(ReadHome):
             if s["ms"] is not None:
                 s["ms"] = 100
         self.assertEqual(obj, want)
-        calls = self.calls()
+        calls = self.logged()
         self.assertEqual(calls.count("describe --json"), 1)
         self.assertFalse([c for c in calls if c.startswith("weather")])
         self.assertIn("backlog --json " + self.repo, calls)
         self.read()
-        self.assertEqual(self.calls().count("describe --json"), 1)
+        self.assertEqual(self.logged().count("describe --json"), 1)
         self.assertEqual(self.snapshot(), before)
 
 
@@ -156,7 +164,7 @@ class SessionsTest(ReadHome):
         self.assertEqual(s["ended"], 0)
         old = next(x for x in s["live"] if x["name"] == "acme-old")
         self.assertIsNone(old["pid"])
-        self.write(self.ps, open(os.path.join(FIX, "ps.txt")).readline())
+        self.write(self.ps, text(os.path.join(FIX, "ps.txt")).splitlines()[0] + "\n")
         s = self.read()["sessions"]
         self.assertEqual((s["live"], s["ended"]), ([], 3))
 
@@ -213,7 +221,7 @@ class RunsTest(ReadHome):
 
 class CoversTest(ReadHome):
     def backlog_call(self):
-        return [c for c in self.calls() if c.startswith("backlog")][-1].split()
+        return [c for c in self.logged() if c.startswith("backlog")][-1].split()
 
     def test_6_each_rule(self):
         a, b = os.path.join(self.side, "a"), os.path.join(self.side, "b")
@@ -221,7 +229,7 @@ class CoversTest(ReadHome):
         obj = self.read(a, b)
         self.assertEqual((obj["covers"]["rule"], obj["covers"]["checkouts"]), ("args", [a, b]))
         self.assertEqual(self.backlog_call()[-2:], [a, b])
-        self.write(self.user, open(self.user).read() + "checkouts:\n  - ~/w/one\n")
+        self.write(self.user, text(self.user) + "checkouts:\n  - ~/w/one\n")
         obj = self.read()
         self.assertEqual(obj["covers"], {"rule": "checkouts", "hq": None,
                                          "checkouts": [os.path.join(self.home, "w", "one")]})
@@ -235,11 +243,11 @@ class CoversTest(ReadHome):
         call = self.backlog_call()
         self.assertEqual(call[call.index("--order") + 1], os.path.join(hq, "HANDOFF.md"))
         self.assertEqual(call[-2:], [hq, self.repo])
-        n = len(self.calls())
+        n = len(self.logged())
         obj = self.read(cwd=self.home)
         self.assertEqual((obj["covers"]["rule"], obj["backlog"]["state"]), ("none", "not read"))
         self.assertNotIn("backlog", [s["name"] for s in obj["sources"]])
-        self.assertFalse([c for c in self.calls()[n:] if c.startswith("backlog")])
+        self.assertFalse([c for c in self.logged()[n:] if c.startswith("backlog")])
         p = subprocess.run([str(LIB.parent / "bin" / "agentik-suite"), "status", "nosuchdir", "--json"],
                            capture_output=True, text=True, env=self.env(), cwd=self.home, timeout=60)
         self.assertEqual((p.returncode, json.loads(p.stdout)["error"]["code"]), (2, "bad_path"))
@@ -269,7 +277,7 @@ class FailingSourceTest(ReadHome):
         g = self.source(obj, "gate")
         self.assertEqual((g["state"], g["ms"]), ("timed out", 1000))
         time.sleep(0.1)
-        for pid in map(int, open(pids).read().split()):
+        for pid in map(int, text(pids).split()):
             with self.assertRaises(OSError):
                 os.kill(pid, 0)
 
@@ -301,7 +309,7 @@ class TableTest(ReadHome):
         drawn = [s for s in obj["sources"] if s["state"] != "not drawn"]
         self.assertEqual([s["state"] for s in drawn], ["ok"] * 5)
         for calls in stubs:
-            self.assertNotIn("describe --json", open(calls).read() if os.path.exists(calls) else "")
+            self.assertNotIn("describe --json", text(calls) if os.path.exists(calls) else "")
         for name in table:
             os.unlink(os.path.join(self.stubs, "agentik-" + name))
         start = time.monotonic()
@@ -316,7 +324,7 @@ class OnPartTest(ReadHome):
         seen = []
         self.answer(crew={"file": os.path.join(FIX, "sessions.json"), "sleep": 0.3})
         self.read()  # the cache
-        text = open(self.ps).read()
+        text = read_text(self.ps)
         self.compose(text, lambda name, obj: seen.append((name, time.monotonic(), sorted(obj))))
         self.assertEqual([s[0] for s in seen], list(status_read.PARTS))
         self.assertIn("sessions", seen[1][2])

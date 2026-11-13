@@ -82,6 +82,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
 - `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
 - `err.status.file`: `{fault}`. Mend the file by hand, then run `{tool}` status --check again.
+- `err.status.path`: `{path}` is not a folder
 - `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
 
