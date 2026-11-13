@@ -1,4 +1,4 @@
-# Packet H2b: a private row led by `.*` reads a binary in linear time
+# Packet H2b: a private row led or ended by `.*` reads a binary in linear time
 
 | item | value |
 |---|---|
@@ -18,7 +18,7 @@
 ## 2. Rulings
 
 1. R1 stands as built: a private term in a binary is a hit in the tree and in `--commits`, the file and the row named, never the bytes. An encoded term (UTF-16, base64, deflate) stays NICE n12.
-2. R2: a binary's whole content is scanned with each control byte but the tab (NUL and newline among them) and each byte UTF-8 cannot decode read as a newline, so a private row's `.` and its `^`/`$` (multiline) stop there. A row's cost is then bounded by its longest span of text, as a text file's is by its longest line. The count stays one line per file (per chunk). Chosen over a span cap: a byte table and a `replace`, no window to tune. NUL alone was measured first and missed the bound: random bytes with no newline, 20 MB, 26.7 s (a NUL only every 256 bytes); the wider set 1.3 s. A term holds no control or bad byte, so no term is lost; the residual, a long newline-free span of text, binary or not, is NICE n17.
+2. R2, as re-ruled after round 1: a binary's content is searched exactly as at 9f20220, so where a match may span is unchanged. The cost is bounded where it came from, a row's wildcard edge: a private row that opens with an unanchored `.*` (after an optional leading flags group such as `(?i)`), or ends with one, is searched without it (`unwild`), since a search tries every start and `.` may match nothing, so a line holds a match of the one exactly when it holds one of the other. Nothing else is rewritten: not `.*?`, `.+`, `^.*`, `.*$`, an escaped dot, a `.*` inside a group, nor any row under DOTALL; a stripped form that does not compile keeps the row's own. Rows are never printed; a hit counts by line as before. A row with an interior wildcard (`a.*b`) costs what it cost at the pin: NICE n17. Round 1's first build (a control or bad byte read as a newline, dfabbd0) lost hits the pin found, for a row is a pattern that may span such a byte, and is withdrawn.
 3. R3 stands as built: `--require-private` with a list of only comments and blank lines exits 2, one stderr line `the private list at P holds no term; nothing scanned (--require-private)`.
 4. R4: a text file's lines, the allowlist, the built-in groups, every message and exit are unchanged; the docstring's binary sentence names the NUL rule.
 
@@ -34,11 +34,11 @@
 
 ## 4. Tests
 
-`tests/test_hygiene.py`, class `PrivateListTest`, `test_h9`: a 256 KiB binary of NUL padding and control bytes, no newline, a 4-byte term between NULs, a `.*` row: one hit in the tree and in the range, each run under a 30 s timeout. At 9f20220 the run is quadratic on 256 KiB (the refuter measured 75.7 s on 64 KiB) and times out.
+`tests/test_hygiene.py`, class `PrivateListTest`: `test_h9`, a `.*` row on a 256 KiB NUL-padded binary and on 256 KiB of random bytes, tree and range, each under a 30 s timeout (9f20220: timed out); `test_h10`, twelve rows across a NUL, CR LF, DEL, a bad byte, a real U+FFFD, two control bytes, a UTF-16LE term, and two anchored rows, each giving 9f20220's answer in both scans (dfabbd0: all twelve wrong); `test_h11`, a row and the same row with a leading, trailing or both `.*` (and after `(?i)`) give the same files and line counts over twelve files, text and binary, tree and range.
 
 ## 5. The landing
 
-Commons keeps no ledger. Syncing the vendored copies is the coordinator's round after this lands. NICE n13 leaves; n12 stays; n17 files R2's residual.
+Commons keeps no ledger. Syncing the vendored copies is the coordinator's round after this lands. NICE n13 leaves; n12 stays; n17 files R2's residual, an interior wildcard.
 
 ## 6. Forbidden reads and report
 
