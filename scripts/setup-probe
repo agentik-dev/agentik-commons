@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""setup-probe: the clone's root `setup`, then `agentik doctor`, end to end in a temp HOME.
+
+Usage: setup-probe [--keep] [--code DIR] [--claude PATH]
+
+Run by hand, never by `make check` (hq design/15 section 9; packet ak3p, R2 to R4).
+Under a fresh temp dir T it clones this checkout's HEAD and, at main, each checkout
+`DIR/agentik-<name>` that the suite's manifest names as a dependency (DIR: --code,
+else AGENTIK_CODE, else the folder above this repo's main checkout) into `T/code/`,
+and writes `T/market/.claude-plugin/marketplace.json` as `suite-probe` does: this
+HEAD's file, its entries for suite and the dependencies only, each url a clone's
+`file://`. Every command runs as `env -i HOME=T/home PATH=/usr/bin:/bin:<a folder
+holding only claude> DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+under a sandbox that denies outbound IP. No prompt, no session, nothing that reaches
+a model.
+
+The steps: (1) `claude plugin marketplace add T/market`, the local marketplace in
+place of the published one, a network read; (2) a listing of T/home, then
+`<commons clone>/setup --yes --json`, which must exit 0 having run each dependency's
+`claude plugin install`, each shipped launcher's `install-cli` and the suite's own;
+(3) every path new under T/home is in the report's `wrote` or under a path in it, or
+Claude Code's own (`.claude.json`, `.claude/`), or bytecode under `.cache/agentik/`;
+(4) the same `setup --yes --json` again: nothing to do, nothing run, no file outside
+`.cache/agentik/` new, gone or changed; (5) with T/home/.local/bin first on PATH,
+`agentik --version`, `agentik setup --dry-run --json` (steps 1 to 6 ok) and
+`agentik doctor --json` (no `fail` in the suite's group; another tool's `fail` is a
+note). Nothing outside T is written; T is removed unless --keep.
+
+Output: one line per step, `ok`, `FAIL` or `note`, and last `setup-probe: go` or
+`setup-probe: stop: <why>`. Exit 0 go, 1 a step failed or a stop, 2 usage or a
+missing prerequisite. Stdlib only.
+"""
+import hashlib
+import json
+import os
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+USAGE = "usage: setup-probe [--keep] [--code DIR] [--claude PATH]"
+ROOT = Path(__file__).resolve().parents[1]
+SUITE = "suite"
+MARKET = "agentik"
+VERSION = "0.2.0"  # the door's, which the suite's install-cli places
+NO_IP = "(version 1)(allow default)(deny network-outbound (remote ip))"
+FAILS = []
+
+
+def say(kind, text):
+    print("%-4s %s" % (kind, text), flush=True)
+    if kind == "FAIL":
+        FAILS.append(text)
+
+
+def check(cond, text):
+    say("ok" if cond else "FAIL", text)
+    return cond
+
+
+def git(*argv, cwd=None):
+    return subprocess.run(["git", *argv], cwd=cwd, check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def last(text):
+    lines = [ln for ln in (text or "").splitlines() if ln.strip()]
+    return lines[-1][:160] if lines else ""
+
+
+def under(path, top):
+    return path.startswith(top.rstrip("/") + "/")
+
+
+def words(command):
+    try:
+        return shlex.split(command or "")
+    except ValueError:
+        return (command or "").split()
+
+
+def stray(home, new, wrote):
+    """The new paths under home that nothing accounts for (R3 step 3), sorted. A new
+    folder is accounted for by an accounted path inside it, never on its own."""
+    home = home.rstrip("/")
+    roots = [os.path.normpath(w) for w in wrote if isinstance(w, str) and w]
+    claude = home + "/.claude"
+    cache = home + "/.cache/agentik"
+
+    def own(p):
+        return (p == home + "/.claude.json" or p == claude or under(p, claude)
+                or any(p == r or under(p, r) for r in roots)
+                or (under(p, cache) and p.endswith(".pyc")))
+
+    owned = {p for p in new if own(p)}
+    above = set()
+    for p in owned:
+        d = os.path.dirname(p)
+        while under(d, home) and d not in above:
+            above.add(d)
+            d = os.path.dirname(d)
+    return sorted(p for p in new if p not in owned and p not in above)
+
+
+def ran_misses(ran, deps, launchers):
+    """R3 step 2: ([each wanted command not run once with exit 0], [each other command])."""
+    rows = [(r, words(r.get("command"))) for r in ran if isinstance(r, dict)]
+    want = [("claude plugin install %s@%s" % (n, MARKET),
+             lambda w, n=n: bool(w) and [os.path.basename(w[0])] + w[1:]
+             == ["claude", "plugin", "install", "%s@%s" % (n, MARKET)]) for n in deps]
+    want += [("agentik-%s install-cli" % n,
+              lambda w, n=n: len(w) >= 2 and w[1] == "install-cli"
+              and os.path.basename(w[0]) == "agentik-" + n) for n in launchers + [SUITE]]
+    misses, matched = [], set()
+    for label, match in want:
+        hits = [i for i, (_, w) in enumerate(rows) if match(w)]
+        matched.update(hits)
+        if len(hits) != 1:
+            misses.append("%s: ran %d times" % (label, len(hits)))
+        elif rows[hits[0]][0].get("exit") != 0:
+            misses.append("%s: exit %s" % (label, rows[hits[0]][0].get("exit")))
+    return misses, [r.get("command") for i, (r, _) in enumerate(rows) if i not in matched]
+
+
+def changed(home, before, after):
+    """R3 step 4: each path outside home's .cache/agentik/ new, gone or changed, sorted."""
+    cache = home.rstrip("/") + "/.cache/agentik"
+    out = []
+    for p in sorted(set(before) | set(after)):
+        if p == cache or under(p, cache):
+            continue
+        if p not in before:
+            out.append("new " + p)
+        elif p not in after:
+            out.append("gone " + p)
+        elif before[p] != after[p]:
+            out.append("changed " + p)
+    return out
+
+
+def snapshot(home):
+    """{path: what it holds} for every path under home: a file's sha256, a link's
+    target, `dir`; nothing followed through a link."""
+    out = {}
+    for top, dirs, files in os.walk(str(home)):
+        for name in dirs + files:
+            p = os.path.join(top, name)
+            if os.path.islink(p):
+                out[p] = "link " + os.readlink(p)
+            elif os.path.isdir(p):
+                out[p] = "dir"
+            else:
+                try:
+                    with open(p, "rb") as f:
+                        out[p] = hashlib.sha256(f.read()).hexdigest()
+                except OSError as e:
+                    out[p] = "unreadable %s" % e.errno
+    return out
+
+
+def first(items, home):
+    shown = [p.replace(home.rstrip("/") + "/", "~/", 1) if isinstance(p, str) else str(p)
+             for p in items[:5]]
+    return ", ".join(shown) + (" and %d more" % (len(items) - 5) if len(items) > 5 else "")
+
+
+class Probe:
+    def __init__(self, t, claude):
+        self.t, self.home = t, t / "home"
+        self.home.mkdir()
+        self.bin = t / "claude-bin"
+        self.bin.mkdir()
+        (self.bin / "claude").symlink_to(claude)
+
+    def run(self, argv, first_on_path=None):
+        path = ([str(first_on_path)] if first_on_path else []) + ["/usr/bin", "/bin", str(self.bin)]
+        env = {"HOME": str(self.home), "PATH": ":".join(path),
+               "DISABLE_AUTOUPDATER": "1", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+        cmd = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in env.items()] + list(argv)
+        return subprocess.run(["/usr/bin/sandbox-exec", "-p", NO_IP] + cmd, cwd=str(self.t),
+                              capture_output=True, text=True, timeout=900)
+
+
+def report(r, what):
+    """The one JSON object a run printed, or None with a FAIL."""
+    try:
+        doc = json.loads(r.stdout)
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict):
+        say("FAIL", "%s: exit %d, stdout is no JSON object: %s"
+            % (what, r.returncode, last(r.stdout + "\n" + r.stderr)))
+        return None
+    return doc
+
+
+def setup_run(p, setup, what):
+    r = p.run([str(setup), "--yes", "--json"])
+    doc = report(r, what)
+    if doc is None:
+        return r, None
+    for row in doc.get("ran") or []:
+        say("note", "%s ran: step %s, exit %s: %s" % (what, row.get("n"), row.get("exit"),
+                                                     row.get("command")))
+    return r, doc
+
+
+def probe(t, code, claude):
+    p = Probe(t, claude)
+    home = str(p.home)
+    commons = t / "code" / "agentik-commons"
+    head = git("rev-parse", "HEAD", cwd=ROOT)
+    git("clone", "-q", "--no-hardlinks", str(ROOT), str(commons))
+    git("checkout", "-q", "-B", "main", head, cwd=commons)
+    say("note", "commons cloned at %s" % head[:7])
+    suite = json.loads((commons / "plugins" / SUITE / ".claude-plugin" / "plugin.json")
+                       .read_text())
+    names = [d if isinstance(d, str) else d["name"] for d in suite["dependencies"]]
+    clones, launchers = {}, []
+    for name in names:
+        clones[name] = t / "code" / ("agentik-" + name)
+        git("clone", "-q", "--no-hardlinks", "--branch", "main",
+            (code / ("agentik-" + name)).as_uri(), str(clones[name]))
+        if (clones[name] / "plugin" / "bin" / ("agentik-" + name)).is_file():
+            launchers.append(name)
+        say("note", "%s cloned at main %s%s" % (name, git("rev-parse", "--short", "HEAD",
+            cwd=clones[name]), "" if name in launchers else ", no launcher"))
+    data = json.loads((commons / ".claude-plugin" / "marketplace.json").read_text())
+    data["plugins"] = [e for e in data["plugins"] if e["name"] in names + [SUITE]]
+    for e in data["plugins"]:
+        e["source"]["url"] = (commons if e["name"] == SUITE else clones[e["name"]]).as_uri()
+    market = t / "market" / ".claude-plugin" / "marketplace.json"
+    market.parent.mkdir(parents=True)
+    market.write_text(json.dumps(data, indent=2) + "\n")
+
+    # 1: the local marketplace, added by the probe
+    r = p.run(["claude", "plugin", "marketplace", "add", str(t / "market")])
+    if not check(r.returncode == 0, "claude plugin marketplace add T/market: exit %d%s"
+                 % (r.returncode, "" if r.returncode == 0 else ": " + last(r.stdout + "\n" + r.stderr))):
+        return "the local marketplace was not added"
+    say("note", "the local marketplace stands in for the published one, a network read, "
+        "so setup's step 2 reads ok and its command is never run here")
+
+    # 2: setup applied, from a listing of the home
+    setup = commons / "setup"
+    if not setup.is_file():
+        return "the commons clone has no root setup"
+    before = snapshot(p.home)
+    say("note", "T/home holds %d paths before setup" % len(before))
+    r, doc = setup_run(p, setup, "setup --yes --json")
+    if doc is None:
+        return "setup --yes --json printed no report"
+    check(r.returncode == 0 and doc.get("ok") is True, "setup --yes --json: exit %d, ok %s%s"
+          % (r.returncode, json.dumps(doc.get("ok")), "" if r.returncode == 0
+             else ": " + last(r.stderr)))
+    misses, extra = ran_misses(doc.get("ran") or [], names, launchers)
+    check(not misses, "setup ran each install (%s), each launcher's install-cli (%s) and the "
+          "suite's%s" % (", ".join(names), ", ".join(launchers) or "none",
+                         "" if not misses else ": " + "; ".join(misses)))
+    for cmd in extra:
+        say("note", "setup also ran: %s" % cmd)
+
+    # 3: every new path accounted for
+    after = snapshot(p.home)
+    new = set(after) - set(before)
+    wrote = doc.get("wrote") or []
+    strays = stray(home, new, wrote)
+    check(not strays, "%d new paths under T/home, each in wrote (%d), under it, Claude Code's "
+          "own or bytecode%s" % (len(new), len(wrote), "" if not strays
+                                 else ": not: " + first(strays, home)))
+
+    # 4: a second setup has nothing to do and writes nothing
+    r, doc = setup_run(p, setup, "setup --yes --json, again")
+    if doc is not None:
+        check(r.returncode == 0 and doc.get("nothing") is True and doc.get("ran") == [],
+              "setup --yes --json again: exit %d, nothing %s, ran %d"
+              % (r.returncode, json.dumps(doc.get("nothing")), len(doc.get("ran") or [])))
+    moved = changed(home, after, snapshot(p.home))
+    check(not moved, "the second setup left every path outside ~/.cache/agentik/ as it was%s"
+          % ("" if not moved else ": " + first(moved, home)))
+
+    # 5: the command on the terminal's PATH
+    local = p.home / ".local" / "bin"
+    r = p.run(["agentik", "--version"], local)
+    check(r.returncode == 0 and r.stdout.strip() == "agentik %s" % VERSION,
+          "agentik --version: exit %d, %s (want agentik %s)"
+          % (r.returncode, last(r.stdout + "\n" + r.stderr) or "nothing", VERSION))
+    r = p.run(["agentik", "setup", "--dry-run", "--json"], local)
+    doc = report(r, "agentik setup --dry-run --json")
+    if doc is not None:
+        rows = [s for s in doc.get("steps") or [] if isinstance(s, dict)
+                and isinstance(s.get("n"), int) and 1 <= s["n"] <= 6]
+        bad = ["%s %s %s" % (s.get("n"), s.get("subject"), s.get("state")) for s in rows
+               if s.get("state") != "ok"]
+        check(rows and not bad, "agentik setup --dry-run --json: exit %d, %d rows of steps 1 to 6"
+              ", each ok%s" % (r.returncode, len(rows), "" if not bad else ": not: " + "; ".join(bad)))
+    r = p.run(["agentik", "doctor", "--json"], local)
+    doc = report(r, "agentik doctor --json")
+    if doc is not None:
+        tools = [g for g in doc.get("tools") or [] if isinstance(g, dict)]
+        say("note", "agentik doctor --json: exit %d, failed %s, groups %s" % (
+            r.returncode, json.dumps(doc.get("failed")), ", ".join(str(g.get("name")) for g in tools)))
+        own = tools[0] if tools else {}
+        fails = [c for c in own.get("checks") or [] if isinstance(c, dict) and c.get("status") == "fail"]
+        check(bool(tools) and not fails, "agentik doctor: the first group, %s, holds %d checks, no fail%s"
+              % (own.get("name"), len(own.get("checks") or []), "" if not fails else ": " + "; ".join(
+                  "%s: %s" % (c.get("name"), c.get("detail")) for c in fails)))
+        for g in tools[1:]:
+            for c in g.get("checks") or []:
+                if isinstance(c, dict) and c.get("status") == "fail":
+                    say("note", "doctor %s: %s fails outside a session: %s"
+                        % (g.get("name"), c.get("name"), c.get("detail")))
+    return None
+
+
+def main(argv):
+    args, keep, code, claude = argv[1:], False, None, None
+    while args:
+        a = args.pop(0)
+        if a in ("-h", "--help"):
+            print(USAGE)
+            return 0
+        if a == "--keep":
+            keep = True
+        elif a in ("--code", "--claude") and args:
+            code, claude = (args.pop(0), claude) if a == "--code" else (code, args.pop(0))
+        else:
+            sys.stderr.write(USAGE + "\n")
+            return 2
+    if not code:
+        code = os.environ.get("AGENTIK_CODE") or str(
+            Path(git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=ROOT)).parents[1])
+    claude = claude or shutil.which("claude")
+    if not claude or not os.access(claude, os.X_OK) or not os.access("/usr/bin/sandbox-exec", os.X_OK):
+        sys.stderr.write("setup-probe: no claude on PATH (or --claude), or no sandbox-exec\n")
+        return 2
+    deps = json.loads((ROOT / "plugins" / SUITE / ".claude-plugin" / "plugin.json").read_text())
+    absent = [n for n in (d if isinstance(d, str) else d["name"] for d in deps["dependencies"])
+              if not Path(code, "agentik-" + n).is_dir()]
+    if absent:
+        sys.stderr.write("setup-probe: no checkout of %s under %s (--code)\n"
+                         % (", ".join("agentik-" + n for n in absent), code))
+        return 2
+    t = Path(tempfile.mkdtemp(prefix="setup-probe-")).resolve()
+    say("note", "T is %s" % t)
+    try:
+        stop = probe(t, Path(code), os.path.realpath(claude))
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError) as e:
+        stop = "%s: %s" % (type(e).__name__, last(str(e) + "\n" + str(getattr(e, "stderr", "") or "")))
+    finally:
+        if not keep:
+            shutil.rmtree(str(t), ignore_errors=True)
+    if stop or FAILS:
+        print("setup-probe: stop: %s" % (stop or "%d failed" % len(FAILS)))
+        return 1
+    print("setup-probe: go")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
