@@ -43,14 +43,29 @@ def listed(suite, on_path, env):
         name = entry["name"][len("agentik-"):]
         if name != suite and NAME.match(name):
             found.setdefault(name, {"name": name, "exe": entry["path"], "plugin": False})
-    installed = plan._read_json(os.path.join(_config_dir(env), "plugins", "installed_plugins.json"))
-    table = installed.get("plugins") if isinstance(installed, dict) else None
+    for name in installed(env):
+        found.setdefault(name, {"name": name, "exe": None, "plugin": True})["plugin"] = True
+    rest = sorted(n for n in found if n != suite)
+    return [found[suite]] + [found[n] for n in rest]
+
+
+def installed(env):
+    """Each name of a `<name>@agentik` in Claude Code's installed_plugins.json, in its order."""
+    found = plan._read_json(os.path.join(_config_dir(env), "plugins", "installed_plugins.json"))
+    table = found.get("plugins") if isinstance(found, dict) else None
+    names = []
     for key in table if isinstance(table, dict) else ():
         name, at, market = key.partition("@")
         if at and market == plan.MARKETPLACE and NAME.match(name):
-            found.setdefault(name, {"name": name, "exe": None, "plugin": True})["plugin"] = True
-    rest = sorted(n for n in found if n != suite)
-    return [found[suite]] + [found[n] for n in rest]
+            names.append(name)
+    return names
+
+
+def plugin_names(env, lib):
+    """Every plugin's name the suite knows (packet ak2 R3): the marketplace file's, the fallback
+    table's and each installed `<name>@agentik`."""
+    names = set(descriptions(env)) | set(fallback(lib)) | set(installed(env))
+    return sorted(n for n in names if NAME.match(n))
 
 
 def _end(job):
