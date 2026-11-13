@@ -70,4 +70,4 @@ Ruling: five findings fixed on the branch, each with a test red at c2b262c; R5 a
 - F3 a beat is opened without blocking and is a beat only as a regular file; `--ps` the same, a FIFO there exits 2 (L6)
 - F4 a `--now` whose timestamp raises exits 2, `is not a time`
 - F5 a regular beat file is read whole to 1 MiB, the listing's cap; past it, no beat
-- NICE: L3 n46, L4 n47, L7 n48, L8 n49 (a phase 2 renumbers them if another branch took these first)
+- NICE: L3 n53, L4 n54, L7 n55, L8 n56 (filed as n46 to n49, renumbered in phase 2 after ak2-door's n46 to n52)
