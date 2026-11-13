@@ -111,6 +111,14 @@ class FkTest(unittest.TestCase):
         self.assertEqual(row["version"], "0.13.0")
         self.assertEqual(row["seen"], [])
 
+    def test_r6_a_link_does_not_walk_the_roots_file_out_of_its_root(self):
+        h = self.home("hD")
+        outside = h.file(os.path.join(h.home, "elsewhere", "agentik-" + T), "#!/bin/sh\nexit 0\n")
+        os.remove(h.cmd)
+        os.symlink(outside, h.cmd)
+        row = self.row(h)
+        self.assertEqual((row["kind"], row["runs"]), ("plugin", None))
+
     def test_r4_an_entry_with_no_scope_is_the_users_own(self):
         h = self.home("hF")
         del h.table[U][0]["scope"]

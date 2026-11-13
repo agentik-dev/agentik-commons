@@ -136,7 +136,7 @@ def _runs(tool, env, all_entries, standing, root, version):
                      "of": "placed" if launcher.get("tree") else "unknown"}, None)
     if root:
         path = os.path.join(root, "bin", name)
-        if _executable(path):
+        if _executable(path) and _under(_real(path), real_root):  # no link walks it out of its root
             return {"path": path, "version": version, "of": "source"}, passed
     return None, passed
 
