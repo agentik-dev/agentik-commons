@@ -22,10 +22,13 @@ PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
 
 
 def _read_json(path):
+    """The JSON at `path`, or None; a path that is no regular file is never opened (ak2b review 1)."""
+    data = agentik_install.read_regular(path)
+    if data is None:
+        return None
     try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except (OSError, ValueError, RecursionError):  # a file nested past the parser's depth too
+        return json.loads(data.decode("utf-8"))
+    except (ValueError, RecursionError):  # a file nested past the parser's depth too
         return None
 
 
@@ -164,11 +167,19 @@ def build(names, env, lib, tool, version):
     own = os.path.join(bindir, tool)
     read = agentik_install.read_launcher(own)
     place = "%s install-cli" % shlex.quote(own_command(lib, tool))
+    theirs, newer = (read or {}).get("version"), False
+    if theirs and theirs != version:
+        a, b = agentik_install.order(theirs), agentik_install.order(version)
+        newer = a is not None and b is not None and a > b
     if read is None:
         steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", place))
-    elif read.get("version") == version:
+    elif theirs == version:
         steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.ok", version=version))
-    elif read.get("version"):
+    elif newer:  # never moved backward: its own install-cli places the door (ak2b review 1)
+        steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.newer",
+                           have=theirs, want=version))
+        place = "%s install-cli" % shlex.quote(own)
+    elif theirs and agentik_install.order(theirs) is not None:
         steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.behind", place,
                            have=read["version"], want=version))
     else:
