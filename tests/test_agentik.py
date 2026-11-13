@@ -1,6 +1,6 @@
 """bin/agentik, the front door (agentik-r1 section 3): dispatch with the args
-unchanged, the tool's own exit, 2 for usage and a bad name, 3 when the tool is not
-on PATH, the list in PATH order, help and version. Each test runs the script
+unchanged, the tool's own exit, 2 for usage and a bad name, 3 when neither the tool
+nor the suite is on PATH (packet ak2 R2), the list in PATH order, help and version. Each test runs the script
 through subprocess with a scratch PATH of fake tools."""
 import os
 import subprocess
@@ -49,11 +49,11 @@ class FrontDoorTest(unittest.TestCase):
         fake(self.a, "agentik-two-part", code=0)
         self.assertEqual(run("two-part", path=self.path())[:2], (0, "0\n"))
 
-    def test_not_on_path_exits_three_naming_the_repo(self):
-        code, out, err = run("nosuch")
-        self.assertEqual((code, out), (3, ""))
-        self.assertEqual(len(err.splitlines()), 1)
-        self.assertIn("agentik-dev/agentik-nosuch", err)
+    def test_not_installed_exits_three_with_one_line(self):
+        # packet ak2 R2: no agentik-<word> and no agentik-suite on PATH
+        line = "agentik: nosuch is not installed here; agentik-commons/setup sets the suite up\n"
+        for args in (("nosuch",), ("help", "nosuch"), ("nosuch", "--x", "y")):
+            self.assertEqual(run(*args), (3, "", line), args)
         # a file that is not executable is not a tool
         fake(self.a, "agentik-y", mode=0o644)
         self.assertEqual(run("y", path=self.path())[0], 3)
