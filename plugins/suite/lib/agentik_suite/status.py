@@ -45,9 +45,9 @@ def when(text):
         zone = zone[:3] + ":" + zone[3:]
     try:
         stamp = datetime.datetime.fromisoformat("%sT%s%s" % (m.group(1), m.group(2), zone))
-    except ValueError:
+        return stamp.timestamp()  # a local time near year 1 raises here
+    except (ValueError, OverflowError, OSError):
         return None
-    return stamp.timestamp()
 
 
 def local(at):
