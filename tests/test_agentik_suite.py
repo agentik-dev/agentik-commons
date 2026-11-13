@@ -32,7 +32,7 @@ MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
-STDLIB = {"ast", "datetime", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
+STDLIB = {"ast", "datetime", "difflib", "fnmatch", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
           "select", "signal", "subprocess", "tempfile", "time"}
 
 sys.path.insert(0, str(LIB))
@@ -379,7 +379,7 @@ class VerbTest(Home):
         self.assertEqual((code, out), (2, ""))
         self.assertIn("setup", err)
         before = self.snapshot()
-        for args in (("setup",), ("setup", "-y"), ("setup", "--yes", "alpha")):
+        for args in (("setup", "Bad_name"), ("setup", "-y", "Bad_name"), ("setup", "--yes", "alpha", "Bad_name")):
             code, out, err = self.run_cli(*args)
             self.assertEqual((code, out), (2, ""), args)
             self.assertEqual(len(err.splitlines()), 1)

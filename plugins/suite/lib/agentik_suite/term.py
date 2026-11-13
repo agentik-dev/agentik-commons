@@ -204,3 +204,9 @@ class Term:
     def flush(self):
         for stream in (self.out, self.err):
             stream.flush()
+
+
+def append(path, text):
+    """The one file this package appends to, setup's journal (packet ak3-setup R9)."""
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(text)

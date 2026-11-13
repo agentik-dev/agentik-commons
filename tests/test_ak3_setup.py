@@ -201,9 +201,9 @@ class ApplyTest(SetupHome):
         self.assertEqual(got[(3, "alpha@agentik")], "ok")
         self.assertIn("ran: claude plugin install beta@agentik, exit 1", out)
         self.assertIn("claude plugin install beta@agentik", err)
-        self.assertIn("exit 1", err)
+        self.assertIn("exited 1", err)
         self.assertIn(LAST_LINE, err)
-        self.assertNotIn("install-cli", out)
+        self.assertEqual([l for l in self.lines(out, "ran: ") if "install-cli" in l], [])
         self.assertFalse(os.path.exists(os.path.join(self.bindir, "agentik-beta")))
         self.assertEqual([e["exit"] for e in self.journal()], [1])
         os.remove(self.flag)
@@ -298,7 +298,8 @@ class ApplyTest(SetupHome):
         roots = [os.path.join(h, ".claude", "plugins", "cache", "agentik", n, "1.0.0") + "/"
                  for n in ("alpha", "beta")]
         roots += [self.bindir + "/", os.path.dirname(self.journal_path) + "/",
-                  os.path.join(h, ".local", "share", "agentik-")]
+                  os.path.join(h, ".local", "share", "agentik-"),
+                  os.path.join(h, "Library", "Caches", "com.apple.python") + "/"]  # the stub's own python
         new = [p for p, kind in self.snapshot().items() if p not in before and kind != "dir"]
         self.assertTrue(new)
         for path in new:
