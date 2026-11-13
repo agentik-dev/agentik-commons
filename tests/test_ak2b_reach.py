@@ -235,5 +235,98 @@ class RootTest(Reach):
             self.assertTrue(p.stdout.startswith("plugins/suite/bin/agentik-suite install-cli"), p.stdout)
 
 
+class ReviewOneTest(Reach):
+    """Review 1's mends: F1, F8 and F12 a missing --prefix; F2 no launcher moves backward; F6
+    HOME's marker; F5 a prefix from ~; F4 the root setup through a link; F15 no read blocks."""
+
+    def test_f1_f8_f12_a_missing_prefix_is_exit_two(self):
+        cwd = os.path.join(self.home, "cwd")
+        os.mkdir(cwd)
+        before = self.snapshot()
+        for args in (["--prefix", "--dry-run"], ["--prefix", "-q", "--json"], ["--prefix"],
+                     ["--prefix", ""], ["--prefix="]):
+            code, out, err = self.call([LAUNCHER, "install-cli"] + args, cwd=cwd)
+            if "--json" in args:     # the refusal is the JSON object on stdout
+                self.assertEqual((code, err), (2, ""), args)
+                out, err = "", json.loads(out)["error"]["message"]
+            self.assertEqual((code, out), (2, ""), args)
+            self.assertEqual(len(err.splitlines()), 1, (args, err))
+            self.assertIn("--prefix", err)
+            self.assertIn("folder", err)
+            self.assertEqual(os.listdir(cwd), [], args)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_f2_a_newer_launcher_is_left_as_it_is(self):
+        bindir = os.path.join(self.home, ".local", "bin")
+        os.makedirs(bindir)
+        own = os.path.join(bindir, "agentik-suite")
+        with open(own, "w") as fh:
+            fh.write("#!/bin/sh\nVERSION=9.0.0\n")
+        os.chmod(own, 0o755)
+        rows = {s["id"]: s for s in self.plan()["steps"] if s["n"] == 5}
+        self.assertEqual((rows["suite"]["state"], rows["suite"]["command"]), ("ok", None))
+        self.assertIn("newer", rows["suite"]["detail"])
+        # the door's line is the newer launcher's own install-cli, never this older command's
+        self.assertEqual(rows["door"]["command"], "%s install-cli" % shlex.quote(own))
+        for line in [s["command"] for s in self.plan()["steps"] if s["command"] and s["n"] <= 5]:
+            self.assertNotIn(str(LAUNCHER), line)
+        self.assertEqual(agentik_install.read_launcher(own)["version"], "9.0.0")
+        # an older one is todo with this command's line
+        with open(own, "w") as fh:
+            fh.write("#!/bin/sh\nVERSION=0.0.1\n")
+        rows = {s["id"]: s for s in self.plan()["steps"] if s["n"] == 5}
+        self.assertEqual((rows["suite"]["state"], rows["suite"]["command"]),
+                         ("todo", "%s install-cli" % shlex.quote(str(LAUNCHER))))
+
+    def test_f6_only_homes_own_prefix_clears_homes_marker(self):
+        marker = os.path.join(self.home, ".local", "state", "agentik-suite", "install-needed")
+        os.makedirs(os.path.dirname(marker))
+        with open(marker, "w") as fh:
+            fh.write("/old/tree\n")
+        before = self.snapshot()
+        self.assertEqual(self.install("-q")[0], 0)
+        self.assertEqual(self.snapshot(), before)
+        code, out, err = self.call([LAUNCHER, "install-cli", "-q"])
+        self.assertEqual(code, 0, err)
+        self.assertFalse(os.path.exists(marker))
+
+    def test_f5_a_prefix_from_the_home_folder(self):
+        code, out, err = self.call([LAUNCHER, "install-cli", "--prefix", "~/x", "--dry-run", "--json"],
+                                   cwd=self.stubs)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(json.loads(out)["launcher"], os.path.join(self.home, "x", "bin", "agentik-suite"))
+        p = subprocess.run(["/bin/zsh", "-fc", "make -n --no-print-directory install PREFIX=~/x"],
+                           cwd=str(ROOT), env={"HOME": self.home, "PATH": SYSTEM},
+                           capture_output=True, text=True, timeout=60)
+        self.assertTrue(p.stdout.rstrip("\n").endswith('--prefix "~/x"'), p.stdout)
+
+    def test_f4_the_root_setup_through_a_link(self):
+        links = os.path.join(self.home, "a link dir")
+        os.mkdir(links)
+        os.symlink(str(ROOT / "setup"), os.path.join(links, "setup"))
+        os.symlink(os.path.join(links, "setup"), os.path.join(links, "again"))
+        for name in ("setup", "again"):
+            code, out, err = self.call([os.path.join(links, name), "--dry-run"], cwd=self.stubs)
+            self.assertEqual(code, 0, err)
+            self.assertIn("Setup plan", out)
+
+    def test_f15_no_read_of_a_file_that_is_not_regular(self):
+        plugins = os.path.join(self.home, ".claude", "plugins")
+        bindir = os.path.join(self.home, ".local", "bin")
+        os.makedirs(plugins)
+        os.makedirs(bindir)
+        for path in (os.path.join(plugins, "installed_plugins.json"),
+                     os.path.join(plugins, "known_marketplaces.json"),
+                     os.path.join(bindir, "agentik-suite"), os.path.join(bindir, "agentik-alpha")):
+            os.mkfifo(path)
+        code, out, err = self.call([LAUNCHER, "setup", "--dry-run", "--json", "alpha"], timeout=5)
+        self.assertEqual(code, 0, err)
+        state = {(s["n"], s["id"]): s["state"] for s in json.loads(out)["steps"]}
+        self.assertEqual(state[(2, "marketplace")], "todo")
+        self.assertEqual(state[(3, "plugin")], "todo")
+        self.assertEqual(state[(5, "suite")], "todo")
+        self.assertIsNone(agentik_install.read_launcher(os.path.join(bindir, "agentik-suite")))
+
+
 if __name__ == "__main__":
     unittest.main()
