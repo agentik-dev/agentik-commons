@@ -48,6 +48,16 @@ class Reach(Home):
         self.assertEqual(out.count("\n"), 1, out)
         return json.loads(out)
 
+    def step_four_done(self):
+        """`alpha` installed whole and its launcher placed, so step 4 has no row to do: with one,
+        a plugin's install-cli places the door and its row names no line (row sm1-setup-ask R2)."""
+        self.plugin_files(os.path.join(self.home, ".claude"), {"alpha": "1.0.0"})
+        bindir = os.path.join(self.home, ".local", "bin")
+        os.makedirs(bindir, exist_ok=True)
+        with open(os.path.join(bindir, "agentik-alpha"), "w") as fh:
+            fh.write("#!/bin/sh\nVERSION=1.0.0\n")
+        return "alpha"
+
 
 class InstallCliTest(Reach):
     def test_a1_install_cli_places_the_command(self):
@@ -206,6 +216,8 @@ class PlanTest(Reach):
             fh.write("#!/bin/sh\nVERSION=0.1.0\n")
         rows = self.suite_rows(self.plan()["steps"])
         self.assertEqual(rows["suite"]["state"], "ok")
+        self.assertEqual((rows["door"]["state"], rows["door"]["command"]), ("todo", None))
+        rows = self.suite_rows(self.plan(self.step_four_done())["steps"])
         self.assertEqual((rows["door"]["state"], rows["door"]["command"]), ("todo", command))
         p = subprocess.run(["/bin/sh", "-c", command], env=self.env(), capture_output=True, timeout=60)
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -267,7 +279,9 @@ class ReviewOneTest(Reach):
         self.assertEqual((rows["suite"]["state"], rows["suite"]["command"]), ("ok", None))
         self.assertIn("newer", rows["suite"]["detail"])
         # the door's line is the newer launcher's own install-cli, never this older command's
-        self.assertEqual(rows["door"]["command"], "%s install-cli" % shlex.quote(own))
+        self.assertIsNone(rows["door"]["command"])  # until step 4's install-cli has run
+        door = {s["id"]: s for s in self.plan(self.step_four_done())["steps"] if s["n"] == 5}["door"]
+        self.assertEqual(door["command"], "%s install-cli" % shlex.quote(own))
         for line in [s["command"] for s in self.plan()["steps"] if s["command"] and s["n"] <= 5]:
             self.assertNotIn(str(LAUNCHER), line)
         self.assertEqual(agentik_install.read_launcher(own)["version"], "9.0.0")
