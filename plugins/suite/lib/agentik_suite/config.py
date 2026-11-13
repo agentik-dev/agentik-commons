@@ -89,7 +89,7 @@ class Reader:
                 "version": cmd.version, "summary": self.t.text("describe.summary"),
                 "repo": plan.SOURCE, "plugin": "%s@%s" % (self.suite, plan.MARKETPLACE),
                 "needs": [],
-                "verbs": [{"name": v, "summary": self.t.text("verb." + v), "top": True}
+                "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")), "top": True}
                           for v in cmd.VERBS],
                 "reads": [dict(SUITE_READ)]}
 

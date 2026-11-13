@@ -1,16 +1,20 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
-Verbs: help (bare, -h, --help), version (--version), setup, which in this version only plans
-(`setup --dry-run [PLUGIN...]`), config, every tool's settings drilled down to one,
-describe, the suite's own answer to that read, and status, which in this version only checks the
-declared watchers (`status --check`). Every verb takes --json, -q/--quiet, --no-color and
--h/--help; setup, a verb that writes, also takes --dry-run and -y/--yes; config takes --changed
-and --user-files; status takes --check, and the test hooks --ps FILE and --now ISO, the only
-flags with a value. stdout carries the answer alone;
-stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
-3 not installed (a plugin's name with no command here). Nothing here prompts or loops; config
-starts only the listed tools' own executables, and writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most.
+Verbs: help (bare, -h, --help), version (--version), setup, which plans with --dry-run and
+otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
+settings drilled down to one, describe, the suite's own answer to that read, status, which in
+this version only checks the declared watchers (`status --check`), install-cli, which places this
+command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
+in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
+install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
+--user-files; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
+--prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
+stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
+precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
+asks once on a terminal before its first command. config writes only its cache under
+${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most; setup starts the plan's commands
+and writes what they write and its journal; install-cli writes under its prefix; doctor writes
+nothing itself, and starts each listed tool's own doctor.
 """
 import difflib
 import os
@@ -19,10 +23,10 @@ import sys
 
 import agentik_install
 
-from . import config, plan, status, term, tools
+from . import apply, config, doctor, install, plan, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status")
-WRITES = ("setup",)
+VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor")
+WRITES = ("setup", "install-cli")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
@@ -31,7 +35,8 @@ STATUS_FLAGS = (("--check", None, "check"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
-VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status")}  # test hooks: flag, key, verb
+VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
+               "--prefix": ("prefix", "install-cli")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
@@ -72,6 +77,8 @@ def parse(argv):
             rest = True
         elif flag in VALUE_FLAGS:
             value = value if eq else next(args, None)
+            if flag == "--prefix" and (value is None or value.startswith("-")):
+                value = ""  # a flag, or nothing, is no folder: install-cli refuses it (ak2b review 1)
             if value is None and bad is None:
                 bad = flag
             elif value is not None:
@@ -130,7 +137,7 @@ class Command:
                 self._bad_flag(flag)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
-        return getattr(self, "do_" + self.verb)(nouns)
+        return getattr(self, "do_" + self.verb.replace("-", "_"))(nouns)
 
     def _not_a_verb(self, word, asked_help=False):
         """Packet ak2 R3: a plugin's name with no agentik-<word> on PATH exits 3; any other word
@@ -209,8 +216,8 @@ class Command:
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version,
-                         "verbs": [{"name": v, "summary": self.t.text("verb." + v),
-                                    "usage": self.t.text("usage." + v, tool=self.tool)}
+                         "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")),
+                                    "usage": self.t.text("usage." + v.replace("-", "_"), tool=self.tool)}
                                    for v in VERBS],
                          "flags": [f[0] for f in FLAGS], "on_path": found})
             return 0
@@ -219,7 +226,7 @@ class Command:
         t.line("help.usage", tool=self.tool)
         t.blank()
         t.line("help.verbs", style="name")
-        t.table([(None, [term.name(v), t.text("verb." + v)], None) for v in VERBS])
+        t.table([(None, [term.name(v), t.text("verb." + v.replace("-", "_"))], None) for v in VERBS])
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(FLAGS))
@@ -237,13 +244,13 @@ class Command:
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
-                         "summary": self.t.text("verb." + verb),
-                         "usage": self.t.text("usage." + verb, tool=self.tool),
+                         "summary": self.t.text("verb." + verb.replace("-", "_")),
+                         "usage": self.t.text("usage." + verb.replace("-", "_"), tool=self.tool),
                          "flags": [f[0] for f in flags]})
             return 0
         t = self.t
-        t.line("usage." + verb, tool=self.tool)
-        t.line("verb." + verb)
+        t.line("usage." + verb.replace("-", "_"), tool=self.tool)
+        t.line("verb." + verb.replace("-", "_"))
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(flags))
@@ -265,17 +272,19 @@ class Command:
             self.t.line("version.line", tool=self.tool, version=self.version)
         return 0
 
+    def do_install_cli(self, nouns):
+        return install.do_install_cli(self, nouns)
+
     # ---- setup ----------------------------------------------------------------------------
 
     def do_setup(self, nouns):
-        if not self.opts["dry_run"]:
-            raise Usage("plan_only", "err.setup.plan_only", "%s setup --dry-run" % self.tool,
-                        tool=self.tool, version=self.version)
         for noun in nouns:
             if not NOUN.match(noun):
                 raise Usage("bad_name", "err.setup.name", "%s setup --dry-run" % self.tool,
                             name=noun, tool=self.tool)
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
+        if not self.opts["dry_run"]:
+            return apply.run(self, names)
         steps = plan.build(names, self.env, self.lib, self.tool, self.version)
         t = self.t
         for s in steps:
@@ -330,6 +339,11 @@ class Command:
 
     def do_status(self, nouns):
         return status.do_status(self, nouns)
+
+    # ---- doctor ---------------------------------------------------------------------------
+
+    def do_doctor(self, nouns):
+        return doctor.do_doctor(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):

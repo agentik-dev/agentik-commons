@@ -14,29 +14,46 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.verb`: next: `{tool}` help lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
-- `verb.setup`: Plan the suite's setup. This version only plans, so pass --dry-run.
+- `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
+- `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
+- `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
-- `usage.setup`: usage: `{tool}` setup --dry-run [<plugin>...] [flags]
+- `usage.setup`: usage: `{tool}` setup [<plugin>...] [flags]
 - `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
 - `usage.status`: usage: `{tool}` status --check [flags]
+- `usage.install_cli`: usage: `{tool}` install-cli [--prefix <dir>] [flags]
+- `usage.doctor`: usage: `{tool}` doctor [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
-- `flag.yes`: Answer yes to every question; this version asks none.
+- `flag.yes`: Run setup's lines without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
+- `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
 ## Version
 
 - `version.line`: `{tool}` `{version}`
+
+## Install
+
+- `install.done`: Placed `{launcher}` at version `{version}`, running the code frozen at `{tree}`.
+- `install.dry`: Would place `{launcher}` at version `{version}`. Nothing is written.
+- `install.door.keep`: The door `{door}` is at this version or newer, so it stays as it is.
+- `install.door.link`: The door `{door}` is a link, so it stays as it is.
+- `install.door.unversioned`: The door `{door}` holds no version to compare, so it stays as it is.
+- `install.pruned`: `{line}`
+- `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
+- `err.install.prefix`: --prefix needs a folder after it, and got none. Run `{tool}` install-cli --prefix <folder>, or leave it out for ~/.local.
+- `err.install`: install-cli stopped: `{why}`. Mend that, then run `{tool}` install-cli again.
 
 ## Errors
 
@@ -46,7 +63,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
 - `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
 - `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.setup.plan_only`: Setup needs --dry-run: version `{version}` only plans, and it wrote nothing. Run `{tool}` setup --dry-run for the plan.
 - `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
 - `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{tool}` setup --dry-run for the default set.
 
@@ -160,13 +176,16 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.ok`: at version `{version}`, the same as this command
-- `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; this version cannot place it, so run `{path}`
-- `setup.suite.unread`: holds no version line; this version cannot place it, so run `{path}`
-- `setup.suite.missing`: not placed; a later version places it. Until then, run `{path}`
-- `setup.door.ok`: in place
-- `setup.door.missing`: not placed; the first install-cli run in step 4 places it
-- `setup.door.place`: not placed; the install-cli line below places it
-- `setup.door.blocked`: not placed; setup would place it once step 1 reads ok
+- `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
+- `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
+- `setup.suite.unread`: holds no version line; setup would place it again at `{want}`
+- `setup.suite.missing`: not placed; setup would place it from this command
+- `setup.door.ok`: in place, at this command's version or newer
+- `setup.door.above`: not placed, or older than this command's; the line above places it
+- `setup.door.place`: not placed, or older than this command's; the install-cli line below places it
+- `setup.door.blocked`: not placed, or older than this command's; setup would place it once step 1 reads ok
+- `setup.door.link`: a link, so setup leaves it as it is
+- `setup.door.unversioned`: holds no version to compare, so setup leaves it as it is
 - `setup.path.ok`: on PATH
 - `setup.path.missing`: not on PATH
 - `setup.doctor.todo`: setup would check the plugin with its doctor
@@ -178,6 +197,31 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
+- `setup.ask`: Run each `run:` line above, and the lines the later steps need? Answer y or n.
+- `setup.running`: running `{command}`
+- `setup.after`: The plan, read again after the run:
+- `setup.ran`: ran: `{command}`, exit `{exit}`
+- `setup.ran.wall`: ran: `{command}`, stopped at its `{wall}` s wall
+- `setup.ran.start`: ran: `{command}`, which could not start
+- `setup.wrote`: wrote: `{path}`
+- `setup.nothing`: Setup has nothing to do: no step from 2 to 5 has a line to run.
+- `hint.setup.doctor`: next: `{tool}` doctor checks each plugin.
+- `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{tool}` setup --yes to run the lines above.
+- `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{tool}` setup again when you are ready.
+- `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{tool}` setup from a terminal to approve it.
+- `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{tool}` setup again.
+- `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{tool}` setup again.
+- `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{tool}` setup again.
+- `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{tool}` setup again to retry it.
+- `err.setup.wall.silent`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{tool}` setup again to retry it.
+- `err.setup.start`: Setup stopped: `{command}` could not start, since `{last}`. Mend that, then run `{tool}` setup again.
+- `err.setup.todo`: Setup stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{tool}` setup --dry-run to see why.
+- `err.setup.journal`: Setup could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
+- `setup.ran.stopped`: ran: `{command}`, stopped when setup was interrupted
+- `setup.gate.notfile`: it is not a file
+- `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{tool}` setup again to go on.
+- `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{tool}` setup again to go on.
+- `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{tool}` setup from a terminal.
 
 ## Status
 
@@ -187,3 +231,28 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
 - `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{tool}` status --check.
+
+## Doctor
+
+- `doctor.title`: `{tool}` doctor: each check of this machine, by tool.
+- `doctor.group`: `{name}`
+- `doctor.run`: run: `{command}`
+- `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
+- `doctor.door.behind`: `{path}` is at version `{have}`, older than `{want}`, so it hands this command no verb
+- `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
+- `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
+- `doctor.door.none`: no agentik door is on PATH
+- `doctor.shadow.ok`: no command on PATH takes a verb's place
+- `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
+- `doctor.settings.ok`: `{path}` reads
+- `doctor.settings.none`: no user file at `{path}`, so the defaults hold
+- `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it
+- `doctor.tool.ok`: its doctor exits 0
+- `doctor.tool.silent`: its doctor exits `{code}` and prints nothing
+- `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
+- `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
+- `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
+- `hint.doctor.done`: next: nothing to do, since this machine is set up.
+- `hint.doctor.setup`: next: run `{tool}` setup, then `{tool}` doctor again.
+- `hint.doctor.fail`: next: run each `run:` line above, then `{tool}` doctor again.
+- `hint.doctor.warn`: next: nothing failed; the warn rows above say what to look at.
