@@ -236,6 +236,43 @@ class FrozenTest(PasteTest):
         self.check(os.path.join(prefix, "bin", TOOL), env, "~/opt/bin/" + TOOL)
 
 
+class InPlaceTest(Home):
+    """Phase 2, sp1-launcher-step's line: a plugin whose command lists no install-cli verb runs
+    from its own folder, and setup's step 7 prints that file's doctor to run later. The line names
+    the file by its path, as the plan's other file lines do, and it runs when pasted."""
+    screen, commands, paste = PasteTest.screen, PasteTest.commands, PasteTest.paste
+    ANSWER = ('{"schema":"agentik.describe/1","ok":true,"tool":"murmur","version":"1.0.0",'
+              '"summary":"A made-up tool.","repo":"example/agentik-murmur","plugin":"murmur@agentik",'
+              '"needs":[],"reads":[],"verbs":[{"name":"doctor","summary":"Checks.","top":false}]}')
+
+    def plugin(self):
+        src = os.path.join(self.home, ".claude", "plugins", "cache", "agentik", "murmur", "1.0.0",
+                           "bin", "agentik-murmur")
+        os.makedirs(os.path.dirname(src))
+        with open(src, "w") as fh:
+            fh.write("#!/bin/sh\ncase \"$1 $2\" in\n\"describe --json\") echo '%s' ;;\n"
+                     "\"doctor \"*) exit 0 ;;\n*) exit 2 ;;\nesac\n" % self.ANSWER)
+        os.chmod(src, 0o755)
+        d = os.path.join(self.home, ".claude", "plugins")
+        with open(os.path.join(d, "known_marketplaces.json"), "w") as fh:
+            fh.write('{"agentik": {}}')
+        with open(os.path.join(d, "installed_plugins.json"), "w") as fh:
+            fh.write('{"version": 2, "plugins": {"murmur@agentik": [{"scope": "user", "version": "1.0.0",'
+                     ' "installPath": "%s"}]}}' % os.path.dirname(os.path.dirname(src)))
+        return src
+
+    def test_p2_the_in_place_doctor_line_runs_when_pasted(self):
+        src, env = self.plugin(), self.env()
+        for argv in (["./setup", "murmur", "--dry-run"], [str(LAUNCHER), "setup", "murmur", "--dry-run"]):
+            text = self.screen(argv, env)
+            later = [line.split("later: ", 1)[1].strip().strip("`") for line in text.splitlines()
+                     if "later: " in line]
+            self.assertEqual(later, ["%s doctor" % src], (argv, text))
+            self.assertEqual(self.paste(later[0], env), 0, (argv, later[0]))
+            for c in self.commands(text):  # the suite's own lines, through the one function
+                self.assertNotEqual(self.paste(c, env), 127, (argv, c))
+
+
 class WordTest(Home):
     """R3: the root setup and the launcher hand on the word they were started with."""
 
