@@ -11,6 +11,7 @@ tool's executable, with the words a tool's read names after it.
 import json
 import os
 import re
+import select
 import signal
 import subprocess
 import tempfile
@@ -19,6 +20,11 @@ import time
 from . import plan
 
 WALL = 2.0
+# A describe or config answer is a few kilobytes; a tool with a thousand settings stays under a
+# megabyte. Past CAP bytes on stdout the tool is cut, so a flood costs at most CAP a tool.
+CAP = 1 << 20
+POLL = 0.02
+REAP = 0.1
 DESCRIBE = re.compile(r"agentik\.describe/([0-9]+)\Z")
 CONFIG = re.compile(r"agentik\.config/([0-9]+)\Z")
 DESCRIBE_KEYS = ("tool", "version", "summary", "repo", "plugin", "needs", "verbs", "reads")
@@ -47,36 +53,109 @@ def listed(suite, on_path, env):
     return [found[suite]] + [found[n] for n in rest]
 
 
-def _kill(proc):
+def _end(job):
+    """Kill the process group and close the parent's end of the pipe. Never wait for EOF: a
+    child that left the group may hold the pipe open."""
     try:
-        os.killpg(proc.pid, signal.SIGKILL)
+        os.killpg(job["proc"].pid, signal.SIGKILL)
     except OSError:
         pass
     try:
-        proc.communicate(timeout=1)
-    except (subprocess.TimeoutExpired, OSError, ValueError):
+        os.close(job["fd"])
+    except OSError:
         pass
 
 
-def run_all(jobs, env, wall=WALL):
+def _reap(proc):
+    try:
+        proc.wait(timeout=REAP)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+
+def _drain(job):
+    """Read what the pipe holds now; `eof`, `open` or `cap` (past CAP bytes)."""
+    while True:
+        try:
+            data = os.read(job["fd"], 65536)
+        except BlockingIOError:
+            return "open"
+        except OSError:
+            return "eof"
+        if not data:
+            return "eof"
+        job["size"] += len(data)
+        if job["size"] > CAP:
+            return "cap"
+        job["chunks"].append(data)
+
+
+def run_all(jobs, env, then=None, deadline=None):
     """{key: (exit or None, stdout bytes, state)} for jobs [(key, argv)], every one started at
-    once, under one wall; state is `ran`, `timed out` or `unreadable` (it could not start)."""
-    deadline = time.monotonic() + wall
-    procs, results = {}, {}
-    for key, argv in jobs:
+    once, under one deadline (WALL seconds from now when none is given). State is `ran`, `timed
+    out` (still running at the deadline, or not started by it) or `unreadable` (it could not
+    start, or its stdout passed CAP). `then(key, result)` names more jobs, started at once under
+    the same deadline. A job ends when its process exits; its group is then killed, so no
+    process of a group outlives the run."""
+    deadline = time.monotonic() + WALL if deadline is None else deadline
+    queue, live, results = list(jobs), {}, {}
+
+    def finish(key, result):
+        results[key] = result
+        queue.extend(then(key, result) if then else ())
+
+    while True:
+        while queue:
+            key, argv = queue.pop(0)
+            if time.monotonic() >= deadline:
+                finish(key, (None, b"", "timed out"))
+                continue
+            fd, end = os.pipe()
+            try:
+                proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=end,
+                                        stderr=subprocess.DEVNULL, env=dict(env),
+                                        start_new_session=True)
+            except (OSError, ValueError):
+                os.close(fd)
+                finish(key, (None, b"", "unreadable"))
+                continue
+            finally:
+                os.close(end)
+            os.set_blocking(fd, False)
+            live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True}
+        left = deadline - time.monotonic()
+        if not live or left <= 0:
+            break
+        fds = {job["fd"]: key for key, job in live.items() if job["open"]}
         try:
-            procs[key] = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                          stderr=subprocess.DEVNULL, env=dict(env),
-                                          start_new_session=True)
+            ready = select.select(list(fds), [], [], min(left, POLL))[0] if fds else ()
         except (OSError, ValueError):
-            results[key] = (None, b"", "unreadable")
-    for key, proc in procs.items():
-        try:
-            out, _ = proc.communicate(timeout=max(0.05, deadline - time.monotonic()))
-            results[key] = (proc.returncode, out, "ran")
-        except subprocess.TimeoutExpired:
-            _kill(proc)
-            results[key] = (None, b"", "timed out")
+            ready = list(fds)
+        if not fds:
+            time.sleep(min(left, POLL))
+        for fd in ready:
+            job = live[fds[fd]]
+            if _drain(job) != "open":
+                job["open"] = False
+        for key, job in list(live.items()):
+            proc = job["proc"]
+            over = job["size"] > CAP
+            if not over and proc.poll() is None:
+                continue
+            if not over and job["open"]:
+                over = _drain(job) == "cap"
+            del live[key]
+            _end(job)
+            _reap(proc)
+            finish(key, (None, b"", "unreadable") if over
+                   else (proc.returncode, b"".join(job["chunks"]), "ran"))
+    for job in live.values():
+        _end(job)
+    for key, job in live.items():
+        _reap(job["proc"])
+        results[key] = (None, b"", "timed out")
+    for key, _ in queue:
+        results[key] = (None, b"", "timed out")
     return results
 
 
@@ -168,9 +247,18 @@ def _keep(folder, name, stamp, answer):
         pass
 
 
-def describe_all(entries, env):
-    """{name: (state, answer or None)} for each entry with an executable."""
+def describe_all(entries, env, read=False, key=None, deadline=None):
+    """({name: (state, answer or None)}, {name: (exit, stdout, state)}) for each entry with an
+    executable. With `read`, each answer's config read, `key` appended when given, starts as soon
+    as the answer is known, from the cache or its describe, under the describes' own deadline."""
     folder, found, jobs, stamps = cache_dir(env), {}, [], {}
+    exes = {e["name"]: e["exe"] for e in entries}
+
+    def config_job(name, answer):
+        r = config_read(answer) if read else None
+        return [(("config", name), [exes[name]] + r["argv"] + ([key] if key is not None else []))] \
+            if r else []
+
     for e in entries:
         try:
             stamps[e["name"]] = _stamp(e["exe"])
@@ -180,16 +268,28 @@ def describe_all(entries, env):
         answer = _cached(folder, e["name"], stamps[e["name"]])
         if answer is not None:
             found[e["name"]] = ("answers", answer)
+            jobs.extend(config_job(e["name"], answer))
         else:
-            jobs.append((e["name"], [e["exe"], "describe", "--json"]))
-    for name, (code, out, state) in run_all(jobs, env).items():
+            jobs.append((("describe", e["name"]), [e["exe"], "describe", "--json"]))
+
+    def then(job, result):
+        kind, name = job
+        if kind != "describe":
+            return []
+        code, out, state = result
         answer = counted_describe(code, out) if state == "ran" else None
-        if answer is not None:
-            _keep(folder, name, stamps[name], answer)
-            found[name] = ("answers", answer)
-        else:
+        if answer is None:
             found[name] = ("timed out" if state == "timed out" else "unreadable", None)
-    return found
+            return []
+        _keep(folder, name, stamps[name], answer)
+        found[name] = ("answers", answer)
+        return config_job(name, answer)
+
+    ran = run_all(jobs, env, then=then, deadline=deadline)
+    for (kind, name), (_, _, state) in ran.items():
+        if kind == "describe" and name not in found:  # still running at the deadline
+            found[name] = ("timed out" if state == "timed out" else "unreadable", None)
+    return found, {name: result for (kind, name), result in ran.items() if kind == "config"}
 
 
 def config_read(answer):

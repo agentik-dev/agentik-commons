@@ -12,6 +12,7 @@ import re
 import select
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -32,7 +33,7 @@ SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
 STDLIB = {"ast", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
-          "signal", "subprocess", "tempfile", "time"}
+          "select", "signal", "subprocess", "tempfile", "time"}
 
 sys.path.insert(0, str(LIB))
 from agentik_suite import catalogue, settings, term  # noqa: E402
@@ -755,8 +756,8 @@ else:
 """
 
 
-class ConfigTest(Home):
-    """Packet ak1b: config, three levels down to one setting, and describe."""
+class ConfigHome(Home):
+    """A home with the demo tool on PATH, for packet ak1b's tests."""
 
     def setUp(self):
         Home.setUp(self)
@@ -798,6 +799,10 @@ class ConfigTest(Home):
                 return [l for l in fh.read().splitlines() if l == "describe --json"]
         except FileNotFoundError:
             return []
+
+
+class ConfigTest(ConfigHome):
+    """Packet ak1b: config, three levels down to one setting, and describe."""
 
     def test_a1_a4_three_levels_piped(self):
         self.tools()
@@ -956,6 +961,102 @@ class ConfigTest(Home):
         lines = out.splitlines()
         self.assertIn("watchers", lines)
         self.assertTrue(lines[lines.index("watchers") + 1].startswith("    "), out)
+
+
+LAG = """#!/bin/sh
+if [ "$1 $2" = "describe --json" ]; then
+  echo '{"schema": "agentik.describe/1", "ok": true, "tool": "lag", "version": "1", "summary": "s",
+   "repo": "r", "plugin": "lag@agentik", "needs": [], "verbs": [],
+   "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}'
+  exit 0
+fi
+echo $$ > "%s"
+sleep 10
+"""
+
+
+class WallTest(ConfigHome):
+    """Review 1 of ak1b, F1 to F4: one 2 s wall from the first spawn holds every describe and
+    config read; a tool's stdout is read to a cap; no group outlives the run."""
+
+    def py(self, name, code, *args):
+        """A stub that runs a Python line, its bytecode kept out of HOME."""
+        return self.stub(name, '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -c %s %s\n'
+                         % (os.path.join(self.side, "pyc"), shlex.quote(code),
+                            " ".join(shlex.quote(a) for a in args)))
+
+    def timed(self, *args):
+        start = time.monotonic()
+        code, out, err = self.cfg(*args)
+        took = time.monotonic() - start
+        self.assertEqual(code, 0, err)
+        self.assertLess(took, 3.0, out)
+        return out
+
+    def groups_gone(self, *files):
+        for path in files:
+            with open(path) as fh:
+                group = int(fh.read())
+            for _ in range(50):
+                try:
+                    os.killpg(group, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail("group %d of %s still runs" % (group, path))
+
+    def test_f1_a_slow_describe_and_a_lagging_config_read_share_one_wall(self):
+        self.tools()
+        lag = os.path.join(self.side, "lag.pid")
+        self.stub("agentik-lag", LAG % lag)
+        for _ in range(2):  # the second run has lag's describe from the cache
+            out = self.timed("config")
+            self.assertIn("timed out", next(l for l in out.splitlines() if " slow " in l + " "))
+            self.groups_gone(self.pid, lag)
+
+    def test_f2_twenty_slow_tools_add_nothing_past_the_wall(self):
+        files = []
+        for i in range(20):
+            files.append(os.path.join(self.side, "slow%d.pid" % i))
+            self.stub("agentik-slow%d" % i, '#!/bin/sh\necho $$ > "%s"\nsleep 10\n' % files[-1])
+        out = self.timed("config")
+        self.assertEqual(out.count("timed out"), 20, out)
+        self.groups_gone(*files)
+
+    def test_f3_a_flood_is_cut_at_the_cap(self):
+        count = os.path.join(self.side, "spew.count")
+        self.py("agentik-spew", "import os, sys\nn, log = 0, open(sys.argv[1], 'a', buffering=1)\n"
+                "while True:\n    os.write(1, b'a' * 65536)\n    n += 65536\n    log.write('%d\\n' % n)", count)
+        out = self.timed("config")
+        self.assertIn("unreadable", next(l for l in out.splitlines() if " spew " in l + " "))
+        with open(count) as fh:  # the last whole line: the bytes written when the cut came
+            written = int([l for l in fh.read().split("\n")[:-1] if l][-1])
+        cap = 1 << 20
+        self.assertGreaterEqual(written, cap - 65536)
+        self.assertLessEqual(written, cap + (512 << 10))
+
+    def test_f4_a_child_that_left_the_group_and_holds_stdout(self):
+        groups, escaped = [], []
+        for i in range(5):
+            groups.append(os.path.join(self.side, "esc%d.group" % i))
+            escaped.append(os.path.join(self.side, "esc%d.pid" % i))
+            self.stub("agentik-esc%d" % i, (
+                '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" /usr/bin/python3 -c "import os, sys, time; '
+                'os.setsid(); open(sys.argv[1], \'w\').write(str(os.getpid())); time.sleep(10)" "%s" &\n'
+                'echo $$ > "%s"\nsleep 10\n') % (os.path.join(self.side, "pyc"), escaped[-1], groups[-1]))
+        self.addCleanup(self.kill_escaped, escaped)
+        out = self.timed("config")
+        self.assertEqual(out.count("timed out"), 5, out)
+        self.groups_gone(*groups)
+
+    def kill_escaped(self, files):
+        for path in files:
+            try:
+                with open(path) as fh:
+                    os.kill(int(fh.read()), signal.SIGKILL)
+            except (OSError, ValueError):
+                pass
 
 
 class SubsetTest(unittest.TestCase):

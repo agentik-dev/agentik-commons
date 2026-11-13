@@ -11,6 +11,7 @@ writes a setting: the card prints the line, and the tool's own verb writes.
 import difflib
 import json
 import os
+import time
 
 from . import plan, settings, term, tools
 
@@ -42,6 +43,7 @@ class Reader:
         self.cmd, self.t, self.env = cmd, cmd.t, cmd.env
         self.suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
         self.home = self.env.get("HOME") or ""
+        self.deadline = None
 
     # ---- the suite itself -------------------------------------------------------------------
 
@@ -70,48 +72,49 @@ class Reader:
     def entries(self):
         return tools.listed(self.suite, self.cmd._on_path(), self.env)
 
-    def survey(self, entries, with_config=True):
-        """[{name, state, answer, config, fault, ...}], every describe and config read at once."""
+    def wall(self):
+        """The one deadline, set at the first spawn, that every describe and read of the run shares."""
+        if self.deadline is None:
+            self.deadline = time.monotonic() + tools.WALL
+        return self.deadline
+
+    def survey(self, entries, with_config=True, key=None):
+        """[{name, state, answer, config, read_state, fault, ...}]: every describe and config read
+        at once, each read started as soon as its tool's answer is known, under one wall."""
         runnable = [e for e in entries if e["name"] != self.suite and e["exe"]]
-        described = tools.describe_all(runnable, self.env)
-        jobs = []
+        described, reads = tools.describe_all(runnable, self.env, read=with_config, key=key,
+                                              deadline=self.wall()) if runnable else ({}, {})
         rows = []
         for e in entries:
             row = {"name": e["name"], "exe": e["exe"], "answer": None, "config": None,
-                   "fault": None, "read": None}
+                   "fault": None, "read": None, "read_state": None}
             if e["name"] == self.suite:
                 row["state"] = "answers"
                 row["answer"] = self.suite_describe()
                 try:
-                    row["config"] = self.suite_config()
+                    row["config"] = self.suite_config(key)
                 except settings.Fault as f:
                     row["state"], row["fault"] = "unreadable", self.fault_text(f)
             elif not e["exe"]:
                 row["state"] = "no command"
             else:
                 row["state"], row["answer"] = described[e["name"]]
-                read = tools.config_read(row["answer"]) if row["answer"] else None
-                row["read"] = read
-                if read and with_config:
-                    jobs.append((e["name"], [e["exe"]] + read["argv"]))
-            rows.append(row)
-        if jobs:
-            ran = tools.run_all(jobs, self.env)
-            for row in rows:
-                if row["name"] in ran:
-                    code, out, state = ran[row["name"]]
+                row["read"] = tools.config_read(row["answer"]) if row["answer"] else None
+                if e["name"] in reads:
+                    code, out, state = reads[e["name"]]
                     row["config"] = tools.counted_config(code, out) if state == "ran" else None
                     if row["config"] is None:
-                        row["state"] = "timed out" if state == "timed out" else "unreadable"
+                        row["read_state"] = "timed out" if state == "timed out" else "unreadable"
+                        row["state"] = row["read_state"]
+            rows.append(row)
         return rows
 
     def read_one(self, row, key):
-        """The tool's config object for one key (or all), or None."""
+        """The tool's config object for one key (or all), or None; under the run's one wall."""
         if row["name"] == self.suite:
             return self.suite_config(key)
-        read = row["read"]
-        argv = [row["exe"]] + read["argv"] + ([key] if key is not None else [])
-        code, out, state = tools.run_all([("one", argv)], self.env)["one"]
+        argv = [row["exe"]] + row["read"]["argv"] + ([key] if key is not None else [])
+        code, out, state = tools.run_all([("one", argv)], self.env, deadline=self.wall())["one"]
         return tools.counted_config(code, out) if state == "ran" else None
 
     def fault_text(self, f):
@@ -155,10 +158,10 @@ def do_config(cmd, nouns):
         raise Usage("unknown_tool", "err.config.tool.near" if near else "err.config.tool",
                     "%s config" % cmd.tool, name=name, near=near or "", tool=cmd.tool)
     entry = entries[names.index(name)]
-    row = r.survey([entry], with_config=False)[0]
     if dot and not key:
         raise Usage("unknown_key", "err.config.nokey", "%s config %s" % (cmd.tool, name),
                     name=name, tool=cmd.tool)
+    row = r.survey([entry], key=key or None)[0]
     if row["fault"]:
         raise Usage("bad_file", "err.config.file", "%s config %s" % (cmd.tool, name),
                     fault=row["fault"], tool=cmd.tool, name=name)
@@ -169,13 +172,7 @@ def do_config(cmd, nouns):
             raise Usage("no_answer", "err.config.silent", "%s config %s" % (cmd.tool, name),
                         name=name, key=key, state=row["state"], tool=cmd.tool)
         return _silent(cmd, r, row, table)
-    cfg = r.read_one(row, key or None)
-    if cfg is None:
-        if key:
-            raise Usage("no_answer", "err.config.silent", "%s config %s" % (cmd.tool, name),
-                        name=name, key=key, state="unreadable", tool=cmd.tool)
-        row["state"] = "unreadable"
-        return _silent(cmd, r, row, table)
+    cfg = row["config"]
     if not key:
         return _tool(cmd, r, name, cfg)
     found = [s for s in cfg["settings"] if s["key"] == key]
