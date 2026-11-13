@@ -369,7 +369,7 @@ class CheckTest(Base):
                  "tool": send.check(draft(happened=value, tool="othertool"), None, PUBLIC,
                                     FakeForm(), fake_scrub(value))}
         self.assertEqual([k for _, k in cases["form"]], ["form"])
-        self.assertEqual([k for _, k in cases["drift"]], ["form"])
+        self.assertEqual(cases["drift"], [(4, "path"), (8, "form")])
         self.assertIn("size", [k for _, k in cases["size"]])
         self.assertIn("tool", [k for _, k in cases["tool"]])
         for got in [send.check(data, None, PUBLIC, FakeForm(), fake_scrub(value))] + list(cases.values()):
@@ -377,8 +377,8 @@ class CheckTest(Base):
                 self.assertIsInstance(line, int)
                 self.assertNotIn(value, kind)
                 self.assertFalse(set(kind) - set("abcdefghijklmnopqrstuvwxyz_"), kind)
-        self.assertEqual(send.repo(draft(), PUBLIC), REPO)
-        self.assertIsNone(send.repo(draft(tool="othertool"), PUBLIC))
+        self.assertEqual(send.repo_of(draft(), PUBLIC), REPO)
+        self.assertIsNone(send.repo_of(draft(tool="othertool"), PUBLIC))
 
 
 class SearchTest(Base):
