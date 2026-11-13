@@ -193,6 +193,49 @@ class PasteTest(Home):
             self.assertEqual(named, [], argv)
 
 
+class FrozenTest(PasteTest):
+    """Review 1's R1-F1: in a tree install-cli froze, a printed command names the launcher at
+    <prefix>/bin/<tool>, never the content-hashed runner under <prefix>/share, which install-cli
+    prunes and which skips the launcher's -I and its parent-env record."""
+    RUNNER = re.compile(r"share/%s/[^/\s]+/" % TOOL)
+    SCREENS = (["config", "sesion"], ["doctor"], [])
+
+    def frozen(self, prefix=None):
+        env = self.env()
+        argv = [str(LAUNCHER), "install-cli"] + (["--prefix", prefix] if prefix else [])
+        p = subprocess.run(argv, cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return env
+
+    def check(self, launcher, env, start):
+        for words in self.SCREENS:
+            text = self.screen([launcher] + words, env)
+            self.assertIsNone(self.RUNNER.search(text), (words, text))
+            found = self.commands(text)
+            self.assertTrue(found, (words, text))
+            for c in found:
+                self.assertTrue(c.startswith(start + " "), (words, c))
+                self.assertNotEqual(self.paste(c, env), 127, (words, c))
+
+    def test_f1_no_door_on_path(self):
+        env = self.frozen()
+        os.remove(os.path.join(self.bindir, "agentik"))
+        env["PATH"] = self.bindir + ":" + SYSTEM
+        self.check(TOOL, env, "~/.local/bin/" + TOOL)
+
+    def test_f1_an_older_door_first_on_path(self):
+        env = self.frozen()
+        old = os.path.join(self.home, "old")
+        door(os.path.join(old, "agentik"), "0.1.0")
+        env["PATH"] = old + ":" + self.bindir + ":" + SYSTEM
+        self.check(TOOL, env, "~/.local/bin/" + TOOL)
+
+    def test_f1_a_prefix_off_path(self):
+        prefix = os.path.join(self.home, "opt")
+        env = self.frozen(prefix)
+        self.check(os.path.join(prefix, "bin", TOOL), env, "~/opt/bin/" + TOOL)
+
+
 class WordTest(Home):
     """R3: the root setup and the launcher hand on the word they were started with."""
 
