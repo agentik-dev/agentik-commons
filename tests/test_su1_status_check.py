@@ -199,6 +199,29 @@ class BeatTest(StatusHome):
             self.assertEqual(self.check(), (0, "", ""), at)
             self.assertEqual(self.check("--json")[0::2], (0, ""), at)
 
+    def quick(self, *more):
+        """A run bound to 5 s, so a hang fails here and not at cfg's minute; (exit, out, err, s)."""
+        started = time.monotonic()
+        p = subprocess.run([str(LAUNCHER), "status", "--check", "--now", NOW] + list(more),
+                           capture_output=True, text=True, env=self.env(TZ="UTC"), timeout=5,
+                           cwd=self.home)
+        return p.returncode, p.stdout, p.stderr, time.monotonic() - started
+
+    def test_a_beat_that_is_a_fifo_is_no_beat(self):
+        """Review 1's F3 and L6: a FIFO with no writer, at the beat's path or as --ps, never blocks."""
+        os.mkfifo(self.beat_file)
+        code, out, err, took = self.quick("--ps", self.ps)
+        self.assertEqual((code, out, err), (1, LAMP + "\n", ""))
+        self.assertLess(took, 2)
+        self.listing("/opt/bin/lampd watch")
+        self.assertEqual(self.quick("--ps", self.ps)[:3], (0, "", ""))
+        fifo = os.path.join(self.side, "ps.fifo")
+        os.mkfifo(fifo)
+        code, out, err, took = self.quick("--ps", fifo)
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("ps.fifo", err)
+        self.assertLess(took, 2)
+
     def test_the_clock_reads_an_offset_and_local_time(self):
         self.assertEqual(status.when("2026-11-13T13:00:00+01:00"), NOW_S)
         self.assertEqual(status.when("2026-11-13T12:00:00Z"), NOW_S)

@@ -27,6 +27,7 @@ ENV_VALUED = ("-u",)  # after `env` alone (`env -u NAME prog`); after python or 
 # cluster (`-ce`, `-lc`); a `-X` or `-W` word is its value's, never a run. A bare `-` (the
 # program read from stdin) is no match either.
 RUN = re.compile(r"-(?![XW-])[A-Za-z]*[cm]")
+S_IFMT, S_IFREG = 0o170000, 0o100000  # a mode's type bits, and a regular file's
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 ISO = re.compile(r"(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d(?:\.\d+)?)?)(Z|[+-]\d\d:?\d\d)?\Z")
 LINE = {"missing": "status.missing", "hung": "status.hung"}
@@ -51,6 +52,16 @@ def when(text):
 
 def local(at):
     return time.strftime("%Y-%m-%d %H:%M", time.localtime(at))
+
+
+def regular(path, cap=None):
+    """The bytes of a regular file, opened without blocking (a FIFO with no writer never hangs
+    the check), to `cap` bytes when one is given; OSError for anything that is no regular file."""
+    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as fh:
+        if os.fstat(fd).st_mode & S_IFMT != S_IFREG:
+            raise OSError("%s is not a regular file" % path)
+        return fh.read() if cap is None else fh.read(cap)
 
 
 def declared(env):
@@ -168,8 +179,7 @@ def beat(w, env):
     if not os.path.isabs(path):
         return None
     try:
-        with open(path, "rb") as fh:
-            obj = json.loads(fh.read(BEAT_CAP).decode("utf-8"))
+        obj = json.loads(regular(path, BEAT_CAP).decode("utf-8"))
     except (OSError, ValueError):
         return None
     if not isinstance(obj, dict) or not _number(obj.get("at")) or not _number(obj.get("fresh_s")):
@@ -217,8 +227,7 @@ def do_status(cmd, nouns):
     text = None
     if o["ps"] is not None:
         try:
-            with open(o["ps"], "rb") as fh:
-                text = fh.read().decode("utf-8", "replace")
+            text = regular(o["ps"]).decode("utf-8", "replace")
         except OSError:
             raise Usage("bad_listing", "err.status.ps", again, path=o["ps"])
     try:
