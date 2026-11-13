@@ -76,3 +76,5 @@ Ruling: all thirteen on the branch, each with a test red at 58db52d; the schema 
 - F12 `config .key`: the name's usage line
 - F13 an unopenable file: no line number
 - Lead: only `agentik.describe/1` counts
+
+Review 2 closed with no finding; the wording pass changed 13 of its 14 ruled messages (`respeak-verify-edit.py`: PASS); `config.later` keeps its words, since `session` names a tool.
