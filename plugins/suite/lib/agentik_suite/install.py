@@ -3,7 +3,8 @@
 `install-cli [--prefix P] [--dry-run]` runs agentik_install.install, never its install_cli, and
 says what it did through term: the result on stdout in one line, the door's fate when it stays,
 each line of the prune, and on stderr one hint with the PATH line when <prefix>/bin is off PATH.
-An OSError, KeyError or ValueError from the install is exit 1 with one line.
+An OSError, KeyError or ValueError from the install is exit 1 with one line; a --prefix
+with no folder after it is exit 2.
 """
 import os
 
@@ -17,6 +18,8 @@ def do_install_cli(cmd, nouns):
     o, t = cmd.opts, cmd.t
     cmd._no_nouns(nouns)
     again = "%s install-cli" % cmd.tool
+    if o["prefix"] == "":   # none given, a flag after it, or '': never HOME's by default
+        raise cmd.Usage("missing_value", "err.install.prefix", again + " --prefix <folder>", tool=cmd.tool)
     try:
         done = agentik_install.install(o["prefix"], cmd.env, dry_run=o["dry_run"])
     except (OSError, KeyError, ValueError) as e:

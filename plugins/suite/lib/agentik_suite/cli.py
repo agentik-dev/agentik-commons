@@ -73,6 +73,8 @@ def parse(argv):
             rest = True
         elif flag in VALUE_FLAGS:
             value = value if eq else next(args, None)
+            if flag == "--prefix" and (value is None or value.startswith("-")):
+                value = ""  # a flag, or nothing, is no folder: install-cli refuses it (ak2b review 1)
             if value is None and bad is None:
                 bad = flag
             elif value is not None:

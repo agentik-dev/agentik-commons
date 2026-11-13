@@ -50,6 +50,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `install.door.unversioned`: The door `{door}` holds no version to compare, so it stays as it is.
 - `install.pruned`: `{line}`
 - `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
+- `err.install.prefix`: --prefix needs a folder after it, and got none. Run `{tool}` install-cli --prefix <folder>, or leave it out for ~/.local.
 - `err.install`: install-cli stopped: `{why}`. Mend that, then run `{tool}` install-cli again.
 
 ## Errors
@@ -174,6 +175,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.ok`: at version `{version}`, the same as this command
+- `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
 - `setup.suite.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.missing`: not placed; setup would place it from this command
