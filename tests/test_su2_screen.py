@@ -1,0 +1,281 @@
+"""The screen of status (packet su2-screen): one agentik.status/1 object drawn on the grid of R4,
+for a terminal and for a pipe. Each test is in process: a Term over two streams it holds, the
+terminal one answering isatty with no fileno (so its width is 80), colour off unless the test
+says so, TZ=UTC. The objects and screens under fixtures/su2/screen use made-up tools only."""
+import copy
+import io
+import json
+import os
+import re
+import sys
+import time
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+LIB = ROOT / "plugins" / "suite" / "lib"
+FIX = Path(__file__).resolve().parent / "fixtures" / "su2" / "screen"
+ESC = "\x1b"
+NAMES = ("quiet", "busy", "broken")
+PARTS = ("watchers", "sessions", "gate", "backlog", "runs")
+
+sys.path.insert(0, str(LIB))
+from agentik_suite import term  # noqa: E402
+
+_TZ = None
+
+
+def setUpModule():
+    global _TZ
+    _TZ = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+
+
+def tearDownModule():
+    if _TZ is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = _TZ
+    time.tzset()
+
+
+def screen_module():
+    from agentik_suite import status_screen  # each line fails here at the pin
+    return status_screen
+
+
+def load(name):
+    return json.loads((FIX / ("%s.json" % name)).read_text())
+
+
+def fixture(name, kind):
+    return (FIX / ("%s.%s.txt" % (name, kind))).read_text(encoding="utf-8")
+
+
+class Stream(io.StringIO):
+    def __init__(self, tty, encoding="utf-8"):
+        super().__init__()
+        self._tty, self._encoding = tty, encoding
+
+    def isatty(self):
+        return self._tty
+
+    @property
+    def encoding(self):
+        return self._encoding
+
+
+def make(tty, env=None, quiet=False, width=None):
+    out, err = Stream(tty), Stream(tty)
+    t = term.Term(env={"NO_COLOR": "1"} if env is None else env, out=out, err=err, quiet=quiet)
+    if width is not None:
+        t.out.width = lambda: width
+    return t, out, err
+
+
+def draw(obj, tty, tool="agentik", **kw):
+    t, out, err = make(tty, **kw)
+    screen_module().draw(t, obj, tool)
+    t.flush()
+    return out.getvalue(), err.getvalue()
+
+
+def piped(obj, **kw):
+    return draw(obj, False, **kw)
+
+
+class FixtureTest(unittest.TestCase):
+    """Lines 1 to 6: the three states, byte for byte."""
+
+    def test_line1_quiet(self):
+        self.assertEqual(draw(load("quiet"), True), (fixture("quiet", "tty"), ""))
+        self.assertEqual(piped(load("quiet")), (fixture("quiet", "piped"), ""))
+
+    def test_line2_busy(self):
+        self.assertEqual(draw(load("busy"), True), (fixture("busy", "tty"), ""))
+        out, err = piped(load("busy"))
+        self.assertEqual((out, err), (fixture("busy", "piped"), ""))
+        self.assertLess(len(out.encode()), 2048)
+
+    def test_line3_broken(self):
+        sentence = fixture("broken", "hint").rstrip("\n")
+        out, err = draw(load("broken"), True)
+        self.assertEqual(out, fixture("broken", "tty"))
+        self.assertEqual(err, "·  %s\n" % sentence)
+        out, err = piped(load("broken"))
+        self.assertEqual(out, fixture("broken", "piped"))
+        self.assertEqual(err, "note  %s\n" % sentence)
+        for tty in (True, False):
+            self.assertEqual(draw(load("broken"), tty, quiet=True)[1], "")
+
+    def test_line4_the_cut(self):
+        for width in (80, 60, 200):
+            for name in NAMES:
+                out, _ = draw(load(name), True, width=width)
+                whole = [r[16:] for r in piped(load(name))[0].splitlines()]
+                long = [r for r in out.splitlines() if len(r) > width]
+                for row in long:  # a fault, a command or a tool's stderr line, never cut
+                    self.assertIn(row[13:], whole, (width, row))
+                    self.assertNotIn("…", row)
+                if width == 80:
+                    self.assertEqual(len(long), 2 if name == "broken" else 0, (name, long))
+                if width == 200:
+                    self.assertNotIn("…", out)
+                    self.assertEqual(long, [])
+                for row in out.splitlines():
+                    if "…" in row:
+                        self.assertEqual(len(row), width, row)
+
+    def test_line5_bytes_and_colour(self):
+        for name in NAMES:
+            out, err = piped(load(name), env={})
+            self.assertNotIn(ESC, out + err)
+            (out + err).encode("ascii")
+            out, _ = draw(load(name), True, env={})
+            for label in PARTS + ("sources",):
+                self.assertIn("\x1b[1m%s\x1b[0m" % label, out, (name, label))
+            for mark, sgr in (("✓", "32"), ("!", "33"), ("·", "36")):
+                if re.search(r"^%s  " % re.escape(mark), fixture(name, "tty"), re.M):
+                    self.assertIn("\x1b[%sm%s\x1b[0m" % (sgr, mark), out, (name, mark))
+            out, err = draw(load(name), True, env={"NO_COLOR": "1"})
+            self.assertNotIn(ESC, out + err)
+
+    def test_line6_part_by_part(self):
+        mod = screen_module()
+        for name in NAMES:
+            for tty in (True, False):
+                t, out, err = make(tty)
+                for part in PARTS:
+                    mod.part(t, load(name), part, "agentik")
+                mod.foot(t, load(name), "agentik")
+                t.flush()
+                self.assertEqual((out.getvalue(), err.getvalue()), draw(load(name), tty), (name, tty))
+        obj = load("broken")
+        some = {k: obj[k] for k in ("at", "covers", "watchers", "hand", "sources")}
+        t, out, _ = make(False)
+        mod.part(t, some, "watchers", "agentik")
+        self.assertEqual(out.getvalue(), "".join(fixture("broken", "piped").splitlines(True)[:5]))
+
+
+def rows(obj):
+    return piped(obj)[0].splitlines()
+
+
+def text(obj):
+    return [r[16:] for r in rows(obj)]
+
+
+class CapTest(unittest.TestCase):
+    """Line 7: at most five rows under a part's first."""
+
+    def test_line7_nine_sessions_and_nine_jobs(self):
+        obj = load("busy")
+        one = obj["sessions"]["live"][0]
+        obj["sessions"]["live"] = [dict(one, id="id%d" % i, name="s%d" % i) for i in range(9)]
+        got = text(obj)
+        i = got.index(next(r for r in got if r.startswith("9 live")))
+        self.assertTrue(all(got[i + k].startswith("s%d " % (k - 1)) for k in range(1, 5)), got)
+        self.assertEqual(got[i + 5], "and 5 more: agentik crew status")
+        self.assertTrue(rows(obj)[i + 6].startswith("ok    gate"))
+        job = obj["gate"]["running"][0]
+        obj["gate"]["running"] = [dict(job, name="j%d" % i, label="") for i in range(6)]
+        obj["gate"]["red"] = [dict(job, name="r%d" % i, exit=1, cut=None) for i in range(1)]
+        got = text(obj)
+        i = got.index(next(r for r in got if r.startswith("6 running, 2 queued")))
+        self.assertEqual([r.split()[0] for r in got[i + 1:i + 5]], ["running"] * 4)
+        self.assertEqual(got[i + 5], "and 5 more: agentik bench gate status")
+        self.assertTrue(rows(obj)[i + 6].startswith("ok    backlog"))
+
+
+class WordsTest(unittest.TestCase):
+    """Line 8: R9's words the fixtures do not show."""
+
+    def test_no_watcher_declared(self):
+        obj = load("quiet")
+        obj["watchers"] = []
+        self.assertEqual(rows(obj)[0], "note  watchers  none declared")
+
+    def test_a_watcher_not_checked(self):
+        obj = load("quiet")
+        obj["watchers"][0].update(state="unknown", beat_line=None)
+        obj["hand"] = [{"part": "watchers", "kind": "watcher_unknown", "name": "lamp", "remedy": None}]
+        self.assertEqual(rows(obj)[0], "warn  watchers  lamp: not checked: ps gave no listing")
+
+    def test_past_window_and_checked_false(self):
+        obj = load("quiet")
+        obj["sessions"].update(checked=False, past_window=[{"id": "abcdef0123456789", "pid": 7}])
+        got = text(obj)
+        i = got.index("1 live")
+        self.assertEqual(got[i + 1], "abcdef01      live; no turn in the last 30 min")
+        self.assertEqual(got[i + 2], "processes not checked: ps gave no listing")
+
+    def test_running_and_no_runner(self):
+        obj = load("busy")
+        obj["gate"].update(queued=[], runner=None)
+        obj["hand"] = [{"part": "gate", "kind": "no_runner", "name": None,
+                        "remedy": "agentik bench gate status"}]
+        got = rows(obj)
+        i = next(k for k, r in enumerate(got) if r.startswith("warn  gate"))
+        self.assertEqual(got[i], "warn  gate      3 running and no runner alive; last: flight0127 passed")
+        self.assertEqual(got[i + 1], " " * 16 + "see: agentik bench gate status")
+
+    def test_covers(self):
+        obj = load("quiet")
+        obj["covers"]["rule"] = "none"
+        got = rows(obj)
+        i = next(k for k, r in enumerate(got) if "backlog" in r)
+        self.assertEqual(got[i], "note  backlog   no checkout here; name one: agentik status <path>")
+        self.assertTrue(got[i + 1].startswith("ok    runs"))
+        obj["covers"]["rule"] = "checkouts"
+        obj["backlog"]["checkouts"] = 2
+        self.assertIn("3 open steps in 2 checkouts from the user file", text(obj))
+        obj["covers"]["rule"] = "args"
+        obj["backlog"].update(checkouts=1, open=1)
+        self.assertIn("1 open step in 1 checkout named", text(obj))
+
+    def test_a_part_with_no_source(self):
+        obj = load("quiet")
+        obj["sources"] = [s for s in obj["sources"] if s["name"] != "gate"]
+        obj["gate"] = {"state": "not read", "runner": None, "running": [], "queued": [], "red": [],
+                       "last": None}
+        self.assertIn("note  gate      not read: no tool here gives it", rows(obj))
+
+    def test_not_drawn_and_none_read(self):
+        obj = load("quiet")
+        obj["sources"][1]["state"] = "not drawn"
+        self.assertIn("not drawn: agentik-bench gate", text(obj))
+        for s in obj["sources"]:
+            s["state"] = "not installed"
+        self.assertIn("      sources   no source read", rows(obj))
+
+    def test_a_null_context_and_one_of_each(self):
+        obj = load("busy")
+        live = obj["sessions"]["live"][0]
+        live.update(context=None, turns=1, helpers={"busy": 1})
+        obj["sessions"]["live"] = [live]
+        obj["backlog"].update(open=1, checkouts=1)
+        got = text(obj)
+        self.assertIn("acme-hq  ?/1M  1 turn  busy; 1 helper busy", got)
+        self.assertIn("1 live, 1 helper busy; 2 ended in the last 30 min", got)
+        self.assertIn("1 open step in 1 checkout beside acme-hq (kind: hq)", got)
+
+
+class HintTest(unittest.TestCase):
+    """Line 9: R10's four cases."""
+
+    def test_line9_the_hint(self):
+        obj = load("quiet")
+        obj["hand"] = [{"part": "runs", "kind": "run_gone", "name": "r1", "remedy": "agentik baton status"}]
+        self.assertEqual(piped(obj)[1], "note  1 needs a hand. next: agentik baton status\n")
+        obj["hand"] = [dict(obj["hand"][0], remedy=None), dict(obj["hand"][0], name="r2", remedy=None)]
+        self.assertEqual(piped(obj)[1], "note  2 need a hand; the first is above.\n")
+        obj = load("quiet")
+        obj["sources"][2]["state"] = "timed out"
+        self.assertEqual(piped(obj)[1], "note  next: agentik doctor\n")
+        self.assertEqual(piped(load("quiet"))[1], "")
+        self.assertEqual(piped(load("busy"))[1], "")
+
+
+if __name__ == "__main__":
+    unittest.main()

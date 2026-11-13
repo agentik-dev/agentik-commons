@@ -1,0 +1,19 @@
+✓  watchers  lamp: running; its beat is 20 s old
+             3 live: 2 busy, 1 waits on helpers; none stuck
+✓  sessions  3 live, 17 helpers busy, 1 quiet; 2 ended in the last 30 min
+             acme-cli  326k/1M  134 turns  busy; 1 helper busy, 1 quiet, 2 done
+             acme-hq   295k/1M  99 turns   busy; 13 helpers busy, 7 done
+             billing   172k/1M  48 turns   waits on 3 helpers
+✓  gate      3 running, 2 queued; last: flight0127 passed
+             running  acme-api: land importer-fix  14 min of est. 15 min
+             running  gate43: go1274               15 min of est. 50 min
+             running  acme-cli                     9 min
+             queued   acme-site                    waits on running 3 of 3
+             queued   ledger-chain                 waits on running 3 of 3; est…
+✓  backlog   41 open steps in 9 checkouts beside acme-hq (kind: hq)
+             first: 22 The review's builds 5 (one state root) and 6 (an unatten…
+             items: S3 26, S4 200, 13 not placed
+             skipped, no build order: acme-notes
+✓  runs      unattended 2026-11-13-1: running row importer-fix, its last line 4…
+   sources   5 read in 1.3 s; the slowest, agentik-baton, took 1.3 s
+   not read  what waits on the owner, the rows in flight
