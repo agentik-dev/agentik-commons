@@ -19,7 +19,7 @@ from . import plan, settings, tools
 PS = "/bin/ps"
 PS_ARGS = ("-axo", "pid,ppid,uid,etime,command")
 WALL = 1.0
-BEAT_CAP = 1 << 16
+BEAT_CAP = tools.CAP  # 1 MiB, the listing's cap: a beat file past it is no beat
 WRAPPERS = ("sh", "bash", "zsh", "dash", "env")
 VALUED = ("-X", "-W", "-o")  # after any wrapper, the next word is the flag's value
 ENV_VALUED = ("-u",)  # after `env` alone (`env -u NAME prog`); after python or a shell, a plain flag
@@ -56,12 +56,18 @@ def local(at):
 
 def regular(path, cap=None):
     """The bytes of a regular file, opened without blocking (a FIFO with no writer never hangs
-    the check), to `cap` bytes when one is given; OSError for anything that is no regular file."""
+    the check), read whole; OSError for anything that is no regular file and, when a `cap` is
+    given, for a file past it."""
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as fh:
         if os.fstat(fd).st_mode & S_IFMT != S_IFREG:
             raise OSError("%s is not a regular file" % path)
-        return fh.read() if cap is None else fh.read(cap)
+        if cap is None:
+            return fh.read()
+        data = fh.read(cap + 1)
+        if len(data) > cap:
+            raise OSError("%s is past %d bytes" % (path, cap))
+        return data
 
 
 def declared(env):

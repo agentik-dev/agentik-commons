@@ -222,6 +222,16 @@ class BeatTest(StatusHome):
         self.assertIn("ps.fifo", err)
         self.assertLess(took, 2)
 
+    def test_a_beat_is_read_whole_to_a_mebibyte(self):
+        """Review 1's F5: a long stale beat is still a beat; past 1 MiB (the listing's cap) none."""
+        self.listing("/opt/bin/lampd watch")
+        self.beat(NOW_S - 600, line="x" * 70000)
+        self.assertEqual(self.check(), (1, SILENT_SINCE + "\n", ""))
+        self.beat(NOW_S - 600, line="x" * (2 << 20))
+        code, out, err, took = self.quick("--ps", self.ps)
+        self.assertEqual((code, out, err), (0, "", ""))
+        self.assertLess(took, 2)
+
     def test_the_clock_reads_an_offset_and_local_time(self):
         self.assertEqual(status.when("2026-11-13T13:00:00+01:00"), NOW_S)
         self.assertEqual(status.when("2026-11-13T12:00:00Z"), NOW_S)
