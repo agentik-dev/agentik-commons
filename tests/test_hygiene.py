@@ -5,6 +5,7 @@ list's regexes bracket a letter, so this file stays clean under the scan itself.
 Every term of the private list here is invented."""
 import json
 import os
+import random
 import subprocess
 import tempfile
 import unittest
@@ -740,25 +741,83 @@ class PrivateListTest(unittest.TestCase):
             want = (1, {("h.bin", "home"): 1, ("h.txt", "home"): 1})
             self.assertEqual(self.both(base, path), (want, want))
 
-    def test_h9_a_dot_star_row_reads_a_binary_without_a_newline_in_linear_time(self):
-        # packet h2-hygiene-binary, R2 (NICE n13): a NUL reads as a line break, so a
-        # private row led by `.*` stops at it; at 9f20220 the clean binary took minutes
-        pad = (b"\0" * 61 + b"\1\2\3") * 4096
-        base = self.commit("empty")
-        Path(self.repo, "clean.bin").write_bytes(pad)
-        Path(self.repo, "z.bin").write_bytes(b"\0\1" + ("qw" + "zx").encode() + b"\0\1")
-        self.commit("adds two padded binaries")
+    def private_hits(self, rows, *args):
+        """{(path, group): lines} of the tree (no args) or a range, under a private list
+        of `rows`; each scan must end within 30 s."""
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "p.tsv")
-            Path(path).write_text("short\t.*qw[z]x\n")
+            Path(path).write_text("".join("%s\t%s\n" % row for row in rows))
             env = dict(os.environ, **{ENV: path})
-            for args in ((), ("--commits", base + "..main")):
-                p = subprocess.run([str(SCRIPT), "--repo", self.repo, "--json", *args],
-                                   capture_output=True, text=True, env=env, timeout=30)
-                hits = {(f["path"], f["group"]): f["lines"]
-                        for f in json.loads(p.stdout)["files"]}
-                self.assertEqual((p.returncode, hits), (1, {("z.bin", "short"): 1}), args)
+            p = subprocess.run([str(SCRIPT), "--repo", self.repo, "--json", *args],
+                               capture_output=True, text=True, env=env, timeout=30)
+            return {(f["path"], f["group"]): f["lines"] for f in json.loads(p.stdout)["files"]}
 
+    def test_h9_a_leading_dot_star_row_reads_a_binary_without_a_newline_in_linear_time(self):
+        # packet h2-hygiene-binary, R2 (NICE n13): a row's leading `.*` is searched without
+        # it; at 9f20220 each 256 KiB binary took minutes
+        pad = (b"\0" * 61 + b"\1\2\3") * 4096
+        noise = bytes(b for b in random.Random(7).randbytes(300 << 10) if b != 10)[:256 << 10]
+        base = self.commit("empty")
+        Path(self.repo, "clean.bin").write_bytes(pad)
+        Path(self.repo, "noise.bin").write_bytes(b"\0" + noise)
+        Path(self.repo, "z.bin").write_bytes(b"\0\1" + ("qw" + "zx").encode() + b"\0\1")
+        self.commit("adds three binaries")
+        for args in ((), ("--commits", base + "..main")):
+            hits = self.private_hits([("short", ".*qw[z]x")], *args)
+            self.assertEqual({k: v for k, v in hits.items() if k[1] == "short"},
+                             {("z.bin", "short"): 1}, args)
+
+    def test_h10_a_row_across_a_control_or_bad_byte_keeps_the_pin_answer(self):
+        # h2-hygiene-binary round 1: at dfabbd0 a binary's control and bad bytes broke its
+        # lines, and these rows lost the hits 9f20220 found (or gained the anchored ones)
+        n, u16 = b"\0", ("zq" + "term").encode("utf-16-le")
+        cases = [  # (file, content, row, hit at 9f20220)
+            ("a.bin", n + b"zqfoo\0zqbar" + n, r"zqfoo.*zqbar", True),
+            ("b.bin", n + b"zqfoo\0zqbar" + n, r"zqfoo.zqbar", True),
+            ("c.bin", n + b"zqfoo\0zqbar" + n, r"zqfoo\x00zqbar", True),
+            ("d.bin", n + b"zqfoo\r\nzqbar" + n, r"zqfoo\r\nzqbar", True),
+            ("e.bin", n + b"zqfoo\x7fzqbar" + n, r"zqfoo.zqbar", True),
+            ("f.bin", n + b"zqfoo\xffzqbar" + n, r"zqfoo.zqbar", True),
+            ("g.bin", n + b"zqfoo\xef\xbf\xbdzqbar" + n, r"zqfoo.zqbar", True),
+            ("h.bin", b"\0\1\2zqalice\x05\x17zqsmith\0", r"zqalice.{0,3}zqsmith", True),
+            ("i.bin", b"\0\0\1\1" * 2048 + u16 + n, r"z\x00?q\x00?t\x00?e\x00?r\x00?m", True),
+            ("j.bin", b"\0\0\1\1" * 2048 + u16 + n, r"z.q.t.e.r.m", True),
+            ("k.bin", n + b"\x01zqterm" + n, r"^zqterm", False),
+            ("l.bin", n + b"zqterm\x01" + n, r"zqterm$", False),
+        ]
+        base = self.commit("empty")
+        for name, data, _, _ in cases:
+            Path(self.repo, name).write_bytes(data)
+        self.commit("adds the binaries")
+        rows = [("g" + name[0], row) for name, _, row, _ in cases]
+        want = {(name, "g" + name[0]) for name, _, _, hit in cases if hit}
+        for args in ((), ("--commits", base + "..main")):
+            hits = self.private_hits(rows, *args)
+            own = {(name, "g" + name[0]) for name, _, _, _ in cases}
+            self.assertEqual(own & set(hits), want, args)
+
+    def test_h11_a_leading_or_trailing_dot_star_counts_as_the_row_without_it(self):
+        # packet h2-hygiene-binary, R2: the same files and line counts, tree and range
+        t = "zq" + "term"
+        files = {"a.txt": t + "\n", "b.txt": "x " + t + " y\n" + t + t + "\n",
+                 "c.txt": "no\n" + t + "\r\nmore " + t + "\n", "d.txt": "clean\n",
+                 "e.md": "# " + t.upper() + "\n", "f.bin": b"\0" + t.encode() + b"\0",
+                 "g.bin": b"\0\1" + t.encode() + b" a run of text\0\xff" + t.encode(),
+                 "h.bin": b"\0" * 9000 + b"\xff" + t.encode() + b"\n" + t.encode(),
+                 "i.bin": b"\0\1\2\3", "j.txt": (t + "\n").encode("utf-16"),
+                 "k.txt": "a" * 5000 + t + "\n", t + ".txt": "path only\n"}
+        base = self.commit("empty")
+        for name, data in files.items():
+            if isinstance(data, bytes):
+                Path(self.repo, name).write_bytes(data)
+            else:
+                Path(self.repo, name).write_text(data)
+        self.commit("adds the files")
+        for args in ((), ("--commits", base + "..main")):
+            plain = self.private_hits([("dot", "zq[t]erm")], *args)
+            self.assertEqual(len([k for k in plain if k[1] == "dot"]), 10, plain)
+            for row in (".*zq[t]erm", "zq[t]erm.*", ".*zq[t]erm.*", "(?i).*zq[t]erm"):
+                self.assertEqual(self.private_hits([("dot", row)], *args), plain, (row, args))
 
 if __name__ == "__main__":
     unittest.main()

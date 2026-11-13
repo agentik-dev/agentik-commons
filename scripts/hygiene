@@ -16,8 +16,7 @@ BOM, or whose first 8 KB have NULs on 90% or more of the odd or the even bytes
 `email` patterns only (ADV10-17), over its printable runs of 8 or more bytes (as
 `strings` would), one line per run; the private list's rows scan those runs too, and
 a row no run matches scans its whole content, decoded as UTF-8 with bad bytes
-replaced, each control byte but the tab and each bad byte read as a newline, one line
-per file (per chunk when streamed; packets h2 and h2-hygiene-binary). `.hygiene-allow` lists
+replaced, one line per file (per chunk when streamed; packet h2). `.hygiene-allow` lists
 exceptions, one per line: `<path-glob>: <group>[,<group>]`, `#` comments; a
 glob's `*` stays inside one path segment; a `secret` exception outside
 `tests/fixtures/` is a usage error. Under `history/sittings/` (charters are
@@ -146,8 +145,6 @@ BINARY_GROUPS = ("home", "secret", "email")  # their in-file patterns, over prin
 PRIVATE_ONLY = ("the private list's rows",)  # a binary's whole content: the rows no run hit
 GENERIC = {id(rx) for _, rx in COMPILED}
 PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t]{8,}")
-# a binary's whole content: a control byte but the tab, and a bad byte, read as a newline
-BINARY_BREAK = bytes.maketrans(bytes(list(range(9)) + list(range(10, 32)) + [127]), b"\n" * 32)
 SECRET_ALLOW_ROOT = ["tests", "fixtures"]
 USAGE = ("usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]"
          " [--commits RANGE]")
@@ -410,14 +407,10 @@ def line_hits(line, names, rows, seen):
 
 def pieces(buf, binary):
     """The scanned lines of a whole buffer: a text's lines, or a binary's printable runs
-    and then its whole content, for the private rows a run missed (`line_hits`), each
-    control byte but the tab and each bad byte read as a newline (BINARY_BREAK): a row's `.`
-    and anchors stop there, so a row led by `.*` costs the square of a span of text, never
-    of the buffer (packet h2-hygiene-binary)."""
+    and then its whole content, for the private rows a run missed (`line_hits`)."""
     if binary:
-        whole = buf.translate(BINARY_BREAK).decode("utf-8", "replace").replace("\ufffd", "\n")
         return [(m.group().decode("ascii"), BINARY_GROUPS) for m in PRINTABLE_RUN.finditer(buf)
-                ] + [(whole, PRIVATE_ONLY)]
+                ] + [(buf.decode("utf-8", "replace"), PRIVATE_ONLY)]
     return [(line, ALL) for line in buf.splitlines()]
 
 
