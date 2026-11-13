@@ -595,6 +595,27 @@ class PlanTruthTest(Home):
         code, out, err = self.run_cli("setup", "--dry-run", "alpha")
         self.assertNotIn(os.path.join(self.home, "inst"), out + err)
 
+    def test_m2_a_plugin_that_ships_no_command(self):
+        """Review 2's F2: an installed plugin whose folder holds no launcher is installed, and
+        step 4 says it ships no command; a reinstall is never proposed for it."""
+        self.plugin_files(os.path.join(self.home, ".claude"), {"notes": "1.0.0"}, whole=False)
+        folder = os.path.join(self.home, "inst", "notes", "1.0.0")
+        os.makedirs(os.path.join(folder, ".claude-plugin"))
+        got = self.by_subject("notes")
+        self.assertEqual(got[(3, "notes@agentik")]["state"], "ok")
+        self.assertEqual(got[(4, "~/.local/bin/agentik-notes")]["state"], "ok")
+        self.assertIn("ships no command", got[(4, "~/.local/bin/agentik-notes")]["detail"])
+        self.assertEqual(got[(7, "agentik-notes")]["state"], "ok")
+        for s in got.values():
+            self.assertNotIn("claude plugin install", s["command"] or "")
+            self.assertNotIn("agentik-notes", s["command"] or "")
+        code, out, err = self.run_cli("setup", "--dry-run", "notes")
+        self.assertNotIn("install it again", out + err)
+        # its folder gone: then it is not whole, and the reinstall is proposed
+        shutil.rmtree(folder)
+        got = self.by_subject("notes")
+        self.assertEqual(got[(3, "notes@agentik")]["command"], "claude plugin install notes@agentik")
+
     def test_m1_a_blocked_plan_promises_no_line_it_withholds(self):
         """Review 2's F1: with step 1 blocked no run: line is printed, so the door's row names none."""
         self.whole({"alpha": "1.0.0"})

@@ -54,9 +54,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.market.missing`: not known to Claude Code; setup would add it
 - `setup.plugin.ok`: installed at version `{version}`
 - `setup.plugin.missing`: not installed; setup would install it
-- `setup.plugin.broken`: listed at version `{version}`, but its files are not whole; setup would install it again
+- `setup.plugin.broken`: listed at version `{version}`, but its folder is gone; setup would install it again
 - `setup.launcher.wait`: not placed; step 3 installs the plugin first
 - `setup.launcher.missing`: not placed; setup would place it from the plugin
+- `setup.launcher.none`: the plugin ships no command, so there is nothing to place
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
@@ -72,6 +73,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.path.missing`: not on PATH
 - `setup.doctor.todo`: setup would check the plugin with its doctor
 - `setup.doctor.wait`: step 4 places the launcher first
+- `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.todo`: next: run each `run:` line above, in order, then `{tool}` setup --dry-run again.
 - `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.

@@ -87,7 +87,7 @@ def build(names, env, lib, tool, version):
         steps.append(_step(2, "marketplace", "todo", MARKETPLACE, "setup.market.missing",
                            "claude plugin marketplace add %s" % SOURCE))
 
-    # 3: each plugin, installed only when its folder holds its launcher
+    # 3: each plugin, installed when its installPath folder is there; one may ship no launcher
     installed = _read_json(os.path.join(config, "plugins", "installed_plugins.json"))
     table = installed.get("plugins") if isinstance(installed, dict) else None
     have = {}
@@ -100,7 +100,7 @@ def build(names, env, lib, tool, version):
         root = entry.get("installPath") if entry else None
         if not (isinstance(ver, str) and ver):
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.missing", install))
-        elif isinstance(root, str) and os.path.isfile(os.path.join(root, "bin", "agentik-" + name)):
+        elif isinstance(root, str) and os.path.isdir(root):
             have[name] = (ver, os.path.join(root, "bin", "agentik-" + name))
             steps.append(_step(3, "plugin", "ok", key, "setup.plugin.ok", version=ver))
         else:
@@ -119,7 +119,10 @@ def build(names, env, lib, tool, version):
             continue
         want, source = have[name]
         command = "%s install-cli" % shlex.quote(source)
-        if read is None:
+        if not os.path.isfile(source):
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.none"))
+            placed = [p for p in placed if p != where]
+        elif read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
         elif read.get("version") == want:
@@ -169,7 +172,9 @@ def build(names, env, lib, tool, version):
     for name in names:
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
-        if where in placed:
+        if name in have and not os.path.isfile(have[name][1]):
+            steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
+        elif where in placed:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
                                "%s doctor" % shlex.quote(where)))
         else:
