@@ -941,6 +941,22 @@ class ConfigTest(Home):
         self.assertEqual(code, 2)
         self.assertIn("--json", err)
 
+    def test_r6_changed_user_files_and_groups(self):
+        code, out, err = self.cfg("config", "--changed")
+        self.assertEqual(code, 0, err)
+        self.assertRegex(out, r"demo\.colour +dark +default light +user")
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
+        code, out, err = self.cfg("config", "demo", "--changed")
+        self.assertEqual(code, 2)
+        self.write(self.user, "watchers:\n" + "".join(
+            "  w%d:\n    match: m\n    start: s\n    beat: 1m\n    writer: me\n" % i for i in range(6)))
+        code, out, err = self.cfg("config", "suite")
+        self.assertEqual(code, 0, err)
+        lines = out.splitlines()
+        self.assertIn("watchers", lines)
+        self.assertTrue(lines[lines.index("watchers") + 1].startswith("    "), out)
+
 
 class SubsetTest(unittest.TestCase):
     """R8: GUIDE section 3's strict subset, each key's line kept, anything else refused by line."""
