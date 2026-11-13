@@ -185,6 +185,47 @@ class Term:
             for line in under + ([after] if after else []):
                 stream.write(" " * start + stream.paint(line, STYLE_SGR["hint"]))
 
+    def grid(self, status, label, rows, err=False):
+        """One part of a status screen (packet su2-screen R4): the mark, or its blank when the
+        status is None, two spaces, the label bold and padded to 8, two spaces, then each row at
+        the text's column. A row is (text or [cell...], style, whole); a row of cells pads each
+        cell but the last to the widest of its column among the part's rows, two spaces apart.
+        On a terminal a row past the width ends at it with an ellipsis, unless it is whole. No
+        row ends in a space."""
+        stream = self._stream(err)
+        rows = rows or [("", None, False)]
+        widths = {}
+        for cells, _, _ in rows:
+            if isinstance(cells, (list, tuple)):
+                for i, cell in enumerate(cells[:-1]):
+                    widths[i] = max(widths.get(i, 0), len(clean(cell)))
+        lead = 1 if stream.glyphs else 4
+        label = clean(label)
+        try:
+            ellipsis = "…"
+            ellipsis.encode(stream.encoding)
+        except (LookupError, UnicodeEncodeError):
+            ellipsis = "..."
+        for n, (cells, style, whole) in enumerate(rows):
+            if isinstance(cells, (list, tuple)):
+                cells = [clean(c) for c in cells]
+                line = "".join(c + " " * (widths[i] - len(c)) + GAP for i, c in enumerate(cells[:-1]))
+                line += cells[-1] if cells else ""
+            else:
+                line = clean(cells)
+            line = line.rstrip(" ")
+            plain = " " * (lead + len(GAP) + 8 + len(GAP))
+            head = plain
+            if n == 0:
+                shown, painted = stream.mark(status) if status else ("", "")
+                head = (painted + " " * (lead - len(shown)) + GAP
+                        + stream.paint(label, STYLE_SGR["name"]) + " " * (8 - len(label)) + GAP)
+            room = stream.width() - len(plain)
+            if stream.tty and not whole and len(line) > room:
+                line = line[:max(room - len(ellipsis), 0)] + ellipsis
+            shown = head + stream.paint(line, STYLE_SGR.get(style))
+            stream.write(shown if line else shown.rstrip(" "))
+
     def hint(self, mid, values=None, **more):
         values = dict(values or {}, **more)
         if not self.quiet:
