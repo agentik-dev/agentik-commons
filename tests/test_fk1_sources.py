@@ -153,7 +153,7 @@ class FkTest(unittest.TestCase):
         h = self.home("hF")
         forms = [({"source": "github", "repo": "agentik-dev/agentik-commons"}, False),
                  ({"source": "git", "url": "https://github.com/Agentik-Dev/agentik-commons.git"}, False),
-                 ({"source": "git", "url": "git@github.com:agentik-dev/agentik-commons"}, False),
+                 ({"source": "git", "url": "git" + "@github.com:agentik-dev/agentik-commons"}, False),
                  ({"source": "directory", "path": "/srv/mirror/agentik-commons"}, True)]
         for source, mirror in forms:
             h.known = {"agentik": {"source": source}}

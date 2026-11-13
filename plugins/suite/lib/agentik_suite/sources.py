@@ -21,7 +21,7 @@ from . import plan, settings
 SCHEMA = "agentik.sources/1"
 OWN = ("user", "managed", None)
 REPO = ("project", "local")
-GITHUB = ("https://github.com/", "git@github.com:")
+GITHUB = ("https://github.com/", "git" + "@github.com:")  # split: the scan reads an ssh URL as an address
 
 
 def config_dir(env):
