@@ -557,3 +557,59 @@ def fit(fields, ceiling=CEILING):
             n += 1
         went.append(("lines", n))
     return f, went
+
+
+_EDGES = "\"'`()[]{},;:!?*|\\“”‘’"
+
+
+def _words(text):
+    out = []
+    for raw in text.split():
+        word = raw.strip(_EDGES).rstrip(".").strip(_EDGES)
+        if word:
+            out.append(word)
+    return out
+
+
+def _marked(word):
+    """A word that could carry a name: a digit, `/ . @ _ ~`, an inner capital or hyphen, or a
+    letter outside ASCII."""
+    return (any(c.isdigit() or c in "/.@_~" or (c.isalpha() and ord(c) > 127) for c in word)
+            or any(c.isupper() for c in word[1:]) or "-" in word[1:-1])
+
+
+def _said(render):
+    return "%s\n%s" % (render.get("happened") or "", render.get("expected") or "")
+
+
+def nothing_new(render, fields):
+    """[(kind, text)], empty when the render may stand: a `word` marked or capitalised that the
+    draft's form does not hold (a capitalised word alone is compared in any case), a
+    `placeholder` of the draft's two values that the render lacks, and `happened` when the
+    draft's text does not stand whole in the render's."""
+    known = _words(build(fields).decode("utf-8"))
+    exact, lower = set(known), {w.lower() for w in known}
+    said, misses = _said(render), []
+    for word in _words(said):
+        if _marked(word):
+            miss = word not in exact
+        else:
+            miss = word[0].isupper() and word.lower() not in lower
+        if miss and ("word", word) not in misses:
+            misses.append(("word", word))
+    for p in PLACEHOLDER.findall(_said(fields)):
+        if p not in said and ("placeholder", p) not in misses:
+            misses.append(("placeholder", p))
+    if fields["happened"] not in (render.get("happened") or ""):
+        misses.append(("happened", fields["happened"]))
+    return misses
+
+
+def added(render, fields):
+    """Every other word of the render that the draft does not hold, once, in the render's order."""
+    lower = {w.lower() for w in _words(build(fields).decode("utf-8"))}
+    out = []
+    for word in _words(_said(render)):
+        if not _marked(word) and not word[0].isupper() and word.lower() not in lower and word not in out:
+            out.append(word)
+    return out
