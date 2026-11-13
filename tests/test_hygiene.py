@@ -740,6 +740,25 @@ class PrivateListTest(unittest.TestCase):
             want = (1, {("h.bin", "home"): 1, ("h.txt", "home"): 1})
             self.assertEqual(self.both(base, path), (want, want))
 
+    def test_h9_a_dot_star_row_reads_a_binary_without_a_newline_in_linear_time(self):
+        # packet h2-hygiene-binary, R2 (NICE n13): a NUL reads as a line break, so a
+        # private row led by `.*` stops at it; at 9f20220 the clean binary took minutes
+        pad = (b"\0" * 61 + b"\1\2\3") * 4096
+        base = self.commit("empty")
+        Path(self.repo, "clean.bin").write_bytes(pad)
+        Path(self.repo, "z.bin").write_bytes(b"\0\1" + ("qw" + "zx").encode() + b"\0\1")
+        self.commit("adds two padded binaries")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "p.tsv")
+            Path(path).write_text("short\t.*qw[z]x\n")
+            env = dict(os.environ, **{ENV: path})
+            for args in ((), ("--commits", base + "..main")):
+                p = subprocess.run([str(SCRIPT), "--repo", self.repo, "--json", *args],
+                                   capture_output=True, text=True, env=env, timeout=30)
+                hits = {(f["path"], f["group"]): f["lines"]
+                        for f in json.loads(p.stdout)["files"]}
+                self.assertEqual((p.returncode, hits), (1, {("z.bin", "short"): 1}), args)
+
 
 if __name__ == "__main__":
     unittest.main()
