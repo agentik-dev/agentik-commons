@@ -71,3 +71,7 @@ Ruling: five findings fixed on the branch, each with a test red at c2b262c; R5 a
 - F4 a `--now` whose timestamp raises exits 2, `is not a time`
 - F5 a regular beat file is read whole to 1 MiB, the listing's cap; past it, no beat
 - NICE: L3 n53, L4 n54, L7 n55, L8 n56 (filed as n46 to n49, renumbered in phase 2 after ak2-door's n46 to n52)
+
+## 8. Phase 2
+
+Main 294ae6e (ak2-door) merged at a28a57e, both sides kept; NICE n46 to n49 renumbered n53 to n56, n57 and n58 filed; respeak pass 1's one change, `hint.status.unchecked` with `next:`, pinned by a6; the version stays 0.5.0 (69290f8), though `plugins/suite/` changed after that commit and nothing checks the bump's place.
