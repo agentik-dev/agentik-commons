@@ -10,9 +10,13 @@ shape, never by name; this checkout is left out. A launcher writer: the clone
 has `plugin/bin/agentik` and one executable `plugin/bin/agentik-*` beside it,
 run as `<that launcher> install-cli --prefix P`. Else a make writer: each line
 of `make -n install BINDIR=P/bin` whose last word is `P/bin/agentik`, run by
-`sh -c` in the clone, and no other line: nothing is built, and a checkout whose
-makefile holds a recipe line `make -n` would run (one that starts with `+`, after
-any `@` or `-`, or holds `$(MAKE)` or `${MAKE}`) is left out with a note. Each writer and `make -n` run as `env -i HOME=<a temp folder>
+`sh -c` in the clone, and no other line: nothing is built. The makefiles are
+read into rules first, and a checkout is left out with a note when a recipe line
+that `install` reaches (its rules and, through the prerequisites as written,
+theirs) is one `make -n` would run (it starts with `+` after any `@` or `-`, or
+holds `$(MAKE)` or `${MAKE}`), or when that reach cannot be read (a reached
+target or prerequisite holds `$` or `%`, or a makefile has an include line).
+Each writer and `make -n` run as `env -i HOME=<a temp folder>
 PATH=/usr/bin:/bin TMPDIR=<under it>`, a fresh P for each case, under a wall of
 20 s that kills its process group.
 
@@ -50,10 +54,12 @@ SYSTEM = "/usr/bin:/bin"
 GIT, MAKE = "/usr/bin/git", "/usr/bin/make"
 WALL = float(os.environ.get("DOOR_PROBE_WALL") or 20)  # tests shorten it; by hand it is 20 s
 MAKEFILES = ("GNUmakefile", "makefile", "Makefile")
-# a recipe line make -n runs: one that starts with + after any @, - or blanks (a tab line, or a
-# rule's `; recipe`), or one holding $(MAKE) or ${MAKE} as written; anywhere in the file, so a
-# continued line counts, and a match outside a recipe only leaves a checkout out
-RUNS = re.compile(rb"^\t[ \t@-]*\+|^[^\t\n#][^\n]*;[ \t@-]*\+|\$\(MAKE\)|\$\{MAKE\}", re.M)
+# a recipe line make -n runs: it starts with + after any @, - or blanks, or holds $(MAKE) or
+# ${MAKE} as written (make's own test of the line's text)
+RUNS = re.compile(r"\A[ \t@-]*\+|\$\(MAKE\)|\$\{MAKE\}")
+INCLUDE = re.compile(r"\A *(?:-include|sinclude|include)(?:[ \t]|\Z)")
+DEFINE = re.compile(r"\A *(?:(?:override|export) +)*define(?:[ \t]|\Z)")
+ENDEF = re.compile(r"\A *endef(?:[ \t]|\Z)")
 VERSION = re.compile(rb"^VERSION=(.*)$", re.M)
 FAILS = []
 
@@ -153,11 +159,93 @@ def launcher(clone):
     return found[0] if len(found) == 1 else None
 
 
+def logical(text):
+    """The makefile's lines, a line ending in a backslash carrying on into the next."""
+    out, buf = [], ""
+    for raw in text.splitlines():
+        if (len(raw) - len(raw.rstrip("\\"))) % 2:
+            buf += raw[:-1] + " "
+        else:
+            out.append(buf + raw)
+            buf = ""
+    return out + ([buf] if buf else [])
+
+
+def header(line):
+    """A rule's (targets, prerequisites, recipe lines) from its header line, or None."""
+    hash_, semi = line.find("#"), line.find(";")
+    recipe = []
+    if semi != -1 and (hash_ == -1 or semi < hash_):
+        line, recipe = line[:semi], [line[semi + 1:]]
+    elif hash_ != -1:
+        line = line[:hash_]
+    colon, eq = line.find(":"), line.find("=")
+    if colon == -1 or eq != -1:
+        return None  # no rule, an assignment (=, :=, ::=, ?=, +=, !=) or a target's variable
+    targets = line[:colon].replace("&", " ").split()
+    prereqs = [w for w in line[colon:].lstrip(":").split() if w != "|"]
+    return targets, prereqs, recipe
+
+
+def rules(texts):
+    """Each rule of the makefiles' texts, and whether one holds an include line."""
+    found, include = [], False
+    for text in texts:
+        rule, inside = None, False
+        for line in logical(text):
+            if inside:
+                inside = not ENDEF.match(line)
+            elif line.startswith("\t"):
+                if rule:
+                    rule[2].append(line[1:])
+            elif line.strip() and not line.lstrip().startswith("#"):
+                rule = None
+                if DEFINE.match(line):
+                    inside = True
+                elif INCLUDE.match(line):
+                    include = True
+                else:
+                    rule = header(line)
+                    if rule:
+                        found.append(rule)
+    return found, include
+
+
+def reach(texts):
+    """The answer is "runs" when a recipe line that install reaches is one make -n runs, "unread" when
+    that reach cannot be read, else None (review 2)."""
+    found, include = rules(texts)
+    if include:
+        return "unread"
+    seen, todo, lines = set(), ["install"], []
+    while todo:
+        word = todo.pop()
+        if word in seen:
+            continue
+        seen.add(word)
+        for targets, prereqs, recipe in found:
+            if word in targets:
+                if any("$" in w or "%" in w for w in targets + prereqs):
+                    return "unread"
+                lines += recipe
+                todo += prereqs
+    return "runs" if any(RUNS.search(line) for line in lines) else None
+
+
 def make_lines(p, clone, prefix):
     """The lines of `make -n install` whose last word is the door, or None with a note."""
+    paths, seen = [], set()
     for path in [clone / name for name in MAKEFILES] + sorted(clone.glob("*.mk")):
-        if path.is_file() and RUNS.search(path.read_bytes()):
-            return None, "%s holds a recipe line make -n would run (a + or $(MAKE)); not probed" % path.name
+        if path.is_file() and os.path.realpath(str(path)) not in seen:
+            seen.add(os.path.realpath(str(path)))
+            paths.append(path)
+    texts = [path.read_bytes().decode("utf-8", "replace") for path in paths]
+    why = reach(texts) if paths else None
+    if why == "runs":
+        return None, "%s holds a recipe line make -n would run (a + or $(MAKE)); not probed" % paths[0].name
+    if why == "unread":
+        return None, ("%s: the reach of install cannot be read (a $, a %% or an include); not probed"
+                      % paths[0].name)
     target = str(prefix / "bin" / "agentik")
     code, out = p.run([MAKE, "-n", "install", "BINDIR=%s" % (prefix / "bin")], clone)
     found = []

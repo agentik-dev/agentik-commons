@@ -165,18 +165,61 @@ class DoorProbeRunTest(unittest.TestCase):
 
     def test_f1_the_pattern_reads_a_recipe_line_as_make_does(self):
         # GNU make runs a recipe line under -n when it starts with + (after any @, - or blanks) or
-        # holds $(MAKE) or ${MAKE} as written; a continued line and a rule's `; recipe` count too
+        # holds $(MAKE) or ${MAKE} as written; a continued line and a rule's `; recipe` count too.
+        # Review 2: only the recipes install reaches count, through its prerequisites as written.
         import importlib.machinery
         import importlib.util
         loader = importlib.machinery.SourceFileLoader("door_probe", str(PROBE))
         mod = importlib.util.module_from_spec(importlib.util.spec_from_loader("door_probe", loader))
         loader.exec_module(mod)
-        for text in (b"x:\n\t+touch m\n", b"x:\n\t@+touch m\n", b"x:\n\t-@ +touch m\n", b"x:\n\t@\t+touch m\n",
-                     b"x:\n\techo $(MAKE)\n", b"x:\n\techo ${MAKE}\n", b"x:\n\techo a \\\n  $(MAKE) b\n",
-                     b"x: ; +touch m\n", b"x: ; @$(MAKE) -C y\n"):
-            self.assertTrue(mod.RUNS.search(text), text)
-        for text in (b"x:\n\techo a+b\n", b"x:\n\techo $(MAKEFLAGS)\n", b"x:\n\t@echo +\n", b"A = 1\n"):
-            self.assertFalse(mod.RUNS.search(text), text)
+        runs = ("install:\n\t+touch m\n", "install:\n\t@+touch m\n", "install:\n\t-@ +touch m\n",
+                "install:\n\t@\t+touch m\n", "install:\n\techo $(MAKE)\n", "install:\n\techo ${MAKE}\n",
+                "install:\n\techo a \\\n  $(MAKE) b\n", "install: ; +touch m\n", "install: ; @$(MAKE) -C y\n",
+                "install: prep\nprep: | deep\ndeep:\n\t$(MAKE) -C sub\n", "install:: a\na b: ; +x\n",
+                "install:\n\n# a note\n\t+x\n")
+        for text in runs:
+            self.assertEqual(mod.reach([text]), "runs", text)
+        probed = ("install:\n\techo a+b\n", "install:\n\techo $(MAKEFLAGS)\n", "install:\n\t@echo +\n",
+                  "A = 1\n", "# $(MAKE) in a comment\ninstall:\n\tx\n", "SUB := $(MAKE)\ninstall:\n\tx\n",
+                  "SUB = $(MAKE) -C a\nA ?= b:c\ninstall:\n\tx\n", "check:\n\t$(MAKE) test\ninstall:\n\tx\n",
+                  "check:\n\t+x\ninstall: a\na:\n\tx\n", "install: BINDIR = $(HOME)\ninstall:\n\tx\n",
+                  "define BLOCK\ninstall:\n\t$(MAKE)\nendef\ninstall:\n\tx\n", "install:\n\tx # ;\nb: ; +x\n")
+        for text in probed:
+            self.assertIsNone(mod.reach([text]), text)
+        unread = ("install: $(DEPS)\n\tx\n", "install: %.o\n", "$(T) install:\n\tx\n", "include a.mk\ninstall:\n",
+                  "-include a.mk\ninstall:\n", "sinclude a.mk\ninstall:\n", "install: a\na: b\nb: $(X)\n")
+        for text in unread:
+            self.assertEqual(mod.reach([text]), "unread", text)
+        self.assertEqual(mod.reach(["install: a\n", "a:\n\t+x\n"]), "runs", "a rule in a second makefile")
+
+    def test_f1_review_2_only_the_reach_of_install_counts(self):
+        # a $(MAKE) in a comment, a variable's value or another target's recipe, and a + line under
+        # another target: each checkout is probed; a prerequisite's $(MAKE) line, a $(DEPS)
+        # prerequisite and an include line each leave theirs out
+        outside = self.root / "OUTSIDE-prep-tool"
+        for name, head in (("comment-tool", "# run $(MAKE) -C sub for the parts\n"),
+                           ("value-tool", "SUB := $(MAKE)\n"),
+                           ("check-tool", "check:\n\t$(MAKE) test\n"),
+                           ("plus-tool", "check:\n\t+@echo checked\n")):
+            self.careful(name, head + CAREFUL)
+        self.careful("prep-tool", CAREFUL.replace("install:\n", "install: prep\n")
+                     + "prep:\n\t@echo $(MAKE) >/dev/null; touch %s\n" % outside)
+        self.careful("deps-tool", CAREFUL.replace("install:\n", "install: $(DEPS)\n"))
+        self.careful("include-tool", "include parts.mk\n" + CAREFUL)
+        code, lines, err = self.probe()
+        self.assertFalse(outside.exists(), "make -n ran prep's recipe line")
+        for name in ("comment-tool", "value-tool", "check-tool", "plus-tool"):
+            self.assertEqual(self.row(lines, name, "make", "kept")[0], "ok", (name, lines))
+        kind, text = self.row(lines, "prep-tool", "make", "-")
+        self.assertEqual((kind, text.lower()),
+                         ("note", "makefile holds a recipe line make -n would run (a + or $(make)); not probed"))
+        for name in ("deps-tool", "include-tool"):
+            kind, text = self.row(lines, name, "make", "-")
+            self.assertEqual((kind, text.lower()),
+                             ("note", "makefile: the reach of install cannot be read (a $, a % or an include); "
+                                      "not probed"), name)
+            self.assertEqual(len([line for line in lines if line.split()[:1] == [name]]), 1, lines)
+        self.assertEqual((code, lines[-1]), (0, "door-probe: go"), (lines, err))
 
     @unittest.skipIf(os.geteuid() == 0, "root reads a folder of mode 000")
     def test_f2_an_unreadable_folder_is_skipped(self):
