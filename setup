@@ -1,0 +1,4 @@
+#!/bin/sh
+# The suite's setup from this checkout, whatever the cwd: agentik-suite setup with these args.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P) || exit 2
+exec "$here/plugins/suite/bin/agentik-suite" setup "$@"
