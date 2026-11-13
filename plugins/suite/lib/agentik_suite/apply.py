@@ -7,8 +7,11 @@ past it. A row that still names a command already run has failed, as has a non-z
 or a file that cannot start: the run stops there, exit 1, with no rollback. Step 6 is never
 applied and step 7 never run. Before the first command setup asks on a terminal, needs --yes off
 one, and off one refuses outright where step 2 or 3 would write a settings file the user's gate
-list names. What each command wrote is found by lstat over a fixed set of places; a run that ran a
-command appends one line to its journal, through term.
+list names, or where that list is there but cannot be read. An interrupt (SIGINT or SIGTERM) before
+the first command, the question's included, declines, exit 2; during a command it stops the
+command's group and ends the run, exit 130, the journal written. What each command wrote is found
+by lstat over a fixed set of places; a run that ran a command appends one line to its journal,
+through term.
 """
 import datetime
 import fnmatch
@@ -23,6 +26,8 @@ from . import plan, term
 
 CLAUDE_WALL = 600
 WALL = 120
+GRACE = 2  # seconds between an interrupted command's SIGTERM and its SIGKILL
+INTERRUPTED = 130
 JOURNAL = "setup" + ".jsonl"  # the verb's journal; a bare id-like literal would read as a message id
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 JSON_KEYS = ("n", "id", "state", "subject", "detail", "command")
@@ -33,15 +38,41 @@ def runnable(steps):
             and s["line"] == "run"]
 
 
-def _kill(group):
+def _kill(group, sig=signal.SIGKILL):
     try:
-        os.killpg(group, signal.SIGKILL)
+        os.killpg(group, sig)
     except OSError:
         pass
 
 
+def _stop(p):
+    """The command's group stopped on an interrupt: SIGTERM, SIGKILL after GRACE, the head reaped."""
+    _kill(p.pid, signal.SIGTERM)
+    try:
+        p.wait(timeout=GRACE)
+    except subprocess.TimeoutExpired:
+        pass
+    _kill(p.pid)
+    p.wait()
+
+
+def _ignore():
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, signal.SIG_IGN)
+        except ValueError:  # not the main thread
+            pass
+
+
+def _interrupt(signum, frame):
+    """SIGINT or SIGTERM during a run: the next one is ignored, so the stop and the journal end."""
+    _ignore()
+    raise KeyboardInterrupt
+
+
 def execute(command, env):
-    """{exit, last, why, wall}: why is None, "wall" or "start"; exit is None unless it exited."""
+    """{exit, last, why, wall}: why is None, "wall" or "start"; exit is None unless it exited. An
+    interrupt stops the command's group and goes on up."""
     try:
         words = shlex.split(command)
     except ValueError as e:
@@ -57,32 +88,40 @@ def execute(command, env):
                 "wall": wall}
     why = None
     try:
-        data, _ = p.communicate(timeout=wall)
-    except subprocess.TimeoutExpired:
-        why = "wall"
-        _kill(p.pid)
         try:
-            data, _ = p.communicate(timeout=5)
-        except subprocess.TimeoutExpired:  # a process outside the group holds the pipe
-            p.kill()
-            p.wait()
-            data = b""
+            data, _ = p.communicate(timeout=wall)
+        except subprocess.TimeoutExpired as e:
+            why, data = "wall", e.output or b""
+            _kill(p.pid)
+            try:
+                data, _ = p.communicate(timeout=5)  # all it printed, what came before the kill too
+            except subprocess.TimeoutExpired as again:  # a process outside the group holds the pipe
+                data = again.output or data
+                p.kill()
+                p.wait()
+    except BaseException:
+        _stop(p)
+        raise
     lines = [l.strip() for l in data.decode("utf-8", "replace").splitlines() if l.strip()]
     return {"exit": None if why else p.returncode, "last": lines[-1] if lines else "",
             "why": why, "wall": wall}
 
 
-def gated(config, home):
-    """The settings file Claude Code writes, when the user's gate list names it; else None."""
+def gated(config, home, t):
+    """(path, why): the settings file when the user's gate list names it; the list itself, and
+    why, when it is there but cannot be read, which refuses too (review 1 F4); else (None, None).
+    A byte that is not UTF-8 is replaced, so it hides no line (F2)."""
     target = os.path.join(config, "settings.json")
     listing = os.path.join(config, "edit-gates")
+    if not os.path.lexists(listing):
+        return None, None
     if not os.path.isfile(listing):
-        return None
+        return listing, t.text("setup.gate.notfile")
     try:
-        with open(listing, encoding="utf-8") as fh:
-            text = fh.read()
-    except (OSError, ValueError):
-        return None
+        with open(listing, "rb") as fh:
+            text = fh.read().decode("utf-8", "replace")
+    except OSError as e:
+        return listing, e.strerror or str(e)
     names = (target, os.path.realpath(target))
     for line in text.splitlines():
         line = line.strip()
@@ -91,8 +130,8 @@ def gated(config, home):
         if line.startswith("~/"):
             line = os.path.join(home, line[2:])
         if any(line == name or fnmatch.fnmatch(name, line) for name in names):
-            return target
-    return None
+            return target, None
+    return None, None
 
 
 def _entries(folder):
@@ -160,6 +199,62 @@ def show(cmd, steps, upto=7, lines=True):
 
 
 def run(cmd, names):
+    """setup without --dry-run. SIGINT and SIGTERM raise KeyboardInterrupt while it runs."""
+    saved = {}
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            saved[sig] = signal.signal(sig, _interrupt)
+    except ValueError:  # not the main thread: the default handlers stay
+        pass
+    try:
+        return _run(cmd, names)
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def _before(cmd, names, build, the_plan, home, config):
+    """The reads and the asking before the first command: the steps, or the run's exit."""
+    t, o, tool = cmd.t, cmd.opts, cmd.tool
+    steps = build()
+    blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
+    if blocked:
+        if o["json"]:
+            raise cmd.Usage("blocked", "err.setup.blocked", "%s setup --dry-run" % tool,
+                            missing=", ".join(blocked), tool=tool)
+        the_plan(steps)
+        t.hint("hint.setup.blocked", missing=", ".join(blocked), tool=tool)
+        return 2
+    if not runnable(steps):
+        return report(cmd, names, steps, [], [], None, None, home)
+    terminal = _terminal(cmd)
+    if not terminal and any(s["n"] in (2, 3) and s["state"] == "todo" for s in steps):
+        gate, why = gated(config, home, t)
+        if why:
+            raise cmd.Usage("gate_unread", "err.setup.gate_unread", "%s setup" % tool,
+                            path=plan.shown(gate, home), why=why, tool=tool)
+        if gate:
+            raise cmd.Usage("gated", "err.setup.gated", "%s setup" % tool,
+                            path=plan.shown(gate, home), tool=tool)
+    if not o["yes"]:
+        the_plan(steps)
+        if not (terminal and not o["json"]):
+            raise cmd.Usage("needs_yes", "err.setup.yes", "%s setup --yes" % tool, tool=tool)
+        t.line("setup.ask", err=True)
+        t.flush()
+        try:
+            answer = sys.stdin.readline()  # end of file reads "", a decline
+        except (OSError, ValueError):
+            answer = ""
+        except KeyboardInterrupt:  # a decline too, the terminal's ^C left on the line
+            answer = None
+            t.blank(err=True)
+        if (answer or "").strip().lower() not in ("y", "yes"):
+            raise cmd.Usage("declined", "err.setup.declined", "%s setup" % tool, tool=tool)
+    return steps
+
+
+def _run(cmd, names):
     t, o, env, tool = cmd.t, cmd.opts, cmd.env, cmd.tool
     home = env.get("HOME") or ""
     config = env.get("CLAUDE_CONFIG_DIR") or os.path.join(home, ".claude")
@@ -175,66 +270,59 @@ def run(cmd, names):
             t.line("setup.title", plugins=", ".join(names)) if names else t.line("setup.title.none")
             show(cmd, steps)
 
-    steps = build()
-    blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
-    if blocked:
-        if o["json"]:
-            raise cmd.Usage("blocked", "err.setup.blocked", "%s setup --dry-run" % tool,
-                            missing=", ".join(blocked), tool=tool)
-        the_plan(steps)
-        t.hint("hint.setup.blocked", missing=", ".join(blocked), tool=tool)
-        return 2
-    if not runnable(steps):
-        return report(cmd, names, steps, [], [], None, None, home)
-    terminal = _terminal(cmd)
-    if not terminal and any(s["n"] in (2, 3) and s["state"] == "todo" for s in steps):
-        gate = gated(config, home)
-        if gate:
-            raise cmd.Usage("gated", "err.setup.gated", "%s setup" % tool,
-                            path=plan.shown(gate, home), tool=tool)
-    if not o["yes"]:
-        the_plan(steps)
-        if not (terminal and not o["json"]):
-            raise cmd.Usage("needs_yes", "err.setup.yes", "%s setup --yes" % tool, tool=tool)
-        t.line("setup.ask", err=True)
-        t.flush()
-        try:
-            answer = sys.stdin.readline()
-        except (OSError, ValueError):
-            answer = ""
-        if answer.strip().lower() not in ("y", "yes"):
-            raise cmd.Usage("declined", "err.setup.declined", "%s setup" % tool, tool=tool)
+    try:
+        steps = _before(cmd, names, build, the_plan, home, config)
+    except KeyboardInterrupt:  # an interrupt before the first command declines, as at the question
+        _ignore()
+        t.blank(err=True)
+        raise cmd.Usage("declined", "err.setup.declined", "%s setup" % tool, tool=tool)
+    if isinstance(steps, int):
+        return steps
+    ran, wrote, done, failure, current = [], [], set(), None, None
 
-    ran, wrote, done, failure = [], [], set(), None
-    while True:
-        rows = runnable(steps)
-        if not rows:
-            break
-        again = [s for s in rows if s["command"] in done]
-        if again:
-            failure = ("err.setup.todo", {"command": again[0]["command"], "n": again[0]["n"]})
-            break
-        row = rows[0]
-        command = row["command"]
-        done.add(command)
-        if not t.quiet:
-            t.line("setup.running", err=True, command=command)
-            t.flush()
-        before = look(home, config)
-        old = install_root(config, row["subject"]) if row["n"] == 3 else None
-        result = execute(command, env)
+    def record(row, before, old, result):
         after = look(home, config)
         new = [p for p in sorted(after) if after[p] != before.get(p)]
         if old is not None:
             root, there = install_root(config, row["subject"])
             if there and (root != old[0] or not old[1]):
                 new.append(root)
-        wrote += [p for p in new if p not in wrote]
-        ran.append({"n": row["n"], "command": command, "exit": result["exit"], "result": result})
-        if result["why"] or result["exit"] != 0:
-            failure = _failure(command, result)
-            break
-        steps = build()
+        wrote.extend(p for p in new if p not in wrote)
+        ran.append({"n": row["n"], "command": row["command"], "exit": result["exit"], "result": result})
+
+    try:
+        while True:
+            rows = runnable(steps)
+            if not rows:
+                break
+            again = [s for s in rows if s["command"] in done]
+            if again:
+                failure = ("err.setup.todo", {"command": again[0]["command"], "n": again[0]["n"]})
+                break
+            row = rows[0]
+            command = row["command"]
+            done.add(command)
+            if not t.quiet:
+                t.line("setup.running", err=True, command=command)
+                t.flush()
+            before = look(home, config)
+            old = install_root(config, row["subject"]) if row["n"] == 3 else None
+            current = (row, before, old)
+            result = execute(command, env)
+            current = None
+            record(row, before, old, result)
+            if result["why"] or result["exit"] != 0:
+                failure = _failure(command, result)
+                break
+            steps = build()
+    except KeyboardInterrupt:
+        if current:
+            row = current[0]
+            record(*current, {"exit": None, "last": "", "why": "interrupted", "wall": None})
+            failure = ("err.setup.interrupted", {"command": row["command"]}, INTERRUPTED, "interrupted")
+        else:
+            failure = ("err.setup.interrupted.idle", {}, INTERRUPTED, "interrupted")
+    _ignore()  # from here the report and the journal end
     steps = build()
     return report(cmd, names, steps, ran, wrote, failure, journal_path(env, home), home)
 
@@ -243,7 +331,7 @@ def _failure(command, result):
     values = {"command": command, "exit": result["exit"], "last": result["last"],
               "wall": result["wall"]}
     if result["why"] == "wall":
-        return "err.setup.wall", values
+        return ("err.setup.wall" if result["last"] else "err.setup.wall.silent"), values
     if result["why"] == "start":
         return "err.setup.start", values
     return ("err.setup.step" if result["last"] else "err.setup.step.silent"), values
@@ -251,7 +339,8 @@ def _failure(command, result):
 
 def report(cmd, names, steps, ran, wrote, failure, journal, home):
     t, tool = cmd.t, cmd.tool
-    code = 1 if failure else 0
+    failure = failure and (tuple(failure) + (1, "step_failed"))[:4]  # (id, values, exit, JSON code)
+    code = failure[2] if failure else 0
     journal_error = None
     if ran:
         wrote = wrote + ([journal] if journal not in wrote else [])
@@ -275,7 +364,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
-            obj["error"] = {"code": "step_failed", "message": t.text(failure[0], tool=tool, **failure[1]),
+            obj["error"] = {"code": failure[3], "message": t.text(failure[0], tool=tool, **failure[1]),
                             "remedy": "%s setup" % tool}
         t.json(obj)
         return code
@@ -290,6 +379,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
                 t.line("setup.ran.wall", command=r["command"], wall=r["result"]["wall"])
             elif why == "start":
                 t.line("setup.ran.start", command=r["command"])
+            elif why == "interrupted":
+                t.line("setup.ran.stopped", command=r["command"])
             else:
                 t.line("setup.ran", command=r["command"], exit=r["exit"])
         for path in wrote:
