@@ -158,7 +158,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `setup.title`: Setup plan for `{plugins}`. Nothing is written.
 - `setup.title.none`: Setup plan for no plugin, since the manifest lists none. Nothing is written.
-- `setup.run`: run: `{command}`
+- `setup.run`: would run: `{command}`
+- `setup.later`: yours to run later: `{command}`
 - `setup.add`: add to your shell profile: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
@@ -183,6 +184,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.door.ok`: in place, at this command's version or newer
 - `setup.door.above`: not placed, or older than this command's; the line above places it
 - `setup.door.place`: not placed, or older than this command's; the install-cli line below places it
+- `setup.door.plugin`: not placed, or older than this command's; step 4's install-cli places it
 - `setup.door.blocked`: not placed, or older than this command's; setup would place it once step 1 reads ok
 - `setup.door.link`: a link, so setup leaves it as it is
 - `setup.door.unversioned`: holds no version to compare, so setup leaves it as it is
@@ -192,12 +194,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each `run:` line above, in order, then `{tool}` setup --dry-run again.
+- `hint.setup.todo`: next: run each `would run:` line above, in order, then `{tool}` setup --dry-run again.
 - `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
-- `setup.ask`: Run each `run:` line above, and the lines the later steps need? Answer y or n.
+- `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
+- `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
 - `setup.running`: running `{command}`
 - `setup.after`: The plan, read again after the run:
 - `setup.ran`: ran: `{command}`, exit `{exit}`
