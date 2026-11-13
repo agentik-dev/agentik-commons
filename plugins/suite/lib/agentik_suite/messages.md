@@ -42,6 +42,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{tool}` --help for the list.
 - `err.verb`: `{word}` is not a verb. Run `{tool}` --help for the list.
+- `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{tool}` setup --dry-run `{word}` for the steps.
 - `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
 - `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
 - `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.

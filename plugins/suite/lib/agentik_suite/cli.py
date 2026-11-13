@@ -8,9 +8,9 @@ declared watchers (`status --check`). Every verb takes --json, -q/--quiet, --no-
 and --user-files; status takes --check, and the test hooks --ps FILE and --now ISO, the only
 flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
-3 not installed. Nothing here prompts or loops; config starts only the listed tools' own
-executables, and writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/; status
-starts ps at most.
+3 not installed (a plugin's name with no command here). Nothing here prompts or loops; config
+starts only the listed tools' own executables, and writes only its cache under
+${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most.
 """
 import difflib
 import os
@@ -19,7 +19,7 @@ import sys
 
 import agentik_install
 
-from . import config, plan, status, term
+from . import config, plan, status, term, tools
 
 VERBS = ("help", "version", "setup", "config", "describe", "status")
 WRITES = ("setup",)
@@ -40,9 +40,11 @@ SCHEMA = "agentik.%s/1"
 
 
 class Usage(Exception):
-    def __init__(self, code, mid, remedy, **values):
+    """A refusal: its JSON code, message id, remedy and exit (2, or 3 for a plugin not installed)."""
+
+    def __init__(self, code, mid, remedy, status=2, **values):
         Exception.__init__(self, code)
-        self.code, self.mid, self.remedy, self.values = code, mid, remedy, values
+        self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, status, values
 
 
 def _lib():
@@ -112,12 +114,7 @@ class Command:
             self.verb = words[0]
             if self.verb not in VERBS:
                 self.verb = None
-                near = difflib.get_close_matches(words[0], VERBS, n=1, cutoff=0.6)
-                if near:
-                    raise Usage("unknown_verb", "err.verb.near", "%s %s" % (self.tool, near[0]),
-                                word=words[0], near=near[0], tool=self.tool)
-                raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool,
-                            word=words[0], tool=self.tool)
+                self._not_a_verb(words[0])
         else:
             self.verb = "version" if o["version"] and not o["help"] else "help"
         nouns = words[1:]
@@ -135,6 +132,25 @@ class Command:
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb)(nouns)
 
+    def _not_a_verb(self, word, asked_help=False):
+        """Packet ak2 R3: a plugin's name with no agentik-<word> on PATH exits 3; any other word
+        exits 2, naming the nearest of the verbs and the plugins' names."""
+        names = tools.plugin_names(self.env, self.lib)
+        own = self.tool[len("agentik-"):]
+        if word in names and word != own and not any(
+                f["name"] == "agentik-" + word for f in self._on_path()):
+            raise Usage("not_installed", "err.verb.plugin", "%s setup --dry-run %s" % (self.tool, word),
+                        status=3, word=word, tool=self.tool)
+        near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
+                                         n=1, cutoff=0.6)
+        if near:
+            # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
+            verb = near[0] in VERBS and not asked_help
+            remedy = "%s %s" % (self.tool, near[0]) if verb else "%s --help" % self.tool
+            raise Usage("unknown_verb", "err.verb.near", remedy,
+                        word=word, near=near[0], tool=self.tool)
+        raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool, word=word, tool=self.tool)
+
     def _bad_flag(self, flag):
         known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
         near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
@@ -151,7 +167,7 @@ class Command:
                                    "remedy": u.remedy}})
         else:
             self.t.error(u.mid, **u.values)
-        return 2
+        return u.status
 
     def _no_nouns(self, nouns):
         if nouns:
@@ -187,10 +203,7 @@ class Command:
             self._no_nouns(nouns[1:])
         if nouns:
             if nouns[0] not in VERBS:
-                near = difflib.get_close_matches(nouns[0], VERBS, n=1, cutoff=0.6)
-                raise Usage("unknown_verb", "err.verb.near" if near else "err.verb",
-                            "%s --help" % self.tool, word=nouns[0], tool=self.tool,
-                            near=near[0] if near else "")
+                self._not_a_verb(nouns[0], asked_help=True)
             return self.help_verb(nouns[0])
         found = self._on_path()
         if self.opts["json"]:

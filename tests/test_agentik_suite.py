@@ -163,7 +163,9 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual((LIB / "agentik_install.py").read_bytes(),
                          (ROOT / "scripts" / "agentik_install.py").read_bytes())
         self.assertTrue(os.access(LAUNCHER, os.X_OK))
-        self.assertFalse((PLUGIN / "bin" / "agentik").exists())  # the door is not copied in
+        # packet ak2 R4: the suite's door is a cp of bin/agentik, placed by no script
+        self.assertEqual((PLUGIN / "bin" / "agentik").read_bytes(), (ROOT / "bin" / "agentik").read_bytes())
+        self.assertTrue(os.access(PLUGIN / "bin" / "agentik", os.X_OK))
 
     def test_conf_holds_its_five_keys(self):
         lines = (LIB / "agentik-tool.conf").read_text().splitlines()

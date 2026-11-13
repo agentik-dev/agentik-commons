@@ -1,0 +1,99 @@
+#!/bin/sh
+# agentik: the front door to the agentik tools (agentik-r1 section 3, packet ak2 R2).
+#
+#   agentik <word> [args...]   exec agentik-<word> from PATH, the args unchanged; else
+#                              agentik-suite <word> [args...] where the suite is on PATH
+#   agentik [help]             agentik-suite help where the suite is on PATH; else list
+#                              each agentik-* on PATH, first in PATH order winning
+#   agentik help <word>        agentik-<word> --help, else agentik-suite help <word>
+#   agentik --version          print this front door's version
+#
+# It reads and writes nothing and resolves no old name. Exit: the tool's or the
+# suite's code wherever it execs one, bare and help included; 0 for --version and
+# for the list (even when no tool is found); 2 for usage, a bad name included; 3,
+# one stderr line, when neither agentik-<word> nor agentik-suite is on PATH. POSIX sh.
+VERSION=0.2.0
+LOWER=abcdefghijklmnopqrstuvwxyz
+
+usage() {
+	echo "usage: agentik <tool> [args...] | agentik help [<tool>] | agentik --version" >&2
+	exit 2
+}
+
+# valid NAME: NAME matches ^[a-z][a-z0-9]*(-[a-z0-9]+)*$ (ASCII only, no newline).
+valid() {
+	case $1 in
+	'' | [!$LOWER]* | *[!${LOWER}0123456789-]* | *--* | *-) return 1 ;;
+	esac
+}
+
+# found NAME: the first agentik-NAME on PATH that is an executable file, in $hit.
+# An empty PATH entry, the trailing one included, is the current directory.
+found() {
+	hit=
+	oldifs=$IFS
+	IFS=: p=$PATH:
+	set -f
+	for dir in $p; do
+		[ -n "$dir" ] || dir=.
+		if [ -f "$dir/agentik-$1" ] && [ -x "$dir/agentik-$1" ]; then
+			hit=$dir/agentik-$1
+			break
+		fi
+	done
+	set +f
+	IFS=$oldifs
+	[ -n "$hit" ]
+}
+
+missing() {
+	echo "agentik: $1 is not installed here; agentik-commons/setup sets the suite up" >&2
+	exit 3
+}
+
+list() {
+	echo "usage: agentik <tool> [args...] | agentik help [<tool>] | agentik --version"
+	seen=' '
+	count=0
+	oldifs=$IFS
+	IFS=: p=$PATH:
+	set -f
+	for dir in $p; do
+		[ -n "$dir" ] || dir=.
+		set +f
+		for path in "$dir"/agentik-*; do
+			name=${path##*/agentik-}
+			valid "$name" || continue
+			[ -f "$path" ] && [ -x "$path" ] || continue
+			case $seen in *" $name "*) continue ;; esac
+			seen="$seen$name "
+			[ "$count" -gt 0 ] || echo "tools on PATH:"
+			count=$((count + 1))
+			printf '  %-12s %s\n' "$name" "$path"
+		done
+		set -f
+	done
+	set +f
+	IFS=$oldifs
+	[ "$count" -gt 0 ] || echo "no agentik-* tool on PATH"
+	exit 0
+}
+
+case $# in 0) found suite && exec agentik-suite help; list ;; esac
+case $1 in
+help | -h | --help)
+	[ $# -le 2 ] || usage
+	[ $# -eq 2 ] || { found suite && exec agentik-suite help; list; }
+	valid "$2" || usage
+	found "$2" && exec "agentik-$2" --help
+	found suite && exec agentik-suite help "$2"
+	missing "$2"
+	;;
+--version)
+	[ $# -eq 1 ] || usage
+	echo "agentik $VERSION" && exit 0 ;;
+esac
+valid "$1" || usage
+found "$1" || { found suite && exec agentik-suite "$@"; missing "$1"; }
+tool=$1 && shift
+exec "agentik-$tool" "$@"
