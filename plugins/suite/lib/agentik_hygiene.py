@@ -1,0 +1,868 @@
+#!/usr/bin/env python3
+"""hygiene: the public-hygiene scan (conventions section 6, overhaul-r1 section 5).
+
+Scans the working tree of a repo (`git ls-files -co --exclude-standard`: the
+tracked and untracked-not-ignored regular files and symlinks) for pattern groups
+and prints counts only, never a matched line: an uncommitted file is
+scanned before its commit, an ignored one never. Each file's path is a scanned
+line of that file, for every group; a symlink is its path and its target
+(`readlink`), never the target's content. A file over 4 MiB is streamed in 1 MiB
+chunks, cut at a line boundary (a longer line carried at most 64 KiB, then kept
+by a 4 KiB overlap), with the first chunk's codec, and counted as `oversize`
+(ADV11-3): every byte is scanned, memory stays bounded. A file starting with a UTF-16
+BOM, or whose first 8 KB have NULs on 90% or more of the odd or the even bytes
+(not both), is decoded as UTF-16 and scanned as text. Else a file whose first
+8 KB hold a NUL is binary: it is scanned for the in-file `home`, `secret` and
+`email` patterns only (ADV10-17), over its printable runs of 8 or more bytes (as
+`strings` would), one line per run; the private list's rows scan those runs too, and
+a row no run matches scans its whole content, decoded as UTF-8 with bad bytes
+replaced, one line per file (per chunk when streamed; packet h2). `.hygiene-allow` lists
+exceptions, one per line: `<path-glob>: <group>[,<group>]`, `#` comments; a
+glob's `*` stays inside one path segment; a `secret` exception outside
+`tests/fixtures/` is a usage error. Under `history/sittings/` (charters are
+records) the `sibling` group is not evaluated; the rest still scan there.
+`secret` is matched case-sensitively, the others ignore case. `secret` holds
+token shapes alone (keys by their vendor's prefix, a JWT, a key block's first
+line); a URL's userinfo, a `password=` assignment, a bearer or basic header and a
+key block's body are left to the issue reporter's own scrub, since in a tree's
+scan they would hit code.
+
+The `renamed` group (agentik-r1 section 6.1) finds the names the tools had before
+agentik-r1 as whole names, never inside a longer word or slug (a URL that runs on
+past a tool name is not an old id), in the live files only: outside `design/`,
+`bugs/` and `history/`, and not a `NICE_TO_HAVE.md` or a `CHANGELOG*` at any depth. Under `history/` the
+live files are those a start line reads: `history/sessions/PROMPT-*`,
+`history/sessions/BRIEF-*`, and the newest charter of each running chain. A
+charter is `history/sittings/<YYYY-MM-DD>-<n>[-<chain>].md`. A repo declares its
+running chains in `.hygiene-live` at its root, one chain per line (`#` comments
+and blank lines skipped, `-` for the unsuffixed chain); per declared chain the
+greatest (date, n) is the newest, n compared as an integer. No file, or no
+line, means no charter is live; a line holding a `/` or a space exits 2.
+Its verb pattern wants a lowercase verb; the rest ignore case.
+
+This file holds the generic groups only: patterns that name nobody. The terms
+private to one owner (a name, a host, a domain, a private repo) live outside the
+repo, in the private list: `$AGENTIK_HYGIENE_PRIVATE` when set and not empty,
+else `${XDG_CONFIG_HOME:-$HOME/.config}/agentik/hygiene-private.tsv`. It is UTF-8,
+one `group<TAB>regex` per line; `#` comments and blank lines are skipped. Its
+patterns are compiled case-insensitively and multiline (`^` and `$` meet a line's
+edges, inside a binary's content too) and scanned as the in-file ones; a row
+that opens with an unanchored `.*` (after an optional leading flags group such
+as `(?i)`), or ends with one, searches without it, never under DOTALL: a search
+tries every start and `.` may match nothing, so a line holds a match of the one
+exactly when it holds one of the other, and such a row costs a literal's time,
+never the square of a long line (packet h2-hygiene-binary); a group
+it names that this file lacks is a new group, one this file has gains the
+patterns. A regex from the list is never printed, not even in an error: a bad
+line is reported by its number. An absent list prints one stderr line and the
+scan runs on the generic groups; `--require-private` makes an absent or
+unreadable list, or one holding no term, exit 2 with one line naming it, nothing
+scanned (packet h2).
+
+`--json` gives each group `lines` and `files`, every hit with the allowlisted
+ones, and `outside_lines` and `outside_files`, the hits outside the allowlist
+only (a `renamed` count of 0 reads `outside_files`); then the outside rows in
+`files`, `hits_outside_allowlist` and `oversize`. The text table shows `lines`
+and `files`, then the outside rows.
+
+`--commits RANGE` scans a git revision range instead of the tree (packet h1), so a
+term a branch adds and a later commit removes is red before its merge. Each
+commit's added lines (`git log -p`, streamed, never held whole; a line over 1 MiB
+comes in pieces, each led by the last 4 KiB of the one before, counted once and in
+`oversize`) count on their path under the path rules above, and a new file's path
+is a line; a removed or context line never counts. A binary's new blob is scanned
+as the tree scan scans a binary. Each line of each message is scanned under every
+group but `sibling` and `renamed` (public tool names); a `Co-Authored-By:` or
+`Signed-off-by:` line in the trailer block (the last paragraph, never the subject's)
+skips the generic `email` pattern alone, an identity git publishes in the header
+anyway, while a private list's row scans it; its rows name `(commit message)` and
+no allowlist row covers them. `renamed` reads live files and is not scanned on
+history. The allowlist is the range tip's `.hygiene-allow` blob (none when the tip
+has none), never the working tree's, unless `--allow` names a file: one policy for
+every commit, so a row added and dropped inside the range blesses nothing; a range
+naming more than one tip exits 2. A merge's message is scanned, never its diff:
+what it brings is in the range or behind it. `commits` gives the number scanned,
+the 12-hex shas with a hit outside the allowlist and, when any, in
+`allowlist_changed` and one text line, those touching `.hygiene-allow`. Git runs
+with `--no-replace-objects`, and in both modes without `GIT_DIR`, `GIT_WORK_TREE`
+or `GIT_INDEX_FILE`. A range git cannot read, or a git that fails mid-stream,
+exits 2: a cut stream is never clean. An empty value, or one opening `-`, is a
+usage error.
+
+Usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private] [--commits RANGE]
+Exit codes report the task, not the content (the agentik guide): 0 when no hit
+lies outside the allowlist, 1 when one does (a check said no), 2 on usage, a bad
+line in the allowlist or the private list, git failing, a file it cannot read
+(one stderr line), any other error, or `--require-private` without a readable
+list holding a term; `--help` prints the usage and exits 0. Stdlib only; one
+file, its canonical copy in agentik-commons, vendored into each repo by
+`scripts/sync` and pinned in `scripts/vendored.sha256`.
+
+The patterns below are written so that this file does not match itself.
+"""
+import codecs
+import fnmatch
+import itertools
+import json
+import os
+import re
+import subprocess
+import sys
+
+GROUPS = (
+    ("home", (r"/Users/[a-z]+", r"~/cod[e]/")),
+    ("lan", (r"192\.168\.", r"\b10\.\d+\.\d+\.\d+",
+             r"\b172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+",
+             r"\b[a-z0-9-]+\.loca[l](?![\w.-])")),
+    ("sibling", (r"respea[k]", r"decision[s]",
+                 r"claude-code-sessio[n]", r"claude-code-agent[s]")),
+    ("secret", (r"sk-an[t]-[A-Za-z0-9_-]+", r"gh[p]_[A-Za-z0-9]{20,}",
+                r"github_pa[t]_[A-Za-z0-9_]{20,}", r"AGE-SECRET-KE[Y]-1[0-9A-Z]{20,}",
+                r"\bAKI[A][0-9A-Z]{16}\b", r"BEGI[N] [A-Z0-9 ]*PRIVATE KEY",
+                r"gh[ousr]_[A-Za-z0-9]{20,}",
+                r"ey[J][A-Za-z0-9_-]{10,}\.ey[J][A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}",
+                r"xox[baprs]-[A-Za-z0-9-]{20,}", r"\bs[k]-[A-Za-z0-9]{20,}",
+                r"\bs[k]-pro[j]-[A-Za-z0-9_-]{20,}", r"AIz[a][A-Za-z0-9_-]{35}",
+                r"np[m]_[A-Za-z0-9]{36}", r"glpa[t]-[A-Za-z0-9_-]{20,}",
+                r"\bh[f]_[A-Za-z0-9]{30,}")),
+    ("email", (r"\b[A-Za-z0-9._%+-]+[@][A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b",)),
+    ("renamed", (r"(?<![\w-])claude-cod[e]-(?:session|decision[s]|respea[k]|agents)(?![\w-])",
+                 r"agent-rela[y]", r"claude-sessio[n]",
+                 r"claude-(?:api-agent|local|fanout|costs|agents)\b",
+                 r"\blocalri[g]\b", r"\bagentrout[e]\b",
+                 r"(?-i:`(?:relay|decision[s]) [a-z])")),
+)
+CASE_SENSITIVE = ("secret",)
+COMPILED = [(name, re.compile("|".join(pats), 0 if name in CASE_SENSITIVE else re.IGNORECASE))
+            for name, pats in GROUPS]
+GROUP_NAMES = [name for name, _ in GROUPS]
+PRIVATE_ENV = "AGENTIK_HYGIENE_PRIVATE"
+PRIVATE_NAME = os.path.join("agentik", "hygiene-private.tsv")
+GROUP_NAME = re.compile(r"[A-Za-z0-9_-]+\Z")
+LEAD_FLAGS = re.compile(r"\(\?[aiLmsux]+\)")
+ALL = None  # a text line is scanned for every group
+BINARY_PROBE = 8192
+UTF16_NUL = 0.9
+READ_CAP = 4 * 1024 * 1024
+CHUNK = 1024 * 1024
+LINE_CARRY = 64 * 1024
+OVERLAP = 4 * 1024
+LAST_BREAK = re.compile(rb"[^\x20-\x7e\t][\x20-\x7e\t]*\Z")
+RECORDS = ("history/sittings/",)
+RECORDS_SKIP = ("sibling",)
+LIVE_ONLY = ("renamed",)
+NOT_LIVE_DIRS = ("design/", "bugs/", "history/")
+NOT_LIVE_NAMES = ("NICE_TO_HAVE.md", "CHANGELOG*")
+LIVE_BRIEFS = ("history/sessions/PROMPT-*", "history/sessions/BRIEF-*")
+LIVE_FILE = ".hygiene-live"
+UNSUFFIXED = "-"
+CHARTER = re.compile(r"history/sittings/(\d{4}-\d{2}-\d{2})-(\d+)(?:-([^/]+))?\.md\Z")
+BINARY_GROUPS = ("home", "secret", "email")  # their in-file patterns, over printable runs
+PRIVATE_ONLY = ("the private list's rows",)  # a binary's whole content: the rows no run hit
+GENERIC = {id(rx) for _, rx in COMPILED}
+PRINTABLE_RUN = re.compile(rb"[\x20-\x7e\t]{8,}")
+SECRET_ALLOW_ROOT = ["tests", "fixtures"]
+USAGE = ("usage: hygiene [--json] [--allow FILE] [--repo DIR] [--require-private]"
+         " [--commits RANGE]")
+MESSAGE = "(commit message)"
+MESSAGE_SKIP = ("sibling", "renamed")
+TRAILER = re.compile(r"(?:co-authored-by|signed-off-by):", re.IGNORECASE)
+SHORT = 12
+ALLOW_FILE = ".hygiene-allow"
+# Git reads these before `-C`: a caller's would point it at another repo, work tree or
+# index than `--repo`'s, so they leave its environment in both modes.
+GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
+# Every git call of the range scan sees the objects as written: a local replace ref or
+# graft would hide a commit the push still sends.
+GIT = ("git", "--no-replace-objects", "-C")
+START, END = b"\x00\x01", b"\x00\x02"
+# The flags no config moves: quoting, signatures, colour, external diffs, textconv,
+# renames, merges' diffs, the index width, prefixes, the root's diff, a relative
+# diff, a submodule's inner diff, the output encoding.
+LOG = ("-c", "core.quotePath=false", "-c", "log.showSignature=false", "log", "-p",
+       "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--diff-merges=off",
+       "--full-index", "--src-prefix=a/", "--dst-prefix=b/", "--root", "--no-relative",
+       "--submodule=short", "--encoding=UTF-8", "--format=%x00%x01%H%n%B%x00%x02")
+
+
+class UsageError(Exception):
+    pass
+
+
+class NoPrivateList(Exception):
+    pass
+
+
+class Help(Exception):
+    pass
+
+
+class Failure(Exception):
+    """A failed precondition (a file that cannot be read): one stderr line, exit 2."""
+
+
+def why(exc):
+    """A read error's reason, never the file's content."""
+    if isinstance(exc, UnicodeDecodeError):
+        return "not UTF-8"
+    return getattr(exc, "strerror", None) or type(exc).__name__
+
+
+def parse_args(argv):
+    opts = {"json": False, "allow": None, "repo": ".", "require_private": False,
+            "commits": None}
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--json":
+            opts["json"] = True
+        elif arg == "--require-private":
+            opts["require_private"] = True
+        elif arg in ("--allow", "--repo", "--commits"):
+            if i + 1 >= len(argv):
+                raise UsageError("%s needs a value" % arg)
+            if arg == "--commits" and (not argv[i + 1] or argv[i + 1].startswith("-")):
+                raise UsageError("--commits needs a revision range, not empty or opening -")
+            opts[arg[2:]] = argv[i + 1]
+            i += 1
+        elif arg in ("-h", "--help"):
+            raise Help()
+        else:
+            raise UsageError("unknown argument: %s" % arg)
+        i += 1
+    return opts
+
+
+def private_path():
+    """The private list's path: the env's, else the XDG config home's (shell `:-` rules)."""
+    path = os.environ.get(PRIVATE_ENV)
+    if path:
+        return path
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, PRIVATE_NAME)
+
+
+def unwild(regex, flags):
+    """A private row compiled for search: without an unanchored leading `.*` (after an
+    optional leading flags group) and an unanchored trailing `.*`, since `.*X` and `X.*`
+    match somewhere in a line exactly when X does. Not `.*?`, `.+`, `^.*`, `.*$`, an
+    escaped dot or a `.*` inside a group; never under DOTALL. A row whose stripped form
+    does not compile keeps its own."""
+    rx = re.compile(regex, flags)
+    if rx.flags & re.DOTALL:
+        return rx
+    lead = LEAD_FLAGS.match(regex)
+    head, body = (regex[:lead.end()], regex[lead.end():]) if lead else ("", regex)
+    if body.startswith(".*") and body[2:3] not in ("?", "+", "*", "{"):
+        body = body[2:]
+    if body.endswith(".*"):
+        dot = len(body) - 2
+        slashes = len(body[:dot]) - len(body[:dot].rstrip("\\"))
+        if slashes % 2 == 0:
+            body = body[:dot]
+    if head + body == regex:
+        return rx
+    try:
+        return re.compile(head + body, flags)
+    except re.error:
+        return rx
+
+
+def load_private(path, required):
+    """[(group, compiled)] from the private list, in its order; one stderr line and []
+    when it is absent (NoPrivateList when required or unreadable). Never prints a regex."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = fh.read()
+    except FileNotFoundError:
+        if required:
+            raise NoPrivateList("no private list at %s; nothing scanned (--require-private)"
+                                % path)
+        sys.stderr.write("hygiene: no private list at %s; generic groups only\n" % path)
+        return []
+    except (OSError, UnicodeDecodeError):
+        if required:
+            raise NoPrivateList("the private list at %s is unreadable; nothing scanned"
+                                " (--require-private)" % path)
+        sys.stderr.write("hygiene: the private list at %s is unreadable; generic groups only\n"
+                         % path)
+        return []
+    entries = []
+    for n, line in enumerate(raw.splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        group, sep, regex = line.partition("\t")
+        group = group.strip()
+        try:
+            if not sep or not GROUP_NAME.match(group) or not regex:
+                raise re.error("bad entry")
+            entries.append((group, unwild(regex, re.IGNORECASE | re.MULTILINE)))
+        except re.error:
+            raise UsageError("%s:%d: bad entry (group<TAB>regex)" % (path, n)) from None
+    if required and not entries:
+        raise NoPrivateList("the private list at %s holds no term; nothing scanned"
+                            " (--require-private)" % path)
+    return entries
+
+
+def git_env():
+    return {k: v for k, v in os.environ.items() if k not in GIT_ENV_DROP}
+
+
+def load_allow(path, required, known, strict):
+    """Return [(glob, {groups})]; a missing default file is an empty list. A group not in
+    `known` is a bad entry when `strict` (the private list loaded), else tolerated."""
+    if not os.path.exists(path):
+        if required:
+            raise UsageError("allow file not found: %s" % path)
+        return []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise Failure("cannot read the allow file %s: %s" % (path, why(exc))) from None
+    return parse_allow(text, path, known, strict)
+
+
+def git_out(repo, args, what):
+    """A git call's stdout under the range scan's flags; its failure is a Failure naming
+    `what` (git's stderr dropped)."""
+    try:
+        return subprocess.run(list(GIT) + [repo] + args, capture_output=True, check=True,
+                              env=git_env()).stdout
+    except OSError as exc:
+        raise Failure("%s in %s: %s" % (what, repo, why(exc))) from None
+    except subprocess.CalledProcessError as exc:
+        raise Failure("%s in %s: exit %d" % (what, repo, exc.returncode)) from None
+
+
+def load_allow_tip(repo, rng, known, strict):
+    """The range tip's `.hygiene-allow` blob, parsed as `load_allow` parses a file; no
+    such path at the tip is no row. A range naming more than one tip is a Failure: the
+    allowlist is one reviewed policy."""
+    out = git_out(repo, ["rev-parse", "--revs-only", "--end-of-options", rng, "--"],
+                  "git log of the range failed: its tip does not resolve")
+    tips = [t for t in out.decode("ascii", "replace").split() if not t.startswith(("^", "-"))]
+    if len(tips) != 1:
+        raise Failure("the range names %d tips; its allowlist is one tip's" % len(tips))
+    label = "%s:%s" % (tips[0][:SHORT], ALLOW_FILE)
+    entry = git_out(repo, ["ls-tree", "-z", "--full-tree", tips[0], "--", ALLOW_FILE],
+                    "git ls-tree of the range's tip failed").split(b"\0")[0]
+    if not entry:
+        return []
+    meta = entry.split(b"\t")[0].split()
+    if meta[:2] != [b"100644", b"blob"] and meta[:2] != [b"100755", b"blob"]:
+        raise Failure("cannot read the allow file %s: not a regular file" % label)
+    blob = git_out(repo, ["cat-file", "blob", meta[2].decode("ascii")],
+                   "git cat-file of the allow file failed")
+    try:
+        text = blob.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise Failure("cannot read the allow file %s: %s" % (label, why(exc))) from None
+    return parse_allow(text, label, known, strict)
+
+
+def parse_allow(text, path, known, strict):
+    entries = []
+    for n, raw in enumerate(text.split("\n"), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        glob, sep, groups = line.rpartition(":")
+        names = {g.strip() for g in groups.split(",") if g.strip()}
+        glob = glob.strip()
+        if not sep or not glob or not names or (strict and names - set(known)) or any(
+                not GROUP_NAME.match(g) for g in names):
+            raise UsageError("%s:%d: bad entry" % (path, n))
+        parts = glob.split("/")
+        if "secret" in names and (parts[:2] != SECRET_ALLOW_ROOT or len(parts) < 3):
+            raise UsageError("%s:%d: a secret exception lies only under tests/fixtures/"
+                             % (path, n))
+        entries.append((glob, names))
+    return entries
+
+
+def glob_match(path, glob):
+    parts, pats = path.split("/"), glob.split("/")
+    return len(parts) == len(pats) and all(
+        fnmatch.fnmatchcase(p, g) for p, g in zip(parts, pats))
+
+
+def allowed(path, group, entries):
+    return any(group in groups and glob_match(path, glob) for glob, groups in entries)
+
+
+def files(repo):
+    try:
+        out = subprocess.run(
+            ["git", "-C", repo, "ls-files", "-z", "--cached", "--others",
+             "--exclude-standard"], capture_output=True, check=True, env=git_env()).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise UsageError("git ls-files failed in %s: %s" % (repo, exc))
+    paths = {p for p in out.decode("utf-8", "surrogateescape").split("\0") if p}
+    return sorted(p for p in paths if os.path.islink(os.path.join(repo, p))
+                  or os.path.isfile(os.path.join(repo, p)))
+
+
+def utf16(data):
+    """The codec a UTF-16 file decodes with, or None: a BOM, or NULs on at
+    least 90% of the odd or the even bytes of the probe (not both: all NUL is
+    binary)."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return "utf-16"
+    probe = data[:BINARY_PROBE]
+    even, odd = probe[0::2], probe[1::2]
+    if len(odd) < 2:
+        return None
+    even_nul = even.count(0) >= UTF16_NUL * len(even)
+    odd_nul = odd.count(0) >= UTF16_NUL * len(odd)
+    if odd_nul != even_nul:
+        return "utf-16-le" if odd_nul else "utf-16-be"
+    return None
+
+
+def line_hits(line, names, rows, seen):
+    """The groups a scanned line hits, each once. A text line: every row. A binary's
+    printable run: the in-file rows of BINARY_GROUPS and every private row, a private row
+    that hits going into `seen`. A binary's whole content: the private rows not in `seen`,
+    which it then clears; so a private row counts on a buffer's runs or on its whole
+    content, never both, and one occurrence once in its group (packet h2, round 1)."""
+    hit = set()
+    run = names is not ALL and names is not PRIVATE_ONLY
+    for name, rx in rows:
+        private = id(rx) not in GENERIC
+        if names is PRIVATE_ONLY:
+            if not private or id(rx) in seen:
+                continue
+        elif run and not private and name not in names:
+            continue
+        if name in hit and not (run and private):
+            continue
+        if rx.search(line):
+            hit.add(name)
+            if run and private:
+                seen.add(id(rx))
+    if names is PRIVATE_ONLY:
+        seen.clear()
+    return hit
+
+
+def pieces(buf, binary):
+    """The scanned lines of a whole buffer: a text's lines, or a binary's printable runs
+    and then its whole content, for the private rows a run missed (`line_hits`)."""
+    if binary:
+        return [(m.group().decode("ascii"), BINARY_GROUPS) for m in PRINTABLE_RUN.finditer(buf)
+                ] + [(buf.decode("utf-8", "replace"), PRIVATE_ONLY)]
+    return [(line, ALL) for line in buf.splitlines()]
+
+
+def stream(full):
+    """An oversize file's lines, CHUNK at a time: each buffer is cut after its last line
+    break (a text's newline, a binary's non-printable byte), so no line or run is split;
+    a carry past LINE_CARRY is scanned and only its last OVERLAP kept."""
+    with open(full, "rb") as fh:
+        yield from stream_fh(fh)
+
+
+def stream_fh(fh):
+    """`stream` over an open binary file or pipe: the codec and the binary test are the
+    first chunk's."""
+    chunk = fh.read(CHUNK)
+    codec = utf16(chunk)
+    binary = not codec and b"\0" in chunk[:BINARY_PROBE]
+    decoder = None if binary else codecs.getincrementaldecoder(codec or "utf-8")("replace")
+    carry = b"" if binary else ""
+    while chunk:
+        buf = carry + (chunk if binary else decoder.decode(chunk))
+        if binary:
+            m = LAST_BREAK.search(buf)
+            cut = m.start() + 1 if m else 0
+        else:
+            cut = buf.rfind("\n") + 1
+        yield from pieces(buf[:cut], binary)
+        carry = buf[cut:]
+        if len(carry) > LINE_CARRY:
+            yield from pieces(carry, binary)
+            carry = carry[-OVERLAP:]
+        chunk = fh.read(CHUNK)
+    if not binary:
+        carry += decoder.decode(b"", final=True)
+    yield from pieces(carry, binary)
+
+
+def read_lines(path, full):
+    """([(line, groups)], oversize) for one entry: its path, then a symlink's
+    target, a text file's lines (UTF-16 decoded), or a binary's printable runs
+    (for BINARY_GROUPS' in-file patterns and the private rows) and its whole content
+    (for a private row no run hit); a file over READ_CAP is streamed."""
+    rows = [(path, ALL)]
+    if os.path.islink(full):
+        target = os.readlink(full)
+        return rows + [(target, ALL)], False
+    with open(full, "rb") as fh:
+        data = fh.read(READ_CAP + 1)
+    if len(data) > READ_CAP:
+        return itertools.chain(rows, stream(full)), True
+    codec = utf16(data)
+    if codec:
+        return rows + pieces(data.decode(codec, "replace"), False), False
+    if b"\0" in data[:BINARY_PROBE]:
+        return rows + pieces(data, True), False
+    return rows + pieces(data.decode("utf-8", "replace"), False), False
+
+
+def load_live(repo):
+    """The running chains `.hygiene-live` declares ("" for the unsuffixed one); an
+    absent file declares none."""
+    path = os.path.join(repo, LIVE_FILE)
+    if not os.path.lexists(path):
+        return set()
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise Failure("cannot read %s: %s" % (path, why(exc))) from None
+    chains = set()
+    for n, raw in enumerate(text.split("\n"), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if "/" in line or len(line.split()) > 1:
+            raise UsageError("%s:%d: bad entry (one chain per line)" % (path, n))
+        chains.add("" if line == UNSUFFIXED else line)
+    return chains
+
+
+def live_files(paths, chains):
+    """The live files of section 6.1: outside the record folders and files, plus the
+    briefs and the newest charter of each declared chain, its n compared as an integer."""
+    newest = {}
+    for path in paths:
+        m = CHARTER.match(path)
+        if m:
+            key, chain = (m.group(1), int(m.group(2))), m.group(3) or ""
+            if chain not in chains:
+                continue
+            if chain not in newest or key > newest[chain][0]:
+                newest[chain] = (key, path)
+    live = {path for _, path in newest.values()}
+    for path in paths:
+        if any(fnmatch.fnmatchcase(path.rsplit("/", 1)[-1], g) for g in NOT_LIVE_NAMES):
+            continue
+        if not path.startswith(NOT_LIVE_DIRS) or any(glob_match(path, g) for g in LIVE_BRIEFS):
+            live.add(path)
+    return live
+
+
+def scan(repo, entries, compiled):
+    """Counts per group over `compiled` ([(group, regex)], a group may hold several);
+    a line counts once per group it matches."""
+    order = list(dict.fromkeys(name for name, _ in compiled))
+    groups = {name: {"lines": 0, "files": 0, "outside_lines": 0, "outside_files": 0}
+              for name in order}
+    outside, oversize = [], 0
+    paths = files(repo)
+    live_set = live_files(paths, load_live(repo))
+    for path in paths:
+        counts = dict.fromkeys(order, 0)
+        live = [(name, rx) for name, rx in compiled
+                if not (name in RECORDS_SKIP and path.startswith(RECORDS))
+                and not (name in LIVE_ONLY and path not in live_set)]
+        try:
+            lines, big = read_lines(path, os.path.join(repo, path))
+            oversize += big
+            seen = set()
+            for line, names in lines:
+                for name in line_hits(line, names, live, seen):
+                    counts[name] += 1
+        except OSError as exc:
+            raise Failure("cannot read %s: %s" % (path, why(exc))) from None
+        for name in order:
+            if not counts[name]:
+                continue
+            groups[name]["lines"] += counts[name]
+            groups[name]["files"] += 1
+            if not allowed(path, name, entries):
+                outside.append({"path": path, "group": name, "lines": counts[name]})
+                groups[name]["outside_lines"] += counts[name]
+                groups[name]["outside_files"] += 1
+    return {"groups": groups,
+            "hits_outside_allowlist": sum(f["lines"] for f in outside),
+            "files": outside, "oversize": oversize}
+
+
+def unquote(path):
+    """A diff header's path: git C-quotes one holding a quote, a backslash or a control
+    byte (octal for the rest, `core.quotePath=false` keeps UTF-8 as it is)."""
+    if len(path) < 2 or path[0] != '"' or path[-1] != '"':
+        return path
+    raw, out, i = path[1:-1].encode("utf-8", "surrogateescape"), bytearray(), 0
+    simple = {ord(k): v for k, v in zip('abtnvfr"\\', b'\a\b\t\n\v\f\r"\\')}
+    while i < len(raw):
+        octal = raw[i + 1:i + 4]
+        if raw[i] == 0x5c and len(octal) == 3 and all(0x30 <= b <= 0x37 for b in octal):
+            out.append(int(octal, 8) & 0xff)
+            i += 4
+        elif raw[i] == 0x5c and i + 1 < len(raw) and raw[i + 1] in simple:
+            out.append(simple[raw[i + 1]])
+            i += 2
+        else:
+            out.append(raw[i])
+            i += 1
+    return out.decode("utf-8", "surrogateescape")
+
+
+def header_path(rest):
+    """P from `a/P b/P` (or both sides quoted), what follows `diff --git `: under
+    --no-renames both sides are the same path, so the line splits at its middle
+    whatever P holds."""
+    return unquote(rest[:(len(rest) - 1) // 2])[2:]
+
+
+def log_pieces(fh):
+    """The stream's lines as (bytes, more), newline dropped: a line over CHUNK comes in
+    pieces, each after the first led by the last OVERLAP bytes of the one before, so a
+    match across a cut is seen; `more` marks every piece of a line but its last."""
+    tail = b""
+    while True:
+        piece = fh.readline(CHUNK)
+        if not piece:
+            if tail:
+                yield b"", False  # a last line without its newline ends here
+            return
+        more = not piece.endswith(b"\n")
+        if not more:
+            piece = piece[:-1]
+        yield tail + piece, more
+        tail = piece[-OVERLAP:] if more else b""
+
+
+def scan_commits(repo, rng, entries, compiled):
+    """Counts per group over the range's added lines (on their path) and its messages'
+    lines (on MESSAGE), in the tree scan's shape plus `commits`: the number scanned and
+    the short shas with a hit outside the allowlist, and those touching the allowlist
+    when any do. A line counts once per group, however many pieces it came in. Git
+    failing, the log or a blob, is a Failure."""
+    compiled = [(name, rx) for name, rx in compiled if name not in LIVE_ONLY]
+    order = list(dict.fromkeys(name for name, _ in compiled))
+    message_rx = [(name, rx) for name, rx in compiled if name not in MESSAGE_SKIP]
+    # A trailer line skips the generic email pattern alone; a private row always scans.
+    generic_email = {id(rx) for name, rx in COMPILED if name == "email"}
+    trailer_rx = [(name, rx) for name, rx in message_rx if id(rx) not in generic_email]
+    rules, rows, hit, allow_changed = {}, {}, [], []
+    para, prev, paras = [], [], 0  # the message's open paragraph, the one a blank closed
+
+    def live(path):
+        if path not in rules:
+            rules[path] = [(name, rx) for name, rx in compiled
+                           if not (name in RECORDS_SKIP and path.startswith(RECORDS))]
+        return rules[path]
+
+    def outside(path, name):
+        return path == MESSAGE or not allowed(path, name, entries)
+
+    def count(sha, path, names):
+        for name in names:
+            rows[(path, name)] = rows.get((path, name), 0) + 1
+            if sha not in hit and outside(path, name):
+                hit.append(sha)
+
+    def matches(text, rxs, names=ALL, seen=None):
+        return line_hits(text, names, rxs, set() if seen is None else seen)
+
+    def msg_line(found, found_t, blank):
+        """A message line's match sets, held by paragraph: whether a line is in the
+        trailer block (the last paragraph, never the subject's) is known at the end."""
+        nonlocal para, prev, paras
+        if blank:
+            if para:
+                prev, para = para, []
+            return
+        if prev:
+            settle(prev, False)
+            prev = []
+        if not para:
+            paras += 1
+            para = [paras == 1]
+        para.append((found, found_t))
+
+    def settle(paragraph, last):
+        trailers = last and not paragraph[0]
+        for found, found_t in paragraph[1:]:
+            names = found_t if trailers and found_t is not None else found
+            if names:
+                count(sha, MESSAGE, names)
+
+    def end_message():
+        nonlocal para, prev, paras
+        if para or prev:
+            settle(para or prev, True)
+        para, prev, paras = [], [], 0
+
+    def blob(sha, path, oid):
+        child = subprocess.Popen(list(GIT) + [repo, "cat-file", "blob", oid],
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                 env=git_env())
+        seen = set()
+        try:
+            for line, names in stream_fh(child.stdout):
+                count(sha, path, matches(line, live(path), names, seen))
+        finally:
+            child.stdout.close()
+            code = child.wait()
+        if code != 0:
+            raise Failure("git cat-file of a blob failed in %s: exit %d" % (repo, code))
+
+    scanned, oversize, sha = 0, 0, None
+    mode, path, oid = None, None, None
+    cont, kind, where, rxs, found = False, None, None, None, set()
+    trailer, found_t, blank = False, set(), True
+    try:
+        proc = subprocess.Popen(list(GIT) + [repo] + list(LOG)
+                                + ["--end-of-options", rng, "--"],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                env=git_env())
+    except OSError as exc:
+        raise Failure("git log of the range failed in %s: %s" % (repo, why(exc))) from None
+    try:
+        for piece, more in log_pieces(proc.stdout):
+            if not cont:  # a line's first piece: what it is
+                kind, trailer = None, False
+                if piece.startswith(START):
+                    end_message()  # a message git never closed is settled as it stands
+                    sha, mode = piece[len(START):].decode("ascii", "replace")[:SHORT], "msg"
+                    scanned += 1
+                elif mode == "msg":
+                    first = piece.decode("utf-8", "replace")
+                    kind, where, rxs = "msg", MESSAGE, message_rx
+                    trailer = bool(TRAILER.match(first))
+                elif piece.startswith(b"diff --git "):
+                    mode, oid = "header", None
+                    path = header_path(piece[len(b"diff --git "):]
+                                       .decode("utf-8", "surrogateescape"))
+                    if path == ALLOW_FILE and sha not in allow_changed:
+                        allow_changed.append(sha)
+                elif mode == "header":
+                    if piece.startswith(b"new file mode "):
+                        count(sha, path, matches(path, live(path)))
+                    elif piece.startswith(b"index "):
+                        oid = piece.split()[1].split(b"..")[-1].decode("ascii", "replace")
+                    elif piece.startswith(b"Binary files ") and oid and oid.strip("0"):
+                        blob(sha, path, oid)
+                    elif piece.startswith(b"@@"):
+                        mode = "hunk"
+                elif mode == "hunk" and piece.startswith(b"+"):
+                    kind, where, rxs, piece = "add", path, live(path), piece[1:]
+            if kind in ("add", "msg"):
+                text = piece
+                if kind == "msg":
+                    end = piece.find(END)
+                    if end >= 0:  # the message ends; what follows on the line is git's
+                        text, mode, kind = piece[:end], "diff", "msg end"
+                line = text.decode("utf-8", "replace")
+                found |= matches(line, rxs)
+                if trailer:
+                    found_t |= matches(line, trailer_rx)
+                blank = blank and not line.strip()
+            if more:
+                oversize += not cont
+                cont = True
+                continue
+            if kind in ("msg", "msg end"):
+                msg_line(found, found_t if trailer else None, blank)
+                if kind == "msg end":
+                    end_message()
+            elif found:
+                count(sha, where, found)
+            cont, found, found_t, blank = False, set(), set(), True
+        end_message()
+    finally:
+        proc.stdout.close()
+        code = proc.wait()
+    if code != 0:
+        raise Failure("git log of the range failed in %s: exit %d" % (repo, code))
+    groups = {name: {"lines": 0, "files": 0, "outside_lines": 0, "outside_files": 0}
+              for name in order}
+    rows_outside = []
+    for (where, name), lines in sorted(rows.items(),
+                                       key=lambda kv: (kv[0][0], order.index(kv[0][1]))):
+        groups[name]["lines"] += lines
+        groups[name]["files"] += 1
+        if outside(where, name):
+            rows_outside.append({"path": where, "group": name, "lines": lines})
+            groups[name]["outside_lines"] += lines
+            groups[name]["outside_files"] += 1
+    return {"groups": groups,
+            "hits_outside_allowlist": sum(f["lines"] for f in rows_outside),
+            "files": rows_outside, "oversize": oversize,
+            "commits": dict({"scanned": scanned, "hit": hit},
+                            **({"allowlist_changed": allow_changed} if allow_changed else {}))}
+
+
+def render(result):
+    rows = ["%-8s %6s %6s" % ("group", "lines", "files")]
+    for name in result["groups"]:
+        g = result["groups"][name]
+        rows.append("%-8s %6d %6d" % (name, g["lines"], g["files"]))
+    if result["files"]:
+        rows.append("")
+        rows.append("outside the allowlist:")
+        for f in result["files"]:
+            rows.append("%s  %s  %d" % (f["path"], f["group"], f["lines"]))
+    if result["oversize"]:
+        rows.append("oversize (streamed): %d" % result["oversize"])
+    if "commits" in result:
+        c = result["commits"]
+        rows.append("commits: %d scanned, %d with a hit outside the allowlist%s"
+                    % (c["scanned"], len(c["hit"]), ": " + " ".join(c["hit"]) if c["hit"] else ""))
+        if c.get("allowlist_changed"):
+            rows.append("allowlist changed in the range: " + " ".join(c["allowlist_changed"]))
+    rows.append("hits outside allowlist: %d" % result["hits_outside_allowlist"])
+    return "\n".join(rows)
+
+
+def main(argv):
+    try:
+        opts = parse_args(argv[1:])
+        repo = opts["repo"]
+        allow = opts["allow"] or ALLOW_FILE
+        if not os.path.isabs(allow):
+            allow = os.path.join(repo, allow)
+        private = load_private(private_path(), opts["require_private"])
+        compiled = COMPILED + private
+        known = [name for name, _ in compiled]
+        if opts["commits"] is not None and opts["allow"] is None:
+            entries = load_allow_tip(repo, opts["commits"], known, bool(private))
+        else:
+            entries = load_allow(allow, opts["allow"] is not None, known, bool(private))
+        if opts["commits"] is not None:
+            result = scan_commits(repo, opts["commits"], entries, compiled)
+        else:
+            result = scan(repo, entries, compiled)
+    except Help:
+        print(USAGE)
+        return 0
+    except NoPrivateList as exc:
+        sys.stderr.write("hygiene: %s\n" % exc.args[0])
+        return 2
+    except UsageError as exc:
+        if exc.args and exc.args[0]:
+            sys.stderr.write("hygiene: %s\n" % exc.args[0])
+        sys.stderr.write(USAGE + "\n")
+        return 2
+    except Failure as exc:
+        sys.stderr.write("hygiene: %s\n" % exc.args[0])
+        return 2
+    except Exception as exc:  # never 1, which means a hit; the type only, never a value
+        sys.stderr.write("hygiene: unexpected %s, nothing scanned to the end\n"
+                         % type(exc).__name__)
+        return 2
+    if opts["json"]:
+        print(json.dumps(result, indent=1, sort_keys=True))
+    else:
+        print(render(result))
+    return 0 if result["hits_outside_allowlist"] == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
