@@ -85,6 +85,20 @@ class MatchAndDeclarationTest(StatusHome):
             self.listing(row)
             self.assertEqual(self.check(), (0, "", ""), row)
 
+    def test_a_run_flag_attached_or_in_a_cluster_reads_missing(self):
+        """Review 1's F1: `-c` or `-m` attached to its value or anywhere in a short cluster."""
+        for row in ("python3 -mfoo lampd watch", "python3 -cprint(1) lampd watch",
+                    "bash -ce lampd watch --every 60", "/bin/sh -lce lampd watch"):
+            self.listing(row)
+            self.assertEqual(self.check(), (1, LAMP + "\n", ""), row)
+        self.declare(beat=False)
+        for row in ("/usr/bin/python3 -I -X pycache_prefix=/c /opt/lib/lampd watch",
+                    "/usr/bin/python3 -W ignore::DeprecationWarning /opt/bin/lampd watch",
+                    "/usr/bin/python3 -Wignore -Xdev /opt/bin/lampd watch",
+                    "env A=1 python3 -B /opt/bin/lampd watch"):
+            self.listing(row)
+            self.assertEqual(self.check(), (0, "", ""), row)
+
     def test_a5_one_line_for_the_one_missing(self):
         self.declare(beat=False, more="  bulb:\n    match: bulbd run\n    start: bulbd run --loud\n")
         self.listing("/opt/bin/lampd watch")

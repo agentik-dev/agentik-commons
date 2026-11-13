@@ -22,8 +22,9 @@ WALL = 1.0
 BEAT_CAP = 1 << 16
 WRAPPERS = ("sh", "bash", "zsh", "dash", "env")
 VALUED = ("-X", "-W", "-o", "-u")
-RUNS = ("-c", "-m")
-CLUSTER = re.compile(r"-(?![XW])[A-Za-z]*[cm]\Z")  # `-lc`: a cluster that ends in -c or -m
+# A run on the way: `-c` or `-m`, attached to its value (`-mfoo`) or anywhere in a short
+# cluster (`-ce`, `-lc`); a `-X` or `-W` word is its value's, never a run.
+RUN = re.compile(r"-(?![XW-])[A-Za-z]*[cm]")
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 ISO = re.compile(r"(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d(?:\.\d+)?)?)(Z|[+-]\d\d:?\d\d)?\Z")
 LINE = {"missing": "status.missing", "hung": "status.hung"}
@@ -123,7 +124,7 @@ def head(words):
         i += 1
         while i < len(words):
             word = words[i]
-            if word in RUNS or CLUSTER.match(word):
+            if RUN.match(word):
                 return None
             if word in VALUED:
                 i += 2
