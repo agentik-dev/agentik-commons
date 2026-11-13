@@ -595,6 +595,28 @@ class PlanTruthTest(Home):
         code, out, err = self.run_cli("setup", "--dry-run", "alpha")
         self.assertNotIn(os.path.join(self.home, "inst"), out + err)
 
+    def test_m1_a_blocked_plan_promises_no_line_it_withholds(self):
+        """Review 2's F1: with step 1 blocked no run: line is printed, so the door's row names none."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik-suite", version())
+        nogit = "%s:/bin" % self.stubs
+        for gone, placed in (("git", True), ("claude", True), ("git", False)):
+            self.stub("claude", RECORDER % self.calls)
+            if gone == "claude":
+                os.remove(os.path.join(self.stubs, "claude"))
+            if not placed:
+                os.remove(os.path.join(self.bindir, "agentik-alpha"))
+            more = {"PATH": nogit} if gone == "git" else {}
+            steps = self.plan("alpha", **more)["steps"]
+            self.assertIn((1, gone, "blocked"), [(s["n"], s["subject"], s["state"]) for s in steps])
+            self.assertEqual([s for s in steps if s["command"] and s["id"] != "path"], [])
+            door = [s for s in steps if s["id"] == "door"][0]
+            self.assertIsNone(door["command"])
+            for promise in ("below", "step 4", "install-cli"):
+                self.assertNotIn(promise, door["detail"], (gone, placed, door["detail"]))
+            code, out, err = self.run_cli("setup", "--dry-run", "alpha", **more)
+            self.assertNotIn("run:", out)
+
     def test_r7_nothing_is_cut_on_a_terminal(self):
         commands = [s["command"] for s in self.plan()["steps"] if s["command"]]
         self.assertTrue(commands)

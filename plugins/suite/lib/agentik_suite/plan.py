@@ -177,9 +177,12 @@ def build(names, env, lib, tool, version):
     if not names:
         steps.append(_step(7, "doctor", "ok", tool, "setup.doctor.none"))
 
-    # with step 1 blocked no line can work yet, so no step names one to run
+    # with step 1 blocked no line can work yet, so no step names one to run, and the door's row,
+    # its message chosen after this pass, promises none
     if any(s["state"] == "blocked" for s in steps):
         for s in steps:
             if s["line"] == "run":
                 s["command"] = None
+            if s["id"] == "door" and s["state"] != "ok":
+                s["mid"] = "setup.door.blocked"
     return steps

@@ -67,6 +67,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.door.ok`: in place
 - `setup.door.missing`: not placed; the first install-cli run in step 4 places it
 - `setup.door.place`: not placed; the install-cli line below places it
+- `setup.door.blocked`: not placed; setup would place it once step 1 reads ok
 - `setup.path.ok`: on PATH
 - `setup.path.missing`: not on PATH
 - `setup.doctor.todo`: setup would check the plugin with its doctor
