@@ -132,10 +132,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `describe.summary`: The agentik suite's default set, and the command that manages it.
 - `setting.checkouts`: The repos the suite reads across, one path an item.
 - `setting.kind`: What this repo is to the suite; hq marks the top of a tree.
-- `setting.watcher.match`: What the watcher looks for.
-- `setting.watcher.start`: The command the watcher starts.
-- `setting.watcher.beat`: How often the watcher looks.
-- `setting.watcher.writer`: Who writes what the watcher reads.
+- `setting.watcher.match`: The program and the words after it that find the watcher's process.
+- `setting.watcher.start`: The line that starts the watcher.
+- `setting.watcher.beat`: The file the watcher writes while it runs.
+- `setting.watcher.writer`: The name a beat must carry to count as the watcher's own.
 
 ## Setup
 

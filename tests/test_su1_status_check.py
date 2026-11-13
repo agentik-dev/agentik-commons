@@ -164,5 +164,80 @@ class BeatTest(StatusHome):
         self.assertIsNone(status.when("2026-13-13T12:00:00Z"))
 
 
+class JsonListingAndRecordsTest(StatusHome):
+    """R4, R9 and R10: acceptance 7, 8 and 9's card."""
+
+    def obj(self, code, out, err):
+        self.assertEqual(len(out.splitlines()), 1)
+        return code, json.loads(out)
+
+    def test_a7_json(self):
+        self.beat(1793799937, line="looked at 3")
+        code, obj = self.obj(*self.check("--json"))
+        self.assertEqual(code, 1)
+        self.assertEqual(obj, {"schema": "agentik.status/1", "ok": True, "check": True, "watchers": [
+            {"name": "lamp", "state": "missing", "pid": None, "since": 1793799937,
+             "beat_writer": "watch", "beat_line": None, "start": "lampd watch --every 60"}]})
+        self.listing("/opt/bin/lampd watch")
+        self.beat(NOW_S - 600)
+        code, obj = self.obj(*self.check("--json"))
+        self.assertEqual((code, obj["watchers"][0]["state"], obj["watchers"][0]["pid"],
+                          obj["watchers"][0]["since"]), (1, "hung", 4242, NOW_S - 600))
+        self.beat(NOW_S - 100, line="looked at 3")
+        code, obj = self.obj(*self.check("--json"))
+        self.assertEqual((code, obj["watchers"][0]["state"], obj["watchers"][0]["beat_line"]),
+                         (0, "running", "looked at 3"))
+        self.beat(NOW_S - 100, writer="report", line="looked at 3")
+        code, obj = self.obj(*self.check("--json"))
+        self.assertEqual((code, obj["watchers"][0]["since"], obj["watchers"][0]["beat_line"],
+                          obj["watchers"][0]["beat_writer"]), (0, None, None, "report"))
+
+    def test_a8_the_real_listing(self):
+        sleeper = subprocess.Popen(["/bin/sleep", "37"])
+        self.addCleanup(sleeper.wait)
+        self.addCleanup(sleeper.kill)
+        self.declare(more="  nap:\n    match: sleep 37\n    start: sleep 37\n")
+        started = time.monotonic()
+        code, out, err = self.check("--json", ps=False)
+        self.assertLess(time.monotonic() - started, 2)
+        states = {w["name"]: w["state"] for w in json.loads(out)["watchers"]}
+        self.assertEqual((code, states), (1, {"lamp": "missing", "nap": "running"}))
+
+    def test_a8_a_listing_past_the_wall(self):
+        pid_file = os.path.join(self.side, "ps.pid")
+        stand_in = self.stub("ps", '#!/bin/sh\necho $$ > "%s"\nexec sleep 10\n' % pid_file)
+        before = status.PS
+        status.PS = stand_in
+        self.addCleanup(setattr, status, "PS", before)
+        out, err = io.StringIO(), io.StringIO()
+        started = time.monotonic()
+        code = cli.main(["status", "--check", "--now", NOW], env=self.env(), out=out, err=err)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertEqual((code, out.getvalue(), err.getvalue()),
+                         (1, "lamp: not checked: ps gave no listing\n", ""))
+        with open(pid_file) as fh:
+            pid = int(fh.read())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
+    def test_a9_the_four_summaries(self):
+        for key, words in (("match", "The program and the words after it that find the watcher's process."),
+                           ("start", "The line that starts the watcher."),
+                           ("beat", "The file the watcher writes while it runs."),
+                           ("writer", "The name a beat must carry to count as the watcher's own.")):
+            code, out, err = self.cfg("config", "suite.watchers.lamp.%s" % key)
+            self.assertEqual(code, 0, key)
+            self.assertIn(words, out, key)
+
+    def test_each_status_message_is_in_the_catalogue(self):
+        messages = catalogue.load(str(CATALOGUE))
+        code = (PACKAGE / "status.py").read_text()
+        used = set(re.findall(r'"((?:status|hint|err)\.[a-z_.]+)"', code))
+        used |= {m + ".since" for m in status.LINE.values()} | set(status.LINE.values())
+        for mid in used:
+            self.assertIn(mid, messages)
+        self.assertEqual(LAUNCHER.name, "agentik-suite")
+
+
 if __name__ == "__main__":
     unittest.main()
