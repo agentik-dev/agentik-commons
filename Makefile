@@ -1,6 +1,7 @@
 # agentik-commons: the tools' shared ground. It builds no tool, so it has no
-# install target; it holds one manifest-only plugin, `suite`, in plugins/suite
-# (hq design/04 sections 5 and 11). `make help` lists the
+# install target; it holds one plugin, `suite`, in plugins/suite: the suite's
+# default set and the agentik-suite command that manages it (hq design/04
+# sections 5 and 11). `make help` lists the
 # targets. No marketplace entry holds a `version`: each plugin.json is the one
 # pin, so nothing compares them.
 

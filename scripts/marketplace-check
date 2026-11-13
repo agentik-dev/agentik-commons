@@ -5,9 +5,9 @@ Usage: marketplace-check [--local] [FILE]
 
 FILE defaults to `.claude-plugin/marketplace.json`. The file is a JSON object
 named `agentik`, with `owner.name`, and six plugins, each named once: the five
-tools, session, decisions, respeak, relay and agents, and `suite`, the
-manifest-only plugin in this repo whose dependencies install three of them (hq
-design/04 section 5). Each tool's `source` is `{"source": "git-subdir", "url":
+tools, session, decisions, respeak, relay and agents, and `suite`, the plugin
+in this repo: the default set, whose dependencies install three of them (hq
+design/04 section 5), and the command that manages it. Each tool's `source` is `{"source": "git-subdir", "url":
 ..., "path": "plugin"}`, its url `https://github.com/agentik-dev/agentik-<name>.git`;
 suite's is commons' own url, `https://github.com/agentik-dev/agentik-commons.git`,
 with `path` `plugins/suite`. Every `version` is plugin.json's: an entry holding one
