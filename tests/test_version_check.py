@@ -411,5 +411,118 @@ class BranchReadTest(unittest.TestCase):
                          (1, "refs/remotes/origin/main", main))
 
 
+class CrissCrossTest(unittest.TestCase):
+    """Review 1 of packet c7: in a criss-cross HEAD has two merge bases with main, and
+    `git merge-base` prints the one with the newer commit date. Every base is read, and
+    the check is red when any fails, so the result never turns on commit dates."""
+    setUp, tearDown = VersionCheckTest.setUp, VersionCheckTest.tearDown
+    write, manifest = VersionCheckTest.write, VersionCheckTest.manifest
+    commit, json = VersionCheckTest.commit, VersionCheckTest.json
+    date = "1700000000 +0000"
+
+    def at(self, t):
+        self.date = "%d +0000" % (1700000000 + t)
+
+    def git(self, *args):
+        p = subprocess.run(["git", "-C", self.repo, *args], capture_output=True, text=True,
+                           env=dict(ENV, GIT_AUTHOR_DATE=self.date,
+                                    GIT_COMMITTER_DATE=self.date), check=True)
+        return p.stdout.strip()
+
+    def criss(self, b_time, m_time, unbumped=False):
+        """main at 1.0.0; `br`'s B1 adds plugin/b.md (with `unbumped`, a later commit adds
+        plugin/c.md), never bumping; main's M1 adds plugin/m.md and bumps to 1.1.0, merges
+        B1, bumps to 1.2.0; `br` merges M1. The merge bases are B1 and M1, dated b_time and
+        m_time. (B1, M1)"""
+        self.at(0)
+        self.manifest("1.0.0")
+        self.write("plugin/a.md", "a\n")
+        self.commit()
+        self.git("checkout", "-q", "-b", "br")
+        self.at(b_time)
+        self.write("plugin/b.md", "b\n")
+        b1 = self.commit()
+        if unbumped:
+            self.at(b_time + 1)
+            self.write("plugin/c.md", "c\n")
+            self.commit()
+        self.git("checkout", "-q", "main")
+        self.at(m_time)
+        self.write("plugin/m.md", "m\n")
+        self.manifest("1.1.0")
+        m1 = self.commit()
+        self.at(30)
+        self.git("merge", "-q", "--no-edit", b1)
+        self.at(40)
+        self.manifest("1.2.0")
+        self.commit()
+        self.git("checkout", "-q", "br")
+        self.at(50)
+        self.git("merge", "-q", "--no-edit", m1)
+        self.assertEqual(sorted(self.git("merge-base", "--all", "HEAD", "main").split()),
+                         sorted([b1, m1]))
+        # the date order decides which base git prints first: both orders are run
+        self.assertEqual(self.git("merge-base", "HEAD", "main"), b1 if b_time > m_time else m1)
+        return b1, m1
+
+    def test_f2_an_unbumped_path_fails_against_the_base_it_is_not_above(self):
+        for b_time, m_time in ((20, 10), (10, 20)):
+            with self.subTest(b_time=b_time, m_time=m_time):
+                self.tearDown(), self.setUp()  # a fresh repo per date order
+                b1, m1 = self.criss(b_time, m_time, unbumped=True)
+                self.assertEqual(check(self.repo), (1, "", (
+                    branch_line("plugin/b.md", m1, "1.1.0", "1.1.0")
+                    + branch_line("plugin/c.md", m1, "1.1.0", "1.1.0"))))
+
+    def test_f1_a_criss_cross_without_a_bump_is_red_in_both_date_orders(self):
+        for b_time, m_time in ((10, 20), (20, 10)):
+            with self.subTest(b_time=b_time, m_time=m_time):
+                self.tearDown(), self.setUp()  # a fresh repo per date order
+                b1, m1 = self.criss(b_time, m_time)
+                self.assertEqual(check(self.repo), (
+                    1, "", branch_line("plugin/b.md", m1, "1.1.0", "1.1.0")))
+
+    def test_a_bump_above_both_bases_passes_naming_the_higher(self):
+        for b_time, m_time in ((10, 20), (20, 10)):
+            with self.subTest(b_time=b_time, m_time=m_time):
+                self.tearDown(), self.setUp()  # a fresh repo per date order
+                b1, m1 = self.criss(b_time, m_time)
+                self.manifest("1.3.0")
+                code, out, err = check(self.repo)
+                self.assertEqual((code, err), (0, ""))
+                self.assertTrue(out.endswith(ABOVE % "1.1.0"), out)
+                self.at(60)
+                bump = self.commit()
+                self.assertEqual(check(self.repo),
+                                 (0, pin_line("1.3.0", bump)[:-1] + ABOVE % "1.1.0", ""))
+                at_m1 = {"ref": "refs/heads/main", "merge_base": m1, "version": "1.1.0",
+                         "changed": ["plugin/b.md"]}
+                at_b1 = {"ref": "refs/heads/main", "merge_base": b1, "version": "1.0.0",
+                         "changed": ["plugin/m.md"]}
+                self.assertEqual(self.json(), (0, {
+                    "version": "1.3.0", "since": bump, "changed": [], "base": at_m1,
+                    "bases": sorted([at_m1, at_b1], key=lambda b: b["merge_base"])}, ""))
+
+
+class ReadOnlyTest(unittest.TestCase):
+    """Review 1's L2: the check never rewrites `.git/index`, a bump in flight included."""
+    setUp, tearDown = VersionCheckTest.setUp, VersionCheckTest.tearDown
+    git, write, manifest = VersionCheckTest.git, VersionCheckTest.write, VersionCheckTest.manifest
+    commit, json = VersionCheckTest.commit, VersionCheckTest.json
+    fault = BranchReadTest.fault
+
+    def test_the_index_is_never_rewritten(self):
+        self.fault()
+        self.manifest(A3)
+        old = 1600000000
+        os.utime(os.path.join(self.repo, "plugin", "a.md"), (old, old))  # stat-dirty in the index
+        index = Path(self.repo, ".git", "index")
+        before = index.read_bytes()
+        self.assertEqual(check(self.repo)[0], 0)
+        self.assertEqual(index.read_bytes(), before)
+        # one merge base: no `bases` key
+        self.assertNotIn("bases", self.json()[1])
+
+
 if __name__ == "__main__":
     unittest.main()
