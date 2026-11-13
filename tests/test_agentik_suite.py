@@ -1,0 +1,723 @@
+"""The suite's own command (packet ak1a): its layout and copies, the one writer, the catalogue,
+the verbs and the setup plan. Each run is the plugin's launcher in a temp HOME, with an env of
+exactly HOME, PATH (/usr/bin:/bin and a folder of stubs) and XDG_CACHE_HOME; fixtures use
+made-up plugin names. Nothing here writes outside its temp folder."""
+import ast
+import fcntl
+import hashlib
+import json
+import os
+import pty
+import re
+import select
+import shlex
+import shutil
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugins" / "suite"
+LAUNCHER = PLUGIN / "bin" / "agentik-suite"
+LIB = PLUGIN / "lib"
+PACKAGE = LIB / "agentik_suite"
+CATALOGUE = PACKAGE / "messages.md"
+MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
+SYSTEM = "/usr/bin:/bin"
+RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
+ESC = "\x1b"
+STDLIB = {"ast", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install"}
+
+sys.path.insert(0, str(LIB))
+from agentik_suite import catalogue, term  # noqa: E402
+
+
+def version():
+    return json.loads(MANIFEST.read_text())["version"]
+
+
+def package_files():
+    return sorted(p for p in PACKAGE.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+
+
+def writes_outside_term(source):
+    """Each line of the source that prints or writes a stream itself: a print call, sys.stdout or
+    sys.stderr named, a .write call, or os.write."""
+    hits = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name) and f.id == "print":
+                hits.append(node.lineno)
+            elif isinstance(f, ast.Attribute) and f.attr in ("write", "writelines"):
+                hits.append(node.lineno)
+        elif isinstance(node, ast.Attribute) and node.attr in (
+                "stdout", "stderr", "__stdout__", "__stderr__"):
+            hits.append(node.lineno)
+    return hits
+
+
+class Home(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.home = os.path.realpath(tmp.name)
+        self.stubs = os.path.join(self.home, "stubs")
+        self.cache = os.path.join(self.home, "cache")
+        os.mkdir(self.stubs)
+        self.calls = os.path.join(self.home, "calls")
+        self.stub("claude", RECORDER % self.calls)
+
+    def stub(self, name, body="#!/bin/sh\nexit 0\n"):
+        path = os.path.join(self.stubs, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(body)
+        os.chmod(path, 0o755)
+        return path
+
+    def env(self, **more):
+        env = {"HOME": self.home, "PATH": "%s:%s" % (self.stubs, SYSTEM),
+               "XDG_CACHE_HOME": self.cache}
+        env.update(more)
+        return env
+
+    def run_cli(self, *args, **more):
+        p = subprocess.run([str(LAUNCHER), *args], capture_output=True, text=True,
+                           env=self.env(**more), timeout=60)
+        return p.returncode, p.stdout, p.stderr
+
+    def run_pty(self, *args, cols=200, **more):
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
+        p = subprocess.Popen([str(LAUNCHER), *args], stdin=slave, stdout=slave, stderr=slave,
+                             env=self.env(**more), close_fds=True)
+        os.close(slave)
+        chunks = []
+        try:
+            while True:
+                ready, _, _ = select.select([master], [], [], 30)
+                if not ready:
+                    break
+                try:
+                    data = os.read(master, 65536)
+                except OSError:
+                    break
+                if not data:
+                    break
+                chunks.append(data)
+        finally:
+            os.close(master)
+        return p.wait(timeout=30), b"".join(chunks).decode("utf-8", "replace")
+
+    def snapshot(self):
+        """Every file and link under HOME with its hash, less the launcher's bytecode cache."""
+        skip = os.path.join(self.cache, "agentik")
+        seen = {}
+        for top, dirs, files in os.walk(self.home):
+            if top == skip or top.startswith(skip + os.sep):
+                continue
+            for name in dirs + files:
+                path = os.path.join(top, name)
+                if skip.startswith(path + os.sep) or path == skip:
+                    continue  # the cache folder and the folders that hold it
+                if os.path.isfile(path) and not os.path.islink(path):
+                    with open(path, "rb") as fh:
+                        seen[path] = hashlib.sha256(fh.read()).hexdigest()
+                else:
+                    seen[path] = "dir" if os.path.isdir(path) else "link"
+        return seen
+
+    def plugin_files(self, config, plugins, whole=True):
+        """Claude Code's two files; whole, each installPath holds its plugin's launcher."""
+        for name, ver in plugins.items():
+            if whole:
+                self.stub("../inst/%s/%s/bin/agentik-%s" % (name, ver, name))
+        os.makedirs(os.path.join(config, "plugins"), exist_ok=True)
+        with open(os.path.join(config, "plugins", "known_marketplaces.json"), "w") as fh:
+            json.dump({"agentik": {"source": {"source": "github", "repo": "example/market"}}}, fh)
+        with open(os.path.join(config, "plugins", "installed_plugins.json"), "w") as fh:
+            json.dump({"version": 2, "plugins": {
+                "%s@agentik" % name: [{"scope": "user", "version": ver,
+                                       "installPath": os.path.join(self.home, "inst", name, ver)}]
+                for name, ver in plugins.items()}}, fh)
+
+    def plan(self, *names, **more):
+        code, out, err = self.run_cli("setup", "--dry-run", "--json", *names, **more)
+        self.assertEqual(code, 0, err)
+        return json.loads(out)
+
+
+class LayoutTest(unittest.TestCase):
+    """R1 and R2: the copies, the conf, the runner, the floor and no tool's name."""
+
+    def test_copies_are_byte_equal(self):
+        self.assertEqual(LAUNCHER.read_bytes(), (ROOT / "scripts" / "plugin-launcher").read_bytes())
+        self.assertEqual((LIB / "agentik_install.py").read_bytes(),
+                         (ROOT / "scripts" / "agentik_install.py").read_bytes())
+        self.assertTrue(os.access(LAUNCHER, os.X_OK))
+        self.assertFalse((PLUGIN / "bin" / "agentik").exists())  # the door is not copied in
+
+    def test_conf_holds_its_five_keys(self):
+        lines = (LIB / "agentik-tool.conf").read_text().splitlines()
+        self.assertEqual([line.split("=", 1)[0] for line in lines],
+                         ["tool_name", "remedy", "runner", "old_name", "old_state"])
+        conf = dict(line.split("=", 1) for line in lines)
+        self.assertEqual((conf["tool_name"], conf["runner"]), ("agentik-suite", "agentik-suite"))
+
+    def test_runner_is_four_lines_on_the_floor(self):
+        text = (LIB / "agentik-suite").read_text()
+        self.assertEqual(len(text.splitlines()), 4)
+        self.assertTrue(text.startswith("#!/usr/bin/python3\n"))
+
+    def test_stdlib_only_at_3_9(self):
+        for path in package_files() + [LIB / "agentik-suite"]:
+            if path.suffix not in (".py", "") or path.name == "messages.md":
+                continue
+            tree = ast.parse(path.read_text(), feature_version=(3, 9))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    mods = [a.name.split(".")[0] for a in node.names]
+                elif isinstance(node, ast.ImportFrom) and not node.level:
+                    mods = [node.module.split(".")[0]]
+                else:
+                    continue
+                for mod in mods:
+                    self.assertIn(mod, STDLIB | {"agentik_suite"}, "%s: %s" % (path.name, mod))
+
+    def test_no_tool_name_in_the_package_or_these_tests(self):
+        market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
+        tools = [p["name"] for p in market["plugins"] if p["name"] != "suite"]
+        self.assertTrue(tools)
+        pattern = re.compile(r"\b(?:%s)\b" % "|".join(map(re.escape, tools)), re.I)
+        for path in package_files() + [LIB / "agentik-suite", Path(__file__)]:
+            hit = pattern.search(path.read_text())
+            self.assertIsNone(hit, "%s names %s" % (path.name, hit and hit.group(0)))
+
+
+class WriterTest(unittest.TestCase):
+    """R3: term is the one writer; R4: the catalogue."""
+
+    def test_nothing_but_term_writes(self):
+        for path in package_files():
+            if path.suffix == ".py" and path.name != "term.py":
+                self.assertEqual(writes_outside_term(path.read_text()), [], path.name)
+
+    def test_the_check_catches_a_print(self):
+        source = (PACKAGE / "cli.py").read_text()
+        self.assertTrue(writes_outside_term(source + "\nprint('x')\n"))
+        self.assertTrue(writes_outside_term("import sys\nsys.stderr.write('x')\n"))
+
+    def test_catalogue_loader(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "m.md")
+            with open(path, "w") as fh:
+                fh.write("# T\n\nprose\n- `a.b`: `{x}` at `{x}/y` and `z`\n- `c`: plain\n")
+            got = catalogue.load(path)
+        self.assertEqual(got, {"a.b": "{x} at `{x}/y` and `z`", "c": "plain"})
+        self.assertEqual(catalogue.fill(got["a.b"], {"x": "q"}), "q at `q/y` and `z`")
+
+    def test_catalogue_voice_rules(self):
+        self.voice_rules(CATALOGUE)
+
+    def test_r8_an_item_the_loader_cannot_read_is_red(self):
+        text = CATALOGUE.read_text()
+        for bad in (text.replace("- `flag.yes`:", "- `flag.Yes`:"),
+                    text.replace("- `flag.yes`:", "- `flag.yes`")):
+            with tempfile.TemporaryDirectory() as tmp:
+                copy = Path(tmp) / "messages.md"
+                copy.write_text(bad)
+                with self.assertRaises((ValueError, AssertionError)):
+                    self.voice_rules(copy)
+
+    def voice_rules(self, path):
+        messages = catalogue.load(str(path))
+        for mid, text in messages.items():
+            self.assertNotRegex(text, r"(?i)\b(successfully|please|oops)\b|!", mid)
+        code = "\n".join(p.read_text() for p in package_files() if p.suffix == ".py")
+        used = set(re.findall(r'"((?:help|hint|verb|usage|flag|version|err|setup)\.[a-z_.]+)"', code))
+        dynamic = {"verb.", "usage.", "flag.", "setup."}
+        for mid in used - dynamic:
+            self.assertIn(mid, messages)
+
+    def stream(self, tty, encoding="utf-8"):
+        import io
+
+        class Fake(io.StringIO):
+            def isatty(self):
+                return tty
+
+            @property
+            def encoding(self):
+                return encoding
+        return Fake()
+
+    def test_off_a_terminal_words_and_no_escape(self):
+        out, err = self.stream(False), self.stream(False)
+        t = term.Term(env={}, out=out, err=err)
+        t.table([("ok", ["a", term.name("b"), "x" * 300], None), ("note", ["c", "d", "e"], "run: z")])
+        t.hint("version.line", tool="t", version="1")
+        text = out.getvalue() + err.getvalue()
+        self.assertNotIn(ESC, text)
+        self.assertIn("  ok    a  b  " + "x" * 300 + "\n", text)
+        self.assertIn("  note  c  d  e\n", text)
+        self.assertIn("\n" + " " * 14 + "run: z\n", text)
+        self.assertEqual(err.getvalue(), "note  t 1\n")
+
+    def test_on_a_terminal_glyphs_colour_and_the_switches(self):
+        for env, flag, colour in (({}, False, True), ({"NO_COLOR": "1"}, False, False),
+                                  ({"TERM": "dumb"}, False, False), ({}, True, False)):
+            out = self.stream(True)
+            term.Term(env=env, no_color=flag, out=out, err=self.stream(True)).table(
+                [("ok", ["a"], None), ("fail", ["b"], None)])
+            self.assertIn("✓", out.getvalue())
+            self.assertIn("✗", out.getvalue())
+            self.assertEqual(ESC in out.getvalue(), colour, env)
+
+
+class VerbTest(Home):
+    """R6 to R8, acceptance 1 to 6."""
+
+    def test_a1_version(self):
+        self.assertEqual(self.run_cli("--version"), (0, "agentik-suite %s\n" % version(), ""))
+        self.assertEqual(self.run_cli("version")[:2], (0, "agentik-suite %s\n" % version()))
+
+    def test_a2_setup_plans_seven_steps_and_writes_nothing(self):
+        before = self.snapshot()
+        code, out, err = self.run_cli("setup", "--dry-run")
+        self.assertEqual(code, 0, err)
+        steps = [line.split()[0] for line in out.splitlines()[1:] if re.match(r"  \d", line)]
+        self.assertEqual(steps, [str(n) for n in range(1, 8)])
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(os.path.exists(self.calls))
+        self.assertEqual(sorted({s["n"] for s in self.plan()["steps"]}), list(range(1, 8)))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a3_steps_two_to_four_read_the_plugin_files(self):
+        config = os.path.join(self.home, ".claude")
+        absent = self.plan("alpha", "beta")
+        for s in absent["steps"]:
+            if s["n"] in (2, 3, 4):
+                self.assertEqual(s["state"], "todo", s)
+        self.assertEqual([s["detail"] for s in absent["steps"] if s["n"] == 3],
+                         ["not installed; setup would install it"] * 2)
+        self.plugin_files(config, {"alpha": "1.2.0"})
+        os.makedirs(os.path.join(self.home, ".local", "bin"))
+        with open(os.path.join(self.home, ".local", "bin", "agentik-alpha"), "w") as fh:
+            fh.write("#!/bin/sh\nVERSION=1.2.0\n")
+        got = {(s["n"], s["subject"]): s for s in self.plan("alpha", "beta")["steps"]}
+        self.assertEqual(got[(2, "agentik")]["state"], "ok")
+        self.assertEqual(got[(3, "alpha@agentik")]["state"], "ok")
+        self.assertEqual(got[(3, "beta@agentik")]["command"], "claude plugin install beta@agentik")
+        self.assertEqual(got[(4, "~/.local/bin/agentik-alpha")]["state"], "ok")
+        self.assertEqual(got[(4, "~/.local/bin/agentik-beta")]["state"], "todo")
+        # a launcher behind its plugin names the plugin's own install-cli
+        self.plugin_files(config, {"alpha": "1.3.0"})
+        s = {(s["n"], s["subject"]): s for s in self.plan("alpha")["steps"]}[
+            (4, "~/.local/bin/agentik-alpha")]
+        self.assertEqual(s["command"], "%s install-cli" % os.path.join(
+            self.home, "inst", "alpha", "1.3.0", "bin", "agentik-alpha"))
+        # CLAUDE_CONFIG_DIR moves both files
+        other = os.path.join(self.home, "other")
+        self.plugin_files(other, {"gamma": "0.1.0"})
+        moved = self.plan("gamma", CLAUDE_CONFIG_DIR=other)["steps"]
+        self.assertEqual([s["state"] for s in moved if s["n"] == 3], ["ok"])
+
+    def test_a3_default_set_is_the_manifests_dependencies(self):
+        deps = json.loads(MANIFEST.read_text())["dependencies"]
+        self.assertEqual(self.plan()["plugins"], deps)
+
+    def test_a4_piped_words_no_escape(self):
+        self.stub("agentik-zeta")
+        for args in (("help",), ("setup", "--dry-run")):
+            code, out, err = self.run_cli(*args)
+            self.assertEqual(code, 0)
+            text = out + err
+            self.assertNotIn(ESC, text, args)
+            self.assertRegex(text, r"(?m)^ *(\d  )?ok  ", args)
+            self.assertRegex(text, r"(?m)^ *(\d  )?note  ", args)
+        # the help lists the stub by name and path, first in PATH order winning
+        self.assertIn("agentik-zeta  %s" % os.path.join(self.stubs, "agentik-zeta"),
+                      self.run_cli("help")[1])
+
+    def test_a4_on_a_pty_colour_and_glyph(self):
+        code, text = self.run_pty("setup", "--dry-run")
+        self.assertEqual(code, 0, text)
+        self.assertIn(ESC + "[", text)
+        self.assertIn("✓", text)
+        code, text = self.run_pty("setup", "--dry-run", NO_COLOR="1")
+        self.assertNotIn(ESC + "[", text)
+        self.assertIn("✓", text)
+        code, text = self.run_pty("setup", "--dry-run", "--no-color", cols=40)
+        self.assertNotIn("…", text)  # fix round 1, R7: nothing is cut
+
+    def test_a5_json_is_one_object(self):
+        for args in (("setup", "--dry-run", "--json"), ("version", "--json"), ("--json",)):
+            code, out, err = self.run_cli(*args)
+            self.assertEqual((code, err), (0, ""), args)
+            self.assertEqual(len(out.splitlines()), 1, args)
+            obj = json.loads(out)
+            self.assertTrue(obj["ok"])
+            self.assertRegex(obj["schema"], r"^agentik\.[a-z]+/\d+$")
+        code, out, err = self.run_cli("stup", "--json")
+        obj = json.loads(out)
+        self.assertEqual((code, obj["ok"], obj["error"]["code"]), (2, False, "unknown_verb"))
+        self.assertEqual(set(obj["error"]), {"code", "message", "remedy"})
+
+    def test_a6_usage_exits_two(self):
+        code, out, err = self.run_cli("stup")
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("setup", err)
+        before = self.snapshot()
+        for args in (("setup",), ("setup", "-y"), ("setup", "--yes", "alpha")):
+            code, out, err = self.run_cli(*args)
+            self.assertEqual((code, out), (2, ""), args)
+            self.assertEqual(len(err.splitlines()), 1)
+            self.assertIn("setup --dry-run", err)
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(os.path.exists(self.calls))
+        for args in (("--jsn",), ("version", "--dry-run"), ("version", "extra"),
+                     ("setup", "--dry-run", "Bad_name"), ("help", "nosuch")):
+            self.assertEqual(self.run_cli(*args)[0], 2, args)
+
+    def test_help_and_quiet(self):
+        for args in ((), ("help",), ("-h",), ("--help",)):
+            code, out, err = self.run_cli(*args)
+            self.assertEqual(code, 0, args)
+            for verb in ("help", "version", "setup"):
+                self.assertRegex(out, r"(?m)^  %s  " % verb)
+            self.assertIn("next:", err)
+        self.assertEqual(self.run_cli("-q")[2], "")
+        code, out, err = self.run_cli("setup", "--help")
+        self.assertIn("--dry-run", out)
+
+
+class StreamTest(Home):
+    """Fix round 1, R4 to R6: a stream closed or gone, a character a stream cannot hold, a file
+    crafted to break the read."""
+
+    def bash(self, line, **more):
+        p = subprocess.run(["/bin/bash", "-c", line, "sh", str(LAUNCHER)], capture_output=True,
+                           env=self.env(**more), timeout=60)
+        return p.returncode, p.stdout, p.stderr
+
+    def test_r4_a_closed_or_gone_stream(self):
+        self.assertEqual(self.bash('"$1" --version >&-'), (0, b"", b""))
+        self.assertEqual(self.bash('"$1" stup 2>&-'), (2, b"", b""))
+        for quiet in (True, False):
+            p = subprocess.Popen([str(LAUNCHER), "help"] + (["-q"] if quiet else []),
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env())
+            p.stdout.close()  # the reader has gone before the first write
+            err = p.stderr.read().decode()
+            p.stderr.close()
+            self.assertEqual(p.wait(timeout=60), 0, err)
+            if quiet:
+                self.assertEqual(err, "")
+            else:  # the hint alone, no word of the broken pipe
+                self.assertRegex(err, r"\Anote  next: [^\n]*\n\Z")
+
+    def test_r5_a_character_the_stream_cannot_hold(self):
+        code, text = self.run_pty("setup", "--dry-run", cols=80, LANG="en_US.ISO8859-1")
+        self.assertEqual(code, 0, text)
+        self.assertNotIn("Traceback", text)
+        for lang in ({}, {"LANG": "en_US.UTF-8"}):
+            p = subprocess.run([str(LAUNCHER).encode(), b"\xff", b"--json"], capture_output=True,
+                               env=self.env(**lang), timeout=60)
+            self.assertEqual((p.returncode, p.stderr), (2, b""), lang)
+            self.assertEqual(len(p.stdout.splitlines()), 1)
+            obj = json.loads(p.stdout.decode("ascii"))
+            self.assertEqual((obj["ok"], obj["error"]["code"]), (False, "unknown_verb"))
+        out = WriterTest.stream(None, True, encoding="latin-1")
+        term.Term(env={"NO_COLOR": "1"}, out=out, err=WriterTest.stream(None, True)).table(
+            [("ok", ["a", "日本/x"], None)])
+        self.assertEqual(out.getvalue(), "  ok  a  ??/x\n")
+
+    def test_r6_a_crafted_file(self):
+        plugins = os.path.join(self.home, ".claude", "plugins")
+        os.makedirs(plugins)
+        with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
+            fh.write("[" * 100000)
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual([s["state"] for s in self.plan("alpha")["steps"] if s["n"] == 3], ["todo"])
+        inst = os.path.join(self.home, "inst", "alpha")
+        os.makedirs(os.path.join(inst, "bin"))
+        with open(os.path.join(inst, "bin", "agentik-alpha"), "w") as fh:
+            fh.write("#!/bin/sh\n")
+        with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
+            json.dump({"plugins": {"alpha@agentik": [
+                {"version": "1.0\x1b[31m\x9b2J", "installPath": inst}]}}, fh)
+        odd = os.path.join(self.home, "b\x1b[2Jin")
+        os.mkdir(odd)
+        self.stub("agentik-zeta")
+        os.rename(os.path.join(self.stubs, "agentik-zeta"), os.path.join(odd, "agentik-zeta"))
+        for args in (("setup", "--dry-run", "alpha"), ("setup", "--dry-run", "alpha", "--json"),
+                     ("help",), ("help", "--json")):
+            code, out, err = self.run_cli(*args, PATH="%s:%s:%s" % (odd, self.stubs, SYSTEM))
+            self.assertEqual(code, 0, err)
+            for byte in (ESC, "\x9b", "\\u001b", "\\u009b"):
+                self.assertNotIn(byte, out + err, args)
+        self.assertIn("1.0[31m2J", self.run_cli("setup", "--dry-run", "alpha")[1])
+
+
+
+PLUGIN_BIN = """#!/bin/sh
+# a plugin's own launcher, as the tests' claude stub installs it
+case "$1" in
+install-cli)
+    exe="$HOME/.local/bin/$(basename "$0")"
+    mkdir -p "$HOME/.local/bin" || exit 1
+    printf '#!/bin/sh\\nVERSION=1.0.0\\nexec "%s" "$@"\\n' "$0" > "$exe" && chmod 755 "$exe" &&
+    printf '#!/bin/sh\\n' > "$HOME/.local/bin/agentik" && chmod 755 "$HOME/.local/bin/agentik" ;;
+doctor) exit 0 ;;
+*) exit 2 ;;
+esac
+"""
+CLAUDE_STUB = """#!/usr/bin/python3
+# claude, as far as the plan's lines need it: plugin marketplace add, plugin install
+import json, os, shutil, sys
+d = os.path.join(os.environ["HOME"], ".claude", "plugins")
+os.makedirs(d, exist_ok=True)
+a = sys.argv[1:]
+if a[:3] == ["plugin", "marketplace", "add"] and len(a) == 4:
+    json.dump({"agentik": {}}, open(os.path.join(d, "known_marketplaces.json"), "w"))
+elif a[:2] == ["plugin", "install"] and len(a) == 3 and a[2].endswith("@agentik"):
+    if not os.path.exists(os.path.join(d, "known_marketplaces.json")):
+        sys.exit(1)
+    name = a[2].split("@")[0]
+    root = os.path.join(d, "cache", "agentik", name, "1.0.0")
+    os.makedirs(os.path.join(root, "bin"), exist_ok=True)
+    shutil.copy(%r, os.path.join(root, "bin", "agentik-" + name))
+    path = os.path.join(d, "installed_plugins.json")
+    table = json.load(open(path)) if os.path.exists(path) else {"version": 2, "plugins": {}}
+    table["plugins"][a[2]] = [{"scope": "user", "version": "1.0.0", "installPath": root}]
+    json.dump(table, open(path, "w"))
+else:
+    sys.exit(2)
+"""
+
+
+class PlanTruthTest(Home):
+    """Fix round 1, R1 to R3 and R7: each row tells the truth, and nothing is cut."""
+
+    def whole(self, plugins, place=True):
+        """The plugins installed whole, each launcher placed at its version when place is set."""
+        self.plugin_files(os.path.join(self.home, ".claude"), plugins)
+        for name, ver in plugins.items():
+            if place:
+                self.place("agentik-" + name, ver)
+
+    def place(self, exe, ver):
+        os.makedirs(self.bindir, exist_ok=True)
+        with open(os.path.join(self.bindir, exe), "w") as fh:
+            fh.write("#!/bin/sh\nVERSION=%s\n" % ver)
+        os.chmod(os.path.join(self.bindir, exe), 0o755)
+
+    @property
+    def bindir(self):
+        return os.path.join(self.home, ".local", "bin")
+
+    def by_subject(self, *names, **more):
+        return {(s["n"], s["subject"]): s for s in self.plan(*names, **more)["steps"]}
+
+    def test_r1_the_doors_row_names_an_install_cli(self):
+        self.whole({"alpha": "1.0.0", "beta": "2.0.0"})
+        self.place("agentik-suite", version())
+        door = self.by_subject("alpha", "beta")[(5, "~/.local/bin/agentik")]
+        words = shlex.split(door["command"])
+        self.assertEqual(words[1:], ["install-cli"])
+        self.assertTrue(os.path.isfile(words[0]), words)
+        self.assertIn("run: " + door["command"], self.run_cli("setup", "--dry-run", "alpha", "beta")[1])
+        # no launcher placed: step 4 names the install-cli, and the door's row says it places it
+        for exe in ("agentik-alpha", "agentik-beta"):
+            os.remove(os.path.join(self.bindir, exe))
+        got = self.by_subject("alpha", "beta")
+        self.assertIsNone(got[(5, "~/.local/bin/agentik")]["command"])
+        self.assertIn("step 4", got[(5, "~/.local/bin/agentik")]["detail"])
+        self.assertTrue(got[(4, "~/.local/bin/agentik-alpha")]["command"].endswith(" install-cli"))
+
+    def test_r2_the_closing_hint_by_state(self):
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik-suite", version())
+        self.place("agentik", "0")
+        path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
+        steps = self.plan("alpha", PATH=path)["steps"]
+        self.assertEqual({s["state"] for s in steps if s["n"] <= 6}, {"ok"})
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
+        self.assertIn("setup has nothing left to do", err)
+        self.assertNotIn("run each", err)
+        self.assertIn("run: %s doctor" % os.path.join(self.bindir, "agentik-alpha"), out)
+        # no claude on PATH: the hint names it, and no line sends the reader to claude
+        os.remove(os.path.join(self.stubs, "claude"))
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertEqual(code, 0, err)
+        self.assertIn("install claude", err)
+        self.assertNotIn("run:", out)
+        self.assertNotIn("claude plugin", out + err)
+
+    def test_r2_r3_each_run_line_works_in_order(self):
+        home = os.path.join(self.home, "a home")  # every path in a command holds a space
+        os.mkdir(home)
+        template = os.path.join(self.home, "plugin-bin")
+        with open(template, "w") as fh:
+            fh.write(PLUGIN_BIN)
+        os.chmod(template, 0o755)
+        self.stub("claude", CLAUDE_STUB % template)
+        env = self.env(HOME=home)
+        ran = []
+        for _ in range(4):
+            code, out, err = self.run_cli("setup", "--dry-run", "alpha", "beta", HOME=home)
+            self.assertEqual(code, 0, err)
+            for line in [l.strip()[len("run: "):] for l in out.splitlines() if l.strip().startswith("run: ")]:
+                words = shlex.split(line)
+                if words[0].startswith("/"):
+                    self.assertTrue(os.path.isfile(words[0]), line)
+                p = subprocess.run(["/bin/sh", "-c", line], env=env, capture_output=True, timeout=60)
+                self.assertEqual(p.returncode, 0, (line, p.stderr))
+                ran.append(words[-1])
+        self.assertEqual(ran[:3], ["agentik-dev/agentik-commons", "alpha@agentik", "beta@agentik"])
+        self.assertEqual(ran[3:7], ["install-cli", "install-cli", "doctor", "doctor"])
+        got = self.by_subject("alpha", "beta", HOME=home)
+        self.assertEqual({s["state"] for s in got.values() if s["n"] in (2, 3, 4)}, {"ok"})
+        self.assertEqual(got[(5, "~/.local/bin/agentik")]["state"], "ok")
+
+    def test_r3_installed_means_its_files_are_there(self):
+        self.plugin_files(os.path.join(self.home, ".claude"), {"alpha": "1.0.0"}, whole=False)
+        got = self.by_subject("alpha")
+        self.assertEqual(got[(3, "alpha@agentik")]["state"], "todo")
+        self.assertEqual(got[(3, "alpha@agentik")]["command"], "claude plugin install alpha@agentik")
+        self.assertIsNone(got[(4, "~/.local/bin/agentik-alpha")]["command"])
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertNotIn(os.path.join(self.home, "inst"), out + err)
+
+    def test_m2_a_plugin_that_ships_no_command(self):
+        """Review 2's F2: an installed plugin whose folder holds no launcher is installed, and
+        step 4 says it ships no command; a reinstall is never proposed for it."""
+        self.plugin_files(os.path.join(self.home, ".claude"), {"notes": "1.0.0"}, whole=False)
+        folder = os.path.join(self.home, "inst", "notes", "1.0.0")
+        os.makedirs(os.path.join(folder, ".claude-plugin"))
+        got = self.by_subject("notes")
+        self.assertEqual(got[(3, "notes@agentik")]["state"], "ok")
+        self.assertEqual(got[(4, "~/.local/bin/agentik-notes")]["state"], "ok")
+        self.assertIn("ships no command", got[(4, "~/.local/bin/agentik-notes")]["detail"])
+        self.assertEqual(got[(7, "agentik-notes")]["state"], "ok")
+        for s in got.values():
+            self.assertNotIn("claude plugin install", s["command"] or "")
+            self.assertNotIn("agentik-notes", s["command"] or "")
+        code, out, err = self.run_cli("setup", "--dry-run", "notes")
+        self.assertNotIn("install it again", out + err)
+        # its folder gone: then it is not whole, and the reinstall is proposed
+        shutil.rmtree(folder)
+        got = self.by_subject("notes")
+        self.assertEqual(got[(3, "notes@agentik")]["command"], "claude plugin install notes@agentik")
+
+    def test_m3_l1_the_hint_when_only_the_path_line_is_left(self):
+        """Review 2's L1: steps 1 to 5 ok, ~/.local/bin off PATH: the hint names the add line."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik-suite", version())
+        self.place("agentik", "0")
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertIn("add to your shell profile", out)
+        self.assertNotIn("run each", err)
+        self.assertIn("the line marked add", err)
+
+    def test_m3_l2_a_set_up_machine_is_no_dead_end(self):
+        """Review 2's L2: a set-up machine's plan, whose suite launcher no verb places, says so."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik", "0")
+        path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
+        self.assertNotIn("hold no line", err)
+        self.assertIn("what this version can", err)
+        self.assertIn("a later version places it", out)
+
+    def test_m3_l4_step_fives_path_is_one_shell_word(self):
+        """Review 2's L4: the path in step 5's detail is quoted as a run: line's is."""
+        root = os.path.join(self.home, "pl ug", "suite")
+        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), "setup", "--dry-run",
+                            "--json", "alpha"], capture_output=True, text=True, env=self.env(),
+                           timeout=60)
+        detail = [s for s in json.loads(p.stdout)["steps"] if s["id"] == "suite"][0]["detail"]
+        words = shlex.split(detail.split(" run ", 1)[1])
+        self.assertEqual(words, [os.path.join(root, "bin", "agentik-suite")], detail)
+
+    def test_m1_a_blocked_plan_promises_no_line_it_withholds(self):
+        """Review 2's F1: with step 1 blocked no run: line is printed, so the door's row names none."""
+        self.whole({"alpha": "1.0.0"})
+        self.place("agentik-suite", version())
+        nogit = "%s:/bin" % self.stubs
+        for gone, placed in (("git", True), ("claude", True), ("git", False)):
+            self.stub("claude", RECORDER % self.calls)
+            if gone == "claude":
+                os.remove(os.path.join(self.stubs, "claude"))
+            if not placed:
+                os.remove(os.path.join(self.bindir, "agentik-alpha"))
+            more = {"PATH": nogit} if gone == "git" else {}
+            steps = self.plan("alpha", **more)["steps"]
+            self.assertIn((1, gone, "blocked"), [(s["n"], s["subject"], s["state"]) for s in steps])
+            self.assertEqual([s for s in steps if s["command"] and s["id"] != "path"], [])
+            door = [s for s in steps if s["id"] == "door"][0]
+            self.assertIsNone(door["command"])
+            for promise in ("below", "step 4", "install-cli"):
+                self.assertNotIn(promise, door["detail"], (gone, placed, door["detail"]))
+            code, out, err = self.run_cli("setup", "--dry-run", "alpha", **more)
+            self.assertNotIn("run:", out)
+
+    def test_r7_nothing_is_cut_on_a_terminal(self):
+        commands = [s["command"] for s in self.plan()["steps"] if s["command"]]
+        self.assertTrue(commands)
+        for cols in (80, 40):
+            code, text = self.run_pty("setup", "--dry-run", cols=cols)
+            self.assertEqual(code, 0, text)
+            plain = re.sub(ESC + r"\[[0-9;]*m", "", text).replace("\r", "")
+            self.assertNotIn("…", plain)
+            for command in commands:
+                self.assertIn(command, plain, cols)
+        out = WriterTest.stream(None, True)
+        term.Term(env={"NO_COLOR": "1"}, out=out, err=WriterTest.stream(None, True)).table(
+            [("ok", ["a", "x" * 100], "run: z")])
+        self.assertEqual(out.getvalue(), "  ✓  a\n" + " " * 8 + "x" * 100 + "\n" + " " * 8 + "run: z\n")
+
+
+
+class CorruptInstallTest(Home):
+    """Fix round 1, R9: a plugin copy with no catalogue, or a manifest that cannot be read."""
+
+    def copy(self):
+        root = os.path.join(self.home, "plugin copy")
+        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        return root
+
+    def test_r9_one_plain_line_names_the_file(self):
+        for broken, args in (("lib/agentik_suite/messages.md", ("--version",)),
+                             (".claude-plugin/plugin.json", ("--version",)),
+                             (".claude-plugin/plugin.json", ("version", "--json"))):
+            root = self.copy()
+            path = os.path.join(root, broken)
+            if broken.endswith(".md"):
+                os.remove(path)
+            else:
+                with open(path, "w") as fh:
+                    fh.write("{nope")
+            p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), *args],
+                               capture_output=True, text=True, env=self.env(), timeout=60)
+            text = p.stdout + p.stderr
+            self.assertEqual(p.returncode, 2, text)
+            self.assertNotIn("Traceback", text)
+            self.assertNotIn("0.0.0-unknown", text)
+            self.assertIn(path, text)
+            if "--json" in args:
+                self.assertFalse(json.loads(p.stdout)["ok"])
+            else:
+                self.assertEqual((p.stdout, len(p.stderr.splitlines())), ("", 1))
+            shutil.rmtree(root)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,4 @@
+#!/usr/bin/python3
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+from agentik_suite.cli import main; sys.exit(main())

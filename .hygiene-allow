@@ -15,6 +15,10 @@ scripts/marketplace-check: sibling
 tests/test_marketplace.py: sibling
 plugins/suite/.claude-plugin/plugin.json: sibling
 
+# the voice gate runs that sibling's scanner, found by its plugin's name; its test fakes one
+scripts/voice: sibling
+tests/test_voice.py: sibling
+
 # a packet names its read-only sources by path
 design/packets/*.md: sibling,home
 

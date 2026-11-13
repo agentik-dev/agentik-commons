@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""voice: the suite command's catalogue held to its voice (packet ak1a R5).
+
+Usage: voice [--check] [--catalogue FILE] [--config FILE] [--sidecar FILE]
+
+With no --check (`make voice`) it runs respeak's scanner,
+`respeak-measure.py <catalogue> --config <config> --fail-on warn`, and on its exit 0 writes the
+sidecar: one `shasum -a 256` line for the catalogue, its path from the repo root. The scanner is
+found by RESPEAK_ROOT (`$RESPEAK_ROOT/scripts/respeak-measure.py`), else as the newest respeak
+copy in Claude Code's plugin cache, `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/cache/*/respeak/
+<version>/scripts/`, never by a sibling checkout's path. It runs under this interpreter when that
+one imports yaml, else under /usr/bin/python3. With no scanner it exits 2 and writes nothing; on
+the scanner's failure it exits 1 and writes nothing.
+
+With --check (`make check`, stdlib, no scanner) it compares the catalogue with the sidecar's line:
+exit 0 when they agree, 1 when they differ or the sidecar is absent, one stderr line naming
+`make voice`.
+"""
+import glob
+import hashlib
+import importlib.util
+import os
+import re
+import subprocess
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CATALOGUE = "plugins/suite/lib/agentik_suite/messages.md"
+CONFIG = "design/voice/budgets.yaml"
+SIDECAR = "design/voice/checked.sha256"
+SCANNER = os.path.join("scripts", "respeak-measure.py")
+USAGE = "usage: voice [--check] [--catalogue FILE] [--config FILE] [--sidecar FILE]"
+
+
+def line_for(path):
+    with open(os.path.join(REPO, path), "rb") as fh:
+        return "%s  %s\n" % (hashlib.sha256(fh.read()).hexdigest(), path)
+
+
+def _order(path):
+    ver = os.path.basename(os.path.dirname(os.path.dirname(path)))
+    nums = tuple(int(n) for n in re.findall(r"\d+", ver.split("-")[0])[:3])
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        mtime = 0
+    return nums, "-" not in ver, mtime
+
+
+def scanner(env):
+    root = env.get("RESPEAK_ROOT")
+    if root:
+        path = os.path.join(root, SCANNER)
+        return path if os.path.isfile(path) else None
+    config = env.get("CLAUDE_CONFIG_DIR") or os.path.join(env.get("HOME") or "~", ".claude")
+    found = glob.glob(os.path.join(config, "plugins", "cache", "*", "respeak", "*", SCANNER))
+    return max(found, key=_order) if found else None
+
+
+def interpreter():
+    if importlib.util.find_spec("yaml") is not None:
+        return sys.executable
+    return "/usr/bin/python3"
+
+
+def main(argv):
+    opts = {"--catalogue": CATALOGUE, "--config": CONFIG, "--sidecar": SIDECAR}
+    check, args = False, list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--check":
+            check = True
+        elif arg in opts and args:
+            opts[arg] = args.pop(0)
+        else:
+            print(USAGE, file=sys.stderr)
+            return 2
+    catalogue, sidecar = opts["--catalogue"], os.path.join(REPO, opts["--sidecar"])
+    if check:
+        try:
+            with open(sidecar, encoding="utf-8") as fh:
+                held = fh.read()
+        except OSError:
+            held = None
+        if held != line_for(catalogue):
+            print("voice: %s differs from the line in %s; run make voice" % (catalogue, opts["--sidecar"]),
+                  file=sys.stderr)
+            return 1
+        print("voice: %s as checked" % catalogue)
+        return 0
+    found = scanner(os.environ)
+    if not found:
+        print("voice: no scanner: set RESPEAK_ROOT, or install the respeak plugin; nothing written",
+              file=sys.stderr)
+        return 2
+    rc = subprocess.call([interpreter(), found, os.path.join(REPO, catalogue),
+                          "--config", os.path.join(REPO, opts["--config"]), "--fail-on", "warn"])
+    if rc != 0:
+        print("voice: the scanner exited %d; nothing written" % rc, file=sys.stderr)
+        return 1
+    tmp = sidecar + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(line_for(catalogue))
+    os.replace(tmp, sidecar)
+    print("voice: %s checked; %s written" % (catalogue, opts["--sidecar"]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -7,7 +7,7 @@ A fresh Mac installs the suite in one line (hq design/04 §5):
 claude plugin marketplace add agentik-dev/agentik-commons && claude plugin install suite@agentik
 ```
 
-`suite` is this repo's one plugin, manifest-only: `plugins/suite` holds no code, only `dependencies` on session, decisions and agents, which Claude Code installs and enables with it. Updates stay `claude plugin marketplace update agentik && claude plugin update <name>@agentik`.
+`suite` is this repo's one plugin: the suite's default set, whose `dependencies` on session, decisions and agents Claude Code installs and enables with it, and the `agentik-suite` command that manages it (below). Updates stay `claude plugin marketplace update agentik && claude plugin update <name>@agentik`.
 It builds no tool: no `install` target.
 
 ## What it holds
@@ -16,7 +16,7 @@ It builds no tool: no `install` target.
 |---|---|
 | `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>` from PATH; `agentik` lists the tools; exit 3 names the repo of a tool not on PATH |
 | `.claude-plugin/marketplace.json` | the `agentik` marketplace as published: six `git-subdir` entries on `github.com/agentik-dev`, public repos only, the five tools' at `plugin` and `suite`'s on this repo's own url at `plugins/suite`, checked by `scripts/marketplace-check`; a plugin whose repo is not public reaches the owner's machine through the local file's overlay only |
-| `plugins/suite` | the manifest-only `suite` plugin: `plugin.json` and its `dependencies`, nothing else |
+| `plugins/suite` | the `suite` plugin: `plugin.json` and its `dependencies`, and the `agentik-suite` command, its launcher in `bin/` and its stdlib package in `lib/agentik_suite/`, whose every message is in `messages.md` |
 | `GUIDE.md` | the conventions every tool repo follows: layout, naming, verbs, exit codes, README shape, install and hygiene |
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
@@ -29,9 +29,22 @@ It builds no tool: no `install` target.
 | `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
 | `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
 
+## The agentik-suite command
+
+The suite's own command, run by its plugin's launcher on the system's Python 3.9 with the standard library alone. Every verb takes `--json` (one object on stdout), `-q`/`--quiet` (no hints), `--no-color` and `-h`/`--help`; stdout carries the answer, stderr the hints and errors; exit 0 done, 2 usage. Off a terminal a status is a word (`ok`, `warn`, `FAIL`, `note`), with no escape byte.
+
+| verb | what it does |
+|---|---|
+| `agentik-suite`, `help`, `-h`, `--help` | the verbs and flags, then each `agentik-*` on PATH by name and path, then one `next:` hint; `help <verb>` or `<verb> --help` for one verb |
+| `agentik-suite version`, `--version` | `agentik-suite <version>`, from the plugin's manifest |
+| `agentik-suite setup --dry-run [PLUGIN...]` | the plan for the default set (or the named plugins) in seven steps, each read with its state and the command setup would run: the prerequisites, the `agentik` marketplace, each plugin, each launcher in `~/.local/bin`, the suite's own launcher and the door, `~/.local/bin` on PATH, the doctors; it writes nothing and starts no process |
+
+`setup` without `--dry-run` exits 2: this version only plans. An unknown verb exits 2 and names the nearest one. `make voice` holds the messages to their voice; `make check` holds them to what it last passed.
+
 ## Make targets
 
-- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, the records lint (`scripts/recordlint` on `HANDOFF.md` and `NICE_TO_HAVE.md`), and the marketplace check.
+- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, the records lint (`scripts/recordlint` on `HANDOFF.md` and `NICE_TO_HAVE.md`), the marketplace check, and `voice-check`, the suite command's catalogue against `design/voice/checked.sha256`.
+- `make voice`: the catalogue through the voice scanner, found by `RESPEAK_ROOT` or in Claude Code's plugin cache; on its pass it writes `design/voice/checked.sha256`. Not part of `make check`; with no scanner it exits 2 and writes nothing.
 - `make help`: the targets, one line each.
 - `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it with `marketplace-check --local`. The published file names public repos only; the local file leaves out `suite` (this Mac installs the tools by name) and adds, after the five, the entries of the overlay `AGENTIK_MARKETPLACE_OVERLAY` (default `~/.config/agentik/marketplace-local.json`, kept outside every repo), a JSON object whose `plugins` are in the published form, for a plugin whose repo is not public. An absent overlay adds nothing; one that cannot be read, is not JSON or has no `plugins` list fails the target, which then writes nothing. `scripts/local-marketplace` does the merge.
 

@@ -1,0 +1,288 @@
+"""The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
+
+Verbs: help (bare, -h, --help), version (--version) and setup, which in this version only plans
+(`setup --dry-run [PLUGIN...]`). Every verb takes --json, -q/--quiet, --no-color and -h/--help;
+setup, a verb that writes, also takes --dry-run and -y/--yes. stdout carries the answer alone;
+stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
+3 not installed. Nothing here prompts, loops, starts a process or writes a file.
+"""
+import difflib
+import os
+import re
+import sys
+
+import agentik_install
+
+from . import plan, term
+
+VERBS = ("help", "version", "setup")
+WRITES = ("setup",)
+FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
+         ("--help", "-h", "help"))
+WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS for f in (long, short) if f}
+NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
+SCHEMA = "agentik.%s/1"
+
+
+class Usage(Exception):
+    def __init__(self, code, mid, remedy, **values):
+        Exception.__init__(self, code)
+        self.code, self.mid, self.remedy, self.values = code, mid, remedy, values
+
+
+def _lib():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _tool(lib):
+    try:
+        return agentik_install.names(lib)["tool_name"]
+    except (OSError, ValueError):
+        return os.path.basename(sys.argv[0]) or "agentik"
+
+
+def parse(argv):
+    opts = {key: False for key in ALL_FLAGS.values()}
+    opts["version"] = False
+    words, bad, rest = [], None, False
+    for arg in argv:
+        if rest or not arg.startswith("-") or arg == "-":
+            words.append(arg)
+        elif arg == "--":
+            rest = True
+        elif arg == "--version":
+            opts["version"] = True
+        elif arg in ALL_FLAGS:
+            opts[ALL_FLAGS[arg]] = True
+        elif bad is None:
+            bad = arg
+    return opts, words, bad
+
+
+class Command:
+    def __init__(self, argv, env, out, err):
+        self.opts, self.words, self.bad = parse(argv)
+        self.env = env
+        self.lib = _lib()
+        self.tool = _tool(self.lib)
+        self.version = agentik_install.version(self.lib)
+        self.t = term.Term(no_color=self.opts["no_color"], quiet=self.opts["quiet"] or self.opts["json"],
+                           env=env, out=out, err=err)
+        self.verb = None
+
+    # ---- the frame ------------------------------------------------------------------------
+
+    def run(self):
+        try:
+            return self._dispatch()
+        except Usage as u:
+            return self.fail(u)
+        finally:
+            self.t.flush()
+
+    def _dispatch(self):
+        o, words = self.opts, self.words
+        if words:
+            self.verb = words[0]
+            if self.verb not in VERBS:
+                self.verb = None
+                near = difflib.get_close_matches(words[0], VERBS, n=1, cutoff=0.6)
+                if near:
+                    raise Usage("unknown_verb", "err.verb.near", "%s %s" % (self.tool, near[0]),
+                                word=words[0], near=near[0], tool=self.tool)
+                raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool,
+                            word=words[0], tool=self.tool)
+        else:
+            self.verb = "version" if o["version"] and not o["help"] else "help"
+        nouns = words[1:]
+        if self.bad is not None:
+            self._bad_flag(self.bad)
+        if o["version"] and (words or o["help"]):
+            self._bad_flag("--version")
+        if self.verb not in WRITES:
+            for long, short, key in WRITE_FLAGS:
+                if o[key]:
+                    self._bad_flag(long)
+        if o["help"] and self.verb != "help":
+            return self.help_verb(self.verb)
+        return getattr(self, "do_" + self.verb)(nouns)
+
+    def _bad_flag(self, flag):
+        known = list(ALL_FLAGS) + ["--version"]
+        near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
+        where = "%s %s" % (self.tool, self.verb) if self.verb and self.verb != "help" else self.tool
+        if near and near[0] != flag:
+            raise Usage("unknown_flag", "err.flag.near", "%s --help" % where,
+                        flag=flag, near=near[0], where=where)
+        raise Usage("unknown_flag", "err.flag", "%s --help" % where, flag=flag, where=where)
+
+    def fail(self, u):
+        if self.opts["json"]:
+            self.t.json({"schema": SCHEMA % (self.verb or "usage"), "ok": False,
+                         "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
+                                   "remedy": u.remedy}})
+        else:
+            self.t.error(u.mid, **u.values)
+        return 2
+
+    def _no_nouns(self, nouns):
+        if nouns:
+            where = "%s %s" % (self.tool, self.verb)
+            raise Usage("extra_word", "err.extra", "%s --help" % where,
+                        word=nouns[0], where=where)
+
+    # ---- help -----------------------------------------------------------------------------
+
+    def _on_path(self):
+        seen, found = set(), []
+        for entry in self.env.get("PATH", "").split(os.pathsep):
+            entry = entry or "."
+            try:
+                names = sorted(os.listdir(entry))
+            except OSError:
+                continue
+            for name in names:
+                if not name.startswith("agentik-") or name in seen or not NOUN.match(name):
+                    continue
+                full = os.path.join(entry, name)
+                if os.path.isfile(full) and os.access(full, os.X_OK):
+                    seen.add(name)
+                    found.append({"name": name, "path": full})
+        return found
+
+    def _flag_rows(self, flags):
+        return [(None, [term.name(", ".join(f for f in (short, long) if f)),
+                        self.t.text("flag." + key)], None) for long, short, key in flags]
+
+    def do_help(self, nouns):
+        if len(nouns) > 1:
+            self._no_nouns(nouns[1:])
+        if nouns:
+            if nouns[0] not in VERBS:
+                near = difflib.get_close_matches(nouns[0], VERBS, n=1, cutoff=0.6)
+                raise Usage("unknown_verb", "err.verb.near" if near else "err.verb",
+                            "%s --help" % self.tool, word=nouns[0], tool=self.tool,
+                            near=near[0] if near else "")
+            return self.help_verb(nouns[0])
+        found = self._on_path()
+        if self.opts["json"]:
+            self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
+                         "version": self.version,
+                         "verbs": [{"name": v, "summary": self.t.text("verb." + v),
+                                    "usage": self.t.text("usage." + v, tool=self.tool)}
+                                   for v in VERBS],
+                         "flags": [f[0] for f in FLAGS], "on_path": found})
+            return 0
+        t = self.t
+        t.line("help.title", tool=self.tool, version=self.version)
+        t.line("help.usage", tool=self.tool)
+        t.blank()
+        t.line("help.verbs", style="name")
+        t.table([(None, [term.name(v), t.text("verb." + v)], None) for v in VERBS])
+        t.blank()
+        t.line("help.flags", style="name")
+        t.table(self._flag_rows(FLAGS))
+        t.blank()
+        t.line("help.path", style="name")
+        if found:
+            t.table([("ok", [term.name(f["name"]), term.path(f["path"])], None) for f in found])
+        else:
+            t.table([("note", [t.text("help.path.none")], None)])
+        t.hint("hint.help", tool=self.tool)
+        return 0
+
+    def help_verb(self, verb):
+        flags = FLAGS + (WRITE_FLAGS if verb in WRITES else ())
+        if self.opts["json"]:
+            self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
+                         "version": self.version, "verb": verb,
+                         "summary": self.t.text("verb." + verb),
+                         "usage": self.t.text("usage." + verb, tool=self.tool),
+                         "flags": [f[0] for f in flags]})
+            return 0
+        t = self.t
+        t.line("usage." + verb, tool=self.tool)
+        t.line("verb." + verb)
+        t.blank()
+        t.line("help.flags", style="name")
+        t.table(self._flag_rows(flags))
+        t.hint("hint.verb", tool=self.tool)
+        return 0
+
+    # ---- version --------------------------------------------------------------------------
+
+    def do_version(self, nouns):
+        self._no_nouns(nouns)
+        if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
+            path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
+            raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
+                        tool=self.tool, path=path)
+        if self.opts["json"]:
+            self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
+                         "version": self.version})
+        else:
+            self.t.line("version.line", tool=self.tool, version=self.version)
+        return 0
+
+    # ---- setup ----------------------------------------------------------------------------
+
+    def do_setup(self, nouns):
+        if not self.opts["dry_run"]:
+            raise Usage("plan_only", "err.setup.plan_only", "%s setup --dry-run" % self.tool,
+                        tool=self.tool, version=self.version)
+        for noun in nouns:
+            if not NOUN.match(noun):
+                raise Usage("bad_name", "err.setup.name", "%s setup --dry-run" % self.tool,
+                            name=noun, tool=self.tool)
+        names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
+        steps = plan.build(names, self.env, self.lib, self.tool, self.version)
+        t = self.t
+        for s in steps:
+            s["detail"] = t.text(s["mid"], **s["values"])
+        if self.opts["json"]:
+            t.json({"schema": SCHEMA % "setup", "ok": True, "dry_run": True, "plugins": names,
+                    "steps": [{k: s[k] for k in ("n", "id", "state", "subject", "detail", "command")}
+                              for s in steps]})
+            return 0
+        if names:
+            t.line("setup.title", plugins=", ".join(names))
+        else:
+            t.line("setup.title.none")
+        rows, last = [], None
+        for s in steps:
+            after = t.text("setup." + s["line"], command=s["command"]) if s["command"] else None
+            n = str(s["n"]) if s["n"] != last else ""
+            last = s["n"]
+            subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
+            rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
+        t.table(rows, mark_at=1)
+        t.hint(*self._closing(steps), tool=self.tool)
+        return 0
+
+    @staticmethod
+    def _closing(steps):
+        """The closing hint by state: what to install when step 1 is blocked; done when steps 1
+        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names one; the add line
+        when it is all that is left; else what this version can do is done."""
+        blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
+        if blocked:
+            return "hint.setup.blocked", {"missing": ", ".join(blocked)}
+        early = [s for s in steps if s["n"] <= 6]
+        if all(s["state"] == "ok" for s in early):
+            return "hint.setup.done", {}
+        if any(s["command"] and s["line"] == "run" for s in early):
+            return "hint.setup.todo", {}
+        if any(s["command"] for s in early):
+            return "hint.setup.path", {}
+        return "hint.setup.rest", {}
+
+
+def main(argv=None, env=None, out=None, err=None):
+    agentik_install.restore_parent_env()
+    try:
+        command = Command(sys.argv[1:] if argv is None else argv, os.environ if env is None else env, out, err)
+    except (OSError, ValueError):  # the catalogue: absent, unreadable or not well formed
+        return term.unreadable(term.catalogue.PATH, err)
+    return command.run()

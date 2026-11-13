@@ -56,7 +56,7 @@
         "url": "https://github.com/agentik-dev/agentik-commons.git",
         "path": "plugins/suite"
       },
-      "description": "The suite in one install: a manifest whose dependencies are session, decisions and agents, which Claude Code installs and enables with it."
+      "description": "The suite in one install: the default set, session, decisions and agents, which Claude Code installs and enables with it, and the command that manages it."
     }
   ]
 }
