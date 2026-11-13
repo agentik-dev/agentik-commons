@@ -1,16 +1,20 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
-Verbs: help (bare, -h, --help), version (--version), setup, which in this version only plans
-(`setup --dry-run [PLUGIN...]`), config, every tool's settings drilled down to one,
-describe, the suite's own answer to that read, and status, which in this version only checks the
-declared watchers (`status --check`). Every verb takes --json, -q/--quiet, --no-color and
--h/--help; setup, a verb that writes, also takes --dry-run and -y/--yes; config takes --changed
-and --user-files; status takes --check, and the test hooks --ps FILE and --now ISO, the only
-flags with a value. stdout carries the answer alone;
-stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
-3 not installed (a plugin's name with no command here). Nothing here prompts or loops; config
-starts only the listed tools' own executables, and writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most.
+Verbs: help (bare, -h, --help), version (--version), setup, which plans with --dry-run and
+otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
+settings drilled down to one, describe, the suite's own answer to that read, status, which in
+this version only checks the declared watchers (`status --check`), install-cli, which places this
+command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
+in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
+install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
+--user-files; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
+--prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
+stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
+precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
+asks once on a terminal before its first command. config writes only its cache under
+${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most; setup starts the plan's commands
+and writes what they write and its journal; install-cli writes under its prefix; doctor writes
+nothing itself, and starts each listed tool's own doctor.
 """
 import difflib
 import os
