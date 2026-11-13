@@ -112,7 +112,9 @@ class DoorFateTest(Reach):
     def door(self, kind):
         os.makedirs(self.path("bin"), exist_ok=True)
         door = self.path("bin", "agentik")
-        if os.path.lexists(door):
+        if os.path.isdir(door) and not os.path.islink(door):
+            os.rmdir(door)
+        elif os.path.lexists(door):
             os.unlink(door)
         if kind == "fifo":
             os.mkfifo(door)
