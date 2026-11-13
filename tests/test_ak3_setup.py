@@ -11,6 +11,7 @@ import os
 import pty
 import select
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -95,9 +96,13 @@ class SetupHome(Home):
         with open(os.path.join(d, "installed_plugins.json"), "w") as fh:
             json.dump({"version": 2, "plugins": table}, fh)
 
+    @property
+    def gate_path(self):
+        return os.path.join(self.home, ".claude", "edit-gates")
+
     def gate(self, line):
         os.makedirs(os.path.join(self.home, ".claude"), exist_ok=True)
-        with open(os.path.join(self.home, ".claude", "edit-gates"), "w") as fh:
+        with open(self.gate_path, "w") as fh:
             fh.write("# the owner's list\n\n%s\n" % line)
 
     def answer_on_pty(self, answer, *args):
@@ -311,6 +316,112 @@ class ApplyTest(SetupHome):
         self.assertNotIn("add to your shell profile", out)
 
 
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+
+
+class FixOneTest(SetupHome):
+    """Review 1: an interrupt (F1); the gate list's one read (F2, F4)."""
+
+    def interrupted(self, send):
+        pidfile = os.path.join(self.home, "child.pid")
+        self.stub("claude", "#!/bin/sh\necho $$ > %s\necho waiting\nsleep 20\n" % pidfile)
+        p = subprocess.Popen([str(LAUNCHER), "setup", "--yes", "alpha"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, env=self.env(), start_new_session=True)
+        for _ in range(100):
+            if os.path.exists(pidfile) and open(pidfile).read().strip():
+                break
+            time.sleep(0.1)
+        child = int(open(pidfile).read())
+        send(p.pid)
+        out, err = p.communicate(timeout=30)
+        for _ in range(50):
+            if not alive(child):
+                break
+            time.sleep(0.1)
+        self.assertFalse(alive(child), "the command still runs")
+        self.assertEqual(p.returncode, 130, out + err)
+        self.assertNotIn("Traceback", err)
+        last = err.strip().splitlines()[-1]
+        self.assertIn("interrupted", last)
+        self.assertIn("claude " + MARKET, last)
+        entry = self.journal()
+        self.assertEqual(len(entry), 1)
+        self.assertEqual(entry[0]["exit"], 130)
+        self.assertEqual(entry[0]["ran"], [{"n": 2, "command": "claude " + MARKET, "exit": None}])
+
+    def test_f1_sigint_while_a_command_runs(self):
+        self.interrupted(lambda pid: os.killpg(pid, signal.SIGINT))
+
+    def test_f1_sigterm_while_a_command_runs(self):
+        self.interrupted(lambda pid: os.kill(pid, signal.SIGTERM))
+
+    def test_f1_an_interrupt_or_eof_at_the_question_declines(self):
+        for send in (lambda m, pid: os.killpg(pid, signal.SIGINT), lambda m, pid: os.write(m, b"\x04")):
+            master, slave = pty.openpty()
+            p = subprocess.Popen([str(LAUNCHER), "setup", "alpha"], stdin=slave, stdout=slave,
+                                 stderr=slave, env=self.env(), close_fds=True, start_new_session=True)
+            os.close(slave)
+            chunks = []
+            try:
+                while b"y or n" not in b"".join(chunks):
+                    ready, _, _ = select.select([master], [], [], 20)
+                    self.assertTrue(ready, b"".join(chunks))
+                    chunks.append(os.read(master, 65536))
+                send(master, p.pid)
+                while True:
+                    ready, _, _ = select.select([master], [], [], 20)
+                    if not ready:
+                        break
+                    try:
+                        data = os.read(master, 65536)
+                    except OSError:
+                        break
+                    if not data:
+                        break
+                    chunks.append(data)
+            finally:
+                os.close(master)
+            text = b"".join(chunks).decode("utf-8", "replace")
+            self.assertEqual(p.wait(timeout=10), 2, text)
+            self.assertNotIn("Traceback", text)
+            self.assertEqual(self.recorded(), [])
+
+    def test_f2_a_bad_byte_hides_no_line(self):
+        os.makedirs(os.path.dirname(self.gate_path))
+        with open(self.gate_path, "wb") as fh:
+            fh.write(b"\xff\xfe junk\n~/.claude/settings.json\n")
+        code, out, err = self.run_cli("setup", "--yes", "alpha")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("~/.claude/settings.json", err)
+        self.assertEqual(self.recorded(), [])
+
+    def test_f4_a_list_that_cannot_be_read_refuses(self):
+        listing = self.gate_path
+        shown = "~/.claude/" + os.path.basename(listing)
+        os.makedirs(os.path.dirname(listing))
+        with open(listing, "w") as fh:
+            fh.write("~/.claude/other.json\n")
+        os.chmod(listing, 0)
+        for _ in range(2):  # unreadable, then a folder at the list's path
+            code, out, err = self.run_cli("setup", "--yes", "alpha")
+            self.assertEqual(code, 2, out + err)
+            self.assertEqual(len(err.strip().splitlines()), 1, err)
+            self.assertIn(shown, err)
+            self.assertEqual(self.recorded(), [])
+            if os.path.isfile(listing):
+                os.chmod(listing, 0o644)
+                os.remove(listing)
+                os.mkdir(listing)
+        os.rmdir(listing)
+        self.installed("alpha")  # no list at all: no refusal
+        self.assertEqual(self.run_cli("setup", "--yes", "alpha")[0], 0)
+
+
 class InProcessTest(SetupHome):
     """Lines 6 and 9: a stand-in plan whose step 5 row names a stub, run in process."""
 
@@ -377,6 +488,16 @@ class InProcessTest(SetupHome):
             time.sleep(0.1)
         else:
             self.fail("the group %d is still there" % group)
+
+    def test_f3_the_wall_keeps_the_last_line(self):
+        for said, body in (("working", "#!/bin/sh\necho working\nsleep 30\n"),
+                           ("done", "#!/bin/sh\nsleep 30 &\necho done\nexit 0\n")):
+            stub = self.stub("slow", body)
+            with mock.patch.object(apply, "WALL", 1):
+                code, out, err = self.run_in_process(shlex.quote(stub), "alpha")
+            self.assertEqual(code, 1, out + err)
+            self.assertIn("wall", err)
+            self.assertIn(said, err)
 
     def test_a_file_that_cannot_start_is_a_failed_step(self):
         code, out, err = self.run_in_process(os.path.join(self.home, "nosuch") + " install-cli", "alpha")
