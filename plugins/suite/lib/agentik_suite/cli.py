@@ -254,9 +254,23 @@ class Command:
             subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
             rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
         t.table(rows, mark_at=1)
-        todo = [s for s in steps if s["state"] != "ok"]
-        t.hint("hint.setup.todo" if todo else "hint.setup.done", tool=self.tool)
+        t.hint(*self._closing(steps), tool=self.tool)
         return 0
+
+    @staticmethod
+    def _closing(steps):
+        """The closing hint by state: what to install when step 1 is blocked; done when steps 1
+        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names a line; else the
+        rows that say what is left."""
+        blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
+        if blocked:
+            return "hint.setup.blocked", {"missing": ", ".join(blocked)}
+        early = [s for s in steps if s["n"] <= 6]
+        if all(s["state"] == "ok" for s in early):
+            return "hint.setup.done", {}
+        if any(s["command"] for s in early):
+            return "hint.setup.todo", {}
+        return "hint.setup.rest", {}
 
 
 def main(argv=None, env=None, out=None, err=None):

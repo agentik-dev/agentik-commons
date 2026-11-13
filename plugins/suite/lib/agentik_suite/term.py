@@ -1,8 +1,9 @@
 """term: the one writer. Every byte a person reads leaves through here, by message id.
 
 Each stream is judged alone, by isatty: on a terminal a status is a glyph, colour may be on, and
-a table's last column is cut with an ellipsis at the terminal's width; off one a status is a word
-(ok, warn, FAIL, note), with no escape byte, no cut and no redraw. NO_COLOR set to a value,
+a table's last cell too wide for the terminal moves whole to the dim line under its row, so a
+path or a command is never cut; off one a status is a word (ok, warn, FAIL, note), with no escape
+byte and no redraw. NO_COLOR set to a value,
 TERM=dumb or --no-color turns colour off; the glyphs stay. Columns are left-aligned, two spaces
 apart; a name is bold, a path or a hint dim; nothing is told by colour alone.
 
@@ -21,7 +22,6 @@ GLYPH = {"ok": "✓", "warn": "!", "fail": "✗", "note": "·"}
 WORD = {"ok": "ok", "warn": "warn", "fail": "FAIL", "note": "note"}
 MARK_SGR = {"ok": "32", "warn": "33", "fail": "31", "note": "36"}
 STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
-CUT = "…"
 GAP = "  "
 FALLBACK_WIDTH = 80
 CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
@@ -65,7 +65,7 @@ class _Stream:
         self.colour = self.tty and not no_colour
         self.encoding = getattr(raw, "encoding", None) or "ascii"
         try:  # every non-ASCII character this writer itself prints
-            ("".join(GLYPH.values()) + CUT).encode(self.encoding)
+            "".join(GLYPH.values()).encode(self.encoding)
             self.glyphs = self.tty
         except (LookupError, UnicodeEncodeError):
             self.glyphs = False
@@ -143,7 +143,8 @@ class Term:
     def table(self, rows, err=False, indent=2, mark_at=0):
         """rows: (status or None, [cell...], after or None); a cell is a str or (str, style).
         The status shows as a column at mark_at. `after` is a line under the row, set at the
-        last column's start and never cut."""
+        last column's start. Nothing is cut: on a terminal a last cell wider than the room left
+        moves whole to a dim line of its own under the row, above `after`."""
         stream = self._stream(err)
         if not rows:
             return
@@ -159,24 +160,24 @@ class Term:
         widths = [max((len(cells[i][0]) for cells, _ in grid if i < len(cells)), default=0)
                   for i in range(ncols)]
         for cells, after in grid:
-            used, shown = indent, " " * indent
+            used, shown, under = indent, " " * indent, []
             for i, (text, style) in enumerate(cells):
                 last = i == len(cells) - 1
                 is_mark = marked and i == mark_at  # its style slot holds the painted mark
-                if last and stream.tty and not is_mark:
-                    room = stream.width() - used
-                    if len(text) > room:
-                        text = text[:max(room - 1, 0)] + CUT
+                if last and i and stream.tty and not is_mark and len(text) > stream.width() - used:
+                    under.append(text)
+                    break
                 painted = style if is_mark else stream.paint(text, STYLE_SGR.get(style))
                 pad = "" if last else " " * (widths[i] - len(text)) + GAP
                 used += len(text) + len(pad)
                 shown += painted + pad
             stream.write(shown.rstrip(" "))
-            if after:
-                start = indent + sum(w + len(GAP) for w in widths[:len(cells) - 1])
-                stream.write(" " * start + stream.paint(after, STYLE_SGR["hint"]))
+            start = indent + sum(w + len(GAP) for w in widths[:len(cells) - 1])
+            for line in under + ([after] if after else []):
+                stream.write(" " * start + stream.paint(line, STYLE_SGR["hint"]))
 
-    def hint(self, mid, **values):
+    def hint(self, mid, values=None, **more):
+        values = dict(values or {}, **more)
         if not self.quiet:
             self.flush()  # the answer first, where both streams share one pipe
             stream = self.err

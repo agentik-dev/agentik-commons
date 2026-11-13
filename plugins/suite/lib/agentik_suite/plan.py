@@ -9,6 +9,7 @@ message id and values of its detail, and the command setup would run (None when 
 """
 import json
 import os
+import shlex
 import shutil
 import sys
 
@@ -86,59 +87,73 @@ def build(names, env, lib, tool, version):
         steps.append(_step(2, "marketplace", "todo", MARKETPLACE, "setup.market.missing",
                            "claude plugin marketplace add %s" % SOURCE))
 
-    # 3: each plugin
+    # 3: each plugin, installed only when its folder holds its launcher
     installed = _read_json(os.path.join(config, "plugins", "installed_plugins.json"))
     table = installed.get("plugins") if isinstance(installed, dict) else None
     have = {}
     for name in names:
         key = "%s@%s" % (name, MARKETPLACE)
+        install = "claude plugin install %s" % shlex.quote(key)
         entry = table.get(key) if isinstance(table, dict) else None
         entry = entry[0] if isinstance(entry, list) and entry and isinstance(entry[0], dict) else None
-        if entry and isinstance(entry.get("version"), str) and entry.get("version"):
-            have[name] = entry
-            steps.append(_step(3, "plugin", "ok", key, "setup.plugin.ok", version=entry["version"]))
+        ver = entry.get("version") if entry else None
+        root = entry.get("installPath") if entry else None
+        if not (isinstance(ver, str) and ver):
+            steps.append(_step(3, "plugin", "todo", key, "setup.plugin.missing", install))
+        elif isinstance(root, str) and os.path.isfile(os.path.join(root, "bin", "agentik-" + name)):
+            have[name] = (ver, os.path.join(root, "bin", "agentik-" + name))
+            steps.append(_step(3, "plugin", "ok", key, "setup.plugin.ok", version=ver))
         else:
-            steps.append(_step(3, "plugin", "todo", key, "setup.plugin.missing",
-                               "claude plugin install %s" % key))
+            steps.append(_step(3, "plugin", "todo", key, "setup.plugin.broken", install, version=ver))
 
-    # 4: each plugin's launcher on the terminal's PATH
+    # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli
+    placed = []
     for name in names:
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
+        read = agentik_install.read_launcher(where)
+        if read is not None:
+            placed.append(where)
         if name not in have:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.wait"))
             continue
-        want = have[name]["version"]
-        root = have[name].get("installPath")
-        command = "%s install-cli" % os.path.join(root, "bin", exe) if isinstance(root, str) and root else None
-        read = agentik_install.read_launcher(where)
+        want, source = have[name]
+        command = "%s install-cli" % shlex.quote(source)
         if read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
         elif read.get("version") == want:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.ok",
                                version=want))
+            placed.insert(0, placed.pop())  # a launcher at its version is the first to name
         elif read.get("version"):
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.behind",
                                command, have=read["version"], want=want))
         else:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.unread",
                                command, want=want))
+    step4_runs = any(s["command"] for s in steps if s["n"] == 4)
 
-    # 5: the suite's own launcher and the door
+    # 5: the suite's own launcher, which no verb places yet, and the door, which install-cli places
     own = os.path.join(bindir, tool)
     read = agentik_install.read_launcher(own)
     here = shown(os.path.join(os.path.dirname(lib), "bin", tool), home)
-    if read is not None and read.get("version") == version:
-        steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.ok", version=version))
-    elif read is not None:
-        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.behind",
-                           have=read.get("version") or "?", want=version, path=here))
-    else:
+    if read is None:
         steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", path=here))
+    elif read.get("version") == version:
+        steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.ok", version=version))
+    elif read.get("version"):
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.behind",
+                           have=read["version"], want=version, path=here))
+    else:
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.unread",
+                           want=version, path=here))
     door = os.path.join(bindir, agentik_install.DOOR)
     if os.path.isfile(door):
         steps.append(_step(5, "door", "ok", shown(door, home), "setup.door.ok"))
+    elif placed and not step4_runs:
+        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place",
+                           "%s install-cli" % shlex.quote(placed[0])))
     else:
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.missing"))
 
@@ -150,10 +165,21 @@ def build(names, env, lib, tool, version):
         steps.append(_step(6, "path", "todo", shown(bindir, home), "setup.path.missing",
                            PROFILE_LINE, line="add"))
 
-    # 7: the doctors, last
+    # 7: the doctors, last, each named once its launcher is placed
     for name in names:
         exe = "agentik-%s" % name
-        steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo", "%s doctor" % exe))
+        where = os.path.join(bindir, exe)
+        if where in placed:
+            steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
+                               "%s doctor" % shlex.quote(where)))
+        else:
+            steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.wait"))
     if not names:
         steps.append(_step(7, "doctor", "ok", tool, "setup.doctor.none"))
+
+    # with step 1 blocked no line can work yet, so no step names one to run
+    if any(s["state"] == "blocked" for s in steps):
+        for s in steps:
+            if s["line"] == "run":
+                s["command"] = None
     return steps

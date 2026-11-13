@@ -53,6 +53,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.market.missing`: not known to Claude Code; setup would add it
 - `setup.plugin.ok`: installed at version `{version}`
 - `setup.plugin.missing`: not installed; setup would install it
+- `setup.plugin.broken`: listed at version `{version}`, but its files are not whole; setup would install it again
 - `setup.launcher.wait`: not placed; step 3 installs the plugin first
 - `setup.launcher.missing`: not placed; setup would place it from the plugin
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
@@ -60,12 +61,17 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; this version cannot place it, so run `{path}`
-- `setup.suite.missing`: not placed, and this version cannot place it; run `{path}` to place it
+- `setup.suite.unread`: holds no version line, and this command is at `{want}`; this version cannot place it, so run `{path}`
+- `setup.suite.missing`: not placed, and this version cannot place it; run `{path}` instead
 - `setup.door.ok`: in place
 - `setup.door.missing`: not placed; the first install-cli run in step 4 places it
+- `setup.door.place`: not placed; the install-cli line below places it
 - `setup.path.ok`: on PATH
 - `setup.path.missing`: not on PATH
 - `setup.doctor.todo`: setup would check the plugin with its doctor
+- `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each line above that starts with run, in order, then `{tool}` setup --dry-run again.
-- `hint.setup.done`: next: every step reads ok; `{tool}` help lists what else this command does.
+- `hint.setup.todo`: next: run each `run:` line above, in order, then `{tool}` setup --dry-run again.
+- `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.
+- `hint.setup.rest`: next: steps 1 to 6 hold no line to run; each row that is not ok says what is left.
+- `hint.setup.done`: next: steps 1 to 6 read ok, so setup has nothing left to do; the lines of step 7 check each plugin.
