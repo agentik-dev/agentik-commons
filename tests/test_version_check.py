@@ -222,5 +222,193 @@ class VersionCheckTest(unittest.TestCase):
         self.assertTrue(os.access(SCRIPT, os.X_OK))
 
 
+A1, A2, A3 = "1.0.0-alpha.1", "1.0.0-alpha.2", "1.0.0-alpha.3"
+ABOVE = "; above %s at the merge base with main\n"
+NO_BASE = "; no merge base with main, the branch's own changes not read\n"
+
+
+def pin_line(version, since):
+    return ("plugin-version-check: version %s, set at %s; nothing under plugin/ changed since\n"
+            % (version, since[:12]))
+
+
+def branch_line(path, base, base_version, version):
+    return ("plugin-version-check: %s: changed on this branch since its merge base with main "
+            "(%s, version %s); version %s is not above it: bump plugin.json's version\n"
+            % (path, base[:12], base_version, version))
+
+
+class BranchReadTest(unittest.TestCase):
+    """The second read (packet c7): the paths under plugin/ that differ from HEAD's merge
+    base with main, the manifest aside, need a version above the merge base's."""
+    setUp, tearDown = VersionCheckTest.setUp, VersionCheckTest.tearDown
+    git, write, manifest = VersionCheckTest.git, VersionCheckTest.write, VersionCheckTest.manifest
+    commit, json = VersionCheckTest.commit, VersionCheckTest.json
+
+    def fault(self):
+        """main at alpha.1; `row` adds plugin/lib/row.py and never bumps; main adds a file
+        and bumps to alpha.2; `row` merges main. (row's tip, main's head)."""
+        self.manifest(A1)
+        self.write("plugin/a.md", "a\n")
+        self.commit()
+        self.git("checkout", "-q", "-b", "row")
+        self.write("plugin/lib/row.py", "row\n")
+        self.commit()
+        self.git("checkout", "-q", "main")
+        self.write("plugin/other.md", "other\n")
+        self.manifest(A2)
+        main = self.commit()
+        self.git("checkout", "-q", "row")
+        self.git("merge", "-q", "--no-edit", "main")
+        return self.git("rev-parse", "HEAD"), main
+
+    def test_1_the_faults_branch_exits_one_naming_both_versions(self):
+        tip, main = self.fault()
+        self.assertEqual(check(self.repo), (1, "", branch_line("plugin/lib/row.py", main, A2, A2)))
+        code, data, err = self.json()
+        self.assertEqual((code, err), (1, ""))
+        self.assertEqual(data, {"version": A2, "since": tip, "changed": [], "base": {
+            "ref": "refs/heads/main", "merge_base": main, "version": A2,
+            "changed": ["plugin/lib/row.py"]}})
+
+    def test_2_a_version_above_mains_passes_with_the_clause(self):
+        tip, main = self.fault()
+        self.manifest(A3)
+        code, out, err = check(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, "plugin-version-check: version %s is uncommitted; the bump in "
+                              "flight covers every change under plugin/" % A3 + ABOVE % A2)
+        self.assertEqual(self.json()[1]["base"]["changed"], ["plugin/lib/row.py"])
+        bump = self.commit()
+        self.assertEqual(check(self.repo), (0, pin_line(A3, bump)[:-1] + ABOVE % A2, ""))
+        self.assertEqual(self.json(), (0, {"version": A3, "since": bump, "changed": [], "base": {
+            "ref": "refs/heads/main", "merge_base": main, "version": A2,
+            "changed": ["plugin/lib/row.py"]}}, ""))
+        # precedence, not text: a release is above its pre-releases, numbers by number
+        for version, code in (("1.0.0", 0), ("1.0.0-alpha.10", 0), ("1.0.0-beta", 0),
+                              ("1.0.0-alpha.2.0", 0), ("1.0.0-alpha.2", 1),
+                              ("1.0.0-alpha.2+b7", 1), ("1.0.0-alpha.1", 1), ("0.9.9", 1)):
+            self.manifest(version)
+            self.assertEqual(check(self.repo)[0], code, version)
+
+    def test_3_main_after_the_landing_exits_one_as_at_the_pin(self):
+        tip, main = self.fault()
+        self.git("checkout", "-q", "main")
+        self.git("merge", "-q", "--no-ff", "-m", "land row", "row")
+        self.assertEqual(check(self.repo), (1, "", (
+            "plugin-version-check: plugin/lib/row.py: changed since %s set version %s; "
+            "bump plugin.json's version\n" % (main[:12], A2))))
+        self.assertNotIn("base", self.json()[1])
+
+    def test_4_a_branch_behind_main_bumped_above_its_merge_base_passes(self):
+        self.manifest(A1)
+        self.write("plugin/a.md", "a\n")
+        base = self.commit()
+        self.git("checkout", "-q", "-b", "behind")
+        self.write("plugin/lib/row.py", "row\n")
+        self.manifest(A2)
+        bump = self.commit()
+        self.git("checkout", "-q", "main")
+        self.write("plugin/other.md", "other\n")
+        self.manifest("1.0.0-alpha.9")
+        self.commit()
+        self.git("checkout", "-q", "behind")
+        self.assertEqual(check(self.repo), (0, pin_line(A2, bump)[:-1] + ABOVE % A1, ""))
+        self.assertEqual(self.json()[1]["base"]["merge_base"], base)
+
+    def test_5_a_branch_changing_nothing_under_plugin_merging_a_bumped_main(self):
+        self.manifest(A1)
+        self.write("plugin/a.md", "a\n")
+        self.commit()
+        self.git("checkout", "-q", "-b", "docs")
+        self.write("README.md", "outside plugin/\n")
+        self.commit()
+        self.git("checkout", "-q", "main")
+        self.manifest(A2)
+        self.commit()
+        self.git("checkout", "-q", "docs")
+        self.git("merge", "-q", "--no-edit", "main")
+        merge = self.git("rev-parse", "HEAD")
+        self.assertEqual(check(self.repo), (0, pin_line(A2, merge), ""))
+
+    def test_6_main_and_detached_at_main_read_as_the_pin_and_a_tip_as_its_branch(self):
+        tip, main = self.fault()
+        self.git("checkout", "-q", "main")
+        for where in ("main", "detached at main's head"):
+            self.assertEqual(check(self.repo), (0, pin_line(A2, main), ""), where)
+            self.assertEqual(check(self.repo, "--json")[:2], (0, json.dumps(
+                {"version": A2, "since": main, "changed": []}) + "\n"), where)
+            self.git("checkout", "-q", "--detach", "main")
+        self.git("checkout", "-q", "--detach", tip)
+        self.assertEqual(check(self.repo), (1, "", branch_line("plugin/lib/row.py", main, A2, A2)))
+
+    def test_7_no_main_an_orphan_and_a_shallow_clone_skip_the_read(self):
+        tip, main = self.fault()
+        # a shallow clone of the branch alone, and one that holds main's tip too
+        for extra in ([], ["--no-single-branch"]):
+            clone = os.path.join(self.tmp.name, "shallow%d" % len(extra))
+            subprocess.run(["git", "clone", "-q", "--depth", "1", *extra, "--branch", "row",
+                            "file://" + self.repo, clone], check=True, env=ENV,
+                           capture_output=True)
+            self.assertEqual(check(clone), (0, pin_line(A2, tip)[:-1] + NO_BASE, ""), extra)
+            self.assertIsNone(json.loads(check(clone, "--json")[1])["base"])
+        # an orphan branch beside main: today's read's exit, 0 then 1
+        self.git("checkout", "-q", "--orphan", "lone")
+        root = self.commit()
+        self.assertEqual(check(self.repo), (0, pin_line(A2, root)[:-1] + NO_BASE, ""))
+        self.assertIsNone(self.json()[1]["base"])
+        self.write("plugin/lib/lone.py", "lone\n")
+        code, out, err = check(self.repo)
+        self.assertEqual((code, out, len(err.splitlines())), (1, "", 1))
+        # a repo whose only branch is trunk: 1 as today, then a bump in flight
+        self.git("branch", "-q", "-m", "trunk")
+        self.git("branch", "-q", "-D", "main", "row")
+        self.assertEqual(check(self.repo)[:2], (1, ""))
+        self.manifest(A3)
+        self.assertEqual(check(self.repo), (0, "plugin-version-check: version %s is uncommitted; "
+                         "the bump in flight covers every change under plugin/" % A3 + NO_BASE, ""))
+
+    def test_8_no_manifest_at_the_merge_base_reads_as_below_any_version(self):
+        self.write("README.md", "no plugin yet\n")
+        base = self.commit()
+        self.git("checkout", "-q", "-b", "new")
+        self.manifest("0.0.1")
+        self.write("plugin/a.md", "a\n")
+        first = self.commit()
+        self.assertEqual(check(self.repo), (0, pin_line("0.0.1", first), ""))
+        self.assertEqual(self.json()[1]["base"], {"ref": "refs/heads/main", "merge_base": base,
+                                                  "version": None, "changed": ["plugin/a.md"]})
+
+    def test_9_a_version_that_cannot_be_ordered_exits_two(self):
+        tip, main = self.fault()
+        for version in ("2", "v1.0.0", "1.0.0-01", "1.0"):
+            self.manifest(version)
+            code, out, err = check(self.repo)
+            self.assertEqual((code, out), (2, ""), version)
+            self.assertEqual(len(err.splitlines()), 1, version)
+            self.assertIn("version %s " % version, err)
+            self.assertIn(A2, err)
+        # the merge base's side: main at "1.0", a branch that changes plugin/
+        self.git("checkout", "-q", "-f", "main")
+        self.manifest("1.0")
+        self.assertEqual(check(self.repo)[0], 0)  # no path listed: today's read alone
+        self.commit()
+        self.git("checkout", "-q", "-b", "odd")
+        self.write("plugin/b.md", "b\n")
+        self.manifest("1.1.0")
+        self.commit()
+        code, out, err = check(self.repo)
+        self.assertEqual((code, out, len(err.splitlines())), (2, "", 1))
+        self.assertIn("version 1.0 ", err)
+
+    def test_10_origin_main_serves_when_main_is_absent(self):
+        tip, main = self.fault()
+        self.git("update-ref", "refs/remotes/origin/main", main)
+        self.git("branch", "-q", "-D", "main")
+        code, data, _ = self.json()
+        self.assertEqual((code, data["base"]["ref"], data["base"]["merge_base"]),
+                         (1, "refs/remotes/origin/main", main))
+
+
 if __name__ == "__main__":
     unittest.main()
