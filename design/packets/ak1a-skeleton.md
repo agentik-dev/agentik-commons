@@ -109,3 +109,25 @@ Acceptance (each a test in `tests/test_agentik_suite.py`; at 3b7cc56 each is as 
 | 8 | a catalogue copy with a capital in an id turns its test red | skipped, green |
 | 9 | the first eight lines hold; tests changed only where words changed | 25 tests OK |
 | 10 | `make voice` exit 0; the gate's `make check` exit 0; R12's scan 0 hits | not run |
+
+## 8. Phase 2: the replay onto main and review 2
+
+| item | value |
+|---|---|
+| from | agentik-hq's phase 2 brief of 2026-11-13 for ak1a: the replay, review 2's mends M1 to M3 |
+| pin | main at 3c633d0; branch `ak1a-replay` in `.claude/worktrees/ak1a-replay`; `ak1a-skeleton` at 11fcbc0 read only |
+| may touch | as above, and `history/sittings/2026-11-13-3.md` |
+| verify | `make voice`, then `make check`, each once, through the gate queue, `--strict` |
+
+Why the replay: review 1's F1. Commit 5bd76ad's Makefile comment named the scanner's root variable, which the commit-range hygiene scan refuses, though the next commit reworded it. The 15 commits are picked onto main, that one comment in its later words from the start, so the range scans clean with no allow row widened. Main's c7 landed first, so this row's NICE rows are n25 to n31.
+
+Review 2, as this phase reads it:
+
+- F1: with step 1 blocked, the door's row promised an install-cli line the plan withholds; M1 picks its message after the blocked pass.
+- F2: a plugin that ships no launcher read "not whole" and was sent to a reinstall; M2 reads its folder, and step 4 says it ships no command.
+- L1: with only the PATH line left, the hint sent the reader to run: lines; M3 names the add line.
+- L2: a set-up machine's plan ended on a dead end; M3 says setup has done what this version can.
+- L3: a launcher left by an uninstalled plugin reads "not placed"; NICE n32.
+- L4: step 5's path was two shell words in its detail; M3 quotes it as a run: line's is.
+- L5 to L9: a control character in a path, a malformed catalogue, an unparseable manifest, 40 columns, a launcher with mode 0644; NICE n33 to n37.
+- The table of words: two lines taken with L2; the rest is NICE n38.
