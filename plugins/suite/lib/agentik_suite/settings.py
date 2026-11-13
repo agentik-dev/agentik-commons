@@ -218,7 +218,7 @@ def resolve(env, cwd, summaries):
     layers.append({"name": "user", "path": user, "present": present, "travels": False})
     for key in tree:
         if key not in ("checkouts", "watchers"):
-            warnings.append({"path": user, "line": lines[key], "key": key})
+            warnings.append({"path": user, "line": lines[key], "key": key, "reason": "unknown"})
     checkouts = tree.get("checkouts")
     if checkouts is not None and not isinstance(checkouts, list):
         raise _at(Fault(lines["checkouts"], "checkouts is not a flat list of paths"), user)
@@ -234,7 +234,7 @@ def resolve(env, cwd, summaries):
         for field, value in fields.items():
             path = "watchers.%s.%s" % (name, field)
             if field not in WATCHER_FIELDS:
-                warnings.append({"path": user, "line": lines.get(path), "key": path})
+                warnings.append({"path": user, "line": lines.get(path), "key": path, "reason": "unknown"})
                 continue
             settings.append(_setting(path, value, None, "string", summaries["watcher." + field],
                                      "user", user, lines.get(path),
@@ -249,10 +249,12 @@ def resolve(env, cwd, summaries):
         section = tree.get("suite") if isinstance(tree.get("suite"), dict) else {}
         for key in section:
             if key != "kind":
-                warnings.append({"path": repo, "line": lines.get("suite." + key), "key": "suite." + key})
+                warnings.append({"path": repo, "line": lines.get("suite." + key), "key": "suite." + key,
+                                 "reason": "unknown"})
         kind, kind_line = section.get("kind"), lines.get("suite.kind")
         if kind is not None and kind not in KINDS:
-            warnings.append({"path": repo, "line": kind_line, "key": "suite.kind"})
+            warnings.append({"path": repo, "line": kind_line, "key": "kind", "reason": "choice",
+                             "value": kind})
     else:
         present = False
     layers.append({"name": "repo", "path": repo, "present": present, "travels": False})

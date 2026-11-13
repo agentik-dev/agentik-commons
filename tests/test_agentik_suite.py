@@ -1152,3 +1152,82 @@ class AnswerTest(ConfigHome):
         self.odd(schema="agentik.describe/0")
         out = self.clean("config")
         self.assertIn("unreadable", next(l for l in out.splitlines() if " odd " in l + " "))
+
+
+class LineTest(ConfigHome):
+    """Review 1 of ak1b, F8 to F13: each line says only what is known in its state."""
+
+    def test_f8_the_suites_own_nearest_key(self):
+        code, out, err = self.cfg("config", "suite.checkout")
+        self.assertEqual(code, 2)
+        self.assertIn("the nearest is checkouts", err)
+
+    def test_f9_a_config_read_that_fails_says_so_at_every_level(self):
+        self.stub("agentik-lag", LAG % os.path.join(self.side, "lag.pid"))
+        self.stub("agentik-bad", (LAG % os.path.join(self.side, "bad.pid")).replace(
+            "sleep 10", "echo nope").replace('"tool": "lag"', '"tool": "bad"'))
+        for name, words in (("lag", "its settings read ran past 2 s"),
+                            ("bad", "its settings read cannot be read")):
+            code, out, err = self.cfg("config")
+            row = next(l for l in out.splitlines() if " %s " % name in l + " ")
+            self.assertRegex(row, r"warn +%s +answers +%s" % (name, words))
+            code, out, err = self.cfg("config", name)
+            self.assertEqual(code, 0, err)
+            self.assertIn("%s answers, but %s" % (name, words), out)
+            code, out, err = self.cfg("config", name + ".colour")
+            self.assertEqual(code, 2)
+            self.assertIn("%s answers, but %s" % (name, words), err)
+            for text in (out, err):
+                self.assertNotIn("describe", text)
+
+    def test_f10_changed_and_user_files_name_the_tools_that_did_not_answer(self):
+        self.stub("agentik-mute", "#!/bin/sh\nexit 2\n")
+        code, out, err = self.cfg("config", "--changed")
+        self.assertEqual(code, 0, err)
+        self.assertIn("did not answer, so their settings are not here: mute", out)
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
+        self.assertIn("did not answer, so their user files are not here: mute", err)
+        self.stub("agentik-demo", "#!/bin/sh\nexit 2\n")
+        code, out, err = self.cfg("config", "--changed")
+        self.assertIn("Every setting read holds its default.", out)
+        self.assertIn("not here: demo, mute", out)
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, ""))
+        self.assertIn("No tool that answered names a user file that travels.", err)
+        self.assertNotIn("next: no layer", err)
+
+    def test_f11_a_known_key_with_a_value_outside_its_choices(self):
+        repo = os.path.join(self.home, "repo")
+        os.makedirs(os.path.join(repo, ".git"))
+        self.write(os.path.join(repo, ".claude", "agentik", "config.yaml"), "suite:\n  kind: hub\n  odd: 1\n")
+        code, out, err = self.cfg("config", "suite", cwd=repo)
+        self.assertEqual(code, 0, err)
+        self.assertIn("kind holds hub, which is not one of its choices", out)
+        self.assertNotIn("unknown key suite.kind", out)
+        self.assertIn("unknown key suite.odd", out)
+
+    def test_f12_a_dot_with_no_name_or_no_key(self):
+        for word in (".key", "."):
+            code, out, err = self.cfg("config", word)
+            self.assertEqual(code, 2)
+            self.assertIn("A tool's name goes before the dot.", err)
+        code, out, err = self.cfg("config", "demo.")
+        self.assertEqual(code, 2)
+        self.assertIn("A key goes after the dot.", err)
+        self.assertEqual(self.describes(), [])
+
+    def test_f13_a_user_file_that_cannot_be_opened_has_no_line(self):
+        conf = os.path.join(self.side, "conf")
+        user = os.path.join(conf, "agentik", "suite", "config.yaml")
+        os.makedirs(user)
+        code, out, err = self.cfg("config", "suite", XDG_CONFIG_HOME=conf)
+        self.assertEqual(code, 2)
+        self.assertIn("config.yaml cannot be read: a file that cannot be read", err)
+        os.rmdir(user)
+        self.write(user, "checkouts: []\n")
+        os.chmod(user, 0)
+        for args in (("config", "suite"), ("config",)):
+            code, out, err = self.cfg(*args, XDG_CONFIG_HOME=conf)
+            self.assertIn("config.yaml cannot be read: a file that cannot be read", out + err)
+            self.assertNotIn("line 0", out + err)

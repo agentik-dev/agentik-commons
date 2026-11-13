@@ -18,6 +18,16 @@ from . import plan, settings, term, tools
 SUITE_READ = {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}
 GROUP_PAST = 20
 STATUS = {"answers": "ok", "timed out": "warn", "unreadable": "warn", "no command": "note"}
+# Why a tool gives no settings (`why`), and the line for it at the tool's level and a key's.
+STATE_LINE = {"timed out": "config.state.timed_out", "unreadable": "config.state.unreadable",
+              "no command": "config.state.no_command", "noread": "config.state.noread",
+              "read timed out": "config.state.read_timed_out",
+              "read unreadable": "config.state.read_unreadable"}
+KEY_LINE = {"timed out": "err.config.silent", "unreadable": "err.config.silent",
+            "no command": "err.config.silent.command", "noread": "err.config.silent.noread",
+            "read timed out": "err.config.read.timed_out",
+            "read unreadable": "err.config.read.unreadable"}
+READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable"}
 SUITE_SUMMARIES = ("checkouts", "kind", "watcher.match", "watcher.start", "watcher.beat",
                    "watcher.writer")
 
@@ -30,6 +40,18 @@ def shown_value(value):
     if isinstance(value, str):
         return value if value else '""'
     return json.dumps(value, ensure_ascii=False)
+
+
+def why(row):
+    """Why a row gives no settings: its read's state, a tool that names no read, or its state."""
+    if row["read_state"]:
+        return "read " + row["read_state"]
+    return "noread" if row["state"] == "answers" else row["state"]
+
+
+def silent(rows):
+    """The tools whose settings were not read: each but those that answer and name no read."""
+    return [row["name"] for row in rows if row["config"] is None and why(row) != "noread"]
 
 
 def differs(s):
@@ -109,7 +131,6 @@ class Reader:
                     row["config"] = tools.counted_config(code, out) if state == "ran" else None
                     if row["config"] is None:
                         row["read_state"] = "timed out" if state == "timed out" else "unreadable"
-                        row["state"] = row["read_state"]
             rows.append(row)
         return rows
 
@@ -122,8 +143,8 @@ class Reader:
         return tools.counted_config(code, out) if state == "ran" else None
 
     def fault_text(self, f):
-        return self.t.text("config.fault", path=plan.shown(getattr(f, "path", ""), self.home),
-                           line=f.line, why=f.why)
+        return self.t.text("config.fault" if f.line else "config.fault.noline",
+                           path=plan.shown(getattr(f, "path", ""), self.home), line=f.line, why=f.why)
 
     def user_file(self, cfg):
         for layer in (cfg or {}).get("layers") or ():
@@ -156,6 +177,8 @@ def do_config(cmd, nouns):
             return _user_files(cmd, rows)
         return _list(cmd, r, rows)
     name, dot, key = nouns[0].partition(".")
+    if not name:
+        raise Usage("unknown_tool", "err.config.noname", "%s config" % cmd.tool, tool=cmd.tool)
     names = [e["name"] for e in entries]
     if name not in names:
         near = _nearest(name, names)
@@ -170,18 +193,17 @@ def do_config(cmd, nouns):
         raise Usage("bad_file", "err.config.file", "%s config %s" % (cmd.tool, name),
                     fault=row["fault"], tool=cmd.tool, name=name)
     table = tools.fallback(cmd.lib).get(name)
-    answers = row["state"] == "answers" and (row["name"] == r.suite or row["read"])
-    if not answers:
+    cfg = row["config"]
+    if cfg is None:
         if key:
-            raise Usage("no_answer", "err.config.silent", "%s config %s" % (cmd.tool, name),
+            raise Usage("no_answer", KEY_LINE[why(row)], "%s config %s" % (cmd.tool, name),
                         name=name, key=key, state=row["state"], tool=cmd.tool)
         return _silent(cmd, r, row, table)
-    cfg = row["config"]
     if not key:
         return _tool(cmd, r, name, cfg)
     found = [s for s in cfg["settings"] if s["key"] == key]
     if not found:
-        whole = cfg if row["name"] == r.suite else r.read_one(row, None)
+        whole = r.suite_config() if row["name"] == r.suite else r.read_one(row, None)
         keys = [s["key"] for s in (whole or {}).get("settings") or ()]
         near = _nearest(key, keys)
         raise Usage("unknown_key", "err.config.key.near" if near else "err.config.key",
@@ -212,6 +234,8 @@ def _list(cmd, r, rows):
                     "summary": (row["answer"] or {}).get("summary")}
             if row["fault"]:
                 item["fault"] = row["fault"]
+            if row["read_state"]:
+                item["read"] = row["read_state"]
             if row["state"] != "answers" and row["name"] in table:
                 words = words if words is not None else tools.descriptions(cmd.env)
                 item["table"] = table[row["name"]]
@@ -231,6 +255,8 @@ def _list(cmd, r, rows):
             user = r.user_file(row["config"])
             if user:
                 cells.append(term.path(plan.shown(user, r.home)))
+        elif row["read_state"]:
+            cells = [term.name(row["name"]), row["state"], t.text(READ_CELL[row["read_state"]])]
         elif row["name"] in table and row["state"] != "answers":
             words = words if words is not None else tools.descriptions(cmd.env)
             cells = [term.name(row["name"]), row["state"], t.text("config.from_table"), "",
@@ -238,7 +264,7 @@ def _list(cmd, r, rows):
             after = words.get(row["name"])
         else:
             cells = [term.name(row["name"]), row["state"]]
-        lines.append((STATUS.get(row["state"], "warn"), cells, after))
+        lines.append(("warn" if row["read_state"] else STATUS.get(row["state"], "warn"), cells, after))
     t.table(lines)
     t.hint("hint.config", tool=cmd.tool)
     return 0
@@ -250,14 +276,17 @@ def _silent(cmd, r, row, table):
     if cmd.opts["json"]:
         obj = {"schema": "agentik.config/1", "ok": True, "tool": name, "state": row["state"],
                "layers": [], "settings": []}
+        if row["read_state"]:
+            obj["read"] = row["read_state"]
         if table:
             obj["table"] = table
             obj["description"] = tools.descriptions(cmd.env).get(name)
         cmd.t.json(obj)
         return 0
+    t.line(STATE_LINE[why(row)], name=name)
     if table:
         desc = tools.descriptions(cmd.env).get(name)
-        t.line("config.table.title", name=name, state=row["state"])
+        t.line("config.table.title", name=name)
         if desc:
             t.line("config.table.description", description=desc, style="hint")
         rows = [("note", [t.text("config.label.run"), line], None)
@@ -271,10 +300,6 @@ def _silent(cmd, r, row, table):
         t.table(rows)
         t.hint("hint.config.back", tool=cmd.tool)
         return 0
-    if row["state"] == "answers":
-        t.line("config.state.noread", name=name)
-    else:
-        t.line("config.state." + row["state"].replace(" ", "_"), name=name)
     t.hint("hint.config.back", tool=cmd.tool)
     return 0
 
@@ -306,7 +331,9 @@ def _tool(cmd, r, name, cfg):
     else:
         t.table([row(s, s["key"]) for s in rows])
     for w in cfg.get("warnings") or ():
-        t.table([("warn", [t.text("config.unknown", key=w.get("key")),
+        said = t.text("config.badvalue", key=w.get("key"), value=shown_value(w.get("value"))) \
+            if w.get("reason") == "choice" else t.text("config.unknown", key=w.get("key"))
+        t.table([("warn", [said,
                            term.path("%s:%s" % (plan.shown(str(w.get("path")), r.home), w.get("line")))],
                   None)])
     t.hint("hint.config.tool", tool=cmd.tool, name=name)
@@ -356,7 +383,7 @@ def _card(cmd, r, name, cfg, s):
 
 
 def _changed(cmd, r, rows):
-    t, found = cmd.t, []
+    t, found, gone = cmd.t, [], silent(rows)
     for row in rows:
         for s in (row["config"] or {}).get("settings") or ():
             if differs(s):
@@ -364,7 +391,8 @@ def _changed(cmd, r, rows):
     if cmd.opts["json"]:
         t.json({"schema": "agentik.config/1", "ok": True,
                 "changed": [{"tool": n, "key": s["key"], "value": s.get("value"),
-                             "default": s.get("default"), "source": s["source"]} for n, s in found]})
+                             "default": s.get("default"), "source": s["source"]} for n, s in found],
+                "silent": gone})
         return 0
     if not found:
         t.line("config.changed.none")
@@ -373,24 +401,28 @@ def _changed(cmd, r, rows):
         t.table([(None, [term.name("%s.%s" % (n, s["key"])), shown_value(s.get("value")),
                          t.text("config.was", default=shown_value(s.get("default"))),
                          str(s["source"].get("layer") or "default")], None) for n, s in found])
+    if gone:
+        t.line("config.changed.silent", names=", ".join(gone))
     t.hint("hint.config.changed", tool=cmd.tool)
     return 0
 
 
 def _user_files(cmd, rows):
-    t, paths = cmd.t, []
+    t, paths, gone = cmd.t, [], silent(rows)
     for row in rows:
         for layer in (row["config"] or {}).get("layers") or ():
             if layer.get("travels") is True and isinstance(layer.get("path"), str) \
                     and layer["path"] not in paths:
                 paths.append(layer["path"])
     if cmd.opts["json"]:
-        t.json({"schema": "agentik.config/1", "ok": True, "user_files": paths})
+        t.json({"schema": "agentik.config/1", "ok": True, "user_files": paths, "silent": gone})
         return 0
     for p in paths:
         t.line("config.file", path=p)
     if not paths:
-        t.hint("hint.config.nofiles", tool=cmd.tool)
+        t.line("config.files.none", err=True)
+    if gone:
+        t.line("config.files.silent", err=True, names=", ".join(gone))
     return 0
 
 

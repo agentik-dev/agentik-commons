@@ -50,8 +50,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.tool`: `{name}` is not a tool here. Run `{tool}` config for the list.
 - `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{tool}` config `{name}` for its keys.
 - `err.config.key`: `{name}` has no setting `{key}`. Run `{tool}` config `{name}` for its keys.
+- `err.config.noname`: A tool's name goes before the dot. Run `{tool}` config for the list.
 - `err.config.nokey`: A key goes after the dot. Run `{tool}` config `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read, since `{name}` reads `{state}`. Run `{tool}` config `{name}` for what it gives.
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` is `{state}`. Run `{tool}` config `{name}` for what it gives.
+- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{tool}` config `{name}` for what it gives.
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no settings read. Run `{tool}` config `{name}` for what it gives.
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings read ran past 2 s. Run `{tool}` config `{name}` for what it gives.
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings read cannot be read. Run `{tool}` config `{name}` for what it gives.
 - `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
 - `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
@@ -64,10 +69,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.differ`: `{n}` changed
 - `config.from_table`: from the suite's table
 - `config.fault`: `{path}` cannot be read at line `{line}`: `{why}`
+- `config.fault.noline`: `{path}` cannot be read: `{why}`
 - `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed from the default.
 - `config.group`: `{group}`
 - `config.changed`: changed
 - `config.unknown`: unknown key `{key}`
+- `config.badvalue`: `{key}` holds `{value}`, which is not one of its choices
 - `config.card.title`: `{name}`.`{key}`
 - `config.label.value`: value
 - `config.label.summary`: about
@@ -87,15 +94,22 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.fixed`: no verb changes it
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
-- `config.table.title`: `{name}` gives no settings of its own, since it reads `{state}`. The suite's table shows where they live.
+- `config.table.title`: The suite's table shows where `{name}` keeps its settings.
 - `config.table.description`: `{description}`
 - `config.table.nocmd`: no command; the user file below holds the settings
 - `config.state.timed_out`: `{name}` gives no settings: its describe ran past 2 s, so it was stopped.
 - `config.state.unreadable`: `{name}` gives no settings: its describe answer cannot be read.
 - `config.state.no_command`: `{name}` is installed but ships no command, so it gives no settings.
 - `config.state.noread`: `{name}` answers, but names no settings read.
+- `config.state.read_timed_out`: `{name}` answers, but its settings read ran past 2 s, so it was stopped.
+- `config.state.read_unreadable`: `{name}` answers, but its settings read cannot be read.
+- `config.read.timed_out`: its settings read ran past 2 s
+- `config.read.unreadable`: its settings read cannot be read
 - `config.changed.title`: Settings that differ from their defaults: `{count}`.
-- `config.changed.none`: Every setting holds its default.
+- `config.changed.none`: Every setting read holds its default.
+- `config.changed.silent`: These tools did not answer, so their settings are not here: `{names}`.
+- `config.files.silent`: These tools did not answer, so their user files are not here: `{names}`.
+- `config.files.none`: No tool that answered names a user file that travels.
 - `config.was`: default `{default}`
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
@@ -105,7 +119,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.config.card`: next: `{tool}` config --changed lists every setting that differs from its default.
 - `hint.config.back`: next: `{tool}` config lists every tool and its state.
 - `hint.config.changed`: next: `{tool}` config <tool>.<key> shows where one is set and how to change it.
-- `hint.config.nofiles`: next: no layer travels between machines. `{tool}` config lists every tool's user file.
 
 ## The suite's settings
 
