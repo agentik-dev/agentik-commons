@@ -19,10 +19,10 @@ import sys
 
 import agentik_install
 
-from . import config, plan, status, term, tools
+from . import config, install, plan, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status")
-WRITES = ("setup",)
+VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli")
+WRITES = ("setup", "install-cli")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
@@ -31,7 +31,8 @@ STATUS_FLAGS = (("--check", None, "check"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
-VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status")}  # test hooks: flag, key, verb
+VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
+               "--prefix": ("prefix", "install-cli")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
@@ -72,6 +73,8 @@ def parse(argv):
             rest = True
         elif flag in VALUE_FLAGS:
             value = value if eq else next(args, None)
+            if flag == "--prefix" and (value is None or value.startswith("-")):
+                value = ""  # a flag, or nothing, is no folder: install-cli refuses it (ak2b review 1)
             if value is None and bad is None:
                 bad = flag
             elif value is not None:
@@ -130,7 +133,7 @@ class Command:
                 self._bad_flag(flag)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
-        return getattr(self, "do_" + self.verb)(nouns)
+        return getattr(self, "do_" + self.verb.replace("-", "_"))(nouns)
 
     def _not_a_verb(self, word, asked_help=False):
         """Packet ak2 R3: a plugin's name with no agentik-<word> on PATH exits 3; any other word
@@ -209,8 +212,8 @@ class Command:
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version,
-                         "verbs": [{"name": v, "summary": self.t.text("verb." + v),
-                                    "usage": self.t.text("usage." + v, tool=self.tool)}
+                         "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")),
+                                    "usage": self.t.text("usage." + v.replace("-", "_"), tool=self.tool)}
                                    for v in VERBS],
                          "flags": [f[0] for f in FLAGS], "on_path": found})
             return 0
@@ -219,7 +222,7 @@ class Command:
         t.line("help.usage", tool=self.tool)
         t.blank()
         t.line("help.verbs", style="name")
-        t.table([(None, [term.name(v), t.text("verb." + v)], None) for v in VERBS])
+        t.table([(None, [term.name(v), t.text("verb." + v.replace("-", "_"))], None) for v in VERBS])
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(FLAGS))
@@ -237,13 +240,13 @@ class Command:
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
-                         "summary": self.t.text("verb." + verb),
-                         "usage": self.t.text("usage." + verb, tool=self.tool),
+                         "summary": self.t.text("verb." + verb.replace("-", "_")),
+                         "usage": self.t.text("usage." + verb.replace("-", "_"), tool=self.tool),
                          "flags": [f[0] for f in flags]})
             return 0
         t = self.t
-        t.line("usage." + verb, tool=self.tool)
-        t.line("verb." + verb)
+        t.line("usage." + verb.replace("-", "_"), tool=self.tool)
+        t.line("verb." + verb.replace("-", "_"))
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(flags))
@@ -264,6 +267,9 @@ class Command:
         else:
             self.t.line("version.line", tool=self.tool, version=self.version)
         return 0
+
+    def do_install_cli(self, nouns):
+        return install.do_install_cli(self, nouns)
 
     # ---- setup ----------------------------------------------------------------------------
 

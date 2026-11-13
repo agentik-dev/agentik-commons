@@ -532,20 +532,24 @@ class PlanTruthTest(Home):
         return {(s["n"], s["subject"]): s for s in self.plan(*names, **more)["steps"]}
 
     def test_r1_the_doors_row_names_an_install_cli(self):
+        """Packet ak2b R5: the door's row names this command's own install-cli, never a plugin's."""
         self.whole({"alpha": "1.0.0", "beta": "2.0.0"})
         self.place("agentik-suite", version())
         door = self.by_subject("alpha", "beta")[(5, "~/.local/bin/agentik")]
-        words = shlex.split(door["command"])
-        self.assertEqual(words[1:], ["install-cli"])
-        self.assertTrue(os.path.isfile(words[0]), words)
+        self.assertEqual(shlex.split(door["command"]), [str(LAUNCHER), "install-cli"])
         self.assertIn("run: " + door["command"], self.run_cli("setup", "--dry-run", "alpha", "beta")[1])
-        # no launcher placed: step 4 names the install-cli, and the door's row says it places it
-        for exe in ("agentik-alpha", "agentik-beta"):
-            os.remove(os.path.join(self.bindir, exe))
+        # the suite's launcher not placed: its row carries the line, and the door's row points at it
+        os.remove(os.path.join(self.bindir, "agentik-suite"))
         got = self.by_subject("alpha", "beta")
         self.assertIsNone(got[(5, "~/.local/bin/agentik")]["command"])
-        self.assertIn("step 4", got[(5, "~/.local/bin/agentik")]["detail"])
-        self.assertTrue(got[(4, "~/.local/bin/agentik-alpha")]["command"].endswith(" install-cli"))
+        self.assertIn("line above", got[(5, "~/.local/bin/agentik")]["detail"])
+        self.assertEqual(got[(5, "~/.local/bin/agentik-suite")]["command"], door["command"])
+        # an older door is todo; a newer one and one with no version are ok
+        self.place("agentik-suite", version())
+        for ver, state in (("0.1.0", "todo"), ("9.0.0", "ok"), ("banana", "ok")):
+            self.place("agentik", ver)
+            got = self.by_subject("alpha", "beta")[(5, "~/.local/bin/agentik")]
+            self.assertEqual((got["state"], bool(got["command"])), (state, state == "todo"), ver)
 
     def test_r2_the_closing_hint_by_state(self):
         self.whole({"alpha": "1.0.0"})
@@ -586,8 +590,9 @@ class PlanTruthTest(Home):
                 p = subprocess.run(["/bin/sh", "-c", line], env=env, capture_output=True, timeout=60)
                 self.assertEqual(p.returncode, 0, (line, p.stderr))
                 ran.append(words[-1])
-        self.assertEqual(ran[:3], ["agentik-dev/agentik-commons", "alpha@agentik", "beta@agentik"])
-        self.assertEqual(ran[3:7], ["install-cli", "install-cli", "doctor", "doctor"])
+        # the suite's own install-cli first, in step 5, then step 4's two, then the doctors
+        self.assertEqual(ran[:8], ["agentik-dev/agentik-commons", "alpha@agentik", "beta@agentik",
+                                   "install-cli", "install-cli", "install-cli", "doctor", "doctor"])
         got = self.by_subject("alpha", "beta", HOME=home)
         self.assertEqual({s["state"] for s in got.values() if s["n"] in (2, 3, 4)}, {"ok"})
         self.assertEqual(got[(5, "~/.local/bin/agentik")]["state"], "ok")
@@ -633,25 +638,25 @@ class PlanTruthTest(Home):
         self.assertIn("the line marked add", err)
 
     def test_m3_l2_a_set_up_machine_is_no_dead_end(self):
-        """Review 2's L2: a set-up machine's plan, whose suite launcher no verb places, says so."""
+        """Review 2's L2, under packet ak2b R5: a set-up machine's plan, the suite's launcher not
+        placed, names this command's install-cli, and the hint says to run it."""
         self.whole({"alpha": "1.0.0"})
         self.place("agentik", "0")
         path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
         code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
-        self.assertNotIn("hold no line", err)
-        self.assertIn("what this version can", err)
-        self.assertIn("a later version places it", out)
+        self.assertIn("run: %s install-cli" % LAUNCHER, out)
+        self.assertIn("run each", err)
+        self.assertNotIn("a later version", out)
 
     def test_m3_l4_step_fives_path_is_one_shell_word(self):
-        """Review 2's L4: the path in step 5's detail is quoted as a run: line's is."""
+        """Review 2's L4, under packet ak2b R5: the path in step 5's command is one shell word."""
         root = os.path.join(self.home, "pl ug", "suite")
         shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
         p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), "setup", "--dry-run",
                             "--json", "alpha"], capture_output=True, text=True, env=self.env(),
                            timeout=60)
-        detail = [s for s in json.loads(p.stdout)["steps"] if s["id"] == "suite"][0]["detail"]
-        words = shlex.split(detail.split(" run ", 1)[1])
-        self.assertEqual(words, [os.path.join(root, "bin", "agentik-suite")], detail)
+        command = [s for s in json.loads(p.stdout)["steps"] if s["id"] == "suite"][0]["command"]
+        self.assertEqual(shlex.split(command), [os.path.join(root, "bin", "agentik-suite"), "install-cli"])
 
     def test_m1_a_blocked_plan_promises_no_line_it_withholds(self):
         """Review 2's F1: with step 1 blocked no run: line is printed, so the door's row names none."""

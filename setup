@@ -1,0 +1,5 @@
+#!/bin/sh
+# The suite's setup from this checkout, whatever the cwd or a link to it: agentik-suite setup.
+f=$0; while [ -L "$f" ]; do l=$(readlink "$f"); case $l in /*) f=$l ;; *) f=$(dirname -- "$f")/$l ;; esac; done
+here=$(CDPATH= cd -- "$(dirname -- "$f")" && pwd -P) || exit 2
+exec "$here/plugins/suite/bin/agentik-suite" setup "$@"

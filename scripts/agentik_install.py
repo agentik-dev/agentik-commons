@@ -310,22 +310,81 @@ def _write_door(path, door):
     _replace(path, write)
 
 
+def _ascii(text):
+    """`text` with each byte outside ASCII escaped, so a line prints on any stream."""
+    try:
+        return str(text).encode("utf-8", "surrogateescape").decode("ascii", "backslashreplace")
+    except UnicodeError:
+        return str(text).encode("ascii", "backslashreplace").decode("ascii")
+
+
+def read_regular(path, limit=-1):
+    """The bytes of the regular file at `path`, a link followed, at most `limit`; None for a path
+    that is absent or no regular file, which is never opened, so a FIFO never blocks. It opens
+    without blocking and checks the open file again. Never raises."""
+    import stat
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except (OSError, ValueError):
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb") as fh:
+            fd = None
+            return fh.read(limit)
+    except (OSError, ValueError):
+        return None
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
+def _regular_version(path):
+    """The VERSION line of the regular file at `path`, or None; never raises."""
+    found = read_launcher(path)
+    return found["version"] if found else None
+
+
+def door_fate(path, door):
+    """What an install does with the door at `path`, given this tree's `door`: `write` (no file
+    there, or an older door), `keep` (equal or newer), `link` (a symlink) or `unversioned` (not a
+    regular file, or a VERSION line here or there that reads as no version). It opens a regular
+    file only, decided by lstat, and never raises."""
+    import stat
+    try:
+        mode = os.lstat(path).st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return "write"
+    except OSError:
+        return "unversioned"
+    if stat.S_ISLNK(mode):
+        return "link"
+    if not stat.S_ISREG(mode):
+        return "unversioned"
+    a, b = order(_regular_version(path)), order(_regular_version(door))
+    if a is None or b is None:
+        return "unversioned"
+    return "write" if b > a else "keep"
+
+
 def _door(path, door):
     """The shared `agentik` door moves forward only, as a launcher does: absent or older, it is
-    written; equal or newer, it stays byte for byte; a link, or a VERSION line here or there that
-    does not read as a version, leaves it alone. None, or the line that says why it stayed."""
-    if not os.path.lexists(path):
+    written; equal or newer, it stays byte for byte; a link, a file that is not a regular one, or
+    a VERSION line here or there that does not read as a version, leaves it alone. None, or the
+    line that says why it stayed, in ASCII."""
+    fate = door_fate(path, door)
+    if fate == "write":
         _write_door(path, door)
-        return None
-    if os.path.islink(path):
-        return "the door %s is a link; left alone" % path
-    theirs = (read_launcher(path) or {}).get("version")
-    ours = (read_launcher(door) or {}).get("version")
-    a, b = order(theirs), order(ours)
-    if a is None or b is None:
-        return "the door %s has no version to compare (%s there, %s here); left alone" % (path, theirs, ours)
-    if b > a:
-        _write_door(path, door)
+    if fate == "link":
+        return _ascii("the door %s is a link; left alone" % path)
+    if fate == "unversioned":
+        if not os.path.isfile(path) or os.path.islink(path):
+            return _ascii("the door %s is not a regular file; left alone" % path)
+        return _ascii("the door %s has no version to compare (%s there, %s here); left alone"
+                      % (path, _regular_version(path), _regular_version(door)))
     return None
 
 
@@ -386,22 +445,40 @@ def _locked_install(prefix, share, env, conf, ps_timeout=60):
         lines.append("the prune failed; every old tree kept")
     if note:
         lines.insert(0, note)
-    _clear_marker(env, conf)
+    home = env.get("HOME")
+    if home and os.path.realpath(prefix) == os.path.realpath(os.path.join(home, ".local")):
+        _clear_marker(env, conf)    # HOME's marker is its own launcher's; another prefix's is not
     return {"launcher": launcher, "tree": code, "version": ver, "door": os.path.join(bin_dir, DOOR),
             "link": link, "pruned": lines}
 
 
-def install(prefix=None, env=None):
-    """The verb's work; what it wrote, or an OSError, KeyError or ValueError."""
+def install(prefix=None, env=None, dry_run=False):
+    """The verb's work; what it wrote, or an OSError, KeyError or ValueError. `door_fate` is read
+    before any write; `on_path` is true when <prefix>/bin is an entry of the env's PATH. With
+    `dry_run` it takes no lock and writes nothing: `tree` is None and `pruned` empty."""
     env = os.environ if env is None else env
     conf = names()
-    prefix = os.path.abspath(prefix or os.path.join(env["HOME"], ".local"))
+    if prefix == "~" or (prefix or "").startswith("~/"):    # make quotes PREFIX, so no shell did
+        prefix = env["HOME"] + prefix[1:]
+    prefix = os.path.abspath(os.path.expanduser(prefix or os.path.join(env["HOME"], ".local")))
     share = os.path.join(prefix, "share", conf["tool_name"])
-    lock = _lock(share)
-    try:
-        return _locked_install(prefix, share, env, conf)
-    finally:
-        lock.close()
+    bin_dir = os.path.join(prefix, "bin")
+    door = os.path.join(bin_dir, DOOR)
+    seen = {"door_fate": door_fate(door, _source()[2]),
+            "on_path": os.path.normpath(bin_dir) in [
+                os.path.normpath(p) for p in (env.get("PATH") or "").split(os.pathsep) if p]}
+    if dry_run:
+        old = conf["old_name"]
+        done = {"launcher": os.path.join(bin_dir, conf["tool_name"]), "tree": None, "version": version(),
+                "door": door, "link": os.path.join(bin_dir, old) if old else None, "pruned": []}
+    else:
+        lock = _lock(share)
+        try:
+            done = _locked_install(prefix, share, env, conf)
+        finally:
+            lock.close()
+    done.update(seen)
+    return done
 
 
 def install_cli(prefix=None, env=None):
@@ -417,6 +494,9 @@ def install_cli(prefix=None, env=None):
     print("installed %s -> %s (%s); %s%s" % (done["launcher"], done["tree"], done["version"], link, done["door"]))
     for line in done["pruned"]:
         print(line)
+    if not done["on_path"]:
+        bin_dir = os.path.dirname(done["launcher"])
+        print('%s is not on PATH; add: export PATH="%s:$PATH"' % (bin_dir, bin_dir))
     return 0
 
 
@@ -522,12 +602,12 @@ _LINE = re.compile(r"^(VERSION|TREE|CODE|PYTHON)=(.*)$", re.M)
 
 def read_launcher(path):
     """{"version", "tree", "python"} as the launcher's lines say, each None when absent; the
-    new form's TREE or an older form's CODE; None when no launcher is there to read. Never raises."""
-    try:
-        with open(path, encoding="utf-8", errors="surrogateescape") as fh:
-            text = fh.read(65536)
-    except OSError:
+    new form's TREE or an older form's CODE; None when no launcher is there to read, a path that
+    is no regular file included. Never raises."""
+    data = read_regular(path, 65536)
+    if data is None:
         return None
+    text = data.decode("utf-8", "surrogateescape")
     lines = {}
     for name, value in _LINE.findall(text):
         lines.setdefault(name, value.strip())
