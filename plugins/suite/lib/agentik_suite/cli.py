@@ -19,7 +19,7 @@ import sys
 
 import agentik_install
 
-from . import config, install, plan, status, term, tools
+from . import apply, config, install, plan, status, term, tools
 
 VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli")
 WRITES = ("setup", "install-cli")
@@ -274,14 +274,13 @@ class Command:
     # ---- setup ----------------------------------------------------------------------------
 
     def do_setup(self, nouns):
-        if not self.opts["dry_run"]:
-            raise Usage("plan_only", "err.setup.plan_only", "%s setup --dry-run" % self.tool,
-                        tool=self.tool, version=self.version)
         for noun in nouns:
             if not NOUN.match(noun):
                 raise Usage("bad_name", "err.setup.name", "%s setup --dry-run" % self.tool,
                             name=noun, tool=self.tool)
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
+        if not self.opts["dry_run"]:
+            return apply.run(self, names)
         steps = plan.build(names, self.env, self.lib, self.tool, self.version)
         t = self.t
         for s in steps:

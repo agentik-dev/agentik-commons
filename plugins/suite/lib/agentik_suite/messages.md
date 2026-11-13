@@ -14,14 +14,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.verb`: next: `{tool}` help lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
-- `verb.setup`: Plan the suite's setup. This version only plans, so pass --dry-run.
+- `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
-- `usage.setup`: usage: `{tool}` setup --dry-run [<plugin>...] [flags]
+- `usage.setup`: usage: `{tool}` setup [<plugin>...] [flags]
 - `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
 - `usage.status`: usage: `{tool}` status --check [flags]
@@ -31,7 +31,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.no_color`: Print no colour, on a terminal too.
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
-- `flag.yes`: Answer yes to every question; this version asks none.
+- `flag.yes`: Run setup's lines without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
@@ -61,7 +61,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
 - `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
 - `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.setup.plan_only`: Setup needs --dry-run: version `{version}` only plans, and it wrote nothing. Run `{tool}` setup --dry-run for the plan.
 - `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
 - `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{tool}` setup --dry-run for the default set.
 
@@ -196,6 +195,31 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
+- `setup.ask`: Run each `run:` line above, and the lines the later steps need? Answer y or n.
+- `setup.running`: running `{command}`
+- `setup.after`: The plan, read again after the run:
+- `setup.ran`: ran: `{command}`, exit `{exit}`
+- `setup.ran.wall`: ran: `{command}`, stopped at its `{wall}` s wall
+- `setup.ran.start`: ran: `{command}`, which could not start
+- `setup.wrote`: wrote: `{path}`
+- `setup.nothing`: Setup has nothing to do: no step from 2 to 5 has a line to run.
+- `hint.setup.doctor`: next: `{tool}` doctor checks each plugin.
+- `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{tool}` setup --yes to run the lines above.
+- `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{tool}` setup again when you are ready.
+- `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{tool}` setup from a terminal to approve it.
+- `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{tool}` setup again.
+- `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{tool}` setup again.
+- `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{tool}` setup again.
+- `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{tool}` setup again to retry it.
+- `err.setup.wall.silent`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{tool}` setup again to retry it.
+- `err.setup.start`: Setup stopped: `{command}` could not start, since `{last}`. Mend that, then run `{tool}` setup again.
+- `err.setup.todo`: Setup stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{tool}` setup --dry-run to see why.
+- `err.setup.journal`: Setup could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
+- `setup.ran.stopped`: ran: `{command}`, stopped when setup was interrupted
+- `setup.gate.notfile`: it is not a file
+- `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{tool}` setup again to go on.
+- `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{tool}` setup again to go on.
+- `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{tool}` setup from a terminal.
 
 ## Status
 
