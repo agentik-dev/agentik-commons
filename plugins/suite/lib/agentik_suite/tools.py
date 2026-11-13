@@ -25,7 +25,7 @@ WALL = 2.0
 CAP = 1 << 20
 POLL = 0.02
 REAP = 0.1
-DESCRIBE = re.compile(r"agentik\.describe/([0-9]+)\Z")
+DESCRIBE = re.compile(r"agentik\.describe/(1)\Z")  # R3 names the one schema
 CONFIG = re.compile(r"agentik\.config/([0-9]+)\Z")
 DESCRIBE_KEYS = ("tool", "version", "summary", "repo", "plugin", "needs", "verbs", "reads")
 READ_KINDS = ("config", "doctor", "status")
@@ -207,8 +207,12 @@ def counted_config(code, out):
             s[k] = s.get(k) if isinstance(s.get(k), dict) else {}
         s["values"] = [v for v in s.get("values") or [] if isinstance(v, dict)] \
             if isinstance(s.get("values"), list) else []
+        if not isinstance(s.get("choices"), list):
+            s["choices"] = None
         settings.append(s)
     obj = dict(obj, layers=layers, settings=settings)
+    warnings = obj.get("warnings")
+    obj["warnings"] = [w for w in warnings if isinstance(w, dict)] if isinstance(warnings, list) else []
     return obj
 
 

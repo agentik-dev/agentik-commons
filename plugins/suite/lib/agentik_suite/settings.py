@@ -183,6 +183,8 @@ def user_path(env):
 
 def repo_path(cwd):
     """The repo file of the nearest folder upward holding `.git`, or None outside a repo."""
+    if cwd is None:
+        return None
     here = os.path.abspath(cwd)
     while True:
         if os.path.exists(os.path.join(here, ".git")):

@@ -1081,3 +1081,74 @@ class SubsetTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+ODD = """#!/usr/bin/python3
+import json, sys
+with open(%(spec)r) as fh:
+    spec = json.load(fh)
+if sys.argv[1:] == ["describe", "--json"]:
+    print(json.dumps({"schema": spec.get("schema", "agentik.describe/1"), "ok": True, "tool": "odd",
+        "version": "1", "summary": "s", "repo": "r", "plugin": "odd@agentik", "needs": [], "verbs": [],
+        "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}))
+else:
+    s = dict({"key": "colour", "value": "dark", "default": "light", "type": "choice",
+              "choices": ["dark", "light"], "summary": "x", "source": {}, "change": {"kind": "fixed"},
+              "live": True}, **spec.get("setting", {}))
+    print(json.dumps(dict({"schema": "agentik.config/1", "ok": True, "tool": "odd", "layers": [],
+                           "settings": [s]}, **spec.get("config", {}))))
+"""
+
+
+class AnswerTest(ConfigHome):
+    """Review 1 of ak1b, F5 to F7 and the schema: a wrong type in a tool's answer, or a removed
+    cwd, gives a row or a line, never a traceback; only `agentik.describe/1` counts."""
+
+    def odd(self, **spec):
+        path = os.path.join(self.side, "odd.json")
+        with open(path, "w") as fh:
+            json.dump(spec, fh)
+        script = os.path.join(self.side, "odd.py")
+        with open(script, "w") as fh:
+            fh.write(ODD % {"spec": path})
+        self.stub("agentik-odd", '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -B "%s" "$@"\n'
+                  % (os.path.join(self.side, "pyc"), script))
+
+    def clean(self, *args):
+        code, out, err = self.cfg(*args)
+        self.assertNotIn("Traceback", out + err, args)
+        self.assertEqual(code, 0, err)
+        return out
+
+    def test_f5_warnings_that_are_not_a_list_of_objects(self):
+        for warnings in ([1, "x", {"key": "k", "path": "/p", "line": 3}], 5, "x"):
+            self.odd(config={"warnings": warnings})
+            out = self.clean("config", "odd")
+            self.assertIn("colour", out)
+            self.assertEqual("unknown key k" in out, isinstance(warnings, list), out)
+
+    def test_f6_choices_that_are_not_a_list(self):
+        for choices in (5, "abc", {"a": 1}):
+            self.odd(setting={"choices": choices})
+            out = self.clean("config", "odd.colour")
+            self.assertNotIn("choices", out)
+        self.odd()
+        self.assertIn("dark, light", self.clean("config", "odd.colour"))
+
+    def test_f7_a_removed_cwd(self):
+        dead = os.path.join(self.side, "dead")
+        for args in (("config",), ("config", "suite"), ("config", "suite.kind")):
+            os.mkdir(dead)
+            p = subprocess.run(["/bin/sh", "-c", 'cd "$1" && rmdir "$1" && shift && exec "$@"', "sh",
+                                dead, str(LAUNCHER), *args],
+                               capture_output=True, text=True, env=self.env(), timeout=60)
+            self.assertNotIn("Traceback", p.stdout + p.stderr, args)
+            self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("checkouts", subprocess.run(
+            ["/bin/sh", "-c", 'mkdir "$1" && cd "$1" && rmdir "$1" && exec "$2" config suite', "sh",
+             dead, str(LAUNCHER)], capture_output=True, text=True, env=self.env(), timeout=60).stdout)
+
+    def test_only_describe_schema_one_counts(self):
+        self.odd(schema="agentik.describe/0")
+        out = self.clean("config")
+        self.assertIn("unreadable", next(l for l in out.splitlines() if " odd " in l + " "))

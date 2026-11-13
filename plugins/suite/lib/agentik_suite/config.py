@@ -50,7 +50,11 @@ class Reader:
     def suite_config(self, key=None):
         """R5's object for the suite's own settings; a settings.Fault for a file outside the subset."""
         summaries = {k: self.t.text("setting." + k) for k in SUITE_SUMMARIES}
-        body = settings.resolve(self.env, os.getcwd(), summaries)
+        try:
+            cwd = os.getcwd()
+        except OSError:  # a removed folder: no repo layer
+            cwd = None
+        body = settings.resolve(self.env, cwd, summaries)
         rows = body["settings"]
         if key is not None:
             rows = [s for s in rows if s["key"] == key]
