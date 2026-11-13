@@ -1,0 +1,223 @@
+{
+ "schema": "agentik.status/1",
+ "ok": true,
+ "check": false,
+ "at": 1794571200,
+ "ms": 100,
+ "covers": {
+  "rule": "cwd",
+  "hq": null,
+  "checkouts": [
+   "/t/acme-cli"
+  ]
+ },
+ "watchers": [
+  {
+   "name": "lamp",
+   "state": "running",
+   "pid": 4100,
+   "since": null,
+   "beat_writer": null,
+   "beat_line": null,
+   "start": "lampd watch --every 60",
+   "writer": null,
+   "beat_at": null
+  }
+ ],
+ "sessions": {
+  "state": "ok",
+  "checked": true,
+  "window_min": 30,
+  "ended": 1,
+  "past_window": [
+   {
+    "id": "44444444-4444-4444-8444-444444444444",
+    "pid": 7003
+   }
+  ],
+  "live": [
+   {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "name": "acme-hq",
+    "state": "busy",
+    "context": 295210,
+    "window": 1000000,
+    "turns": 99,
+    "pid": 7001,
+    "helpers": {
+     "busy": 2,
+     "done": 1
+    }
+   },
+   {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "billing",
+    "state": "idle",
+    "context": 172000,
+    "window": 1000000,
+    "turns": 48,
+    "pid": 7002,
+    "helpers": {
+     "busy": 1
+    }
+   }
+  ]
+ },
+ "gate": {
+  "state": "ok",
+  "runner": {
+   "pid": 9813,
+   "since": 1794549200.0,
+   "alive": true
+  },
+  "running": [
+   {
+    "id": "20261113-112733-1478",
+    "name": "acme-api",
+    "repo": "/w/acme-api",
+    "label": "land importer-fix",
+    "seconds": 866.0,
+    "est_s": 940.4
+   }
+  ],
+  "queued": [
+   {
+    "id": "20261113-113301-1482",
+    "name": "acme-site",
+    "repo": "/w/acme-site",
+    "label": "",
+    "position": 1,
+    "wait": "running 1 of 1",
+    "est_s": null
+   }
+  ],
+  "last": {
+   "id": "20261113-113020-1480",
+   "name": "flight0127",
+   "repo": "/w/acme-docs/.claude/worktrees/flight0127",
+   "exit": 0,
+   "seconds": 268.0,
+   "cut": null
+  },
+  "red": [
+   {
+    "id": "20261113-110011-1470",
+    "name": "netnames",
+    "repo": "/w/acme-api/.claude/worktrees/netnames",
+    "exit": 2,
+    "seconds": 61.0,
+    "cut": null
+   }
+  ]
+ },
+ "backlog": {
+  "state": "ok",
+  "open": 3,
+  "first": {
+   "n": 22,
+   "title": "The review's builds 5 and 6"
+  },
+  "items": {
+   "S3": 1,
+   "S4": 2,
+   "unplaced": 1
+  },
+  "checkouts": 2,
+  "skipped": [
+   "/w/acme-notes"
+  ]
+ },
+ "runs": {
+  "state": "ok",
+  "shown": [],
+  "aged": 1
+ },
+ "hand": [],
+ "sources": [
+  {
+   "name": "sessions",
+   "tool": "demo",
+   "argv": [
+    "crew",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 100,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0
+  },
+  {
+   "name": "gate",
+   "tool": "demo",
+   "argv": [
+    "gate",
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 100,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0
+  },
+  {
+   "name": "backlog",
+   "tool": "demo",
+   "argv": [
+    "backlog",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 100,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0
+  },
+  {
+   "name": "unattended",
+   "tool": "demo",
+   "argv": [
+    "unattended",
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 100,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0
+  },
+  {
+   "name": "run",
+   "tool": "demo",
+   "argv": [
+    "run",
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 100,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0
+  },
+  {
+   "name": "weather",
+   "tool": "demo",
+   "argv": [
+    "weather",
+    "--json"
+   ],
+   "state": "not drawn",
+   "ms": null,
+   "exit": null,
+   "stderr": null,
+   "wall_s": null
+  }
+ ],
+ "not_read": [
+  "owner",
+  "rows"
+ ]
+}

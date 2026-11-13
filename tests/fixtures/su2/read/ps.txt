@@ -1,0 +1,7 @@
+  PID  PPID   UID     ELAPSED COMMAND
+ 4100     1 {uid}    01:00:00 /opt/bin/lampd watch --every 60
+ 7001   600 {uid}    01:18:39 /opt/bin/claude --session-id 11111111-1111-4111-8111-111111111111 --model model-x Read the charter.
+ 7002   600 {uid}    01:41:00 /opt/bin/claude --resume 22222222-2222-4222-8222-222222222222
+ 7003   600 {uid}    00:50:00 /opt/bin/claude --session-id 44444444-4444-4444-8444-444444444444
+ 7009   600 {other}    00:10:00 /opt/bin/claude --session-id 33333333-3333-4333-8333-333333333333
+ 9813     1 {uid}    06:08:13 /opt/py/Python.app/Contents/MacOS/Python -I -X pycache_prefix=/c /opt/lib/agentik-demo gate serve

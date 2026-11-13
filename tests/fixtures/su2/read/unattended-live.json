@@ -1,0 +1,31 @@
+{
+ "run": "2026-11-13-1",
+ "dir": "/s/runs/2026-11-13-1",
+ "rows": {
+  "landed": [
+   {
+    "row": "a",
+    "reason": null,
+    "sha": "abc"
+   },
+   {
+    "row": "b",
+    "reason": null,
+    "sha": "def"
+   }
+  ],
+  "refused": [
+   {
+    "row": null,
+    "reason": "id",
+    "sha": null
+   }
+  ]
+ },
+ "running": {
+  "row": "importer-fix",
+  "last": "the last line",
+  "age_s": 40
+ },
+ "stop": null
+}

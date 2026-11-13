@@ -1,0 +1,116 @@
+{
+ "repos": [
+  {
+   "repo": "/w/acme-hq",
+   "nice": "/w/acme-hq/NICE_TO_HAVE.md",
+   "handoff": "/w/acme-hq/HANDOFF.md",
+   "order": {
+    "line": 7,
+    "heading": "The build order",
+    "open": 2
+   },
+   "steps": [
+    {
+     "n": 9,
+     "line": 12,
+     "title": "Done long ago",
+     "done": true,
+     "repo": "hq"
+    },
+    {
+     "n": 22,
+     "line": 16,
+     "title": "The review's builds 5 and 6",
+     "done": false,
+     "repo": "suite"
+    },
+    {
+     "n": 30,
+     "line": 20,
+     "title": "A page for the importer",
+     "done": false,
+     "repo": "hq"
+    }
+   ],
+   "items": [
+    {
+     "rank": 1,
+     "line": 9,
+     "title": "A finding",
+     "level": "S3",
+     "placed_as": "S3",
+     "level_from": "cell",
+     "after_step": null,
+     "span": null,
+     "id": "n1"
+    },
+    {
+     "rank": 2,
+     "line": 10,
+     "title": "A finding",
+     "level": null,
+     "placed_as": null,
+     "level_from": "cell",
+     "after_step": null,
+     "span": null,
+     "id": "n2"
+    }
+   ],
+   "closed": []
+  },
+  {
+   "repo": "/w/acme-cli",
+   "nice": "/w/acme-cli/NICE_TO_HAVE.md",
+   "handoff": "/w/acme-hq/HANDOFF.md",
+   "order": {
+    "line": 7,
+    "heading": "The build order",
+    "open": 2
+   },
+   "steps": [
+    {
+     "n": 22,
+     "line": 16,
+     "title": "The review's builds 5 and 6",
+     "done": false,
+     "repo": "suite"
+    },
+    {
+     "n": 41,
+     "line": 25,
+     "title": "The cli reads a file twice",
+     "done": false,
+     "repo": "cli"
+    }
+   ],
+   "items": [
+    {
+     "rank": 1,
+     "line": 9,
+     "title": "A finding",
+     "level": "S4",
+     "placed_as": "S4",
+     "level_from": "cell",
+     "after_step": null,
+     "span": null,
+     "id": "n1"
+    },
+    {
+     "rank": 2,
+     "line": 10,
+     "title": "A finding",
+     "level": "S4",
+     "placed_as": "S4",
+     "level_from": "cell",
+     "after_step": null,
+     "span": null,
+     "id": "n2"
+    }
+   ],
+   "closed": []
+  }
+ ],
+ "skipped": [
+  "/w/acme-notes"
+ ]
+}

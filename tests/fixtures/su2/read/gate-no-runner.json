@@ -1,0 +1,34 @@
+{
+ "running": [],
+ "queued": [
+  {
+   "id": "20261113-113301-1482",
+   "repo": "/w/acme-site",
+   "position": 1,
+   "lock": null,
+   "label": "",
+   "key": "1:2",
+   "wait": "running 1 of 1"
+  }
+ ],
+ "done": [
+  {
+   "id": "20261113-113020-1480",
+   "repo": "/w/acme-docs/.claude/worktrees/flight0127",
+   "exit": 0,
+   "seconds": 268.0,
+   "cut": null
+  },
+  {
+   "id": "20261113-110011-1470",
+   "repo": "/w/acme-api/.claude/worktrees/netnames",
+   "exit": 2,
+   "seconds": 61.0,
+   "cut": null
+  }
+ ],
+ "runner": null,
+ "est": {
+  "20261113-112733-1478": 940.4
+ }
+}

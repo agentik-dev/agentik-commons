@@ -1,0 +1,64 @@
+{
+ "schema": "agentik.describe/1",
+ "ok": true,
+ "tool": "demo",
+ "version": "1.0.0",
+ "summary": "A made-up tool that answers five status reads.",
+ "repo": "example/demo",
+ "plugin": "demo",
+ "needs": [],
+ "verbs": [],
+ "reads": [
+  {
+   "kind": "status",
+   "name": "sessions",
+   "argv": [
+    "crew",
+    "--json"
+   ]
+  },
+  {
+   "kind": "status",
+   "name": "gate",
+   "argv": [
+    "gate",
+    "status",
+    "--json"
+   ]
+  },
+  {
+   "kind": "status",
+   "name": "unattended",
+   "argv": [
+    "unattended",
+    "status",
+    "--json"
+   ]
+  },
+  {
+   "kind": "status",
+   "name": "backlog",
+   "argv": [
+    "backlog",
+    "--json"
+   ]
+  },
+  {
+   "kind": "status",
+   "name": "run",
+   "argv": [
+    "run",
+    "status",
+    "--json"
+   ]
+  },
+  {
+   "kind": "status",
+   "name": "weather",
+   "argv": [
+    "weather",
+    "--json"
+   ]
+  }
+ ]
+}
