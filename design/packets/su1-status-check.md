@@ -22,7 +22,7 @@ The repo keeps no `DECISIONS.md`. Cited: hq entry 6 (`/usr/bin/python3` at a 3.9
 - R2, the verb: `status --check [--ps FILE] [--now ISO]`. `status` without `--check` exits 2 and says this version only checks. `--check` is `status`'s alone. `--ps` and `--now` are test hooks, the parser's first flags with a value: one table beside `VERB_FLAGS`, read as `--ps FILE` and `--ps=FILE`; a missing value is `_bad_flag`'s. `--ps FILE` is a saved listing in place of `ps`; `--now ISO` the clock: ISO 8601 with `Z`, an offset, or neither (local). An unreadable file, or a value that is no time, exits 2.
 - R3, the declaration: the user file alone, `settings.read(settings.user_path(env))`. A watcher is a name with `match` and `start`, optionally `beat` and `writer`, each a string. A file outside the subset, or `watchers` that is no mapping of mappings: exit 2, file and line on stderr, stdout empty. No file or no watcher: exit 0, nothing. A watcher with no `match` or no `start` is not checked: one stderr note names it and the file; no exit changes.
 - R4, the listing: `/bin/ps -axo pid,ppid,uid,etime,command`, else `ps` on PATH, under a 1 s wall, its group killed past it. The first line is the head; a row is four fields, then the command. No listing (the wall, a non-zero exit, no `ps`): every watcher is `unknown`.
-- R5, the match: `match` splits on blanks into a program and its words. A process counts when its uid is the reader's and its command, split on blanks, has the program as its head and the words directly after it, in order. The head is the first word; where its basename begins `python` or is `sh`, `bash`, `zsh`, `dash` or `env`, the head is the first later word that is none of these: a word beginning `-`, the word after `-X`, `-W`, `-o` or `-u`, an assignment. A `-c` or `-m` on the way means no match. The head counts by its basename and, as a link, by its target's.
+- R5, the match: `match` splits on blanks into a program and its words. A process counts when its uid is the reader's and its command, split on blanks, has the program as its head and the words directly after it, in order. The head is the first word; where its basename begins `python` or is `sh`, `bash`, `zsh`, `dash` or `env`, the head is the first later word that is none of these: a word beginning `-`, the word after `-X`, `-W`, `-o` or `-u`, an assignment. A `-c` or `-m` on the way means no match. The head counts by its basename and, as a link, by its target's. Amended by review 1's ruling (§7): the word after `-u` is skipped after `env` alone, and a bare `-` on the way means no match.
 - R6, the beat: the file `beat` names (a leading `~/` is HOME; another relative path is no beat), one JSON object with `at` (epoch seconds) and `fresh_s`, finite numbers, optionally `writer` and `line`. Anything else is no beat. Its age is now less `at`, never below 0. It is the watcher's own when no `writer` is declared, or the two are equal.
 - R7, the states: `running` (a process; no beat or a beat within its `fresh_s`, whoever wrote it), `hung` (a process; a beat older than its `fresh_s`), `missing` (no process), `unknown` (no listing). `since` is the beat's `at`, only when the beat is its own, shown local `YYYY-MM-DD HH:MM`.
 - R8, the lines: one on stdout for each watcher not `running`, in the file's order, plain, through `term`; exit 1 when there is a line, else 0 and nothing: `<name>: not running[ since <when>]; start it: <start>`, `<name>: running but silent[ since <when>]; start it: <start>`, `<name>: not checked: ps gave no listing`.
@@ -59,3 +59,15 @@ Each in ak1b's `ConfigHome` with `TZ=UTC`, a user file declaring `lamp` (`match:
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, the private hygiene list, the real user file. The report: head sha, gate ids and exits, acceptance 1 to 11 at the pin and now.
+
+## 7. Review 1's fix
+
+Ruling: five findings fixed on the branch, each with a test red at c2b262c; R5 amended by the ruling (L1, L2); the version stays 0.5.0.
+- F1 a `-c` or `-m` attached to its value (`-mfoo`, `-cprint(1)`) or anywhere in a short cluster (`-ce`, `-lc`) means no match; `-X` and `-W` keep their reading
+- L2, R5 amended: a bare `-` on the way (the program read from stdin) means no match
+- L1, R5 amended: the word after `-u` is skipped only after `env` (`env -u NAME prog`); after a `python*` or a shell `-u` is a plain flag
+- F2 an `at` that `time.localtime` refuses is no beat, in text and `--json`
+- F3 a beat is opened without blocking and is a beat only as a regular file; `--ps` the same, a FIFO there exits 2 (L6)
+- F4 a `--now` whose timestamp raises exits 2, `is not a time`
+- F5 a regular beat file is read whole to 1 MiB, the listing's cap; past it, no beat
+- NICE: L3 n46, L4 n47, L7 n48, L8 n49 (a phase 2 renumbers them if another branch took these first)
