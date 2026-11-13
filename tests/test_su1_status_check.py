@@ -187,6 +187,18 @@ class BeatTest(StatusHome):
             self.write(self.beat_file, json.dumps(bad))
             self.assertEqual(self.check(), (0, "", ""), bad)
 
+    def test_an_at_the_clock_refuses_is_no_beat(self):
+        """Review 1's F2: an `at` that time.localtime refuses is no beat, in text and --json."""
+        for at in (1e20, 1e17, -1e20):
+            self.listing()
+            self.beat(at)
+            self.assertEqual(self.check(), (1, LAMP + "\n", ""), at)
+            code, out, err = self.check("--json")
+            self.assertEqual((code, json.loads(out)["watchers"][0]["since"], err), (1, None, ""), at)
+            self.listing("/opt/bin/lampd watch")
+            self.assertEqual(self.check(), (0, "", ""), at)
+            self.assertEqual(self.check("--json")[0::2], (0, ""), at)
+
     def test_the_clock_reads_an_offset_and_local_time(self):
         self.assertEqual(status.when("2026-11-13T13:00:00+01:00"), NOW_S)
         self.assertEqual(status.when("2026-11-13T12:00:00Z"), NOW_S)

@@ -176,6 +176,10 @@ def beat(w, env):
         return None
     if any(obj.get(k) is not None and not isinstance(obj[k], str) for k in ("writer", "line")):
         return None
+    try:
+        local(obj["at"])
+    except (OverflowError, OSError, ValueError):
+        return None  # an `at` the clock refuses (outside time_t) is no time, so no beat
     return {"at": obj["at"], "fresh_s": obj["fresh_s"], "writer": obj.get("writer"),
             "line": obj.get("line")}
 
