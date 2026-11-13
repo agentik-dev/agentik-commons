@@ -19,6 +19,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
+- `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
 - `usage.setup`: usage: `{tool}` setup [<plugin>...] [flags]
@@ -26,6 +27,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
 - `usage.status`: usage: `{tool}` status --check [flags]
 - `usage.install_cli`: usage: `{tool}` install-cli [--prefix <dir>] [flags]
+- `usage.doctor`: usage: `{tool}` doctor [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -229,3 +231,28 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
 - `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{tool}` status --check.
+
+## Doctor
+
+- `doctor.title`: `{tool}` doctor: each check of this machine, by tool.
+- `doctor.group`: `{name}`
+- `doctor.run`: run: `{command}`
+- `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
+- `doctor.door.behind`: `{path}` is at version `{have}`, older than `{want}`, so it hands this command no verb
+- `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
+- `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
+- `doctor.door.none`: no agentik door is on PATH
+- `doctor.shadow.ok`: no command on PATH takes a verb's place
+- `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
+- `doctor.settings.ok`: `{path}` reads
+- `doctor.settings.none`: no user file at `{path}`, so the defaults hold
+- `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it
+- `doctor.tool.ok`: its doctor exits 0
+- `doctor.tool.silent`: its doctor exits `{code}` and prints nothing
+- `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
+- `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
+- `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
+- `hint.doctor.done`: next: nothing to do, since this machine is set up.
+- `hint.doctor.setup`: next: run `{tool}` setup, then `{tool}` doctor again.
+- `hint.doctor.fail`: next: run each `run:` line above, then `{tool}` doctor again.
+- `hint.doctor.warn`: next: nothing failed; the warn rows above say what to look at.
