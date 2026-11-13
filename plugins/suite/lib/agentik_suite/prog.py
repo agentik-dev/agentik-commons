@@ -89,13 +89,12 @@ def _names(word, cwd, env, target):
 
 def files(lib, tool):
     """(the launcher, the root setup): the plugin's bin/<tool> and the checkout's setup beside
-    the plugins folder; in a tree install-cli froze, the runner and no setup."""
+    the plugins folder; in a tree install-cli froze, <prefix>/share/<tool>/<hash>, the launcher
+    it wrote at <prefix>/bin/<tool> and no setup, never the hashed runner, which a prune removes
+    and which skips the launcher's -I and its parent-env record."""
     if agentik_install.is_frozen(lib):
-        try:
-            runner = agentik_install.names(lib)["runner"]
-        except (OSError, ValueError):
-            runner = tool
-        return os.path.join(lib, runner), None
+        prefix = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(lib))))
+        return os.path.join(prefix, "bin", tool), None
     plugin = os.path.dirname(lib)
     return os.path.join(plugin, "bin", tool), os.path.join(os.path.dirname(os.path.dirname(plugin)), "setup")
 
