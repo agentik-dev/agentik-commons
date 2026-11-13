@@ -365,8 +365,9 @@ class BranchReadTest(unittest.TestCase):
         self.git("branch", "-q", "-D", "main", "row")
         self.assertEqual(check(self.repo)[:2], (1, ""))
         self.manifest(A3)
-        self.assertEqual(check(self.repo), (0, "plugin-version-check: version %s is uncommitted; "
-                         "the bump in flight covers every change under plugin/" % A3 + NO_BASE, ""))
+        self.assertEqual(check(self.repo), (0, "plugin-version-check: version %s is "
+                         "uncommitted; the bump in flight covers every change under plugin/"
+                         % A3 + NO_BASE, ""))
 
     def test_8_no_manifest_at_the_merge_base_reads_as_below_any_version(self):
         self.write("README.md", "no plugin yet\n")
