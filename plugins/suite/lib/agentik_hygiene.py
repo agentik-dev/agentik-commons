@@ -109,6 +109,9 @@ import re
 import subprocess
 import sys
 
+# A short prefix that a longer word can hold starts a token only after a character that is no
+# letter, or after a JSON escape (`\n`, `\r`, `\t` as two characters) or a percent-encoded `=`.
+TOKEN_START = r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=%3[Dd]))"
 GROUPS = (
     ("home", (r"/Users/[a-z]+", r"~/cod[e]/")),
     ("lan", (r"192\.168\.", r"\b10\.\d+\.\d+\.\d+",
@@ -121,10 +124,10 @@ GROUPS = (
                 r"\bAKI[A][0-9A-Z]{16}\b", r"BEGI[N] [A-Z0-9 ]*PRIVATE KEY",
                 r"gh[ousr]_[A-Za-z0-9]{20,}",
                 r"ey[J][A-Za-z0-9_-]{10,}\.ey[J][A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}",
-                r"xox[baprs]-[A-Za-z0-9-]{20,}", r"\bs[k]-[A-Za-z0-9]{20,}",
-                r"\bs[k]-pro[j]-[A-Za-z0-9_-]{20,}", r"AIz[a][A-Za-z0-9_-]{35}",
+                r"xox[baprs]-[A-Za-z0-9-]{20,}", TOKEN_START + r"s[k]-[A-Za-z0-9]{20,}",
+                TOKEN_START + r"s[k]-pro[j]-[A-Za-z0-9_-]{20,}", r"AIz[a][A-Za-z0-9_-]{35}",
                 r"np[m]_[A-Za-z0-9]{36}", r"glpa[t]-[A-Za-z0-9_-]{20,}",
-                r"\bh[f]_[A-Za-z0-9]{30,}")),
+                TOKEN_START + r"h[f]_[A-Za-z0-9]{30,}")),
     ("email", (r"\b[A-Za-z0-9._%+-]+[@][A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b",)),
     ("renamed", (r"(?<![\w-])claude-cod[e]-(?:session|decision[s]|respea[k]|agents)(?![\w-])",
                  r"agent-rela[y]", r"claude-sessio[n]",
