@@ -23,7 +23,7 @@ The repo keeps no `DECISIONS.md`; `GUIDE.md` binds. Cited: hq entry 6 (stdlib at
 - R3, the word typed: `setup` and the launcher export `AGENTIK_ARGV0`, the word they were started with; the launcher sets it only where it is unset, so setup's word passes through it. The suite takes it out of its environment at start, so nothing it spawns inherits it. A setup line under `./setup` reads `./setup ...`; any other verb, and any word that no longer names the file from the working folder, reads the launcher's absolute path, `~` for HOME.
 - R4, the title's name: `agentik` in R2's first two cases, the tool's name in the third; the version is the suite's.
 - R5, `--json`: every command in it is the screen's with the full path for `~`.
-- R6, the version: as the coordinator names it, alone in the last commit before the charter's close.
+- R6, the version: as the coordinator names it, alone in the last commit before the charter's close. Phase 2 named 0.6.3, after main's 0.6.2 (sp1-launcher-step, merged into this branch with main at 7bef66c). sp1's step-7 line, a plugin's own command file and `doctor`, names a file as the plan's other file lines do, and stays; `InPlaceTest` pastes it.
 
 ## 3. Interfaces
 
