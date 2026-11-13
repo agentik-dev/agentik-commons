@@ -126,7 +126,9 @@ class Command:
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=0.6)
         if near:
-            remedy = "%s --help" % self.tool if asked_help else "%s %s" % (self.tool, near[0])
+            # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
+            verb = near[0] in VERBS and not asked_help
+            remedy = "%s %s" % (self.tool, near[0]) if verb else "%s --help" % self.tool
             raise Usage("unknown_verb", "err.verb.near", remedy,
                         word=word, near=near[0], tool=self.tool)
         raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool, word=word, tool=self.tool)

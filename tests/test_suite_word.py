@@ -50,6 +50,13 @@ class PluginWordTest(Home):
         self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "unknown_verb"))
         self.assertEqual(self.run_cli("nosuch")[0], 2)
 
+    def test_f3_the_json_remedy_names_a_verb_only(self):
+        # review 1 F3: `agentik-suite pear` never succeeds, so a nearest plugin's remedy is --help
+        for args, remedy in ((("paer",), "agentik-suite --help"), (("stup",), "agentik-suite setup"),
+                             (("nosuch",), "agentik-suite --help")):
+            code, out, _ = self.run_cli(*args, "--json")
+            self.assertEqual((code, json.loads(out)["error"]["remedy"]), (2, remedy), args)
+
     def test_a4_a_plugin_whose_command_is_on_path_exits_two(self):
         self.stub("agentik-pear")
         code, out, err = self.run_cli("pear")
