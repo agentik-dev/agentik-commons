@@ -52,11 +52,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.key`: `{name}` has no setting `{key}`. Run `{tool}` config `{name}` for its keys.
 - `err.config.noname`: A tool's name goes before the dot. Run `{tool}` config for the list.
 - `err.config.nokey`: A key goes after the dot. Run `{tool}` config `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` is `{state}`. Run `{tool}` config `{name}` for what it gives.
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no settings (`{state}`). Run `{tool}` config `{name}` for what it gives.
 - `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{tool}` config `{name}` for what it gives.
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no settings read. Run `{tool}` config `{name}` for what it gives.
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings read ran past 2 s. Run `{tool}` config `{name}` for what it gives.
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings read cannot be read. Run `{tool}` config `{name}` for what it gives.
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its settings. Run `{tool}` config `{name}` for what it gives.
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{tool}` config `{name}` for what it gives.
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{tool}` config `{name}` for what it gives.
 - `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
 - `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
@@ -100,16 +100,16 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.state.timed_out`: `{name}` gives no settings: its describe ran past 2 s, so it was stopped.
 - `config.state.unreadable`: `{name}` gives no settings: its describe answer cannot be read.
 - `config.state.no_command`: `{name}` is installed but ships no command, so it gives no settings.
-- `config.state.noread`: `{name}` answers, but names no settings read.
-- `config.state.read_timed_out`: `{name}` answers, but its settings read ran past 2 s, so it was stopped.
-- `config.state.read_unreadable`: `{name}` answers, but its settings read cannot be read.
-- `config.read.timed_out`: its settings read ran past 2 s
-- `config.read.unreadable`: its settings read cannot be read
+- `config.state.noread`: `{name}` answers, but names no way to read its settings.
+- `config.state.read_timed_out`: `{name}` answers, but reading its settings ran past 2 s, so it was stopped.
+- `config.state.read_unreadable`: `{name}` answers, but its settings answer cannot be read.
+- `config.read.timed_out`: reading its settings ran past 2 s
+- `config.read.unreadable`: its settings answer cannot be read
 - `config.changed.title`: Settings that differ from their defaults: `{count}`.
-- `config.changed.none`: Every setting read holds its default.
-- `config.changed.silent`: These tools did not answer, so their settings are not here: `{names}`.
-- `config.files.silent`: These tools did not answer, so their user files are not here: `{names}`.
-- `config.files.none`: No tool that answered names a user file that travels.
+- `config.changed.none`: Every setting that was read holds its default.
+- `config.changed.silent`: These tools gave no settings, so their changes are not here: `{names}`.
+- `config.files.silent`: These tools gave no settings, so their user files are not here: `{names}`.
+- `config.files.none`: No tool that gave settings names a user file that travels.
 - `config.was`: default `{default}`
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`

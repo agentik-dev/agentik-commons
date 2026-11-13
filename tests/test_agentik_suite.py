@@ -1166,8 +1166,8 @@ class LineTest(ConfigHome):
         self.stub("agentik-lag", LAG % os.path.join(self.side, "lag.pid"))
         self.stub("agentik-bad", (LAG % os.path.join(self.side, "bad.pid")).replace(
             "sleep 10", "echo nope").replace('"tool": "lag"', '"tool": "bad"'))
-        for name, words in (("lag", "its settings read ran past 2 s"),
-                            ("bad", "its settings read cannot be read")):
+        for name, words in (("lag", "reading its settings ran past 2 s"),
+                            ("bad", "its settings answer cannot be read")):
             code, out, err = self.cfg("config")
             row = next(l for l in out.splitlines() if " %s " % name in l + " ")
             self.assertRegex(row, r"warn +%s +answers +%s" % (name, words))
@@ -1184,17 +1184,17 @@ class LineTest(ConfigHome):
         self.stub("agentik-mute", "#!/bin/sh\nexit 2\n")
         code, out, err = self.cfg("config", "--changed")
         self.assertEqual(code, 0, err)
-        self.assertIn("did not answer, so their settings are not here: mute", out)
+        self.assertIn("gave no settings, so their changes are not here: mute", out)
         code, out, err = self.cfg("config", "--user-files")
         self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
-        self.assertIn("did not answer, so their user files are not here: mute", err)
+        self.assertIn("gave no settings, so their user files are not here: mute", err)
         self.stub("agentik-demo", "#!/bin/sh\nexit 2\n")
         code, out, err = self.cfg("config", "--changed")
-        self.assertIn("Every setting read holds its default.", out)
+        self.assertIn("Every setting that was read holds its default.", out)
         self.assertIn("not here: demo, mute", out)
         code, out, err = self.cfg("config", "--user-files")
         self.assertEqual((code, out), (0, ""))
-        self.assertIn("No tool that answered names a user file that travels.", err)
+        self.assertIn("No tool that gave settings names a user file that travels.", err)
         self.assertNotIn("next: no layer", err)
 
     def test_f11_a_known_key_with_a_value_outside_its_choices(self):
