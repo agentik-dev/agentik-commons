@@ -59,3 +59,7 @@ Ruling: F1, F2 and F3 on the branch, each with a test red at 795ea2d; L5 rides; 
 - F2 `door-probe` skips a folder in DIR it cannot read, with no Traceback
 - F3 the suite's `--json` remedy for an unknown word names the nearest only when it is a verb, else `<tool> --help`
 - L5 the door's head comment: the tool's or the suite's code wherever it execs one, bare and help included
+
+## 8. Review 2's fix
+
+Ruling: F1 again, a regression: matching `$(MAKE)` anywhere in a makefile left out the checkouts whose `$(MAKE)` sits in a comment, a value or another target's recipe. Now each makefile (`GNUmakefile`, `makefile`, `Makefile`, `*.mk`) is read into rules, and the scan counts only the recipe lines `install` reaches: its own rules and, through the prerequisites as written (order-only ones too), theirs. A checkout is left out with a note in two cases: a reached recipe line starts with `+` after any `@`, `-` or blank, or holds `$(MAKE)` or `${MAKE}`; or the reach cannot be read, because a reached target or prerequisite holds `$` or `%`, or a makefile has an `include`, `-include` or `sinclude` line. Its tests were red at 1d4d73c. NICE n52: build 2's first check, red on a timing test of ak1b's.
