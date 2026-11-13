@@ -1,10 +1,13 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
-Verbs: help (bare, -h, --help), version (--version) and setup, which in this version only plans
-(`setup --dry-run [PLUGIN...]`). Every verb takes --json, -q/--quiet, --no-color and -h/--help;
-setup, a verb that writes, also takes --dry-run and -y/--yes. stdout carries the answer alone;
+Verbs: help (bare, -h, --help), version (--version), setup, which in this version only plans
+(`setup --dry-run [PLUGIN...]`), config, every tool's settings drilled down to one, and
+describe, the suite's own answer to that read. Every verb takes --json, -q/--quiet, --no-color
+and -h/--help; setup, a verb that writes, also takes --dry-run and -y/--yes; config takes
+--changed and --user-files. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
-3 not installed. Nothing here prompts, loops, starts a process or writes a file.
+3 not installed. Nothing here prompts or loops; config starts only the listed tools' own
+executables, and writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/.
 """
 import difflib
 import os
@@ -13,14 +16,18 @@ import sys
 
 import agentik_install
 
-from . import plan, term
+from . import config, plan, term
 
-VERBS = ("help", "version", "setup")
+VERBS = ("help", "version", "setup", "config", "describe")
 WRITES = ("setup",)
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
-ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS for f in (long, short) if f}
+CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
+VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
+VERB_FLAGS["config"] = CONFIG_FLAGS
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS
+             for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
@@ -62,6 +69,8 @@ def parse(argv):
 
 
 class Command:
+    Usage, VERBS = Usage, VERBS
+
     def __init__(self, argv, env, out, err):
         self.opts, self.words, self.bad = parse(argv)
         self.env = env
@@ -101,10 +110,9 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        if self.verb not in WRITES:
-            for long, short, key in WRITE_FLAGS:
-                if o[key]:
-                    self._bad_flag(long)
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS:
+            if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
+                self._bad_flag(long)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb)(nouns)
@@ -194,7 +202,7 @@ class Command:
         return 0
 
     def help_verb(self, verb):
-        flags = FLAGS + (WRITE_FLAGS if verb in WRITES else ())
+        flags = FLAGS + VERB_FLAGS.get(verb, ())
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
@@ -277,6 +285,15 @@ class Command:
         if any(s["command"] for s in early):
             return "hint.setup.path", {}
         return "hint.setup.rest", {}
+
+
+    # ---- config and describe ----------------------------------------------------------------
+
+    def do_config(self, nouns):
+        return config.do_config(self, nouns)
+
+    def do_describe(self, nouns):
+        return config.do_describe(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):

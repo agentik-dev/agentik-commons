@@ -15,15 +15,21 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
 - `verb.setup`: Plan the suite's setup. This version only plans, so pass --dry-run.
+- `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
+- `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
 - `usage.setup`: usage: `{tool}` setup --dry-run [<plugin>...] [flags]
+- `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
+- `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
 - `flag.yes`: Answer yes to every question; this version asks none.
+- `flag.changed`: List every setting that differs from its default.
+- `flag.user_files`: Print the path of each user file that travels, one a line.
 
 ## Version
 
@@ -39,6 +45,77 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.plan_only`: Setup needs --dry-run: version `{version}` only plans, and it wrote nothing. Run `{tool}` setup --dry-run for the plan.
 - `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
 - `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{tool}` setup --dry-run for the default set.
+
+- `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{tool}` config for the list.
+- `err.config.tool`: `{name}` is not a tool here. Run `{tool}` config for the list.
+- `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{tool}` config `{name}` for its keys.
+- `err.config.key`: `{name}` has no setting `{key}`. Run `{tool}` config `{name}` for its keys.
+- `err.config.nokey`: A key goes after the dot. Run `{tool}` config `{name}` for its keys.
+- `err.config.silent`: `{name}`.`{key}` cannot be read, since `{name}` reads `{state}`. Run `{tool}` config `{name}` for what it gives.
+- `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
+- `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
+- `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
+
+## Config
+
+- `config.title`: Tools in the suite: `{count}`, each with its state and its settings.
+- `config.count`: `{n}` settings
+- `config.count.one`: 1 setting
+- `config.differ`: `{n}` changed
+- `config.from_table`: from the suite's table
+- `config.fault`: `{path}` cannot be read at line `{line}`: `{why}`
+- `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed from the default.
+- `config.group`: `{group}`
+- `config.changed`: changed
+- `config.unknown`: unknown key `{key}`
+- `config.card.title`: `{name}`.`{key}`
+- `config.label.value`: value
+- `config.label.summary`: about
+- `config.label.default`: default
+- `config.label.choices`: choices
+- `config.label.set_by`: set by
+- `config.label.layer`: layer
+- `config.label.command`: run
+- `config.label.launch`: at launch
+- `config.label.edit`: edit
+- `config.label.fixed`: fixed
+- `config.label.note`: note
+- `config.label.holds`: takes hold
+- `config.label.run`: run
+- `config.label.file`: user file
+- `config.label.needs`: needs
+- `config.fixed`: no verb changes it
+- `config.live`: now
+- `config.later`: at the next start of Claude Code
+- `config.table.title`: `{name}` gives no settings of its own, since it reads `{state}`. The suite's table shows where they live.
+- `config.table.description`: `{description}`
+- `config.table.nocmd`: no command; the user file below holds the settings
+- `config.state.timed_out`: `{name}` gives no settings: its describe ran past 2 s, so it was stopped.
+- `config.state.unreadable`: `{name}` gives no settings: its describe answer cannot be read.
+- `config.state.no_command`: `{name}` is installed but ships no command, so it gives no settings.
+- `config.state.noread`: `{name}` answers, but names no settings read.
+- `config.changed.title`: Settings that differ from their defaults: `{count}`.
+- `config.changed.none`: Every setting holds its default.
+- `config.was`: default `{default}`
+- `config.set_by`: `{layer}` at `{where}`
+- `config.layer`: `{layer}`: `{value}`
+- `config.file`: `{path}`
+- `hint.config`: next: `{tool}` config <tool> lists one tool's settings.
+- `hint.config.tool`: next: `{tool}` config `{name}`.<key> shows one setting, where it is set and how to change it.
+- `hint.config.card`: next: `{tool}` config --changed lists every setting that differs from its default.
+- `hint.config.back`: next: `{tool}` config lists every tool and its state.
+- `hint.config.changed`: next: `{tool}` config <tool>.<key> shows where one is set and how to change it.
+- `hint.config.nofiles`: next: no layer travels between machines. `{tool}` config lists every tool's user file.
+
+## The suite's settings
+
+- `describe.summary`: The agentik suite's default set, and the command that manages it.
+- `setting.checkouts`: The repos the suite reads across, one path an item.
+- `setting.kind`: What this repo is to the suite; hq marks the top of a tree.
+- `setting.watcher.match`: What the watcher looks for.
+- `setting.watcher.start`: The command the watcher starts.
+- `setting.watcher.beat`: How often the watcher looks.
+- `setting.watcher.writer`: Who writes what the watcher reads.
 
 ## Setup
 

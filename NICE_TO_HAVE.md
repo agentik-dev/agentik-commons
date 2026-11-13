@@ -6,6 +6,7 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n39 | S3 | `scripts/agentik_install.py` `_door` | it opens whatever sits at the door's path, so a FIFO there hangs the install; its no-version line prints the door's raw byte, which can fail under a UTF-8 locale. The session's copy opens only a regular file and escapes to ASCII; ak2-door's probe over the three writers holds both | the session's review of its copy | 2026-11-13, ak1b, from a session review |
 
 ## From packet c3
 
