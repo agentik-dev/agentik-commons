@@ -59,3 +59,53 @@ Version: `plugins/suite/.claude-plugin/plugin.json` to `0.2.0` in the last commi
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, the private hygiene list. The report: head sha, gate id and line, acceptance 1 to 8 at the pin and now.
+
+## 7. Fix round 1 (review 1)
+
+| item | value |
+|---|---|
+| from | agentik-hq's fix brief of 2026-11-13 for ak1a, R1 to R13; the review's seven findings, its leads L1 to L9 |
+| pin | `ak1a-skeleton` at 3b7cc56; the branch continues, no new one |
+| may touch | as above, and `NICE_TO_HAVE.md`, `history/sittings/2026-11-13-2.md` |
+| verify | `make voice`, then `make check`, each once, through the gate queue, `--strict` |
+
+The findings, as this round reads them:
+
+- F1: one commit's Makefile comment trips the commit-range hygiene scan; mended by the replay of phase 2, not here.
+- F2: with every launcher placed and the door absent, the door's row points at a step that prints nothing.
+- F3: the closing hint never says done, and sends the reader to lines that cannot work yet.
+- F4: a plugin whose files are gone reads installed, and a printed path with a space splits in two.
+- F5: a closed stdout or stderr, or a reader that has gone, gives a traceback and the wrong exit.
+- F6: a character the stream cannot encode, the cut mark or a stray byte in an argument, gives a traceback.
+- F7: a crafted file of Claude Code's gives a traceback, or puts an escape byte into piped output.
+
+Rulings:
+
+- R1: the door's row names one placed launcher's `install-cli` when a launcher is placed and step 4 prints none; else it says step 4's first `install-cli` places it.
+- R2: done is judged on steps 1 to 6; step 1 blocked names what to install and withholds every `run:` line; else the hint sends the reader to the `run:` lines in order; a doctor's line shows only once its launcher is placed.
+- R3: step 3 reads `ok` only when the entry's `installPath` holds the plugin's launcher; every path in a command is `shlex.quote`d.
+- R4: `term` drops output to a closed or broken stream, at a write and at exit, with no traceback; the exit code is the verb's.
+- R5: the glyph probe covers every non-ASCII character `term` prints; what a stream cannot encode is replaced; `--json` is ASCII-safe.
+- R6: any failure to parse a file reads as not known; control characters (C0, DEL, C1) from a file or the environment never reach the output.
+- R7 (amends R3 above): on a terminal nothing is cut; a last cell too wide moves whole to the dim line under its row. No place to cut is left, so the cut mark is gone.
+- R8: a list item the loader cannot read is a `ValueError`, and the catalogue's test is red on it.
+- R9: a missing catalogue, or a manifest unread where the version is asked, is one plain line naming the file, exit 2.
+- R10: the voice pass's catalogue, proved by respeak's `respeak-verify-edit.py`, then this round's messages in its voice, `setup.suite.unread` among them; `make voice` and its sidecar.
+- R11: NICE rows for L4, L5, L6, L8, the rest of L7, and the note that a to-do row reads as information.
+- R12: `scripts/hygiene --commits 3b7cc56..HEAD` reads 0 hits outside the allowlist.
+- R13: each ruling's test red at 3b7cc56 first; commits by ruling group.
+
+Acceptance (each a test in `tests/test_agentik_suite.py`; at 3b7cc56 each is as the review saw it):
+
+| # | line | at 3b7cc56 |
+|---|---|---|
+| 1 | every launcher placed, the door absent: the door's row names an `install-cli` whose file exists | the row names none |
+| 2 | steps 1 to 6 `ok` give the done hint; no `claude` gives a hint naming `claude` and no `claude plugin` line; on a fresh home each `run:` line, run in order against stubs, exits 0, and no doctor line comes before its launcher | "run each line" always; doctors on a fresh home |
+| 3 | an `installPath` gone reads not whole and prints no missing path; a path with a space is one shell word | `ok`, and the path split |
+| 4 | `--version >&-` exits 0, `stup 2>&-` 2, `help` to a gone reader 0, stderr empty | exit 1, 1, 120 |
+| 5 | a pty with `LANG=en_US.ISO8859-1`: `setup --dry-run` exits 0; `$'\xff' --json`: one object from ASCII bytes, exit 2 | `UnicodeEncodeError`, exit 1 |
+| 6 | 100,000 `[` exits 0 with the plugins not known, `--json` too; ESC in a version leaves no escape byte piped | `RecursionError`; an escape byte |
+| 7 | a pty 80 and 40 columns wide, fresh home: no `…`, every `run:` line whole | 12 of 16 rows cut at 80 |
+| 8 | a catalogue copy with a capital in an id turns its test red | skipped, green |
+| 9 | the first eight lines hold; tests changed only where words changed | 25 tests OK |
+| 10 | `make voice` exit 0; the gate's `make check` exit 0; R12's scan 0 hits | not run |
