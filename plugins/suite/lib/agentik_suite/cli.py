@@ -19,9 +19,9 @@ import sys
 
 import agentik_install
 
-from . import config, plan, status, term, tools
+from . import config, doctor, plan, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status")
+VERBS = ("help", "version", "setup", "config", "describe", "status", "doctor")
 WRITES = ("setup",)
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
@@ -330,6 +330,11 @@ class Command:
 
     def do_status(self, nouns):
         return status.do_status(self, nouns)
+
+    # ---- doctor ---------------------------------------------------------------------------
+
+    def do_doctor(self, nouns):
+        return doctor.do_doctor(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):
