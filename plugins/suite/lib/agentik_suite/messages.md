@@ -18,12 +18,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
+- `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
 - `usage.setup`: usage: `{tool}` setup --dry-run [<plugin>...] [flags]
 - `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
 - `usage.status`: usage: `{tool}` status --check [flags]
+- `usage.install_cli`: usage: `{tool}` install-cli [--prefix <dir>] [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -33,10 +35,22 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
+- `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
 ## Version
 
 - `version.line`: `{tool}` `{version}`
+
+## Install
+
+- `install.done`: Placed `{launcher}` at version `{version}`, running the code frozen at `{tree}`.
+- `install.dry`: Would place `{launcher}` at version `{version}`. Nothing is written.
+- `install.door.keep`: The door `{door}` is at this version or newer, so it stays as it is.
+- `install.door.link`: The door `{door}` is a link, so it stays as it is.
+- `install.door.unversioned`: The door `{door}` holds no version to compare, so it stays as it is.
+- `install.pruned`: `{line}`
+- `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
+- `err.install`: install-cli stopped: `{why}`. Mend that, then run `{tool}` install-cli again.
 
 ## Errors
 
@@ -160,13 +174,15 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.ok`: at version `{version}`, the same as this command
-- `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; this version cannot place it, so run `{path}`
-- `setup.suite.unread`: holds no version line; this version cannot place it, so run `{path}`
-- `setup.suite.missing`: not placed; a later version places it. Until then, run `{path}`
-- `setup.door.ok`: in place
-- `setup.door.missing`: not placed; the first install-cli run in step 4 places it
-- `setup.door.place`: not placed; the install-cli line below places it
-- `setup.door.blocked`: not placed; setup would place it once step 1 reads ok
+- `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
+- `setup.suite.unread`: holds no version line; setup would place it again at `{want}`
+- `setup.suite.missing`: not placed; setup would place it from this command
+- `setup.door.ok`: in place, at this command's version or newer
+- `setup.door.above`: not placed, or older than this command's; the line above places it
+- `setup.door.place`: not placed, or older than this command's; the install-cli line below places it
+- `setup.door.blocked`: not placed, or older than this command's; setup would place it once step 1 reads ok
+- `setup.door.link`: a link, so setup leaves it as it is
+- `setup.door.unversioned`: holds no version to compare, so setup leaves it as it is
 - `setup.path.ok`: on PATH
 - `setup.path.missing`: not on PATH
 - `setup.doctor.todo`: setup would check the plugin with its doctor
