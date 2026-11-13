@@ -26,7 +26,8 @@ SYSTEM = "/usr/bin:/bin"
 VERBS = "setup|doctor|config|status|help|describe|install-cli|version"
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 # a printed command: a word naming the suite (a path to it, `./setup`, or the door), then verbs and flags
-COMMAND = re.compile(r"(?:(?<=\s)|^)((?:\S*/setup|\S*agentik(?:-suite)?)(?: (?:%s|--?[a-z-]+))+)" % VERBS)
+COMMAND = re.compile(r"(?:(?<=\s)|^)((?:\S*/setup|\S*agentik(?:-suite)?)(?: (?:%s|--?[a-z-]+))+)(?![\w:-])"
+                     % VERBS)  # a title, `<name> doctor:`, is no command
 
 
 def door(path, version):
@@ -136,10 +137,10 @@ class PasteTest(Home):
                            capture_output=True, text=True, timeout=120)
         return ANSI.sub("", p.stdout + p.stderr)
 
-    def commands(self, text):
-        found = [m.group(1) for line in text.splitlines() for m in COMMAND.finditer(line)]
-        return [c for c in dict.fromkeys(found)
-                if "--yes" not in c.split() and c.split()[-1] != "install-cli"]
+    def commands(self, text, every=False):
+        """Each printed command; with every False, not those that would write: --yes, install-cli."""
+        found = list(dict.fromkeys(m.group(1) for line in text.splitlines() for m in COMMAND.finditer(line)))
+        return found if every else [c for c in found if "--yes" not in c.split() and c.split()[-1] != "install-cli"]
 
     def paste(self, command, env):
         p = subprocess.run(["sh", "-c", command], cwd=str(ROOT), env=env, stdin=subprocess.DEVNULL,
@@ -153,11 +154,11 @@ class PasteTest(Home):
         for argv in screens:
             text = self.screen(argv, env)
             found = self.commands(text)
-            self.assertTrue(found, (argv, text))
+            self.assertTrue(self.commands(text, every=True), (argv, text))
             for c in found:
                 self.assertNotEqual(self.paste(c, env), 127, (argv, c))
         hint = self.screen(["./setup", "--dry-run"], env).splitlines()[-1]
-        self.assertIn("next: ./setup --dry-run", hint)
+        self.assertIn(" ./setup --dry-run again.", hint)
         self.assertIn(TOOL + " ", self.screen(["plugins/suite/bin/agentik-suite"], env).splitlines()[0])
 
     def placed(self):
