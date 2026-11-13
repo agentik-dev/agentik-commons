@@ -132,7 +132,7 @@ def rows(text):
 
 
 def _wrapper(word):
-    base = os.path.basename(word)
+    base = os.path.basename(word).lower()  # macOS shows /usr/bin/python3 as .../MacOS/Python
     return base.startswith("python") or base in WRAPPERS
 
 
@@ -201,7 +201,8 @@ def beat(w, env):
 
 
 def check(w, procs, now, env, uid):
-    """{name, state, pid, since, beat_writer, beat_line, start} for one watcher."""
+    """{name, state, pid, since, beat_writer, beat_line, start, writer, beat_at} for one watcher:
+    `writer` the declared one, `beat_at` the beat's `at` whoever wrote it."""
     b = beat(w, env)
     own = b is not None and (w["writer"] is None or b["writer"] == w["writer"])
     fresh = b is not None and max(0, now - b["at"]) <= b["fresh_s"]
@@ -216,15 +217,22 @@ def check(w, procs, now, env, uid):
         state = "running" if b is None or fresh else "hung"
     return {"name": w["name"], "state": state, "pid": pid, "since": b["at"] if own else None,
             "beat_writer": b["writer"] if b else None,
-            "beat_line": b["line"] if own and fresh else None, "start": w["start"]}
+            "beat_line": b["line"] if own and fresh else None, "start": w["start"],
+            "writer": w["writer"], "beat_at": b["at"] if b else None}
 
 
 def do_status(cmd, nouns):
+    """`--check` (su1), or the full read, `status [<path>...] --json` (packet su2-read R2)."""
     o, t, Usage = cmd.opts, cmd.t, cmd.Usage
-    cmd._no_nouns(nouns)
     again = "%s status --check" % cmd.tool
-    if not o["check"]:
+    if o["check"]:
+        cmd._no_nouns(nouns)
+    elif not o["json"]:
         raise Usage("check_only", "err.status.check", again, tool=cmd.tool)
+    else:
+        for path in nouns:
+            if not os.path.isdir(path):
+                raise Usage("bad_path", "err.status.path", "%s status" % cmd.tool, path=path)
     now = time.time()
     if o["now"] is not None:
         now = when(o["now"])
@@ -237,6 +245,10 @@ def do_status(cmd, nouns):
         except OSError:
             raise Usage("bad_listing", "err.status.ps", again, path=o["ps"])
     try:
+        if not o["check"]:
+            from . import status_read
+            t.json(status_read.compose(cmd, nouns, now, text))
+            return 0
         path, watchers, unchecked = declared(cmd.env)
     except settings.Fault as f:
         home = cmd.env.get("HOME")

@@ -264,7 +264,7 @@ class JsonListingAndRecordsTest(StatusHome):
         self.assertEqual(code, 1)
         self.assertEqual(obj, {"schema": "agentik.status/1", "ok": True, "check": True, "watchers": [
             {"name": "lamp", "state": "missing", "pid": None, "since": 1793799937,
-             "beat_writer": "watch", "beat_line": None, "start": "lampd watch --every 60"}]})
+             "beat_writer": "watch", "beat_line": None, "start": "lampd watch --every 60", "writer": "watch", "beat_at": 1793799937}]})
         self.listing("/opt/bin/lampd watch")
         self.beat(NOW_S - 600)
         code, obj = self.obj(*self.check("--json"))
