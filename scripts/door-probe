@@ -301,7 +301,8 @@ def probe(p, code):
     (p.t / "twin").mkdir()
     found = 0
     for src in sorted(code.iterdir()):
-        if not (src / ".git").exists() or os.path.realpath(str(src)) == own:
+        # os.path.exists is False for a folder it cannot read (review 1 F2), where Path.exists raises
+        if not os.path.exists(str(src / ".git")) or os.path.realpath(str(src)) == own:
             continue
         if not has_main(p, src) or not shaped(p, src):
             continue

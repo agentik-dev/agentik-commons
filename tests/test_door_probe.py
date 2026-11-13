@@ -178,6 +178,18 @@ class DoorProbeRunTest(unittest.TestCase):
         for text in (b"x:\n\techo a+b\n", b"x:\n\techo $(MAKEFLAGS)\n", b"x:\n\t@echo +\n", b"A = 1\n"):
             self.assertFalse(mod.RUNS.search(text), text)
 
+    @unittest.skipIf(os.geteuid() == 0, "root reads a folder of mode 000")
+    def test_f2_an_unreadable_folder_is_skipped(self):
+        locked = self.code / "zz-locked"
+        (locked / ".git").mkdir(parents=True)
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o755)
+        self.careful()
+        code, lines, err = self.probe()
+        self.assertNotIn("Traceback", err)
+        self.assertFalse([line for line in lines if line.startswith("zz-locked")])
+        self.assertEqual((code, lines[-1]), (0, "door-probe: go"), (lines, err))
+
     def test_a7_a_checkout_with_neither_is_not_listed(self):
         self.checkout("plain-tool", {"README.md": ("a made-up tool\n", 0o644)})
         (self.code / "not-a-repo").mkdir()
