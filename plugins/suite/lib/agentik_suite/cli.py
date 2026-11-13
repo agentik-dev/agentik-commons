@@ -1,13 +1,16 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
 Verbs: help (bare, -h, --help), version (--version), setup, which in this version only plans
-(`setup --dry-run [PLUGIN...]`), config, every tool's settings drilled down to one, and
-describe, the suite's own answer to that read. Every verb takes --json, -q/--quiet, --no-color
-and -h/--help; setup, a verb that writes, also takes --dry-run and -y/--yes; config takes
---changed and --user-files. stdout carries the answer alone;
+(`setup --dry-run [PLUGIN...]`), config, every tool's settings drilled down to one,
+describe, the suite's own answer to that read, and status, which in this version only checks the
+declared watchers (`status --check`). Every verb takes --json, -q/--quiet, --no-color and
+-h/--help; setup, a verb that writes, also takes --dry-run and -y/--yes; config takes --changed
+and --user-files; status takes --check, and the test hooks --ps FILE and --now ISO, the only
+flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no, 2 usage or a failed precondition,
 3 not installed. Nothing here prompts or loops; config starts only the listed tools' own
-executables, and writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/.
+executables, and writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/; status
+starts ps at most.
 """
 import difflib
 import os
@@ -16,17 +19,20 @@ import sys
 
 import agentik_install
 
-from . import config, plan, term
+from . import config, plan, status, term
 
-VERBS = ("help", "version", "setup", "config", "describe")
+VERBS = ("help", "version", "setup", "config", "describe", "status")
 WRITES = ("setup",)
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
+STATUS_FLAGS = (("--check", None, "check"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
-ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS
+VERB_FLAGS["status"] = STATUS_FLAGS
+VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status")}  # test hooks: flag, key, verb
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
@@ -53,12 +59,21 @@ def _tool(lib):
 def parse(argv):
     opts = {key: False for key in ALL_FLAGS.values()}
     opts["version"] = False
+    opts.update({key: None for key, _ in VALUE_FLAGS.values()})
     words, bad, rest = [], None, False
-    for arg in argv:
+    args = iter(argv)
+    for arg in args:
+        flag, eq, value = arg.partition("=")
         if rest or not arg.startswith("-") or arg == "-":
             words.append(arg)
         elif arg == "--":
             rest = True
+        elif flag in VALUE_FLAGS:
+            value = value if eq else next(args, None)
+            if value is None and bad is None:
+                bad = flag
+            elif value is not None:
+                opts[VALUE_FLAGS[flag][0]] = value
         elif arg == "--version":
             opts["version"] = True
         elif arg in ALL_FLAGS:
@@ -110,15 +125,18 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS:
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
             if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
                 self._bad_flag(long)
+        for flag, (key, verb) in VALUE_FLAGS.items():
+            if o[key] is not None and verb != self.verb:
+                self._bad_flag(flag)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb)(nouns)
 
     def _bad_flag(self, flag):
-        known = list(ALL_FLAGS) + ["--version"]
+        known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
         near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
         where = "%s %s" % (self.tool, self.verb) if self.verb and self.verb != "help" else self.tool
         if near and near[0] != flag:
@@ -294,6 +312,11 @@ class Command:
 
     def do_describe(self, nouns):
         return config.do_describe(self, nouns)
+
+    # ---- status ---------------------------------------------------------------------------
+
+    def do_status(self, nouns):
+        return status.do_status(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):

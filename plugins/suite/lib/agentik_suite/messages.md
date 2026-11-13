@@ -17,11 +17,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.setup`: Plan the suite's setup. This version only plans, so pass --dry-run.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
+- `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
 - `usage.version`: usage: `{tool}` version [flags]
 - `usage.setup`: usage: `{tool}` setup --dry-run [<plugin>...] [flags]
 - `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
+- `usage.status`: usage: `{tool}` status --check [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -30,6 +32,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.yes`: Answer yes to every question; this version asks none.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
+- `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
 
 ## Version
 
@@ -58,6 +61,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{tool}` config `{name}` for what it gives.
 - `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{tool}` config `{name}` for what it gives.
 - `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
+- `err.status.check`: `{tool}` status only checks in this version. Run `{tool}` status --check.
+- `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
+- `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
+- `err.status.file`: `{fault}`. Mend the file by hand, then run `{tool}` status --check again.
 - `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
 
@@ -170,3 +177,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
+
+## Status
+
+- `status.missing.since`: `{name}`: not running since `{when}`; start it: `{start}`
+- `status.missing`: `{name}`: not running; start it: `{start}`
+- `status.hung.since`: `{name}`: running but silent since `{when}`; start it: `{start}`
+- `status.hung`: `{name}`: running but silent; start it: `{start}`
+- `status.unknown`: `{name}`: not checked: ps gave no listing
+- `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. Add them, then run `{tool}` status --check.
