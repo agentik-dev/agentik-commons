@@ -5,7 +5,7 @@
 | from | agentik-hq's brief h2 of 2026-11-12 (`history/sessions/BRIEF-2026-11-12-commons-h2-hygiene-binary.md`), R1 to R4; the tree's entry 37; this repo's NICE n13 |
 | pin | agentik-commons main 9f20220; worktree `.claude/worktrees/h2-hygiene-binary`, branch `h2-hygiene-binary` |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no `relay`/`agentik relay` `run`, `plan`, `gate`, `stop`, `kill`, `clean`, `resume`, nothing under `~/.local/state/agent-relay`; no `claude` process; no ledger edited; tests use an invented list via `$AGENTIK_HYGIENE_PRIVATE`, never the private list |
-| may touch | `scripts/hygiene`; `tests/test_hygiene.py`; `NICE_TO_HAVE.md` (n13 only); this packet as `design/packets/h2-hygiene-binary.md`; `history/sittings/2026-11-12-1.md` |
+| may touch | `scripts/hygiene`; `tests/test_hygiene.py`; `NICE_TO_HAVE.md` (n13 out, n17 in); this packet as `design/packets/h2-hygiene-binary.md`; `history/sittings/2026-11-12-1.md` |
 | verify | `agentik session gate run <absolute worktree path> -- /bin/sh -c 'make check > <scratch log> 2>&1'`, then `agentik session gate wait <id> --strict` in one background Bash |
 | acceptance | 1 to 5 below, each measured at 9f20220 by a probe of made-up terms (scratch, not committed); `python3 -m unittest tests.test_hygiene tests.test_hygiene_commits` OK; `scripts/hygiene` exit 0; verify green |
 | budget | a commit per act by explicit path, the packet first; about 90 tool calls. `claude-opus-5-5` |
@@ -18,7 +18,7 @@
 ## 2. Rulings
 
 1. R1 stands as built: a private term in a binary is a hit in the tree and in `--commits`, the file and the row named, never the bytes. An encoded term (UTF-16, base64, deflate) stays NICE n12.
-2. R2: a binary's whole content is scanned with each NUL read as a newline, so a private row's `.` and its `^`/`$` (multiline) stop at a NUL as at a newline. A row's cost is then bounded by its longest NUL- or newline-free span, as a text file's is by its longest line. The count stays one line per file (per chunk). Chosen over a span cap: one `replace`, no window to tune, and a NUL-padded binary has short spans.
+2. R2: a binary's whole content is scanned with each control byte but the tab (NUL and newline among them) and each byte UTF-8 cannot decode read as a newline, so a private row's `.` and its `^`/`$` (multiline) stop there. A row's cost is then bounded by its longest span of text, as a text file's is by its longest line. The count stays one line per file (per chunk). Chosen over a span cap: a byte table and a `replace`, no window to tune. NUL alone was measured first and missed the bound: random bytes with no newline, 20 MB, 26.7 s (a NUL only every 256 bytes); the wider set 1.3 s. A term holds no control or bad byte, so no term is lost; the residual, a long newline-free span of text, binary or not, is NICE n17.
 3. R3 stands as built: `--require-private` with a list of only comments and blank lines exits 2, one stderr line `the private list at P holds no term; nothing scanned (--require-private)`.
 4. R4: a text file's lines, the allowlist, the built-in groups, every message and exit are unchanged; the docstring's binary sentence names the NUL rule.
 
@@ -38,7 +38,7 @@
 
 ## 5. The landing
 
-Commons keeps no ledger. Syncing the vendored copies is the coordinator's round after this lands. NICE n13 leaves; n12 stays.
+Commons keeps no ledger. Syncing the vendored copies is the coordinator's round after this lands. NICE n13 leaves; n12 stays; n17 files R2's residual.
 
 ## 6. Forbidden reads and report
 
