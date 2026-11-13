@@ -139,6 +139,45 @@ class DoorProbeRunTest(unittest.TestCase):
         self.assertEqual((code, lines[-1]), (0, "door-probe: go"), lines)
         self.assertTrue(repo.is_dir())
 
+    def careful(self, name="careful-tool", makefile=CAREFUL):
+        return self.checkout(name, {"Makefile": (makefile, 0o644), "scripts/agentik": (self.old_door(), 0o755),
+                                    "scripts/put-door": (PUT_DOOR, 0o755)})
+
+    def test_f1_a_recipe_line_holding_make_leaves_its_checkout_out(self):
+        # review 1 F1: make -n runs a recipe line that holds $(MAKE) or ${MAKE}, as it runs a + line
+        markers = []
+        for name, ref in (("paren-tool", "$(MAKE)"), ("brace-tool", "${MAKE}")):
+            marker = self.root / ("OUTSIDE-" + name)
+            markers.append(marker)
+            self.careful(name, CAREFUL.replace("install:\n", "install:\n\t@echo %s >/dev/null; touch %s\n"
+                                               % (ref, marker)))
+        self.careful()
+        code, lines, err = self.probe()
+        for marker in markers:
+            self.assertFalse(marker.exists(), "make -n ran a recipe line: %s" % marker)
+        for name in ("paren-tool", "brace-tool"):
+            self.assertEqual(len([line for line in lines if line.split()[:1] == [name]]), 1, lines)
+            kind, text = self.row(lines, name, "make", "-")  # a case-blind disk reads Makefile as makefile
+            self.assertEqual((kind, text.lower()),
+                             ("note", "makefile holds a recipe line make -n would run (a + or $(make)); not probed"))
+        self.assertEqual(self.row(lines, "careful-tool", "make", "kept")[0], "ok")
+        self.assertEqual((code, lines[-1]), (0, "door-probe: go"), lines)
+
+    def test_f1_the_pattern_reads_a_recipe_line_as_make_does(self):
+        # GNU make runs a recipe line under -n when it starts with + (after any @, - or blanks) or
+        # holds $(MAKE) or ${MAKE} as written; a continued line and a rule's `; recipe` count too
+        import importlib.machinery
+        import importlib.util
+        loader = importlib.machinery.SourceFileLoader("door_probe", str(PROBE))
+        mod = importlib.util.module_from_spec(importlib.util.spec_from_loader("door_probe", loader))
+        loader.exec_module(mod)
+        for text in (b"x:\n\t+touch m\n", b"x:\n\t@+touch m\n", b"x:\n\t-@ +touch m\n", b"x:\n\t@\t+touch m\n",
+                     b"x:\n\techo $(MAKE)\n", b"x:\n\techo ${MAKE}\n", b"x:\n\techo a \\\n  $(MAKE) b\n",
+                     b"x: ; +touch m\n", b"x: ; @$(MAKE) -C y\n"):
+            self.assertTrue(mod.RUNS.search(text), text)
+        for text in (b"x:\n\techo a+b\n", b"x:\n\techo $(MAKEFLAGS)\n", b"x:\n\t@echo +\n", b"A = 1\n"):
+            self.assertFalse(mod.RUNS.search(text), text)
+
     def test_a7_a_checkout_with_neither_is_not_listed(self):
         self.checkout("plain-tool", {"README.md": ("a made-up tool\n", 0o644)})
         (self.code / "not-a-repo").mkdir()

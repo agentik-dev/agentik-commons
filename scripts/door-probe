@@ -11,8 +11,8 @@ has `plugin/bin/agentik` and one executable `plugin/bin/agentik-*` beside it,
 run as `<that launcher> install-cli --prefix P`. Else a make writer: each line
 of `make -n install BINDIR=P/bin` whose last word is `P/bin/agentik`, run by
 `sh -c` in the clone, and no other line: nothing is built, and a checkout whose
-makefile holds a `+` recipe line, which `make -n` would run, is left out with a
-note. Each writer and `make -n` run as `env -i HOME=<a temp folder>
+makefile holds a recipe line `make -n` would run (one that starts with `+`, after
+any `@` or `-`, or holds `$(MAKE)` or `${MAKE}`) is left out with a note. Each writer and `make -n` run as `env -i HOME=<a temp folder>
 PATH=/usr/bin:/bin TMPDIR=<under it>`, a fresh P for each case, under a wall of
 20 s that kills its process group.
 
@@ -50,7 +50,10 @@ SYSTEM = "/usr/bin:/bin"
 GIT, MAKE = "/usr/bin/git", "/usr/bin/make"
 WALL = float(os.environ.get("DOOR_PROBE_WALL") or 20)  # tests shorten it; by hand it is 20 s
 MAKEFILES = ("GNUmakefile", "makefile", "Makefile")
-PLUS = re.compile(rb"^\t[ @-]*\+", re.M)
+# a recipe line make -n runs: one that starts with + after any @, - or blanks (a tab line, or a
+# rule's `; recipe`), or one holding $(MAKE) or ${MAKE} as written; anywhere in the file, so a
+# continued line counts, and a match outside a recipe only leaves a checkout out
+RUNS = re.compile(rb"^\t[ \t@-]*\+|^[^\t\n#][^\n]*;[ \t@-]*\+|\$\(MAKE\)|\$\{MAKE\}", re.M)
 VERSION = re.compile(rb"^VERSION=(.*)$", re.M)
 FAILS = []
 
@@ -153,8 +156,8 @@ def launcher(clone):
 def make_lines(p, clone, prefix):
     """The lines of `make -n install` whose last word is the door, or None with a note."""
     for path in [clone / name for name in MAKEFILES] + sorted(clone.glob("*.mk")):
-        if path.is_file() and PLUS.search(path.read_bytes()):
-            return None, "%s holds a + recipe line, which make -n would run; not probed" % path.name
+        if path.is_file() and RUNS.search(path.read_bytes()):
+            return None, "%s holds a recipe line make -n would run (a + or $(MAKE)); not probed" % path.name
     target = str(prefix / "bin" / "agentik")
     code, out = p.run([MAKE, "-n", "install", "BINDIR=%s" % (prefix / "bin")], clone)
     found = []
