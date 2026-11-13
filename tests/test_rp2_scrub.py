@@ -103,7 +103,7 @@ NAMES = [
 LEFT = ["tokens: 4096 of 8192", "input_tokens=1200", "at 12:34:56",
         "agentik.doctor/1 read/write and/or 3/22 checks",
         "see https://github.com/acmeorg/agentik-widget/issues/12",
-        "test_" + "_".join(["scrub", "keeps", "the", "tail", "words", "after", "a", "path", "x"]),
+        "test_" + "_".join(["scrub", "keeps", "the", "tail", "words", "after", "a", "paths"]),
         "commit 3f9a2b7c1d4e", "README.md, setup.sh, main.py"]
 
 
@@ -290,7 +290,7 @@ class FixedPointTest(unittest.TestCase):
         m = machine()
         self.assertEqual(scrub.detect("at /zqvroot", m), ["path"])
         self.assertEqual(scrub.detect("plain words", m), [])
-        kinds = scrub.detect("a /zqvroot b %s" % LOGIN, m)
+        kinds = scrub.detect("a /zqvroot is %s" % LOGIN, m)
         self.assertEqual(kinds, ["path", "user"])
         self.assertTrue(all(MARK not in k for k in kinds))
 
