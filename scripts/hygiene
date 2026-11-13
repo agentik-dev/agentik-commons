@@ -112,6 +112,10 @@ import sys
 # A short prefix that a longer word can hold starts a token only after a character that is no
 # letter, or after a JSON escape (`\n`, `\r`, `\t` as two characters) or a percent-encoded `=`.
 TOKEN_START = r"(?:(?<![A-Za-z])|(?<=\\[nrt])|(?<=%3[Dd]))"
+# A JWT's match starts only where a base64url run starts, its `eyJ` within the run's first 32
+# characters (after `my_`, a digit, an escape's letter, `3D`), so a long run is read a bounded
+# number of times and not once for each `eyJ` in it.
+JWT_START = r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{0,32}?"
 GROUPS = (
     ("home", (r"/Users/[a-z]+", r"~/cod[e]/")),
     ("lan", (r"192\.168\.", r"\b10\.\d+\.\d+\.\d+",
@@ -123,7 +127,7 @@ GROUPS = (
                 r"github_pa[t]_[A-Za-z0-9_]{20,}", r"AGE-SECRET-KE[Y]-1[0-9A-Z]{20,}",
                 r"\bAKI[A][0-9A-Z]{16}\b", r"BEGI[N] [A-Z0-9 ]*PRIVATE KEY",
                 r"gh[ousr]_[A-Za-z0-9]{20,}",
-                r"ey[J][A-Za-z0-9_-]{10,}\.ey[J][A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}",
+                JWT_START + r"ey[J][A-Za-z0-9_-]{10,}\.ey[J][A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{20,}",
                 r"xox[baprs]-[A-Za-z0-9-]{20,}", TOKEN_START + r"s[k]-[A-Za-z0-9]{20,}",
                 TOKEN_START + r"s[k]-pro[j]-[A-Za-z0-9_-]{20,}", r"AIz[a][A-Za-z0-9_-]{35}",
                 r"np[m]_[A-Za-z0-9]{36}", r"glpa[t]-[A-Za-z0-9_-]{20,}",

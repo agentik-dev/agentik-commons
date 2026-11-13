@@ -11,6 +11,7 @@ import string
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -139,8 +140,8 @@ CONTEXTS = [
 
 
 class ContextTest(unittest.TestCase):
-    """Review 1's R1-F1: each shape counts in every context, and a prefix inside a word
-    still does not."""
+    """Review 1's R1-F1 and R1-F2: each shape counts in every context, a prefix inside a word
+    still does not, and a long base64url run is read once."""
 
     def test_each_shape_in_each_context_is_a_hit(self):
         rx = secret_rx()
@@ -166,6 +167,33 @@ class ContextTest(unittest.TestCase):
         for line in words:
             with self.subTest(line=line[:12]):
                 self.assertIsNone(rx.search(line))
+
+    def scan_seconds(self, text):
+        """Wall seconds of the scanner over one file holding `text`; it fails past 10 s."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            os.mkdir(repo)
+            subprocess.run(["git", "-C", repo, "init", "-q"], check=True, capture_output=True)
+            Path(repo, "blob.txt").write_text(text)
+            private = os.path.join(tmp, "private.tsv")
+            Path(private).write_text("domain\tquuxvill[e]\\.example\n")
+            env = dict(os.environ, AGENTIK_HYGIENE_PRIVATE=private)
+            start = time.monotonic()
+            try:
+                subprocess.run([str(SCRIPT), "--json", "--repo", repo], capture_output=True,
+                               text=True, env=env, timeout=10)
+            except subprocess.TimeoutExpired:
+                self.fail("the scan took past 10 s on a %d-byte line" % len(text))
+            return time.monotonic() - start
+
+    def test_a_long_base64url_run_is_read_once(self):
+        crafted = "ey" + "Jey" * 160000
+        self.assertEqual(len(crafted), 480002)
+        records = "".join(json.dumps({"n": i, "t": rand(20)}) + "\n" for i in range(10000))
+        encoded = base64.urlsafe_b64encode(records.encode()).decode()
+        self.assertGreater(len(encoded), 500000)
+        for text in (crafted, encoded):
+            self.assertLess(self.scan_seconds(text + "\n"), 10)
 
 
 class CopyTest(unittest.TestCase):
