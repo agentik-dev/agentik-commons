@@ -197,7 +197,9 @@ class ChecksTest(GatherHome):
         read = doctor(("alpha", [dict(check("a", "fail"), extra=mark, remedy=mark)]))
         read["extra"] = mark
         read["tools"][0]["extra"] = mark
-        f = self.gather(read=read)
+        read["tools"].append({"name": [mark], "checks": [check(mark, "fail"), [mark], "x"]})
+        read["tools"].append({"name": "beta", "checks": {"a": mark}})
+        f = self.gather(read=read, given={"tool": [mark]})
         self.assertNotIn(mark, json.dumps(f))
         self.assertEqual(set(f["checks"]["rows"][0]), {"tool", "status", "name", "detail"})
 
