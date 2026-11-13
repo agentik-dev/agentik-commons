@@ -126,7 +126,7 @@ class HygieneTest(unittest.TestCase):
         import agentik_hygiene
         text = (LIB / "public.json").read_text()
         sibling = dict(agentik_hygiene.COMPILED)["sibling"]
-        self.assertTrue(any(p.search(text) for p in sibling))
+        self.assertTrue(sibling.search(text))
         rows = [l for l in (ROOT / ".hygiene-allow").read_text().splitlines()
                 if l and not l.startswith("#")]
         at = rows.index("plugins/suite/lib/fallback.json: sibling")
