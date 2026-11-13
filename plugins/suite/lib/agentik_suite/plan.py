@@ -5,7 +5,10 @@ included. A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.
 known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, whose
 plugins["<name>@<marketplace>"][0] holds version and installPath. An absent or unreadable file
 reads as nothing known, as does one that fails to parse. A step is a dict: n, id, state (ok, todo or blocked), subject, the
-message id and values of its detail, and the command setup would run (None when there is none).
+message id and values of its detail, the command (None when there is none) and its line: `run`, one
+a yes runs (steps 2 to 5), `add` for the shell profile (step 6), or `later`, the reader's own to
+run after setup (step 7's doctors). A plugin's install-cli places the door, so while step 4 has a
+row to do the door's row names no line (row sm1-setup-ask R2).
 """
 import json
 import os
@@ -194,6 +197,8 @@ def build(names, env, lib, tool, version):
         steps.append(_step(5, "door", "ok", shown(door, home), mid))
     elif steps[-1]["command"]:
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.above"))
+    elif any(s["n"] == 4 and s["state"] == "todo" for s in steps):  # a plugin's install-cli places it
+        steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.plugin"))
     else:
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place", place))
 
@@ -213,7 +218,7 @@ def build(names, env, lib, tool, version):
             steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
         elif where in placed:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
-                               "%s doctor" % shlex.quote(where)))
+                               "%s doctor" % shlex.quote(where), line="later"))
         else:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.wait"))
     if not names:
@@ -223,7 +228,7 @@ def build(names, env, lib, tool, version):
     # its message chosen after this pass, promises none
     if any(s["state"] == "blocked" for s in steps):
         for s in steps:
-            if s["line"] == "run":
+            if s["line"] in ("run", "later"):
                 s["command"] = None
             if s["id"] == "door" and s["state"] != "ok":
                 s["mid"] = "setup.door.blocked"
