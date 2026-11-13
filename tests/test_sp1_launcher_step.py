@@ -102,24 +102,24 @@ class LauncherStepTest(Home):
 
     # line 1
     def test_l1_a_command_with_no_install_cli_runs_in_place(self):
-        src = self.tool("respeak", ["describe", "doctor", "config"])
-        steps = self.build("respeak")
-        four = self.step(steps, 4, "respeak")
+        src = self.tool("murmur", ["describe", "doctor", "config"])
+        steps = self.build("murmur")
+        four = self.step(steps, 4, "murmur")
         self.assertEqual((four["state"], four["mid"], four["command"]), ("ok", "setup.launcher.inplace", None))
         self.assertFalse([s for s in steps if "install-cli" in (s["command"] or "") and src in s["command"]],
                          steps)
-        seven = self.step(steps, 7, "respeak")  # R4: its doctor, from the plugin's own folder
+        seven = self.step(steps, 7, "murmur")  # R4: its doctor, from the plugin's own folder
         self.assertEqual((seven["state"], seven["mid"], seven["command"], seven["line"]),
                          ("todo", "setup.doctor.todo", "%s doctor" % shlex.quote(src), "later"))
-        self.assertEqual(self.called("respeak"), ["describe --json"])
+        self.assertEqual(self.called("murmur"), ["describe --json"])
 
     # line 2
     def test_l2_a_command_that_lists_install_cli_keeps_todays_step(self):
-        self.tool("respeak", ["describe", "doctor", "config"])
+        self.tool("murmur", ["describe", "doctor", "config"])
         self.tool("paint", ["paint", "doctor", "describe", "install-cli"])
-        steps = self.build("respeak", "paint")
+        steps = self.build("murmur", "paint")
         self.assertEqual(self.step(steps, 4, "paint"), self.today("paint"))
-        self.assertEqual(self.step(steps, 4, "respeak")["mid"], "setup.launcher.inplace")
+        self.assertEqual(self.step(steps, 4, "murmur")["mid"], "setup.launcher.inplace")
         self.assertEqual(self.step(steps, 7, "paint")["mid"], "setup.doctor.wait")
 
     # line 3
@@ -142,11 +142,11 @@ class LauncherStepTest(Home):
         self.assertEqual(self.called("paint"), [])
 
     def test_l3_an_answer_is_read_from_the_cache_while_the_command_holds(self):
-        self.tool("respeak", ["describe", "doctor", "config"])
-        self.build("respeak")
-        steps = self.build("respeak")
-        self.assertEqual(self.step(steps, 4, "respeak")["mid"], "setup.launcher.inplace")
-        self.assertEqual(self.called("respeak"), ["describe --json"])
+        self.tool("murmur", ["describe", "doctor", "config"])
+        self.build("murmur")
+        steps = self.build("murmur")
+        self.assertEqual(self.step(steps, 4, "murmur")["mid"], "setup.launcher.inplace")
+        self.assertEqual(self.called("murmur"), ["describe --json"])
 
     # line 4
     def ready(self):
@@ -163,18 +163,18 @@ class LauncherStepTest(Home):
         self.assertEqual(code, 0, out + err)
         done = err.strip().splitlines()[-1]
         self.assertIn("nothing left to do", done)
-        self.tool("respeak", ["describe", "doctor", "config"])
-        code, out, err = self.run_cli("setup", "--dry-run", "respeak", **more)
+        self.tool("murmur", ["describe", "doctor", "config"])
+        code, out, err = self.run_cli("setup", "--dry-run", "murmur", **more)
         self.assertEqual((code, err.strip().splitlines()[-1]), (0, done), out + err)
         self.assertNotIn("install-cli", out)
         self.assertIn("runs from the plugin's own folder", out)
 
     def test_l4_doctor_reads_the_setup_rows_green(self):
         more = self.ready()
-        self.tool("respeak", ["describe", "doctor", "config"])
+        self.tool("murmur", ["describe", "doctor", "config"])
         cmd = types.SimpleNamespace(lib=str(LIB), env=self.env(**more), tool="agentik-suite",
                                     version=version(), t=types.SimpleNamespace(text=lambda mid, **v: mid))
-        with mock.patch.object(plan, "default_set", return_value=["respeak"]):
+        with mock.patch.object(plan, "default_set", return_value=["murmur"]):
             rows = doctor.plan_rows(cmd)
         self.assertEqual({r["status"] for r in rows}, {"ok"}, rows)
         self.assertIn("setup.launcher.inplace", [r["detail"] for r in rows])
