@@ -5,9 +5,14 @@ a table's last column is cut with an ellipsis at the terminal's width; off one a
 (ok, warn, FAIL, note), with no escape byte, no cut and no redraw. NO_COLOR set to a value,
 TERM=dumb or --no-color turns colour off; the glyphs stay. Columns are left-aligned, two spaces
 apart; a name is bold, a path or a hint dim; nothing is told by colour alone.
+
+A stream that is closed, or whose reader has gone, takes nothing more and raises nothing, at a
+write or at the interpreter's exit; a character a stream cannot encode is replaced; a value has
+its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out.
 """
 import json
 import os
+import re
 import sys
 
 from . import catalogue
@@ -19,6 +24,22 @@ STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 CUT = "…"
 GAP = "  "
 FALLBACK_WIDTH = 80
+CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
+
+
+def clean(value):
+    """The value as text, with its control characters removed."""
+    return CONTROL.sub("", str(value))
+
+
+def _cleaned(obj):
+    if isinstance(obj, str):
+        return clean(obj)
+    if isinstance(obj, dict):
+        return {clean(k): _cleaned(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_cleaned(v) for v in obj]
+    return obj
 
 
 def name(text):
@@ -36,13 +57,15 @@ def colour_off(env, no_color):
 class _Stream:
     def __init__(self, raw, no_colour):
         self.raw = raw
+        self.gone = raw is None
         try:
             self.tty = raw.isatty()
         except (AttributeError, ValueError, OSError):
             self.tty = False
         self.colour = self.tty and not no_colour
-        try:
-            "".join(GLYPH.values()).encode(getattr(raw, "encoding", None) or "ascii")
+        self.encoding = getattr(raw, "encoding", None) or "ascii"
+        try:  # every non-ASCII character this writer itself prints
+            ("".join(GLYPH.values()) + CUT).encode(self.encoding)
             self.glyphs = self.tty
         except (LookupError, UnicodeEncodeError):
             self.glyphs = False
@@ -64,7 +87,35 @@ class _Stream:
         return shown, self.paint(shown, MARK_SGR[status])
 
     def write(self, line):
-        self.raw.write(line + "\n")
+        if self.gone:
+            return
+        try:
+            line = line.encode(self.encoding, "replace").decode(self.encoding)
+        except LookupError:
+            line = line.encode("ascii", "replace").decode("ascii")
+        try:
+            self.raw.write(line + "\n")
+        except (AttributeError, ValueError, OSError):
+            self.drop()
+
+    def flush(self):
+        try:
+            self.gone or self.raw.flush()
+        except (AttributeError, ValueError, OSError):
+            self.drop()
+
+    def drop(self):
+        """Take nothing more; the stream's descriptor now points at the null device, so the
+        interpreter's own flush at exit finds a place for what its buffer still holds."""
+        self.gone = True
+        try:
+            null = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(null, self.raw.fileno())
+            finally:
+                os.close(null)
+        except (AttributeError, ValueError, OSError):
+            pass
 
 
 class Term:
@@ -77,7 +128,7 @@ class Term:
         self.messages = messages if messages is not None else catalogue.load()
 
     def text(self, mid, **values):
-        return catalogue.fill(self.messages[mid], values)
+        return catalogue.fill(self.messages[mid], {k: clean(v) for k, v in values.items()})
 
     def _stream(self, err):
         return self.err if err else self.out
@@ -99,11 +150,11 @@ class Term:
         marked = any(r[0] for r in rows)
         grid = []
         for status, cells, after in rows:
-            cells = [c if isinstance(c, tuple) else (c, None) for c in cells]
+            cells = [(clean(c[0]), c[1]) if isinstance(c, tuple) else (clean(c), None) for c in cells]
             if marked:
                 shown, painted = stream.mark(status) if status else ("", "")
                 cells.insert(mark_at, (shown, painted))
-            grid.append((cells, after))
+            grid.append((cells, clean(after) if after else after))
         ncols = max(len(cells) for cells, _ in grid)
         widths = [max((len(cells[i][0]) for cells, _ in grid if i < len(cells)), default=0)
                   for i in range(ncols)]
@@ -138,11 +189,8 @@ class Term:
         stream.write(painted + GAP + self.text(mid, **values))
 
     def json(self, obj):
-        self.out.write(json.dumps(obj, ensure_ascii=False, sort_keys=False))
+        self.out.write(json.dumps(_cleaned(obj), ensure_ascii=True, sort_keys=False))
 
     def flush(self):
         for stream in (self.out, self.err):
-            try:
-                stream.raw.flush()
-            except (AttributeError, ValueError, OSError):
-                pass
+            stream.flush()

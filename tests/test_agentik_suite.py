@@ -376,5 +376,74 @@ class VerbTest(Home):
         self.assertIn("--dry-run", out)
 
 
+class StreamTest(Home):
+    """Fix round 1, R4 to R6: a stream closed or gone, a character a stream cannot hold, a file
+    crafted to break the read."""
+
+    def bash(self, line, **more):
+        p = subprocess.run(["/bin/bash", "-c", line, "sh", str(LAUNCHER)], capture_output=True,
+                           env=self.env(**more), timeout=60)
+        return p.returncode, p.stdout, p.stderr
+
+    def test_r4_a_closed_or_gone_stream(self):
+        self.assertEqual(self.bash('"$1" --version >&-'), (0, b"", b""))
+        self.assertEqual(self.bash('"$1" stup 2>&-'), (2, b"", b""))
+        for quiet in (True, False):
+            p = subprocess.Popen([str(LAUNCHER), "help"] + (["-q"] if quiet else []),
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env())
+            p.stdout.close()  # the reader has gone before the first write
+            err = p.stderr.read().decode()
+            p.stderr.close()
+            self.assertEqual(p.wait(timeout=60), 0, err)
+            if quiet:
+                self.assertEqual(err, "")
+            else:  # the hint alone, no word of the broken pipe
+                self.assertRegex(err, r"\Anote  next: [^\n]*\n\Z")
+
+    def test_r5_a_character_the_stream_cannot_hold(self):
+        code, text = self.run_pty("setup", "--dry-run", cols=80, LANG="en_US.ISO8859-1")
+        self.assertEqual(code, 0, text)
+        self.assertNotIn("Traceback", text)
+        for lang in ({}, {"LANG": "en_US.UTF-8"}):
+            p = subprocess.run([str(LAUNCHER).encode(), b"\xff", b"--json"], capture_output=True,
+                               env=self.env(**lang), timeout=60)
+            self.assertEqual((p.returncode, p.stderr), (2, b""), lang)
+            self.assertEqual(len(p.stdout.splitlines()), 1)
+            obj = json.loads(p.stdout.decode("ascii"))
+            self.assertEqual((obj["ok"], obj["error"]["code"]), (False, "unknown_verb"))
+        out = WriterTest.stream(None, True, encoding="latin-1")
+        term.Term(env={"NO_COLOR": "1"}, out=out, err=WriterTest.stream(None, True)).table(
+            [("ok", ["a", "日本/x"], None)])
+        self.assertEqual(out.getvalue(), "  ok  a  ??/x\n")
+
+    def test_r6_a_crafted_file(self):
+        plugins = os.path.join(self.home, ".claude", "plugins")
+        os.makedirs(plugins)
+        with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
+            fh.write("[" * 100000)
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha")
+        self.assertEqual(code, 0, err)
+        self.assertNotIn("Traceback", err)
+        self.assertEqual([s["state"] for s in self.plan("alpha")["steps"] if s["n"] == 3], ["todo"])
+        inst = os.path.join(self.home, "inst", "alpha")
+        os.makedirs(os.path.join(inst, "bin"))
+        with open(os.path.join(inst, "bin", "agentik-alpha"), "w") as fh:
+            fh.write("#!/bin/sh\n")
+        with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
+            json.dump({"plugins": {"alpha@agentik": [
+                {"version": "1.0\x1b[31m\x9b2J", "installPath": inst}]}}, fh)
+        odd = os.path.join(self.home, "b\x1b[2Jin")
+        os.mkdir(odd)
+        self.stub("agentik-zeta")
+        os.rename(os.path.join(self.stubs, "agentik-zeta"), os.path.join(odd, "agentik-zeta"))
+        for args in (("setup", "--dry-run", "alpha"), ("setup", "--dry-run", "alpha", "--json"),
+                     ("help",), ("help", "--json")):
+            code, out, err = self.run_cli(*args, PATH="%s:%s:%s" % (odd, self.stubs, SYSTEM))
+            self.assertEqual(code, 0, err)
+            for byte in (ESC, "\x9b", "\\u001b", "\\u009b"):
+                self.assertNotIn(byte, out + err, args)
+        self.assertIn("1.0[31m2J", self.run_cli("setup", "--dry-run", "alpha")[1])
+
+
 if __name__ == "__main__":
     unittest.main()

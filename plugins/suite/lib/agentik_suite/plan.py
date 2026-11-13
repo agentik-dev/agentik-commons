@@ -4,7 +4,7 @@ Every step is a read: it opens files and looks names up on PATH, and starts no p
 included. A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
 known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, whose
 plugins["<name>@<marketplace>"][0] holds version and installPath. An absent or unreadable file
-reads as nothing known. A step is a dict: n, id, state (ok, todo or blocked), subject, the
+reads as nothing known, as does one that fails to parse. A step is a dict: n, id, state (ok, todo or blocked), subject, the
 message id and values of its detail, and the command setup would run (None when there is none).
 """
 import json
@@ -24,12 +24,13 @@ def _read_json(path):
     try:
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):  # a file nested past the parser's depth too
         return None
 
 
 def manifest(lib):
-    return _read_json(os.path.join(os.path.dirname(lib), ".claude-plugin", "plugin.json")) or {}
+    found = _read_json(os.path.join(os.path.dirname(lib), ".claude-plugin", "plugin.json"))
+    return found if isinstance(found, dict) else {}
 
 
 def default_set(lib):
