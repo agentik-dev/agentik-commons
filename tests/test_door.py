@@ -88,6 +88,13 @@ class DoorTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertRegex(out, r"(?m)^  setup  ")
 
+    def test_a6_the_guides_rows(self):
+        guide = (ROOT / "GUIDE.md").read_text()
+        section = guide[guide.index("## §10"):guide.index("**The floor")]
+        self.assertIn("`agentik: <word> is not installed here; agentik-commons/setup sets the suite up`",
+                      section)
+        self.assertNotIn("agentik-dev/agentik-<tool>", section)
+
 
 if __name__ == "__main__":
     unittest.main()

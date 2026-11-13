@@ -14,9 +14,9 @@ It builds no tool: no `install` target.
 
 | path | what |
 |---|---|
-| `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>` from PATH; `agentik` lists the tools; exit 3 names the repo of a tool not on PATH |
+| `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>` from PATH, else hands the word to `agentik-suite`; bare `agentik` is the suite's help, or the list of tools when the suite is not on PATH; exit 3, one line, when neither is there |
 | `.claude-plugin/marketplace.json` | the `agentik` marketplace as published: six `git-subdir` entries on `github.com/agentik-dev`, public repos only, the five tools' at `plugin` and `suite`'s on this repo's own url at `plugins/suite`, checked by `scripts/marketplace-check`; a plugin whose repo is not public reaches the owner's machine through the local file's overlay only |
-| `plugins/suite` | the `suite` plugin: `plugin.json` and its `dependencies`, and the `agentik-suite` command, its launcher in `bin/` and its stdlib package in `lib/agentik_suite/`, whose every message is in `messages.md` |
+| `plugins/suite` | the `suite` plugin: `plugin.json` and its `dependencies`, and the `agentik-suite` command, its launcher in `bin/` beside a copy of the front door, held byte-equal by a test, and its stdlib package in `lib/agentik_suite/`, whose every message is in `messages.md` |
 | `GUIDE.md` | the conventions every tool repo follows: layout, naming, verbs, exit codes, README shape, install and hygiene |
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
@@ -25,13 +25,14 @@ It builds no tool: no `install` target.
 | `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version, or the branch changed `plugin/` since a merge base with `main` (else `origin/main`; every base of a criss-cross) and its version is not above that base's (GUIDE §7) |
 | `scripts/plugin-description-bytes [--max BYTES] [PLUGIN_DIR]` | a plugin's loaded description bytes, one line per command, skill and agent type, a command or skill that sets `disable-model-invocation: true` listed `hidden` and not counted; exit 1 over 1,024 B or on a counted file with no description (GUIDE §1) |
 | `scripts/suite-probe` | run by hand, never by `make check`: clones this HEAD and the three tools' mains into a temp HOME, runs `claude plugin marketplace add` and `install suite@agentik` there with no model reached, reads `installed_plugins.json`, the exec bits and each tool's bare commands against the installed copies, then whether `update` installs a bump, no entry holding a `version`: the probe fails when it does not |
+| `scripts/door-probe` | run by hand, never by `make check`: clones, at main, each checkout beside this one that writes the `agentik` door (a plugin launcher's `install-cli`, or the door's line of `make -n install`) into a temp folder and asks whether each leaves a newer door in place: `kept` and `absent` pass or fail; a FIFO, a non-UTF-8 version line and a race against a newer clone are notes |
 | `scripts/agentik_install.py` | the canonical `install-cli`: freeze, launcher, prune and forward refresh, generic by name, stdlib at Python 3.9 (GUIDE §10) |
 | `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
 | `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
 
 ## The agentik-suite command
 
-The suite's own command, run by its plugin's launcher on the system's Python 3.9 with the standard library alone. Every verb takes `--json` (one object on stdout), `-q`/`--quiet` (no hints), `--no-color` and `-h`/`--help`; stdout carries the answer, stderr the hints and errors; exit 0 done, 2 usage. Off a terminal a status is a word (`ok`, `warn`, `FAIL`, `note`), with no escape byte.
+The suite's own command, run by its plugin's launcher on the system's Python 3.9 with the standard library alone. Every verb takes `--json` (one object on stdout), `-q`/`--quiet` (no hints), `--no-color` and `-h`/`--help`; stdout carries the answer, stderr the hints and errors; exit 0 done, 2 usage, 3 not installed. Off a terminal a status is a word (`ok`, `warn`, `FAIL`, `note`), with no escape byte.
 
 | verb | what it does |
 |---|---|
@@ -41,7 +42,7 @@ The suite's own command, run by its plugin's launcher on the system's Python 3.9
 | `agentik-suite config [TOOL[.KEY]]` | each tool (the suite, each `agentik-*` on PATH, each `<name>@agentik` installed) with its state, its settings and how many differ, and its user file; `config <tool>` its settings, the layer each comes from and a mark where it differs; `config <tool>.<key>` one setting: its value, default, the file and line that set it, each layer's value, and the line or block that changes it. `--changed` lists every setting that differs; `--user-files` each user file that travels. A tool answers through its own `describe --json`, run with the others under one 2 s wall and cached by the executable; one that does not answer is read from the suite's table, `plugins/suite/lib/fallback.json`. It writes no setting |
 | `agentik-suite describe --json`, `describe config --json [KEY]` | the suite's own answer to that read: `agentik.describe/1`, then `agentik.config/1` for its settings: `checkouts` and `watchers` in `~/.config/agentik/suite/config.yaml`, and `kind` in the `suite` section of a repo's `.claude/agentik/config.yaml` |
 
-`setup` without `--dry-run` exits 2: this version only plans. An unknown verb exits 2 and names the nearest one. `make voice` holds the messages to their voice; `make check` holds them to what it last passed.
+`setup` without `--dry-run` exits 2: this version only plans. An unknown verb exits 2 and names the nearest verb or plugin; a plugin's name with no `agentik-<name>` on PATH exits 3 and names `agentik-suite setup --dry-run <name>`. `make voice` holds the messages to their voice; `make check` holds them to what it last passed.
 
 ## Make targets
 
