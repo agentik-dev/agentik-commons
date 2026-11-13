@@ -6,6 +6,13 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n45 | S4 | `plugins/suite` `tools.py` `run_all` | `os.pipe()` sits outside the `try`, so more tools than the process has file descriptors for ends `config` in a traceback; give that tool the `unreadable` row | review 2's lead | 2026-11-13, ak1b review 2 |
+| n44 | S4 | `plugins/suite` `tools.py` `run_all` | the group is killed after `proc.poll()` has reaped the process, so where the group is empty its number is free for a moment before the kill; read the exit with `os.waitid(..., WNOWAIT)` and reap after the kill | review 2's lead | 2026-11-13, ak1b review 2 |
+| n43 | S4 | `plugins/suite` `messages.md` | the rest of ak1b review 1's words table, for the voice pass: `config.later` as `at the next session`; the `ok` mark on a changed row reads as fine, `note` would read truer; the list's read cell widens the settings column | review 1's words table; build 2's list | 2026-11-13, ak1b review 1 |
+| n42 | S4 | `plugins/suite` `fallback.json` | the table's lines (R7, word for word) name `agentik <tool> ...`, which runs only once the door lands; until then `config <tool>` hints at a command that does not exist yet. Ordered after ak2 | review 1's leads | 2026-11-13, ak1b review 1 |
+| n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
+| n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
+| n39 | S3 | `scripts/agentik_install.py` `_door` | it opens whatever is at the door's path, so a FIFO there hangs the install; its no-version line prints the door's raw byte, which can fail under UTF-8. The session's copy opens only a regular file and escapes to ASCII; ak2-door's probe holds both | the session's review of its copy | 2026-11-13, ak1b, from a session review |
 
 ## From packet c3
 

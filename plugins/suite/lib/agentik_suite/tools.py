@@ -1,0 +1,324 @@
+"""The tools the suite lists, and their own answers about themselves.
+
+A tool is listed when it is the suite itself, an `agentik-<name>` on PATH, or `<name>@agentik`
+in Claude Code's installed_plugins.json. Each executable but the suite's runs as `agentik-<name>
+describe --json`, every one at once, under one wall of WALL seconds; one still running then is
+killed with its process group. A counted answer is cached, one file a tool, under
+`${XDG_CACHE_HOME:-~/.cache}/agentik/suite/`, while the executable's resolved path, size and
+modified time hold; a config read is never cached. The suite runs no program but a listed
+tool's executable, with the words a tool's read names after it.
+"""
+import json
+import os
+import re
+import select
+import signal
+import subprocess
+import tempfile
+import time
+
+from . import plan
+
+WALL = 2.0
+# A describe or config answer is a few kilobytes; a tool with a thousand settings stays under a
+# megabyte. Past CAP bytes on stdout the tool is cut, so a flood costs at most CAP a tool.
+CAP = 1 << 20
+POLL = 0.02
+REAP = 0.1
+DESCRIBE = re.compile(r"agentik\.describe/(1)\Z")  # R3 names the one schema
+CONFIG = re.compile(r"agentik\.config/([0-9]+)\Z")
+DESCRIBE_KEYS = ("tool", "version", "summary", "repo", "plugin", "needs", "verbs", "reads")
+READ_KINDS = ("config", "doctor", "status")
+NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+
+
+def _config_dir(env):
+    return env.get("CLAUDE_CONFIG_DIR") or os.path.join(env.get("HOME") or "", ".claude")
+
+
+def listed(suite, on_path, env):
+    """[{name, exe, plugin}]: the suite first, then the rest by name."""
+    found = {suite: {"name": suite, "exe": None, "plugin": False}}
+    for entry in on_path:
+        name = entry["name"][len("agentik-"):]
+        if name != suite and NAME.match(name):
+            found.setdefault(name, {"name": name, "exe": entry["path"], "plugin": False})
+    installed = plan._read_json(os.path.join(_config_dir(env), "plugins", "installed_plugins.json"))
+    table = installed.get("plugins") if isinstance(installed, dict) else None
+    for key in table if isinstance(table, dict) else ():
+        name, at, market = key.partition("@")
+        if at and market == plan.MARKETPLACE and NAME.match(name):
+            found.setdefault(name, {"name": name, "exe": None, "plugin": True})["plugin"] = True
+    rest = sorted(n for n in found if n != suite)
+    return [found[suite]] + [found[n] for n in rest]
+
+
+def _end(job):
+    """Kill the process group and close the parent's end of the pipe. Never wait for EOF: a
+    child that left the group may hold the pipe open."""
+    try:
+        os.killpg(job["proc"].pid, signal.SIGKILL)
+    except OSError:
+        pass
+    try:
+        os.close(job["fd"])
+    except OSError:
+        pass
+
+
+def _reap(proc):
+    try:
+        proc.wait(timeout=REAP)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+
+def _drain(job):
+    """Read what the pipe holds now; `eof`, `open` or `cap` (past CAP bytes)."""
+    while True:
+        try:
+            data = os.read(job["fd"], 65536)
+        except BlockingIOError:
+            return "open"
+        except OSError:
+            return "eof"
+        if not data:
+            return "eof"
+        job["size"] += len(data)
+        if job["size"] > CAP:
+            return "cap"
+        job["chunks"].append(data)
+
+
+def run_all(jobs, env, then=None, deadline=None):
+    """{key: (exit or None, stdout bytes, state)} for jobs [(key, argv)], every one started at
+    once, under one deadline (WALL seconds from now when none is given). State is `ran`, `timed
+    out` (still running at the deadline, or not started by it) or `unreadable` (it could not
+    start, or its stdout passed CAP). `then(key, result)` names more jobs, started at once under
+    the same deadline. A job ends when its process exits; its group is then killed, so no
+    process of a group outlives the run."""
+    deadline = time.monotonic() + WALL if deadline is None else deadline
+    queue, live, results = list(jobs), {}, {}
+
+    def finish(key, result):
+        results[key] = result
+        queue.extend(then(key, result) if then else ())
+
+    while True:
+        while queue:
+            key, argv = queue.pop(0)
+            if time.monotonic() >= deadline:
+                finish(key, (None, b"", "timed out"))
+                continue
+            fd, end = os.pipe()
+            try:
+                proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=end,
+                                        stderr=subprocess.DEVNULL, env=dict(env),
+                                        start_new_session=True)
+            except (OSError, ValueError):
+                os.close(fd)
+                finish(key, (None, b"", "unreadable"))
+                continue
+            finally:
+                os.close(end)
+            os.set_blocking(fd, False)
+            live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True}
+        left = deadline - time.monotonic()
+        if not live or left <= 0:
+            break
+        fds = {job["fd"]: key for key, job in live.items() if job["open"]}
+        try:
+            ready = select.select(list(fds), [], [], min(left, POLL))[0] if fds else ()
+        except (OSError, ValueError):
+            ready = list(fds)
+        if not fds:
+            time.sleep(min(left, POLL))
+        for fd in ready:
+            job = live[fds[fd]]
+            if _drain(job) != "open":
+                job["open"] = False
+        for key, job in list(live.items()):
+            proc = job["proc"]
+            over = job["size"] > CAP
+            if not over and proc.poll() is None:
+                continue
+            if not over and job["open"]:
+                over = _drain(job) == "cap"
+            del live[key]
+            _end(job)
+            _reap(proc)
+            finish(key, (None, b"", "unreadable") if over
+                   else (proc.returncode, b"".join(job["chunks"]), "ran"))
+    for job in live.values():
+        _end(job)
+    for key, job in live.items():
+        _reap(job["proc"])
+        results[key] = (None, b"", "timed out")
+    for key, _ in queue:
+        results[key] = (None, b"", "timed out")
+    return results
+
+
+def _object(code, out, pattern):
+    """The answer's object when it counts, else None."""
+    if code != 0:
+        return None
+    try:
+        obj = json.loads(out.decode("utf-8", "replace"))
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(obj, dict) or obj.get("ok") is not True:
+        return None
+    m = pattern.match(obj.get("schema") if isinstance(obj.get("schema"), str) else "")
+    if not m or int(m.group(1)) > 1:
+        return None
+    return obj
+
+
+def counted_describe(code, out):
+    obj = _object(code, out, DESCRIBE)
+    if obj is None or any(k not in obj for k in DESCRIBE_KEYS):
+        return None
+    if not all(isinstance(obj[k], list) for k in ("needs", "verbs", "reads")):
+        return None
+    kinds = []
+    for read in obj["reads"]:
+        if not (isinstance(read, dict) and read.get("kind") in READ_KINDS
+                and isinstance(read.get("argv"), list)
+                and all(isinstance(w, str) for w in read["argv"])):
+            return None
+        kinds.append(read["kind"])
+    if kinds.count("config") > 1 or kinds.count("doctor") > 1:
+        return None
+    return obj
+
+
+def counted_config(code, out):
+    obj = _object(code, out, CONFIG)
+    if obj is None or not isinstance(obj.get("layers"), list) or not isinstance(obj.get("settings"), list):
+        return None
+    layers = [l for l in obj["layers"] if isinstance(l, dict)]
+    settings = []
+    for s in obj["settings"]:
+        if not (isinstance(s, dict) and isinstance(s.get("key"), str) and s["key"]):
+            return None
+        s = dict(s)
+        for k in ("source", "change"):
+            s[k] = s.get(k) if isinstance(s.get(k), dict) else {}
+        s["values"] = [v for v in s.get("values") or [] if isinstance(v, dict)] \
+            if isinstance(s.get("values"), list) else []
+        if not isinstance(s.get("choices"), list):
+            s["choices"] = None
+        settings.append(s)
+    obj = dict(obj, layers=layers, settings=settings)
+    warnings = obj.get("warnings")
+    obj["warnings"] = [w for w in warnings if isinstance(w, dict)] if isinstance(warnings, list) else []
+    return obj
+
+
+# ---- the describe cache ---------------------------------------------------------------------
+
+def cache_dir(env):
+    base = env.get("XDG_CACHE_HOME") or os.path.join(env.get("HOME") or "", ".cache")
+    return os.path.join(base, "agentik", "suite")
+
+
+def _stamp(exe):
+    real = os.path.realpath(exe)
+    st = os.stat(real)
+    return {"path": real, "size": st.st_size, "mtime_ns": st.st_mtime_ns}
+
+
+def _cached(folder, name, stamp):
+    found = plan._read_json(os.path.join(folder, name + ".json"))
+    if isinstance(found, dict) and found.get("stamp") == stamp:
+        return counted_describe(0, json.dumps(found.get("answer")).encode())
+    return None
+
+
+def _keep(folder, name, stamp, answer):
+    """Written by a rename, so a reader sees the old file or the new one; a failure keeps none."""
+    try:
+        os.makedirs(folder, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=folder, prefix="." + name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump({"stamp": stamp, "answer": answer}, fh)
+            os.replace(tmp, os.path.join(folder, name + ".json"))
+        except (OSError, ValueError, TypeError):
+            os.unlink(tmp)
+    except OSError:
+        pass
+
+
+def describe_all(entries, env, read=False, key=None, deadline=None):
+    """({name: (state, answer or None)}, {name: (exit, stdout, state)}) for each entry with an
+    executable. With `read`, each answer's config read, `key` appended when given, starts as soon
+    as the answer is known, from the cache or its describe, under the describes' own deadline."""
+    folder, found, jobs, stamps = cache_dir(env), {}, [], {}
+    exes = {e["name"]: e["exe"] for e in entries}
+
+    def config_job(name, answer):
+        r = config_read(answer) if read else None
+        return [(("config", name), [exes[name]] + r["argv"] + ([key] if key is not None else []))] \
+            if r else []
+
+    for e in entries:
+        try:
+            stamps[e["name"]] = _stamp(e["exe"])
+        except OSError:
+            found[e["name"]] = ("unreadable", None)
+            continue
+        answer = _cached(folder, e["name"], stamps[e["name"]])
+        if answer is not None:
+            found[e["name"]] = ("answers", answer)
+            jobs.extend(config_job(e["name"], answer))
+        else:
+            jobs.append((("describe", e["name"]), [e["exe"], "describe", "--json"]))
+
+    def then(job, result):
+        kind, name = job
+        if kind != "describe":
+            return []
+        code, out, state = result
+        answer = counted_describe(code, out) if state == "ran" else None
+        if answer is None:
+            found[name] = ("timed out" if state == "timed out" else "unreadable", None)
+            return []
+        _keep(folder, name, stamps[name], answer)
+        found[name] = ("answers", answer)
+        return config_job(name, answer)
+
+    ran = run_all(jobs, env, then=then, deadline=deadline)
+    for (kind, name), (_, _, state) in ran.items():
+        if kind == "describe" and name not in found:  # still running at the deadline
+            found[name] = ("timed out" if state == "timed out" else "unreadable", None)
+    return found, {name: result for (kind, name), result in ran.items() if kind == "config"}
+
+
+def config_read(answer):
+    for read in answer.get("reads") or ():
+        if read.get("kind") == "config":
+            return read
+    return None
+
+
+# ---- the fallback table ---------------------------------------------------------------------
+
+def fallback(lib):
+    found = plan._read_json(os.path.join(lib, "fallback.json"))
+    return {k: v for k, v in found.items() if isinstance(v, dict)} if isinstance(found, dict) else {}
+
+
+def descriptions(env):
+    """{plugin name: description} from the agentik marketplace's own file."""
+    known = plan._read_json(os.path.join(_config_dir(env), "plugins", "known_marketplaces.json"))
+    entry = known.get(plan.MARKETPLACE) if isinstance(known, dict) else None
+    where = entry.get("installLocation") if isinstance(entry, dict) else None
+    if not isinstance(where, str):
+        return {}
+    market = plan._read_json(os.path.join(where, ".claude-plugin", "marketplace.json"))
+    plugins = market.get("plugins") if isinstance(market, dict) else None
+    return {p["name"]: p["description"] for p in plugins or ()
+            if isinstance(p, dict) and isinstance(p.get("name"), str)
+            and isinstance(p.get("description"), str)}

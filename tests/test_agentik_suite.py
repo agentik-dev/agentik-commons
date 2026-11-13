@@ -12,11 +12,13 @@ import re
 import select
 import shlex
 import shutil
+import signal
 import struct
 import subprocess
 import sys
 import tempfile
 import termios
+import time
 import unittest
 from pathlib import Path
 
@@ -30,10 +32,11 @@ MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
-STDLIB = {"ast", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install"}
+STDLIB = {"ast", "difflib", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
+          "select", "signal", "subprocess", "tempfile", "time"}
 
 sys.path.insert(0, str(LIB))
-from agentik_suite import catalogue, term  # noqa: E402
+from agentik_suite import catalogue, settings, term  # noqa: E402
 
 
 def version():
@@ -239,9 +242,10 @@ class WriterTest(unittest.TestCase):
         for mid, text in messages.items():
             self.assertNotRegex(text, r"(?i)\b(successfully|please|oops)\b|!", mid)
         code = "\n".join(p.read_text() for p in package_files() if p.suffix == ".py")
-        used = set(re.findall(r'"((?:help|hint|verb|usage|flag|version|err|setup)\.[a-z_.]+)"', code))
-        dynamic = {"verb.", "usage.", "flag.", "setup."}
-        for mid in used - dynamic:
+        used = set(re.findall(
+            r'"((?:help|hint|verb|usage|flag|version|err|setup|config|describe|setting)\.[a-z_.]+)"', code))
+        dynamic = {"verb.", "usage.", "flag.", "setup.", "setting.", "config.label.", "config.state."}
+        for mid in used - dynamic - {m for m in used if m.endswith((".yaml", ".json"))}:
             self.assertIn(mid, messages)
 
     def stream(self, tty, encoding="utf-8"):
@@ -719,5 +723,511 @@ class CorruptInstallTest(Home):
             shutil.rmtree(root)
 
 
+DEMO = """#!/usr/bin/python3
+import json, os, sys
+with open(%(calls)r, "a") as fh:
+    fh.write(" ".join(sys.argv[1:]) + "\\n")
+home = os.environ["HOME"]
+user = os.path.join(home, ".config", "demo", "config.yaml")
+def s(key, value, default, line, kind, live):
+    src = {"layer": "user", "path": user, "line": line} if line else {"layer": "default", "path": None, "line": None}
+    change = {"kind": kind, "command": "agentik-demo set %%s VALUE" %% key if kind == "command" else None,
+              "path": user if kind == "edit" else None, "block": None, "note": None}
+    values = [{"layer": "default", "value": default}] + ([{"layer": "user", "value": value}] if line else [])
+    return {"key": key, "value": value, "default": default, "type": "string", "choices": None,
+            "summary": "The %%s of each line." %% key, "source": src, "change": change, "live": live,
+            "values": values, "extra": 1}
+args = sys.argv[1:]
+if args == ["describe", "--json"]:
+    print(json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": "demo", "version": "1.2.0",
+        "summary": "A made-up tool.", "repo": "example/demo", "plugin": "demo@agentik", "needs": [],
+        "verbs": [{"name": "set", "summary": "Set one.", "top": True}], "unknown": 1,
+        "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}))
+elif args[:3] == ["describe", "config", "--json"]:
+    rows = [s("colour", "dark", "light", 2, "command", False), s("width", 80, 80, None, "edit", True),
+            s("mode", "plain", "plain", None, "fixed", True)]
+    if args[3:]:
+        rows = [r for r in rows if r["key"] == args[3]]
+    print(json.dumps({"schema": "agentik.config/1", "ok": True, "tool": "demo", "settings": rows,
+        "layers": [{"name": "default", "path": None, "present": True, "travels": False},
+                   {"name": "user", "path": user, "present": True, "travels": True}]}))
+else:
+    sys.exit(2)
+"""
+
+
+class ConfigHome(Home):
+    """A home with the demo tool on PATH, for packet ak1b's tests."""
+
+    def setUp(self):
+        Home.setUp(self)
+        side = tempfile.TemporaryDirectory()
+        self.addCleanup(side.cleanup)
+        self.side = os.path.realpath(side.name)
+        self.demo_calls = os.path.join(self.side, "demo-calls")
+        script = os.path.join(self.side, "demo.py")
+        with open(script, "w") as fh:
+            fh.write(DEMO % {"calls": self.demo_calls})
+        self.stub("agentik-demo", '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -B "%s" "$@"\n'
+                  % (os.path.join(self.side, "pyc"), script))
+        self.user = os.path.join(self.home, ".config", "agentik", "suite", "config.yaml")
+
+    def tools(self):
+        self.pid = os.path.join(self.side, "slow.pid")
+        self.stub("agentik-slow", '#!/bin/sh\necho $$ > "%s"\nsleep 10\n' % self.pid)
+        self.stub("agentik-mute", "#!/bin/sh\nexit 2\n")
+        self.plugin_files(os.path.join(self.home, ".claude"), {"plain": "1.0.0"}, whole=False)
+
+    def write(self, path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(text)
+
+    def cfg(self, *args, cwd=None, **more):
+        """A run in HOME (no repo above it), held to A10: HOME the same outside the cache, and
+        the stub claude called by nobody."""
+        before = self.snapshot()
+        p = subprocess.run([str(LAUNCHER), *args], capture_output=True, text=True,
+                           env=self.env(**more), timeout=60, cwd=cwd or self.home)
+        self.assertEqual(self.snapshot(), before, args)
+        self.assertFalse(os.path.exists(self.calls), args)
+        return p.returncode, p.stdout, p.stderr
+
+    def describes(self):
+        try:
+            with open(self.demo_calls) as fh:
+                return [l for l in fh.read().splitlines() if l == "describe --json"]
+        except FileNotFoundError:
+            return []
+
+
+class ConfigTest(ConfigHome):
+    """Packet ak1b: config, three levels down to one setting, and describe."""
+
+    def test_a1_a4_three_levels_piped(self):
+        self.tools()
+        start = time.monotonic()
+        code, out, err = self.cfg("config")
+        self.assertLess(time.monotonic() - start, 3.0)
+        self.assertEqual(code, 0, err)
+        rows = {l.split()[1]: l for l in out.splitlines()[1:] if l.strip()}
+        self.assertEqual(sorted(rows), ["demo", "mute", "plain", "slow", "suite"])
+        self.assertRegex(rows["demo"], r"answers +3 settings +1 changed +~/\.config/demo/config\.yaml")
+        self.assertIn("timed out", rows["slow"])
+        self.assertIn("unreadable", rows["mute"])
+        self.assertIn("no command", rows["plain"])
+        with open(self.pid) as fh:
+            pid = int(fh.read())
+        for _ in range(50):
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                break
+            time.sleep(0.02)
+        else:
+            self.fail("the slow stub's pid %d still runs" % pid)
+        code, out2, err2 = self.cfg("config", "demo")
+        self.assertEqual(code, 0, err2)
+        keys = [[w for w in l.split() if w != "ok"][0] for l in out2.splitlines()[1:]]
+        self.assertEqual(keys, ["colour", "width", "mode"])
+        self.assertEqual([l.split()[0] for l in out2.splitlines()[1:] if "changed" in l.split()], ["ok"])
+        code, out3, err3 = self.cfg("config", "demo.colour")
+        self.assertEqual(code, 0, err3)
+        for part in ("value", "dark", "about", "default", "light", "set by",
+                     "user at ~/.config/demo/config.yaml:2", "default: light", "user: dark",
+                     "run", "agentik-demo set colour VALUE", "takes hold", "next start"):
+            self.assertIn(part, out3)
+        for text, hint in ((out + err, err), (out2 + err2, err2), (out3 + err3, err3)):
+            self.assertNotIn(ESC, text)
+            self.assertIn("next:", hint)
+        self.assertIn("config <tool>", err)
+        self.assertIn("config demo.<key>", err2)
+
+    def test_a2_pty(self):
+        for args in (("config",), ("config", "demo"), ("config", "demo.colour")):
+            code, text = self.run_pty(*args)
+            self.assertEqual(code, 0, text)
+            self.assertIn(ESC + "[", text)
+            self.assertIn("\u00b7", text)
+            code, text = self.run_pty(*args, NO_COLOR="1")
+            self.assertNotIn(ESC + "[", text)
+
+    def test_a3_json_at_each_level(self):
+        self.tools()
+        for args, keys in ((("config",), {"tools"}), (("config", "demo"), {"tool", "layers", "settings"}),
+                           (("config", "demo.colour"), {"tool", "key", "setting"})):
+            code, out, err = self.cfg(*args, "--json")
+            self.assertEqual((code, err), (0, ""))
+            obj = json.loads(out)
+            self.assertEqual(len(out.strip().splitlines()), 1)
+            self.assertLessEqual(keys, set(obj))
+        self.assertEqual(obj["setting"]["source"], {"layer": "user", "path": os.path.join(
+            self.home, ".config", "demo", "config.yaml"), "line": 2})
+        self.assertEqual(obj["setting"]["change"]["kind"], "command")
+
+    def test_a5_describe_is_cached_by_the_executable(self):
+        self.cfg("config")
+        self.assertEqual(len(self.describes()), 1)
+        self.cfg("config")
+        self.assertEqual(len(self.describes()), 1)
+        exe = os.path.join(self.stubs, "agentik-demo")
+        os.utime(exe, (1, 1))
+        self.cfg("config")
+        self.assertEqual(len(self.describes()), 2)
+
+    def test_a6_the_suites_own_settings(self):
+        self.write(self.user, "# mine\ncheckouts:\n  - ~/work/one\n  - [not, here]\n"[:-17] + "\n")
+        code, out, err = self.cfg("config", "suite")
+        self.assertEqual(code, 0, err)
+        self.assertIn("checkouts", out)
+        code, out, err = self.cfg("config", "suite.checkouts")
+        self.assertIn("user at ~/.config/agentik/suite/config.yaml:2", out)
+        code, out, err = self.cfg("config", "suite.checkouts", "--json")
+        self.assertEqual(json.loads(out)["setting"]["source"], {"layer": "user", "path": self.user, "line": 2})
+        repo = os.path.join(self.home, "repo")
+        os.makedirs(os.path.join(repo, ".git"))
+        self.write(os.path.join(repo, ".claude", "agentik", "config.yaml"),
+                   "other:\n  m: {k: v}\nsuite:\n  kind: hq\n")
+        code, out, err = self.cfg("config", "suite.kind", cwd=os.path.join(repo))
+        self.assertEqual(code, 0, err)
+        self.assertIn("repo at ~/repo/.claude/agentik/config.yaml:4", out)
+
+    def test_a7_a_file_outside_the_subset_and_an_unknown_tool(self):
+        self.write(self.user, "checkouts:\n\t- ~/work\n")
+        code, out, err = self.cfg("config", "suite")
+        self.assertEqual(code, 2)
+        self.assertIn("~/.config/agentik/suite/config.yaml cannot be read at line 2", err)
+        code, out, err = self.cfg("config")
+        self.assertEqual(code, 0, err)
+        self.assertIn("line 2", out)
+        code, out, err = self.cfg("config", "dmeo")
+        self.assertEqual(code, 2)
+        self.assertIn("the nearest is demo", err)
+        code, out, err = self.cfg("config", "nosuch")
+        self.assertEqual(code, 2)
+        self.assertIn("the nearest is", err)
+        code, out, err = self.cfg("config", "demo.colr")
+        self.assertEqual(code, 2)
+        self.assertIn("the nearest is colour", err)
+
+    def test_a8_the_fallback_table(self):
+        table = json.loads((LIB / "fallback.json").read_text())
+        name = next(iter(table))
+        self.stub("agentik-" + name, "#!/bin/sh\nexit 2\n")
+        market = os.path.join(self.side, "market")
+        self.write(os.path.join(market, ".claude-plugin", "marketplace.json"), json.dumps(
+            {"plugins": [{"name": name, "description": "A made-up description."}]}))
+        self.write(os.path.join(self.home, ".claude", "plugins", "known_marketplaces.json"),
+                   json.dumps({"agentik": {"installLocation": market}}))
+        code, out, err = self.cfg("config")
+        self.assertEqual(code, 0, err)
+        self.assertIn("from the suite's table", out)
+        self.assertIn("A made-up description.", out)
+        code, out, err = self.cfg("config", name)
+        self.assertEqual(code, 0, err)
+        for line in table[name]["lines"]:
+            self.assertIn(line, out)
+        code, out, err = self.cfg("config", name + ".x")
+        self.assertEqual(code, 2)
+
+    def test_a9_describe(self):
+        code, out, err = self.cfg("describe", "--json")
+        obj = json.loads(out)
+        self.assertEqual((code, obj["schema"], obj["reads"]), (0, "agentik.describe/1", [
+            {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]))
+        self.write(self.user, "checkouts: [~/a, ~/b]\n")
+        code, out, err = self.cfg("describe", "config", "--json", "checkouts")
+        obj = json.loads(out)
+        self.assertEqual((code, obj["schema"], [s["key"] for s in obj["settings"]]),
+                         (0, "agentik.config/1", ["checkouts"]))
+        self.assertEqual([l["name"] for l in obj["layers"]], ["user", "repo"])
+        self.assertEqual(obj["settings"][0]["change"]["kind"], "edit")
+        code, out, err = self.cfg("describe")
+        self.assertEqual(code, 2)
+        self.assertIn("--json", err)
+
+    def test_r6_changed_user_files_and_groups(self):
+        code, out, err = self.cfg("config", "--changed")
+        self.assertEqual(code, 0, err)
+        self.assertRegex(out, r"demo\.colour +dark +default light +user")
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
+        code, out, err = self.cfg("config", "demo", "--changed")
+        self.assertEqual(code, 2)
+        self.write(self.user, "watchers:\n" + "".join(
+            "  w%d:\n    match: m\n    start: s\n    beat: 1m\n    writer: me\n" % i for i in range(6)))
+        code, out, err = self.cfg("config", "suite")
+        self.assertEqual(code, 0, err)
+        lines = out.splitlines()
+        self.assertIn("watchers", lines)
+        self.assertTrue(lines[lines.index("watchers") + 1].startswith("    "), out)
+
+
+LAG = """#!/bin/sh
+if [ "$1 $2" = "describe --json" ]; then
+  echo '{"schema": "agentik.describe/1", "ok": true, "tool": "lag", "version": "1", "summary": "s",
+   "repo": "r", "plugin": "lag@agentik", "needs": [], "verbs": [],
+   "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}'
+  exit 0
+fi
+echo $$ > "%s"
+sleep 10
+"""
+
+
+class WallTest(ConfigHome):
+    """Review 1 of ak1b, F1 to F4: one 2 s wall from the first spawn holds every describe and
+    config read; a tool's stdout is read to a cap; no group outlives the run."""
+
+    def py(self, name, code, *args):
+        """A stub that runs a Python line, its bytecode kept out of HOME."""
+        return self.stub(name, '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -c %s %s\n'
+                         % (os.path.join(self.side, "pyc"), shlex.quote(code),
+                            " ".join(shlex.quote(a) for a in args)))
+
+    def timed(self, *args):
+        start = time.monotonic()
+        code, out, err = self.cfg(*args)
+        took = time.monotonic() - start
+        self.assertEqual(code, 0, err)
+        self.assertLess(took, 3.0, out)
+        return out
+
+    def groups_gone(self, *files):
+        for path in files:
+            with open(path) as fh:
+                group = int(fh.read())
+            for _ in range(50):
+                try:
+                    os.killpg(group, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.02)
+            else:
+                self.fail("group %d of %s still runs" % (group, path))
+
+    def test_f1_a_slow_describe_and_a_lagging_config_read_share_one_wall(self):
+        self.tools()
+        lag = os.path.join(self.side, "lag.pid")
+        self.stub("agentik-lag", LAG % lag)
+        for _ in range(2):  # the second run has lag's describe from the cache
+            out = self.timed("config")
+            self.assertIn("timed out", next(l for l in out.splitlines() if " slow " in l + " "))
+            self.groups_gone(self.pid, lag)
+
+    def test_f2_twenty_slow_tools_add_nothing_past_the_wall(self):
+        files = []
+        for i in range(20):
+            files.append(os.path.join(self.side, "slow%d.pid" % i))
+            self.stub("agentik-slow%d" % i, '#!/bin/sh\necho $$ > "%s"\nsleep 10\n' % files[-1])
+        out = self.timed("config")
+        self.assertEqual(out.count("timed out"), 20, out)
+        self.groups_gone(*files)
+
+    def test_f3_a_flood_is_cut_at_the_cap(self):
+        count = os.path.join(self.side, "spew.count")
+        self.py("agentik-spew", "import os, sys\nn, log = 0, open(sys.argv[1], 'a', buffering=1)\n"
+                "while True:\n    os.write(1, b'a' * 65536)\n    n += 65536\n    log.write('%d\\n' % n)", count)
+        out = self.timed("config")
+        self.assertIn("unreadable", next(l for l in out.splitlines() if " spew " in l + " "))
+        with open(count) as fh:  # the last whole line: the bytes written when the cut came
+            written = int([l for l in fh.read().split("\n")[:-1] if l][-1])
+        cap = 1 << 20
+        self.assertGreaterEqual(written, cap - 65536)
+        self.assertLessEqual(written, cap + (512 << 10))
+
+    def test_f4_a_child_that_left_the_group_and_holds_stdout(self):
+        groups, escaped = [], []
+        for i in range(5):
+            groups.append(os.path.join(self.side, "esc%d.group" % i))
+            escaped.append(os.path.join(self.side, "esc%d.pid" % i))
+            self.stub("agentik-esc%d" % i, (
+                '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" /usr/bin/python3 -c "import os, sys, time; '
+                'os.setsid(); open(sys.argv[1], \'w\').write(str(os.getpid())); time.sleep(10)" "%s" &\n'
+                'echo $$ > "%s"\nsleep 10\n') % (os.path.join(self.side, "pyc"), escaped[-1], groups[-1]))
+        self.addCleanup(self.kill_escaped, escaped)
+        out = self.timed("config")
+        self.assertEqual(out.count("timed out"), 5, out)
+        self.groups_gone(*groups)
+
+    def kill_escaped(self, files):
+        for path in files:
+            try:
+                with open(path) as fh:
+                    os.kill(int(fh.read()), signal.SIGKILL)
+            except (OSError, ValueError):
+                pass
+
+
+class SubsetTest(unittest.TestCase):
+    """R8: GUIDE section 3's strict subset, each key's line kept, anything else refused by line."""
+
+    def test_the_subset(self):
+        tree, lines = settings.parse("# c\na:\n  b: 1  # n\n  c: [x, 'y z']\nd:\n- one\n- \"t#o\"\n"
+                                     "e: {k: v, n: 2}\nf:\ng: ~\n")
+        self.assertEqual(tree, {"a": {"b": 1, "c": ["x", "y z"]}, "d": ["one", "t#o"],
+                                "e": {"k": "v", "n": 2}, "f": None, "g": None})
+        self.assertEqual(lines, {"a": 2, "a.b": 3, "a.c": 4, "d": 5, "e": 8, "f": 9, "g": 10})
+
+    def test_what_it_refuses(self):
+        for text, line in (("a: &x 1\n", 1), ("a: |\n  t\n", 1), ("a:\n  - b: 1\n", 2),
+                           ("a: [x, [y]]\n", 1), ("a: {k: {j: 1}}\n", 1), ("a: 1\na: 2\n", 2),
+                           ("a:\n\tb: 1\n", 2), ("a: 1\n   b: 2\n", 2), ("- x\n", 1),
+                           ("a: 'open\n", 1), ("just words\n", 1)):
+            with self.assertRaises(settings.Fault, msg=text) as caught:
+                settings.parse(text)
+            self.assertEqual(caught.exception.line, line, text)
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+ODD = """#!/usr/bin/python3
+import json, sys
+with open(%(spec)r) as fh:
+    spec = json.load(fh)
+if sys.argv[1:] == ["describe", "--json"]:
+    print(json.dumps({"schema": spec.get("schema", "agentik.describe/1"), "ok": True, "tool": "odd",
+        "version": "1", "summary": "s", "repo": "r", "plugin": "odd@agentik", "needs": [], "verbs": [],
+        "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}))
+else:
+    s = dict({"key": "colour", "value": "dark", "default": "light", "type": "choice",
+              "choices": ["dark", "light"], "summary": "x", "source": {}, "change": {"kind": "fixed"},
+              "live": True}, **spec.get("setting", {}))
+    print(json.dumps(dict({"schema": "agentik.config/1", "ok": True, "tool": "odd", "layers": [],
+                           "settings": [s]}, **spec.get("config", {}))))
+"""
+
+
+class AnswerTest(ConfigHome):
+    """Review 1 of ak1b, F5 to F7 and the schema: a wrong type in a tool's answer, or a removed
+    cwd, gives a row or a line, never a traceback; only `agentik.describe/1` counts."""
+
+    def odd(self, **spec):
+        path = os.path.join(self.side, "odd.json")
+        with open(path, "w") as fh:
+            json.dump(spec, fh)
+        script = os.path.join(self.side, "odd.py")
+        with open(script, "w") as fh:
+            fh.write(ODD % {"spec": path})
+        self.stub("agentik-odd", '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -B "%s" "$@"\n'
+                  % (os.path.join(self.side, "pyc"), script))
+
+    def clean(self, *args):
+        code, out, err = self.cfg(*args)
+        self.assertNotIn("Traceback", out + err, args)
+        self.assertEqual(code, 0, err)
+        return out
+
+    def test_f5_warnings_that_are_not_a_list_of_objects(self):
+        for warnings in ([1, "x", {"key": "k", "path": "/p", "line": 3}], 5, "x"):
+            self.odd(config={"warnings": warnings})
+            out = self.clean("config", "odd")
+            self.assertIn("colour", out)
+            self.assertEqual("unknown key k" in out, isinstance(warnings, list), out)
+
+    def test_f6_choices_that_are_not_a_list(self):
+        for choices in (5, "abc", {"a": 1}):
+            self.odd(setting={"choices": choices})
+            out = self.clean("config", "odd.colour")
+            self.assertNotIn("choices", out)
+        self.odd()
+        self.assertIn("dark, light", self.clean("config", "odd.colour"))
+
+    def test_f7_a_removed_cwd(self):
+        dead = os.path.join(self.side, "dead")
+        for args in (("config",), ("config", "suite"), ("config", "suite.kind")):
+            os.mkdir(dead)
+            p = subprocess.run(["/bin/sh", "-c", 'cd "$1" && rmdir "$1" && shift && exec "$@"', "sh",
+                                dead, str(LAUNCHER), *args],
+                               capture_output=True, text=True, env=self.env(), timeout=60)
+            self.assertNotIn("Traceback", p.stdout + p.stderr, args)
+            self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("checkouts", subprocess.run(
+            ["/bin/sh", "-c", 'mkdir "$1" && cd "$1" && rmdir "$1" && exec "$2" config suite', "sh",
+             dead, str(LAUNCHER)], capture_output=True, text=True, env=self.env(), timeout=60).stdout)
+
+    def test_only_describe_schema_one_counts(self):
+        self.odd(schema="agentik.describe/0")
+        out = self.clean("config")
+        self.assertIn("unreadable", next(l for l in out.splitlines() if " odd " in l + " "))
+
+
+class LineTest(ConfigHome):
+    """Review 1 of ak1b, F8 to F13: each line says only what is known in its state."""
+
+    def test_f8_the_suites_own_nearest_key(self):
+        code, out, err = self.cfg("config", "suite.checkout")
+        self.assertEqual(code, 2)
+        self.assertIn("the nearest is checkouts", err)
+
+    def test_f9_a_config_read_that_fails_says_so_at_every_level(self):
+        self.stub("agentik-lag", LAG % os.path.join(self.side, "lag.pid"))
+        self.stub("agentik-bad", (LAG % os.path.join(self.side, "bad.pid")).replace(
+            "sleep 10", "echo nope").replace('"tool": "lag"', '"tool": "bad"'))
+        for name, words in (("lag", "reading its settings ran past 2 s"),
+                            ("bad", "its settings answer cannot be read")):
+            code, out, err = self.cfg("config")
+            row = next(l for l in out.splitlines() if " %s " % name in l + " ")
+            self.assertRegex(row, r"warn +%s +answers +%s" % (name, words))
+            code, out, err = self.cfg("config", name)
+            self.assertEqual(code, 0, err)
+            self.assertIn("%s answers, but %s" % (name, words), out)
+            code, out, err = self.cfg("config", name + ".colour")
+            self.assertEqual(code, 2)
+            self.assertIn("%s answers, but %s" % (name, words), err)
+            for text in (out, err):
+                self.assertNotIn("describe", text)
+
+    def test_f10_changed_and_user_files_name_the_tools_that_did_not_answer(self):
+        self.stub("agentik-mute", "#!/bin/sh\nexit 2\n")
+        code, out, err = self.cfg("config", "--changed")
+        self.assertEqual(code, 0, err)
+        self.assertIn("gave no settings, so their changes are not here: mute", out)
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
+        self.assertIn("gave no settings, so their user files are not here: mute", err)
+        self.stub("agentik-demo", "#!/bin/sh\nexit 2\n")
+        code, out, err = self.cfg("config", "--changed")
+        self.assertIn("Every setting that was read holds its default.", out)
+        self.assertIn("not here: demo, mute", out)
+        code, out, err = self.cfg("config", "--user-files")
+        self.assertEqual((code, out), (0, ""))
+        self.assertIn("No tool that gave settings names a user file that travels.", err)
+        self.assertNotIn("next: no layer", err)
+
+    def test_f11_a_known_key_with_a_value_outside_its_choices(self):
+        repo = os.path.join(self.home, "repo")
+        os.makedirs(os.path.join(repo, ".git"))
+        self.write(os.path.join(repo, ".claude", "agentik", "config.yaml"), "suite:\n  kind: hub\n  odd: 1\n")
+        code, out, err = self.cfg("config", "suite", cwd=repo)
+        self.assertEqual(code, 0, err)
+        self.assertIn("kind holds hub, which is not one of its choices", out)
+        self.assertNotIn("unknown key suite.kind", out)
+        self.assertIn("unknown key suite.odd", out)
+
+    def test_f12_a_dot_with_no_name_or_no_key(self):
+        for word in (".key", "."):
+            code, out, err = self.cfg("config", word)
+            self.assertEqual(code, 2)
+            self.assertIn("A tool's name goes before the dot.", err)
+        code, out, err = self.cfg("config", "demo.")
+        self.assertEqual(code, 2)
+        self.assertIn("A key goes after the dot.", err)
+        self.assertEqual(self.describes(), [])
+
+    def test_f13_a_user_file_that_cannot_be_opened_has_no_line(self):
+        conf = os.path.join(self.side, "conf")
+        user = os.path.join(conf, "agentik", "suite", "config.yaml")
+        os.makedirs(user)
+        code, out, err = self.cfg("config", "suite", XDG_CONFIG_HOME=conf)
+        self.assertEqual(code, 2)
+        self.assertIn("config.yaml cannot be read: a file that cannot be read", err)
+        os.rmdir(user)
+        self.write(user, "checkouts: []\n")
+        os.chmod(user, 0)
+        for args in (("config", "suite"), ("config",)):
+            code, out, err = self.cfg(*args, XDG_CONFIG_HOME=conf)
+            self.assertIn("config.yaml cannot be read: a file that cannot be read", out + err)
+            self.assertNotIn("line 0", out + err)

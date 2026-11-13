@@ -1,0 +1,7 @@
+{
+  "session": {"lines": ["agentik session profile", "agentik session set KEY VALUE"], "user_file": "~/.claude/agentik/profiles.yaml", "needs": [], "status": []},
+  "relay": {"lines": ["agentik relay doctor"], "user_file": "~/.config/agentik/relay/config.yaml", "needs": ["Go"], "status": []},
+  "decisions": {"lines": ["agentik decisions doctor"], "user_file": null, "needs": [], "status": []},
+  "agents": {"lines": ["agentik agents doctor"], "user_file": "~/.config/agentik/agents/", "needs": [], "status": []},
+  "respeak": {"lines": [], "user_file": "~/.claude/respeak/config.yaml", "needs": ["PyYAML"], "status": []}
+}

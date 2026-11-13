@@ -25,6 +25,7 @@ STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 GAP = "  "
 FALLBACK_WIDTH = 80
 CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
+JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survives, escaped
 
 
 def clean(value):
@@ -33,8 +34,10 @@ def clean(value):
 
 
 def _cleaned(obj):
+    """For --json: control characters removed but the line break, which json.dumps writes as
+    the two characters of its escape, so a tool's block of lines keeps its shape."""
     if isinstance(obj, str):
-        return clean(obj)
+        return JSON_CONTROL.sub("", obj)
     if isinstance(obj, dict):
         return {clean(k): _cleaned(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
