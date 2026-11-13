@@ -5,8 +5,8 @@ Each command runs once, split by shlex with no shell, stdin the null device, bot
 captured, in its own process group under a wall (600 s for `claude`, 120 s else), the group killed
 past it. A row that still names a command already run has failed, as has a non-zero exit, the wall
 or a file that cannot start: the run stops there, exit 1, with no rollback. Step 6 is never
-applied and step 7 never run. Before the first command setup asks on a terminal, needs --yes off
-one, and off one refuses outright where step 2 or 3 would write a settings file the user's gate
+applied and step 7 never run. Before the first command setup asks on a terminal, counting what
+a yes runs, Enter a no; it needs --yes off one, and off one refuses outright where step 2 or 3 would write a settings file the user's gate
 list names, or where that list is there but cannot be read. An interrupt (SIGINT or SIGTERM) before
 the first command, the question's included, declines, exit 2; during a command it stops the
 command's group and ends the run, exit 130, the journal written. What each command wrote is found
@@ -36,6 +36,14 @@ JSON_KEYS = ("n", "id", "state", "subject", "detail", "command")
 def runnable(steps):
     return [s for s in steps if 2 <= s["n"] <= 5 and s["state"] == "todo" and s["command"]
             and s["line"] == "run"]
+
+
+def planned(steps):
+    """The commands a yes would run, as the question counts them: the runnable rows, and one
+    install-cli for each step 4 row that waits on step 3 (row sm1-setup-ask R3). A plugin that
+    turns out to ship no command, or a door older than this one's, moves the true count by one."""
+    waiting = [s for s in steps if s["n"] == 4 and s["state"] == "todo" and not s["command"]]
+    return len(runnable(steps)) + len(waiting)
 
 
 def _kill(group, sig=signal.SIGKILL):
@@ -240,7 +248,8 @@ def _before(cmd, names, build, the_plan, home, config):
         the_plan(steps)
         if not (terminal and not o["json"]):
             raise cmd.Usage("needs_yes", "err.setup.yes", "%s setup --yes" % tool, tool=tool)
-        t.line("setup.ask", err=True)
+        count = planned(steps)
+        t.line("setup.ask.one" if count == 1 else "setup.ask", err=True, count=count)
         t.flush()
         try:
             answer = sys.stdin.readline()  # end of file reads "", a decline

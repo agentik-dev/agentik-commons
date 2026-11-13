@@ -199,7 +199,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
-- `setup.ask`: Run each `run:` line above, and the lines the later steps need? Answer y or n.
+- `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
+- `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
 - `setup.running`: running `{command}`
 - `setup.after`: The plan, read again after the run:
 - `setup.ran`: ran: `{command}`, exit `{exit}`

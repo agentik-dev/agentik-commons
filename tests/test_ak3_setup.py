@@ -187,12 +187,12 @@ class ApplyTest(SetupHome):
         before = self.snapshot()
         code, text = self.answer_on_pty("n", "setup", "alpha", "beta")
         self.assertEqual(code, 2, text)
-        self.assertEqual(text.count("y or n"), 1, text)
+        self.assertEqual(text.count("commands now?"), 1, text)
         self.assertEqual(self.recorded(), [])
         self.assertEqual(self.snapshot(), before)
         code, text = self.answer_on_pty("y", "setup", "alpha", "beta")
         self.assertEqual(code, 0, text)
-        self.assertEqual(text.count("y or n"), 1, text)
+        self.assertEqual(text.count("commands now?"), 1, text)
         self.assertEqual(self.recorded(), FIRST)
         self.assertEqual(text.count("ran: "), 5, text)
         self.assertEqual(len(self.journal()), 1)
@@ -254,7 +254,7 @@ class ApplyTest(SetupHome):
         self.gate("~/.claude/*.json")
         code, text = self.answer_on_pty("y", "setup", "alpha", "beta")
         self.assertEqual(code, 0, text)
-        self.assertEqual(text.count("y or n"), 1, text)
+        self.assertEqual(text.count("commands now?"), 1, text)
         self.assertEqual(self.recorded(), FIRST)
 
     def test_l8_json(self):
@@ -368,7 +368,7 @@ class FixOneTest(SetupHome):
             os.close(slave)
             chunks = []
             try:
-                while b"y or n" not in b"".join(chunks):
+                while b"now?" not in b"".join(chunks):
                     ready, _, _ = select.select([master], [], [], 20)
                     self.assertTrue(ready, b"".join(chunks))
                     chunks.append(os.read(master, 65536))
