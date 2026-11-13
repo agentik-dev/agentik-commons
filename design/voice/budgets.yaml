@@ -1,0 +1,6 @@
+# The voice budgets of the suite command's catalogue (packet ak1a R5), read by the voice scanner
+# that `make voice` runs on plugins/suite/lib/agentik_suite/messages.md.
+style:
+  budgets:
+    max_sentence_words: 20
+    avg_sentence_words: 12
