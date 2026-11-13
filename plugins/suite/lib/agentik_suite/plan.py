@@ -1,7 +1,10 @@
 """The setup plan: seven reads, each with a state, and what setup would do where it is not ok.
 
 Every step is a read: it opens files and looks names up on PATH, and starts no process, `claude`
-included. A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
+included, but one: a plugin that ships its command and has no launcher on PATH is asked
+`describe --json` through the suite's own reader (tools.describe_all, its cache and its wall), and
+one whose counted answer lists no `install-cli` verb runs from its own folder (row
+sp1-launcher-step). A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
 known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, whose
 plugins["<name>@<marketplace>"][0] holds version and installPath. An absent or unreadable file
 reads as nothing known, as does one that fails to parse. A step is a dict: n, id, state (ok, todo or blocked), subject, the
@@ -88,6 +91,21 @@ def _step(n, sid, state, subject, mid, command=None, line="run", **values):
             "values": values, "command": command, "line": line}
 
 
+def in_place(sources, env):
+    """The names, of {name: command}, whose counted describe answer lists no verb install-cli; a
+    command that answers nothing counted is not among them."""
+    if not sources:
+        return set()
+    from . import tools  # tools imports this module at its top
+    found, _ = tools.describe_all([{"name": n, "exe": e} for n, e in sorted(sources.items())], env)
+    names = set()
+    for name, (state, answer) in found.items():
+        verbs = [v.get("name") if isinstance(v, dict) else v for v in (answer or {}).get("verbs") or ()]
+        if state == "answers" and "install-cli" not in verbs:
+            names.add(name)
+    return names
+
+
 def build(names, env, lib, tool, version):
     home = env.get("HOME") or ""
     search = env.get("PATH", "")
@@ -140,6 +158,9 @@ def build(names, env, lib, tool, version):
 
     # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli
     placed = []
+    inplace = in_place({n: have[n][1] for n in names if n in have and os.path.isfile(have[n][1])
+                        and agentik_install.read_launcher(os.path.join(bindir, "agentik-" + n)) is None},
+                       env)
     for name in names:
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
@@ -154,6 +175,8 @@ def build(names, env, lib, tool, version):
         if not os.path.isfile(source):
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.none"))
             placed = [p for p in placed if p != where]
+        elif read is None and name in inplace:
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.inplace"))
         elif read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
@@ -218,6 +241,9 @@ def build(names, env, lib, tool, version):
         where = os.path.join(bindir, exe)
         if name in have and not os.path.isfile(have[name][1]):
             steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
+        elif name in inplace:  # its command runs from the plugin's folder, as a placed one would
+            steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
+                               "%s doctor" % shlex.quote(have[name][1]), line="later"))
         elif where in placed:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
                                "%s doctor" % shlex.quote(where), line="later"))

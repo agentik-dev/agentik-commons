@@ -173,6 +173,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.wait`: not placed; step 3 installs the plugin first
 - `setup.launcher.missing`: not placed; setup would place it from the plugin
 - `setup.launcher.none`: the plugin ships no command, so there is nothing to place
+- `setup.launcher.inplace`: the plugin's command runs from the plugin's own folder, so there is nothing to place
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
