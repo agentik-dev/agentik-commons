@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+"""door-probe: does each writer of the `agentik` door leave a newer door in place?
+
+Usage: door-probe [--code DIR] [--rounds N] [--keep]
+
+Run by hand, never by `make check` (packet ak2 R6). Under a fresh temp dir T it
+clones, at main, each git checkout in DIR (--code, else AGENTIK_CODE, else the
+folder above this repo's main checkout) that holds a door writer, found by
+shape, never by name; this checkout is left out. A launcher writer: the clone
+has `plugin/bin/agentik` and one executable `plugin/bin/agentik-*` beside it,
+run as `<that launcher> install-cli --prefix P`. Else a make writer: each line
+of `make -n install BINDIR=P/bin` whose last word is `P/bin/agentik`, run by
+`sh -c` in the clone, and no other line: nothing is built, and a checkout whose
+makefile holds a `+` recipe line, which `make -n` would run, is left out with a
+note. Each writer and `make -n` run as `env -i HOME=<a temp folder>
+PATH=/usr/bin:/bin TMPDIR=<under it>`, a fresh P for each case, under a wall of
+20 s that kills its process group.
+
+Cases. `kept`: this checkout's `bin/agentik` with one comment line added lies at
+P/bin/agentik; ok when it is the same byte for byte after the writer, FAIL
+naming the VERSION it was put back to. `absent`: no door; ok when one is there
+after, executable. Then three notes, never a FAIL: `fifo`, a FIFO at the door's
+path (back inside the wall, or `hangs`); `raw`, kept's door with a byte that is
+not UTF-8 on its VERSION line under LC_ALL=en_US.UTF-8 (exit 0, no Traceback
+and the bytes kept, or what it did); `race`, the writer against a second clone
+of itself whose doors (`scripts/agentik`, `plugin/bin/agentik`) read
+VERSION=0.9.0, both started at once over a 0.0.9 door, N rounds (default 20),
+and how many ended below 0.9.0.
+
+Output: one line a writer and case, the checkout's folder name first, then
+`door-probe: go` or `door-probe: stop: <n> failed`. Exit 0 go, 1 stop, 2 usage
+or a missing prerequisite. Nothing outside T is written; T is removed unless
+--keep. Stdlib only.
+"""
+import os
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+USAGE = "usage: door-probe [--code DIR] [--rounds N] [--keep]"
+ROOT = Path(__file__).resolve().parents[1]
+DOOR = ROOT / "bin" / "agentik"
+SYSTEM = "/usr/bin:/bin"
+GIT, MAKE = "/usr/bin/git", "/usr/bin/make"
+WALL = float(os.environ.get("DOOR_PROBE_WALL") or 20)  # tests shorten it; by hand it is 20 s
+MAKEFILES = ("GNUmakefile", "makefile", "Makefile")
+PLUS = re.compile(rb"^\t[ @-]*\+", re.M)
+VERSION = re.compile(rb"^VERSION=(.*)$", re.M)
+FAILS = []
+
+
+def say(checkout, writer, case, kind, text):
+    print("%-22s %-9s %-7s %-4s %s" % (checkout, writer, case, kind, text), flush=True)
+    if kind == "FAIL":
+        FAILS.append((checkout, writer, case))
+
+
+class Probe:
+    def __init__(self, t, rounds):
+        self.t, self.rounds, self.n = t, rounds, 0
+
+    def fresh(self, what):
+        self.n += 1
+        path = self.t / ("%s-%d" % (what, self.n))
+        path.mkdir()
+        return path
+
+    def env(self, **more):
+        home = self.fresh("home")
+        (home / "tmp").mkdir()
+        env = {"HOME": str(home), "PATH": SYSTEM, "TMPDIR": str(home / "tmp")}
+        env.update(more)
+        return env
+
+    def start(self, argv, cwd, env):
+        """The process, in a group of its own, its output to a file under T."""
+        out = open(str(self.fresh("out") / "out"), "wb")
+        cmd = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in env.items()] + list(argv)
+        proc = subprocess.Popen(cmd, cwd=str(cwd), stdin=subprocess.DEVNULL, stdout=out,
+                                stderr=subprocess.STDOUT, start_new_session=True)
+        proc.log = out
+        return proc
+
+    @staticmethod
+    def finish(proc, deadline):
+        """(exit or None when the wall killed its group, its output)."""
+        try:
+            code = proc.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            code = None
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)  # the wall, and anything the writer left running
+        except OSError:
+            pass
+        proc.wait()
+        proc.log.close()
+        with open(proc.log.name, "rb") as fh:
+            return code, fh.read().decode("utf-8", "replace")
+
+    def run(self, argv, cwd, **more):
+        return self.finish(self.start(argv, cwd, self.env(**more)), time.monotonic() + WALL)
+
+    def git(self, *argv):
+        code, out = self.run([GIT, *argv], self.t, GIT_CONFIG_NOSYSTEM="1")
+        return code == 0, out
+
+
+def version_of(data):
+    m = VERSION.search(data or b"")
+    return m.group(1).decode("latin-1").strip().strip("'\"") if m else None
+
+
+def order(text):
+    m = re.match(r"(\d+)\.(\d+)\.(\d+)\Z", text or "")
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def with_version(data, ver):
+    return VERSION.sub(lambda m: b"VERSION=" + ver, data, count=1)
+
+
+def door_text():
+    data = DOOR.read_bytes()
+    head, _, rest = data.partition(b"\n")
+    return head + b"\n# door-probe: this door is kept\n" + rest
+
+
+def has_main(p, src):
+    return p.git("-C", str(src), "rev-parse", "-q", "--verify", "main^{commit}")[0]
+
+
+def shaped(p, src):
+    """Whether main holds either shape: a plugin/bin/agentik, or a makefile at the root."""
+    ok, out = p.git("-C", str(src), "ls-tree", "--name-only", "main", "plugin/bin/agentik",
+                    *MAKEFILES)
+    return ok and bool(out.split())
+
+
+def launcher(clone):
+    bindir = clone / "plugin" / "bin"
+    if not (bindir / "agentik").is_file():
+        return None
+    found = [x for x in sorted(bindir.glob("agentik-*")) if x.is_file() and os.access(str(x), os.X_OK)]
+    return found[0] if len(found) == 1 else None
+
+
+def make_lines(p, clone, prefix):
+    """The lines of `make -n install` whose last word is the door, or None with a note."""
+    for path in [clone / name for name in MAKEFILES] + sorted(clone.glob("*.mk")):
+        if path.is_file() and PLUS.search(path.read_bytes()):
+            return None, "%s holds a + recipe line, which make -n would run; not probed" % path.name
+    target = str(prefix / "bin" / "agentik")
+    code, out = p.run([MAKE, "-n", "install", "BINDIR=%s" % (prefix / "bin")], clone)
+    found = []
+    for line in out.splitlines():
+        try:
+            words = shlex.split(line)
+        except ValueError:
+            words = line.split()
+        if words and words[-1] == target:
+            found.append(line.strip())
+    return found, None
+
+
+class Writer:
+    """One writer of one clone: argv for a prefix P."""
+
+    def __init__(self, label, clone, launcher_path=None, line=None, p0=None):
+        self.label, self.clone, self.launcher, self.line, self.p0 = label, clone, launcher_path, line, p0
+
+    def argv(self, prefix):
+        if self.launcher:
+            return [str(self.launcher), "install-cli", "--prefix", str(prefix)]
+        return ["/bin/sh", "-c", self.line.replace(str(self.p0), str(prefix))]
+
+    def twin(self, clone):
+        """The same writer in another clone of its checkout."""
+        if self.launcher:
+            return Writer(self.label, clone, clone / self.launcher.relative_to(self.clone))
+        line = self.line.replace(str(self.clone), str(clone))
+        return Writer(self.label, clone, line=line, p0=self.p0)
+
+
+def writers(p, clone):
+    found = launcher(clone)
+    if found:
+        return [Writer("launcher", clone, found)], None
+    p0 = p.fresh("p0")
+    lines, note = make_lines(p, clone, p0)
+    if note:
+        return [], note
+    labels = ["make"] if len(lines) == 1 else ["make:%d" % (i + 1) for i in range(len(lines))]
+    return [Writer(label, clone, line=line, p0=p0) for label, line in zip(labels, lines)], None
+
+
+def prefix_with(p, door=None, fifo=False):
+    prefix = p.fresh("p")
+    (prefix / "bin").mkdir()
+    path = prefix / "bin" / "agentik"
+    if fifo:
+        os.mkfifo(str(path))
+    elif door is not None:
+        path.write_bytes(door)
+        path.chmod(0o755)
+    return prefix, path
+
+
+def what_is(path):
+    if os.path.islink(str(path)):
+        return "a link"
+    if not os.path.lexists(str(path)):
+        return "no door"
+    if not path.is_file():
+        return "a FIFO" if path.is_fifo() else "not a file"
+    return "VERSION %s" % version_of(path.read_bytes())
+
+
+def cases(p, name, w, twin):
+    kept = door_text()
+    prefix, path = prefix_with(p, kept)
+    code, _ = p.run(w.argv(prefix), w.clone)
+    if code is None:
+        say(name, w.label, "kept", "FAIL", "hangs past %d s" % WALL)
+    elif path.is_file() and not path.is_symlink() and path.read_bytes() == kept:
+        say(name, w.label, "kept", "ok", "the newer door kept byte for byte (exit %d)" % code)
+    else:
+        say(name, w.label, "kept", "FAIL", "put back to %s (exit %d)" % (what_is(path), code))
+
+    prefix, path = prefix_with(p)
+    code, _ = p.run(w.argv(prefix), w.clone)
+    if code is not None and path.is_file() and os.access(str(path), os.X_OK):
+        say(name, w.label, "absent", "ok", "written, executable, %s (exit %d)" % (what_is(path), code))
+    else:
+        say(name, w.label, "absent", "FAIL", "hangs" if code is None else
+            "%s after it, exit %d" % ("not executable" if path.is_file() else what_is(path), code))
+
+    prefix, path = prefix_with(p, fifo=True)
+    began = time.monotonic()
+    code, _ = p.run(w.argv(prefix), w.clone)
+    say(name, w.label, "fifo", "note", "hangs; killed at %d s" % WALL if code is None else
+        "back in %.1f s, exit %d, %s left" % (time.monotonic() - began, code, what_is(path)))
+
+    raw = with_version(kept, b"0.2.0\xff")
+    prefix, path = prefix_with(p, raw)
+    code, out = p.run(w.argv(prefix), w.clone, LC_ALL="en_US.UTF-8")
+    after = path.read_bytes() if path.is_file() else None
+    if code == 0 and "Traceback" not in out and after == raw:
+        say(name, w.label, "raw", "note", "exit 0, no Traceback, the bytes kept")
+    else:
+        did = ["hangs" if code is None else "exit %d" % code]
+        did += ["a Traceback"] if "Traceback" in out else []
+        did += [] if after == raw else ["the door now %s" % what_is(path)]
+        say(name, w.label, "raw", "note", ", ".join(did))
+
+    if twin is None:
+        say(name, w.label, "race", "note", "no second clone; not raced")
+        return
+    below = hung = 0
+    for _ in range(p.rounds):
+        prefix, path = prefix_with(p, with_version(kept, b"0.0.9"))
+        procs = [p.start(x.argv(prefix), x.clone, p.env()) for x in (w, twin)]
+        deadline = time.monotonic() + WALL
+        codes = [p.finish(proc, deadline)[0] for proc in procs]
+        hung += codes.count(None)
+        ver = order(version_of(path.read_bytes())) if path.is_file() else None
+        below += ver is None or ver < (0, 9, 0)
+    say(name, w.label, "race", "note", "%d of %d rounds ended below 0.9.0%s" % (
+        below, p.rounds, "; %d writers hung" % hung if hung else ""))
+
+
+def newer_twin(p, src, name, w):
+    clone = p.t / "twin" / name
+    ok, _ = p.git("clone", "-q", "--branch", "main", str(src), str(clone))
+    if not ok:
+        return None
+    for rel in ("scripts/agentik", "plugin/bin/agentik"):
+        path = clone / rel
+        if path.is_file():
+            path.write_bytes(with_version(path.read_bytes(), b"0.9.0"))
+    return w.twin(clone)
+
+
+def main_checkout():
+    out = subprocess.run([GIT, "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                         cwd=str(ROOT), capture_output=True, text=True).stdout.strip()
+    return Path(out).parent if out else ROOT
+
+
+def probe(p, code):
+    own = os.path.realpath(str(main_checkout()))
+    (p.t / "code").mkdir()
+    (p.t / "twin").mkdir()
+    found = 0
+    for src in sorted(code.iterdir()):
+        if not (src / ".git").exists() or os.path.realpath(str(src)) == own:
+            continue
+        if not has_main(p, src) or not shaped(p, src):
+            continue
+        clone = p.t / "code" / src.name
+        if not p.git("clone", "-q", "--branch", "main", str(src), str(clone))[0]:
+            say(src.name, "-", "-", "note", "the clone at main failed; not probed")
+            continue
+        ws, note = writers(p, clone)
+        if note:
+            say(src.name, "make", "-", "note", note)
+        for w in ws:
+            found += 1
+            cases(p, src.name, w, newer_twin(p, src, src.name, w))
+    if not found:
+        print("door-probe: no door writer in %s" % code, flush=True)
+
+
+def main(argv):
+    args, keep, code, rounds = argv[1:], False, None, 20
+    while args:
+        a = args.pop(0)
+        if a in ("-h", "--help"):
+            print(USAGE)
+            return 0
+        if a == "--keep":
+            keep = True
+        elif a == "--code" and args:
+            code = args.pop(0)
+        elif a == "--rounds" and args and args[0].isdigit() and int(args[0]) > 0:
+            rounds = int(args.pop(0))
+        else:
+            sys.stderr.write(USAGE + "\n")
+            return 2
+    code = Path(code or os.environ.get("AGENTIK_CODE") or str(main_checkout().parent))
+    missing = [x for x in (GIT, MAKE, str(DOOR)) if not os.access(x, os.X_OK)]
+    if missing or not code.is_dir():
+        sys.stderr.write("door-probe: missing %s\n" % ", ".join(missing or [str(code)]))
+        return 2
+    t = Path(tempfile.mkdtemp(prefix="door-probe-")).resolve()
+    try:
+        probe(Probe(t, rounds), code)
+    finally:
+        if keep:
+            print("door-probe: kept %s" % t, flush=True)
+        else:
+            shutil.rmtree(str(t), ignore_errors=True)
+    if FAILS:
+        print("door-probe: stop: %d failed" % len(FAILS))
+        return 1
+    print("door-probe: go")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

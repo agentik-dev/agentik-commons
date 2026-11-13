@@ -67,3 +67,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n36 | S4 | `plugins/suite` `term.py` | at 40 columns each moved detail starts at column 40 of 40, so every row is followed by a line that looks blank; nothing is cut | a pty 40 columns wide, fresh home | 2026-11-13, ak1a review 2 L8 |
 | n37 | S4 | `plugins/suite` `plan.py` | a placed launcher with mode 0644 reads `ok` at step 4, and its doctor line cannot run; read the same at 3b7cc56 | the review's states | 2026-11-13, ak1a review 2 L9 |
 | n38 | S4 | `plugins/suite` `messages.md` | the table of words' rest: `hint.setup.done` as `setup is done`, `hint.setup.todo` and `hint.setup.blocked` with `run` before the command, `err.setup.plan_only` result first, and term's missing-catalogue line naming the reinstall command | review 2's table of words; its two step 5 and rest lines are built (M3) | 2026-11-13, ak1a review 2 |
+
+## From packet ak2 (the door's writers)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n46 | S3 | `scripts/agentik_install.py` `_door` | a FIFO at the door's path hangs `install-cli`: `read_launcher` opens it and waits for a writer that never comes; an `lstat` check for a plain file first would leave it alone | `scripts/door-probe`'s `fifo` case on the launcher fixture of `tests/test_door_probe.py`: `hangs` | 2026-11-13, ak2 build 1 |
+| n47 | S3 | `scripts/agentik_install.py` `install_cli` | a door whose VERSION line holds a byte that is not UTF-8 makes `install-cli` exit 1 with a Traceback under `LC_ALL=en_US.UTF-8`, likely the left-alone note printed with a surrogate in it; not confirmed past the probe's line | the probe's `raw` case on the same fixture: `exit 1, a Traceback` | 2026-11-13, ak2 build 1 |
