@@ -99,6 +99,12 @@ class MatchAndDeclarationTest(StatusHome):
             self.listing(row)
             self.assertEqual(self.check(), (0, "", ""), row)
 
+    def test_a_bare_dash_on_the_way_reads_missing(self):
+        """R5 amended by review 1's ruling (L2): the program read from stdin is no match."""
+        for row in ("python3 - lampd watch", "/bin/sh - lampd watch"):
+            self.listing(row)
+            self.assertEqual(self.check(), (1, LAMP + "\n", ""), row)
+
     def test_a5_one_line_for_the_one_missing(self):
         self.declare(beat=False, more="  bulb:\n    match: bulbd run\n    start: bulbd run --loud\n")
         self.listing("/opt/bin/lampd watch")

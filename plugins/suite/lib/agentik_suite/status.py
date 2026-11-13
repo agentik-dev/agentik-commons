@@ -23,7 +23,8 @@ BEAT_CAP = 1 << 16
 WRAPPERS = ("sh", "bash", "zsh", "dash", "env")
 VALUED = ("-X", "-W", "-o", "-u")
 # A run on the way: `-c` or `-m`, attached to its value (`-mfoo`) or anywhere in a short
-# cluster (`-ce`, `-lc`); a `-X` or `-W` word is its value's, never a run.
+# cluster (`-ce`, `-lc`); a `-X` or `-W` word is its value's, never a run. A bare `-` (the
+# program read from stdin) is no match either.
 RUN = re.compile(r"-(?![XW-])[A-Za-z]*[cm]")
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
 ISO = re.compile(r"(\d{4}-\d\d-\d\d)[T ](\d\d:\d\d(?::\d\d(?:\.\d+)?)?)(Z|[+-]\d\d:?\d\d)?\Z")
@@ -118,13 +119,13 @@ def _wrapper(word):
 
 
 def head(words):
-    """The index of the command's head, or None: none left, or a -c or -m on the way."""
+    """The index of the command's head, or None: none left, or a -c, -m or bare - on the way."""
     i = 0
     while i < len(words) and _wrapper(words[i]):
         i += 1
         while i < len(words):
             word = words[i]
-            if RUN.match(word):
+            if word == "-" or RUN.match(word):
                 return None
             if word in VALUED:
                 i += 2
