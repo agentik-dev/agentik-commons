@@ -118,6 +118,12 @@ class _Stream:
             pass
 
 
+def unreadable(path, err=None):  # the one line written with no catalogue to write it from
+    _Stream(sys.stderr if err is None else err, True).write(
+        "FAIL  cannot read %s; reinstall the plugin to mend it" % path)
+    return 2
+
+
 class Term:
     def __init__(self, no_color=False, quiet=False, env=None, out=None, err=None, messages=None):
         env = os.environ if env is None else env

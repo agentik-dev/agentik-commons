@@ -215,6 +215,10 @@ class Command:
 
     def do_version(self, nouns):
         self._no_nouns(nouns)
+        if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
+            path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
+            raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
+                        tool=self.tool, path=path)
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
                          "version": self.version})
@@ -275,5 +279,8 @@ class Command:
 
 def main(argv=None, env=None, out=None, err=None):
     agentik_install.restore_parent_env()
-    return Command(sys.argv[1:] if argv is None else argv,
-                   os.environ if env is None else env, out, err).run()
+    try:
+        command = Command(sys.argv[1:] if argv is None else argv, os.environ if env is None else env, out, err)
+    except (OSError, ValueError):  # the catalogue: absent, unreadable or not well formed
+        return term.unreadable(term.catalogue.PATH, err)
+    return command.run()

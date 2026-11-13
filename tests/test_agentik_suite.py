@@ -222,7 +222,20 @@ class WriterTest(unittest.TestCase):
         self.assertEqual(catalogue.fill(got["a.b"], {"x": "q"}), "q at `q/y` and `z`")
 
     def test_catalogue_voice_rules(self):
-        messages = catalogue.load()
+        self.voice_rules(CATALOGUE)
+
+    def test_r8_an_item_the_loader_cannot_read_is_red(self):
+        text = CATALOGUE.read_text()
+        for bad in (text.replace("- `flag.yes`:", "- `flag.Yes`:"),
+                    text.replace("- `flag.yes`:", "- `flag.yes`")):
+            with tempfile.TemporaryDirectory() as tmp:
+                copy = Path(tmp) / "messages.md"
+                copy.write_text(bad)
+                with self.assertRaises((ValueError, AssertionError)):
+                    self.voice_rules(copy)
+
+    def voice_rules(self, path):
+        messages = catalogue.load(str(path))
         for mid, text in messages.items():
             self.assertNotRegex(text, r"(?i)\b(successfully|please|oops)\b|!", mid)
         code = "\n".join(p.read_text() for p in package_files() if p.suffix == ".py")
@@ -596,6 +609,40 @@ class PlanTruthTest(Home):
         term.Term(env={"NO_COLOR": "1"}, out=out, err=WriterTest.stream(None, True)).table(
             [("ok", ["a", "x" * 100], "run: z")])
         self.assertEqual(out.getvalue(), "  ✓  a\n" + " " * 8 + "x" * 100 + "\n" + " " * 8 + "run: z\n")
+
+
+
+class CorruptInstallTest(Home):
+    """Fix round 1, R9: a plugin copy with no catalogue, or a manifest that cannot be read."""
+
+    def copy(self):
+        root = os.path.join(self.home, "plugin copy")
+        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        return root
+
+    def test_r9_one_plain_line_names_the_file(self):
+        for broken, args in (("lib/agentik_suite/messages.md", ("--version",)),
+                             (".claude-plugin/plugin.json", ("--version",)),
+                             (".claude-plugin/plugin.json", ("version", "--json"))):
+            root = self.copy()
+            path = os.path.join(root, broken)
+            if broken.endswith(".md"):
+                os.remove(path)
+            else:
+                with open(path, "w") as fh:
+                    fh.write("{nope")
+            p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), *args],
+                               capture_output=True, text=True, env=self.env(), timeout=60)
+            text = p.stdout + p.stderr
+            self.assertEqual(p.returncode, 2, text)
+            self.assertNotIn("Traceback", text)
+            self.assertNotIn("0.0.0-unknown", text)
+            self.assertIn(path, text)
+            if "--json" in args:
+                self.assertFalse(json.loads(p.stdout)["ok"])
+            else:
+                self.assertEqual((p.stdout, len(p.stderr.splitlines())), ("", 1))
+            shutil.rmtree(root)
 
 
 if __name__ == "__main__":

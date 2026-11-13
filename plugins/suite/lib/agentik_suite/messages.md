@@ -37,6 +37,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
 - `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
 - `err.setup.plan_only`: Setup needs --dry-run: version `{version}` only plans, and it wrote nothing. Run `{tool}` setup --dry-run for the plan.
+- `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
 - `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{tool}` setup --dry-run for the default set.
 
 ## Setup

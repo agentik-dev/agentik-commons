@@ -2,7 +2,8 @@
 
 One list item per message, `- `id`: text`. A placeholder is written `{name}` inside backticks;
 the loader takes the backticks off a span that is exactly one placeholder and keeps every other
-span as written. Lines that are not such an item (the title, the note under it) are not messages.
+span as written. Lines that are not list items (the title, the note under it) are not messages;
+a list item that is not such an item (an id with a capital, no colon) is a ValueError.
 """
 import os
 import re
@@ -14,12 +15,14 @@ SLOT = re.compile(r"\{([a-z_]+)\}")
 
 
 def load(path=PATH):
-    """{id: template}; a ValueError on an id given twice."""
+    """{id: template}; a ValueError on an id given twice or an item it cannot read."""
     found = {}
     with open(path, encoding="utf-8") as fh:
         for line in fh.read().splitlines():
             m = ITEM.match(line)
             if not m:
+                if line.startswith("- "):
+                    raise ValueError("messages.md: not an item: %s" % line[:80])
                 continue
             if m.group(1) in found:
                 raise ValueError("messages.md: %s is given twice" % m.group(1))
