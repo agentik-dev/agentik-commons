@@ -342,7 +342,7 @@ class FitTest(unittest.TestCase):
     def big(self):
         f = example()
         f["plugins"] = ["plugin-%02d 10.20.30-alpha.40" % i for i in range(80)]
-        f["rows"] += [["lantern", "warn", "probe-%d" % i, "w" * 150] for i in range(10)]
+        f["rows"] += [["lantern", "warn", "probe-%d" % i, "w" * 180] for i in range(10)]
         f["lines"] = ["%02d " % i + "x" * 196 for i in range(20)]
         return f
 

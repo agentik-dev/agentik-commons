@@ -438,3 +438,122 @@ def parse(data, tools):
         diff = [i for i, (a, b) in enumerate(zip(again, lines)) if a != b] + [min(len(again), len(lines))]
         raise NotTheForm(diff[0] + 1, "the fields do not write again to the same bytes")
     return fields
+
+
+def subject(tool, ran, exit, rows, launchers):
+    """What the fingerprint hashes, holding no free word. A command opened by `agentik <tool>` or
+    by the tool's own launcher (`launchers`, a map of tool to its launcher's name) gives
+    `ran:<tool>:<verb>:<exit>`; any other command `ran:other:<exit>`; no command, the tool's first
+    failing row, else its first row, `check:<tool>:<name>:<eight words of its detail>`."""
+    code = "" if exit is None else str(exit)
+    words = (ran or "").split()
+    if words:
+        first = words[0].rsplit("/", 1)[-1]
+        own = (launchers or {}).get(tool)
+        if first == "agentik" and words[1:2] == [tool]:
+            rest = words[2:]
+        elif own and first == own:
+            rest = words[1:]
+        else:
+            return "ran:other:%s" % code
+        verb = rest[0] if rest and re.fullmatch("[a-z]{1,20}", rest[0]) else ""
+        return "ran:%s:%s:%s" % (tool, verb, code)
+    mine = [row for row in rows or [] if row[0] == tool]
+    mine = [row for row in mine if row[1] == "fail"] or mine
+    if not mine:
+        return "check:%s::" % tool
+    name = re.sub(r"\d", "", mine[0][2])
+    detail = [w.lower() for w in re.findall(r"[^\W\d_]+", mine[0][3])][:8]
+    return "check:%s:%s:%s" % (tool, name, " ".join(detail))
+
+
+def fingerprint(tool, subject):
+    """The first 12 hex of the SHA-256 of `agentik-issue/1 <tool> <subject>`."""
+    return hashlib.sha256(("%s %s %s" % (SCHEMA, tool, subject)).encode("utf-8")).hexdigest()[:12]
+
+
+def _one_line(text):
+    return re.sub(r" ?(?:%s)+ ?" % BREAKS.pattern, " ", text)
+
+
+def title(verb, line):
+    """`<verb>: <line>`, or the line alone when it opens with the verb or no verb is given."""
+    line = _one_line(line or "").strip()
+    if not verb or re.match(re.escape(verb) + r"(?![\w-])", line):
+        return line or (verb or "")
+    return "%s: %s" % (verb, line) if line else verb
+
+
+def _cut(tool, text):
+    line = ("%s %s" % (tool, _one_line(text).strip())).encode("utf-8")
+    if len(line) > TITLE_BYTES:
+        line = line[:TITLE_BYTES]
+    cut = line.decode("utf-8", "ignore")[len(tool) + 1:].strip()
+    return cut or EMPTY
+
+
+def draft(facts, tool, title, happened, fingerprint):
+    """The fields of an `agentik.issue-facts/1` object already scrubbed and bounded, its line
+    breaks folded to spaces; a title whose line passes 72 bytes is cut on a character's edge."""
+    out = facts.get("output") or {}
+    words = facts.get("words") or {}
+    checks = facts.get("checks") or {}
+    named = facts.get("plugins")
+    system = facts.get("system")
+    ran = out.get("ran")
+    versions, version = [], "unreadable"
+    for v in facts.get("versions") or []:
+        shown = v.get("plugin") or v.get("launcher")
+        if not shown:
+            continue
+        item = "%s %s" % (v["name"], shown)
+        if v.get("plugin") and v.get("commit"):
+            item += " (%s)" % v["commit"]
+        if v.get("plugin") and v.get("launcher") and v["launcher"] != v["plugin"]:
+            item += " launcher %s" % v["launcher"]
+        versions.append(item)
+        if v["name"] == tool:
+            version = shown
+    f = {"tool": tool, "title": _cut(tool, title), "ran": None if ran is None else _one_line(ran),
+         "exit": out.get("exit") if ran is not None else None, "happened": _one_line(happened or ""),
+         "expected": None if words.get("expected") is None else _one_line(words["expected"]),
+         "versions": versions, "system": None, "counts": None, "rows": None, "plugins": None,
+         "others": None, "lines": [_one_line(x) for x in out.get("lines") or []] or None,
+         "version": version, "fingerprint": fingerprint}
+    if system:
+        f["system"] = ["Claude Code %s" % system["claude"],
+                       "%s %s %s" % (system["os"], system["release"] or "unreadable", system["arch"]),
+                       "Python %s" % system["python"], system["where"]]
+    if checks.get("read"):
+        f["rows"] = [[r["tool"], r["status"], _one_line(r["name"]), _one_line(r["detail"])]
+                     for r in checks.get("rows") or []]
+        f["counts"] = [checks["failed"], checks["warned"], checks["passed"]]
+    if named is not None:
+        f["plugins"] = ["%s %s" % (p["name"], p["version"]) for p in named.get("named") or []]
+        f["others"] = named.get("others") or 0
+    return f
+
+
+def fit(fields, ceiling=CEILING):
+    """(fields, went): over the ceiling the plugins go first, then the `warn` rows, then the
+    oldest lines, one at a time; `went` names each with its count, in that order."""
+    f, went = _copy(fields), []
+
+    def over():
+        return len(build(f)) > ceiling
+
+    if over() and f["plugins"] is not None:
+        went.append(("plugins", len(f["plugins"])))
+        f["plugins"] = f["others"] = None
+    if over() and f["rows"]:
+        kept = [row for row in f["rows"] if row[1] != "warn"]
+        if len(kept) < len(f["rows"]):
+            went.append(("warn", len(f["rows"]) - len(kept)))
+            f["rows"] = kept
+    if over() and f["lines"]:
+        n = 0
+        while f["lines"] and over():
+            f["lines"] = f["lines"][1:] or None
+            n += 1
+        went.append(("lines", n))
+    return f, went
