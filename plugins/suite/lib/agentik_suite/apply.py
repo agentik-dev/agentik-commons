@@ -402,5 +402,13 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
         t.flush()
         t.error(failure[0], tool=tool, **failure[1])
     else:
-        t.hint("hint.setup.doctor", tool=tool)
+        t.hint("hint.setup.doctor", tool=_doctor_door(steps, tool))
     return code
+
+
+def _doctor_door(steps, tool):
+    """The name the closing hint gives doctor: the door's, `agentik`, where the door's row reads in
+    place, since it hands a word it has no tool for to the suite; else this command's own, since a
+    link or a door with no version may be no door of ours (row sm1-setup-ask R5)."""
+    ours = any(s["id"] == "door" and s["mid"] == "setup.door.ok" for s in steps)
+    return plan.DOOR if ours and tool == plan.SUITE else tool

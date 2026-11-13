@@ -21,6 +21,8 @@ import agentik_install
 MARKETPLACE = "agentik"
 SOURCE = "agentik-dev/agentik-commons"
 FLOOR = (3, 9)
+DOOR = agentik_install.DOOR
+SUITE = "agentik-suite"  # the command the door hands a word it has no tool for
 PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
 
 
