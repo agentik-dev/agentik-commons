@@ -248,10 +248,12 @@ class Term:
         """A table on a terminal of width W (row sc3-table R3 to R8): each column but a row's last
         is as wide as its widest cell and at most a third of W; the last takes what is left. A
         plain cell or a name too wide for its column wraps at spaces inside it, the other cells
-        staying on the row's first line; a path, or an `after` line, that does not fit goes whole
-        under the row at its indent plus 4, dim; a last cell with under 24 columns left, or with a
-        word longer than its room, goes there too and wraps to W. Each line of a cell is painted
-        on its own; nothing is cut."""
+        staying on the row's first line. A path that does not fit its column and is not the row's
+        last stays whole at its column's start, unpadded, and each cell after it goes under the
+        row at its indent plus 4, dim, wrapped to W (review 1 F1); a last path, or an `after`
+        line, that does not fit goes whole there; a last cell with under 24 columns left, or with
+        a word longer than its room, goes there too and wraps to W. Each line of a cell is
+        painted on its own; nothing is cut."""
         width = stream.width()
         widths = [min(w, width // 3) for w in widths]
         fixed = " " * (indent + 4)
@@ -260,12 +262,18 @@ class Term:
             starts.append(starts[-1] + w + len(GAP))
         dim = STYLE_SGR["hint"]
         for cells, after in grid:
-            blocks, under = [], []
+            blocks, under, rest = [], [], False
             for i, (text, style) in enumerate(cells):
                 last = i == len(cells) - 1
                 room = width - starts[i] if last else widths[i]
-                if marked and i == mark_at or columns(text) <= room:
+                if rest and not (marked and i == mark_at):  # after a path that kept its place
+                    blocks.append([""])
+                    under.extend(_wrap(text, width - len(fixed)) if text.strip() else [])
+                elif marked and i == mark_at or columns(text) <= room:
                     blocks.append([text])
+                elif style == "path" and not last:  # it keeps the first line (review 1 F1)
+                    blocks.append([text])
+                    rest = True
                 elif style == "path":
                     blocks.append([""])
                     under.append(text)
