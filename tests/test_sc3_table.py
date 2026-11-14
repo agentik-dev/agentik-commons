@@ -217,6 +217,17 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(lines[0], "  ✓  tool-a  a cell")
         self.assertEqual(lines[1:], [" " * 6 + "on", " " * 6 + word, " " * 6 + "here"])
 
+    def test_f1_a_path_that_is_not_the_last_cell_keeps_the_first_line(self):
+        p = "~/.local/bin/" + "agentik-tool-a" + "-" * 3  # 30 columns, over a third of 80 and of 60
+        self.assertEqual(len(p), 30)
+        for width in (80, 60):
+            lines = draw([("ok", [term.path(p), SENTENCE], None)], width)
+            self.assertEqual(lines[0], "  ✓  " + p, (width, lines))
+            for line in lines[1:]:
+                self.assertTrue(line.startswith(" " * 6) and line[6] != " ", (width, lines))
+                self.assertLessEqual(term.columns(line), width, (width, lines))
+            self.assertEqual(" ".join(lines[1:]).split(), SENTENCE.split(), width)
+
     def test_r5_a_last_column_of_under_24_puts_a_long_last_cell_under_the_row(self):
         lines = draw([("ok", [term.name("tool-a"), "middle words here and there", "one two three " * 5], None)], 50)
         self.assertNotIn("one", lines[0])
@@ -250,6 +261,16 @@ class ScreenTest(unittest.TestCase):
                 seen.append((p.returncode, p.stdout, p.stderr))
             self.assertEqual(seen[0], seen[1], args)
             self.assertNotIn(ESC.encode(), seen[0][1] + seen[0][2], args)
+
+    def test_f1_setups_subjects_stay_on_their_rows_first_line(self):
+        blank = re.compile("^ +([0-9]+ +)?[%s] {4,}[^ ]" % "".join(term.GLYPH.values()))
+        for cols in (80, 60):
+            lines = plain(pty_run(LAUNCHER, ["setup", "--dry-run"], self.env, cols)).replace("\r\n", "\n").split("\n")
+            self.assertEqual([l for l in lines if blank.match(l)], [], cols)  # a mark, then only a detail
+            subjects = [l for l in lines if "~/.local/bin/agentik-" in l]
+            self.assertTrue(subjects, cols)
+            for line in subjects:
+                self.assertRegex(line, "[%s]  ~/[.]local/bin/agentik-" % "".join(term.GLYPH.values()), cols)
 
     def test_a8_on_a_pty_no_table_line_passes_the_width(self):
         for cols in (60, 80):
