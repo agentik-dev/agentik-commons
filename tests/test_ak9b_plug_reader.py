@@ -11,7 +11,6 @@ real `claude`, reads the real home or writes outside its temp folder."""
 import io
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
