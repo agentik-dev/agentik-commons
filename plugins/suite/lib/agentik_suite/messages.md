@@ -301,6 +301,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.plugin`: at version `{version}`; update brings it to its marketplace's newest
 - `update.doctor`: the doctor reads every tool once the steps above have run
 - `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
+- `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
 - `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so this command leaves it as it is.
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current

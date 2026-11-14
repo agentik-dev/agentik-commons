@@ -35,6 +35,7 @@ PS_WALL = 10
 SUITE = "suite"
 HOLDS = ("run", "gate", "plan")
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")  # where `ps -E` starts a process's environment
+PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
 def reader(lib, read):
@@ -125,6 +126,14 @@ def _market(pid):
     return pid.rpartition("@")[2]
 
 
+def plugin_id(pid):
+    """True where the id is `name@market`, each part lowercase letters, digits and dashes that
+    begins with a letter or a digit, so no word read from the file is ever a command's option
+    (review 1 F2)."""
+    name, at, market = pid.partition("@") if isinstance(pid, str) else ("", "", "")
+    return bool(at and PART.match(name) and PART.match(market))
+
+
 class Update:
     def __init__(self, cmd, nouns):
         self.cmd, self.t, self.env, self.o = cmd, cmd.t, cmd.env, cmd.opts
@@ -151,7 +160,11 @@ class Update:
         self.suite = None
         for name in self.names:
             row = rows[name]
-            if _standing(row):
+            if _standing(row) and not plugin_id(row["plugin"]):
+                self.skips[name] = plan._step(2, "skip", "todo", name, "update.skip.id",
+                                              id=term.clean(row["plugin"]))
+                self.shown.append(name)
+            elif _standing(row):
                 entry = {"name": name, "plugin": row["plugin"], "from": row["version"]}
                 if name == SUITE:
                     self.suite = entry
@@ -210,7 +223,7 @@ class Update:
             if isinstance(root, str) and isinstance(ver, str) and ver:
                 own = plan.build([], self.env, os.path.join(root, "lib"), cmd.tool, ver)
                 steps += [dict(s, n=4) for s in own if s["n"] == 5]
-        elif SUITE in self.names:
+        elif SUITE in self.names and SUITE not in self.skips:
             steps.append(plan._step(4, "suite", "ok", cmd.tool, "update.suite.checkout", version=cmd.version))
         steps.append(plan._step(5, "doctor", "todo", "doctor", "update.doctor", cmd.say("doctor")))
         if any(s["state"] == "blocked" for s in self.prereqs):
@@ -231,7 +244,7 @@ class Update:
     # ---- the close (R6, R7, R8) -----------------------------------------------------------------
 
     def hints(self):
-        if self.suite is None and SUITE in self.names:
+        if self.suite is None and SUITE in self.names and SUITE not in self.skips:
             listed = SUITE in tools.descriptions(self.env)
             self.t.hint("hint.update.suite" if listed else "hint.update.suite.pull", **self.slots)
         if self.absent:
