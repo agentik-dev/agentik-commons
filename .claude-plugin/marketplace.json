@@ -47,7 +47,7 @@
         "url": "https://github.com/agentik-dev/agentik-agents.git",
         "path": "plugin"
       },
-      "description": "See every agent on this machine, run a session's routine subagents on a local model through a loopback router, and write a repo's records from a hand-back."
+      "description": "See every agent on this computer, run a session's routine subagents on a local model through a loopback router, and write a repo's records from a hand-back."
     },
     {
       "name": "suite",
