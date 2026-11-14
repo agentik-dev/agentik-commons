@@ -8,7 +8,6 @@ the rest drawn. The object holds no sentence; the screen says every word (packet
 """
 import datetime
 import json
-import math
 import os
 import re
 import time
@@ -303,7 +302,7 @@ def _runs(srcs, procs, uid, now, hand):
             if running is not None:
                 row = _clean(pin.get(running, "row", TEXT, NONE))
                 age = pin.get(running, "age_s", NUM, NONE)
-                if age is not None and not math.isfinite(age):
+                if age is not None and not abs(age) < float("inf"):  # NaN or infinity
                     age = pin.get({}, "age_s", NUM)
             if stop is not None and running is None:
                 reason = _clean(stop if isinstance(stop, str) else pin.get(stop, "reason", TEXT))
