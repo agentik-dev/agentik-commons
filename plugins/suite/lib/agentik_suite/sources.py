@@ -169,7 +169,8 @@ def find(tool, env, cwd, lines):
     else:
         kind = "undecided" if candidates else "absent"
     if standing is not None:
-        found, root, version = True, standing["root"], standing["version"]
+        # an entry with no string installPath stands, not found (review 1, R1-F1)
+        found, root, version = standing["root"] is not None, standing["root"], standing["version"]
         scope = standing["scope"] or "user"
     runs, passed = _runs(tool, env, all_entries, standing, root if found else None, version)
     return {"tool": tool, "kind": kind, "plugin": plugin, "root": root, "version": version,

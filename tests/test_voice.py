@@ -108,6 +108,26 @@ class VoiceTest(unittest.TestCase):
         self.assertIn("sources", err)
         self.assertFalse(os.path.exists(self.side))
 
+    def test_fk1_an_entry_with_no_string_install_path_is_not_found(self):
+        # review 1, R1-F1: the finder and voice agree; voice exits 2 with its line, no traceback
+        sys.path.insert(0, str(ROOT / "plugins" / "suite" / "lib"))
+        from agentik_suite import sources
+        for odd in (None, 5):
+            h = fk_homes.FkHome(os.path.join(self.tmp, "odd-%s" % odd), tool="respeak")
+            self.scanner_in(h.install(h.own, "0.1"))
+            if odd is None:
+                del h.table[h.own][0]["installPath"]
+            else:
+                h.table[h.own][0]["installPath"] = odd
+            h.write()
+            row = sources.read(h.env(), h.home, ["respeak"], more=False)[0]
+            self.assertEqual((row["kind"], row["found"], row["root"]), ("own", False, None), odd)
+            code, out, err = self.voice(HOME=h.home)
+            self.assertEqual(code, 2, err)
+            self.assertIn("no scanner", err)
+            self.assertNotIn("Traceback", err)
+            self.assertFalse(os.path.exists(self.side))
+
 
 if __name__ == "__main__":
     unittest.main()
