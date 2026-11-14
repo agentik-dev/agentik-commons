@@ -11,8 +11,11 @@ for each name (row fk2-plan), and setup installs no id outside its own marketpla
 reads as nothing known, as does one that fails to parse. A step is a dict: n, id, state (ok, todo or blocked), subject, the
 message id and values of its detail, the command (None when there is none) and its line: `run`, one
 a yes runs (steps 2 to 5), `add` for the shell profile (step 6), or `later`, the reader's own to
-run after setup (step 7's doctors). A plugin's install-cli places the door, so while step 4 has a
-row to do the door's row names no line (row sm1-setup-ask R2).
+run after setup (step 7's doctors), or `page`, a tool's page, which nothing opens: a tool whose
+table row holds a `page` installs its own command, so steps 4 and 7 place, describe and run
+nothing of it but the finder's file (row fh13-relay-plan), and its step 4 row then holds `page`. A
+plugin's install-cli places the door, so while step 4 has a row to do the door's row names no line
+(row sm1-setup-ask R2).
 """
 import json
 import os
@@ -238,9 +241,12 @@ def build(names, env, lib, tool, version, cwd=None):
         else:
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.broken", install, version=ver))
 
-    # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli
+    # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli; a
+    # tool with a page installs its own, so setup names the page or the file the finder names (fh13)
+    table = tools.fallback(lib)
+    pages = {n: p for n, p in ((n, tools.page(table, n)) for n in names) if p}
     placed = []
-    inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1]
+    inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1] and n not in pages
                         and agentik_install.read_launcher(os.path.join(bindir, "agentik-" + n)) is None},
                        env)
     direct = set()  # step 4 places nothing, since the file that runs is not the one it would place
@@ -250,6 +256,16 @@ def build(names, env, lib, tool, version, cwd=None):
             continue  # not found or held: step 3's row is the only one (R4)
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
+        if name in pages:
+            runs = (row["runs"] or {}).get("path")
+            if runs:  # R3
+                steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.theirs",
+                                   name=name, path=shown(runs, home)))
+            else:  # R2
+                steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.page",
+                                   line="page", name=name))
+                steps[-1]["page"] = pages[name]
+            continue
         read = agentik_install.read_launcher(where)
         if read is not None:
             placed.append(where)
@@ -341,7 +357,12 @@ def build(names, env, lib, tool, version, cwd=None):
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
         runs = (rows[name]["runs"] or {}).get("path")  # the file that runs names the line (R6)
-        if name in have and not have[name][1]:
+        if name in pages and not runs:  # fh13 R4
+            steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.page"))
+        elif name in pages:
+            steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
+                               "%s doctor" % shlex.quote(runs), line="later"))
+        elif name in have and not have[name][1]:
             steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
         elif name in inplace:  # its command runs from the plugin's folder, as a placed one would
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",

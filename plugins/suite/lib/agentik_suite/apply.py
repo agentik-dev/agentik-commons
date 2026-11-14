@@ -48,6 +48,23 @@ def planned(steps):
     return len(runnable(steps)) + len(waiting)
 
 
+def page_close(steps):
+    """The close where a page row is left and no step holds a command setup would run, or None
+    (row fh13-relay-plan R7): each such tool in the plan's order."""
+    names = [s["values"]["name"] for s in steps if s["n"] == 4 and s["line"] == "page"]
+    if not names or runnable(steps):
+        return None
+    return "hint.setup.page", {"names": ", ".join(names)}
+
+
+def step_json(s):
+    """A step as setup's JSON gives it; a page row adds its page (row fh13-relay-plan R2)."""
+    obj = {k: s[k] for k in JSON_KEYS}
+    if s.get("page"):
+        obj["page"] = s["page"]
+    return obj
+
+
 def _kill(group, sig=signal.SIGKILL):
     try:
         os.killpg(group, sig)
@@ -198,7 +215,8 @@ def show(cmd, steps, upto=7, lines=True):
     for s in steps:
         if s["n"] > upto:
             continue
-        after = t.text("setup." + s["line"], command=s["command"]) if lines and s["command"] else None
+        shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
+        after = t.text("setup." + s["line"], command=shown) if lines and shown else None
         n = str(s["n"]) if s["n"] != last else ""
         last = s["n"]
         subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
@@ -371,7 +389,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     add = [s for s in steps if s["n"] == 6 and s["state"] == "todo" and s["command"]]
     if cmd.opts["json"]:
         obj = {"schema": "agentik.setup/1", "ok": not failure, "dry_run": False, "plugins": names,
-               "steps": [{k: s[k] for k in JSON_KEYS} for s in steps],
+               "steps": [step_json(s) for s in steps],
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
