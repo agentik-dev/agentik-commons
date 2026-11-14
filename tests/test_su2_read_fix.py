@@ -141,5 +141,22 @@ class CleanerTest(FixHome):
         self.assertEqual(self.source(self.read(), "gate")["stderr"], "31mred")
 
 
+class GoneFolderTest(FixHome):
+    """R1-F4: a working folder that is gone is one fault object and exit 2, never a traceback."""
+
+    def test_f4_the_working_folder_gone(self):
+        folder = os.path.join(self.side, "gone")
+        os.makedirs(folder)
+        p = subprocess.run(["/bin/sh", "-c", 'cd "$1" && rmdir "$1" && shift && exec "$@"', "sh", folder,
+                            LAUNCHER, "status", "--json", "--now", NOW, "--ps", self.ps],
+                           capture_output=True, text=True, env=self.env(TZ="UTC"), timeout=60, cwd=self.side)
+        # The launcher's sh may say `shell-init: error retrieving current directory` first.
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertNotIn("Traceback", p.stderr)
+        obj = json.loads(p.stdout)
+        self.assertEqual((obj["schema"], obj["ok"], obj["error"]["code"]), ("agentik.status/1", False, "bad_path"))
+        self.assertEqual(obj["error"]["remedy"], "agentik-suite status")
+
+
 if __name__ == "__main__":
     unittest.main()
