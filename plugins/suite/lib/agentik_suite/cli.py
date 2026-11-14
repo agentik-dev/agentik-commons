@@ -7,7 +7,7 @@ this version only checks the declared watchers (`status --check`), install-cli, 
 command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
 in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
 install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
---user-files; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
+--user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
 --prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
 precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
@@ -23,7 +23,7 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, install, plan, status, term, tools
+from . import apply, config, doctor, install, plan, prog, status, term, tools
 
 VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor")
 WRITES = ("setup", "install-cli")
@@ -32,24 +32,29 @@ FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", No
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
+DOCTOR_FLAGS = (("--all", None, "all"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
+VERB_FLAGS["doctor"] = DOCTOR_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
                "--prefix": ("prefix", "install-cli")}
-ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
+SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
+         ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
+         ("install", ("install-cli",)))
 
 
 class Usage(Exception):
     """A refusal: its JSON code, message id, remedy and exit (2, or 3 for a plugin not installed)."""
 
-    def __init__(self, code, mid, remedy, status=2, **values):
+    def __init__(self, code, mid, remedy, exit_code=2, **values):  # `status` is a command's slot
         Exception.__init__(self, code)
-        self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, status, values
+        self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, exit_code, values
 
 
 def _lib():
@@ -100,10 +105,30 @@ class Command:
         self.env = env
         self.lib = _lib()
         self.tool = _tool(self.lib)
+        self.typed = env.pop(prog.ARGV0, None)  # the word typed, kept from what this spawns (R3)
+        try:
+            self.cwd = os.getcwd()
+        except OSError:
+            self.cwd = "/"
         self.version = agentik_install.version(self.lib)
         self.t = term.Term(no_color=self.opts["no_color"], quiet=self.opts["quiet"] or self.opts["json"],
                            env=env, out=out, err=err)
         self.verb = None
+
+    # ---- the name and the command a line prints (row sc2, hq design/23 §3) -----------------
+
+    def say(self, *words):
+        """The one way a line names a command: the words that start it, then `words`; in --json
+        with the full path where the screen shows `~`."""
+        return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
+                          full=self.opts["json"])
+
+    def slots(self):
+        """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
+        name a title gives."""
+        found = {slot: self.say(*verb) for slot, verb in SLOTS}
+        found["tool"] = prog.name(self.env, self.tool)
+        return found
 
     # ---- the frame ------------------------------------------------------------------------
 
@@ -129,7 +154,7 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS:
             if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
                 self._bad_flag(long)
         for flag, (key, verb) in VALUE_FLAGS.items():
@@ -146,22 +171,22 @@ class Command:
         own = self.tool[len("agentik-"):]
         if word in names and word != own and not any(
                 f["name"] == "agentik-" + word for f in self._on_path()):
-            raise Usage("not_installed", "err.verb.plugin", "%s setup --dry-run %s" % (self.tool, word),
-                        status=3, word=word, tool=self.tool)
+            raise Usage("not_installed", "err.verb.plugin", self.say("setup", "--dry-run", word),
+                        exit_code=3, word=word, **self.slots())
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=0.6)
         if near:
             # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
             verb = near[0] in VERBS and not asked_help
-            remedy = "%s %s" % (self.tool, near[0]) if verb else "%s --help" % self.tool
+            remedy = self.say(near[0]) if verb else self.say("--help")
             raise Usage("unknown_verb", "err.verb.near", remedy,
-                        word=word, near=near[0], tool=self.tool)
-        raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool, word=word, tool=self.tool)
+                        word=word, near=near[0], **self.slots())
+        raise Usage("unknown_verb", "err.verb", self.say("--help"), word=word, **self.slots())
 
     def _bad_flag(self, flag):
         known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
         near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
-        where = "%s %s" % (self.tool, self.verb) if self.verb and self.verb != "help" else self.tool
+        where = self.say(self.verb) if self.verb and self.verb != "help" else self.say()
         if near and near[0] != flag:
             raise Usage("unknown_flag", "err.flag.near", "%s --help" % where,
                         flag=flag, near=near[0], where=where)
@@ -178,7 +203,7 @@ class Command:
 
     def _no_nouns(self, nouns):
         if nouns:
-            where = "%s %s" % (self.tool, self.verb)
+            where = self.say(self.verb)
             raise Usage("extra_word", "err.extra", "%s --help" % where,
                         word=nouns[0], where=where)
 
@@ -217,13 +242,13 @@ class Command:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version,
                          "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")),
-                                    "usage": self.t.text("usage." + v.replace("-", "_"), tool=self.tool)}
+                                    "usage": self.t.text("usage." + v.replace("-", "_"), **self.slots())}
                                    for v in VERBS],
                          "flags": [f[0] for f in FLAGS], "on_path": found})
             return 0
         t = self.t
-        t.line("help.title", tool=self.tool, version=self.version)
-        t.line("help.usage", tool=self.tool)
+        t.line("help.title", **self.slots(), version=self.version)
+        t.line("help.usage", **self.slots())
         t.blank()
         t.line("help.verbs", style="name")
         t.table([(None, [term.name(v), t.text("verb." + v.replace("-", "_"))], None) for v in VERBS])
@@ -236,7 +261,10 @@ class Command:
             t.table([("ok", [term.name(f["name"]), term.path(f["path"])], None) for f in found])
         else:
             t.table([("note", [t.text("help.path.none")], None)])
-        t.hint("hint.help", tool=self.tool)
+        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3)
+            steps = plan.build(plan.default_set(self.lib), self.env, self.lib, self.tool, self.version)
+            t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
+                   else "hint.help.done", **self.slots())
         return 0
 
     def help_verb(self, verb):
@@ -245,16 +273,16 @@ class Command:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
                          "summary": self.t.text("verb." + verb.replace("-", "_")),
-                         "usage": self.t.text("usage." + verb.replace("-", "_"), tool=self.tool),
+                         "usage": self.t.text("usage." + verb.replace("-", "_"), **self.slots()),
                          "flags": [f[0] for f in flags]})
             return 0
         t = self.t
-        t.line("usage." + verb.replace("-", "_"), tool=self.tool)
+        t.line("usage." + verb.replace("-", "_"), **self.slots())
         t.line("verb." + verb.replace("-", "_"))
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(flags))
-        t.hint("hint.verb", tool=self.tool)
+        t.hint("hint.verb", **self.slots())
         return 0
 
     # ---- version --------------------------------------------------------------------------
@@ -264,12 +292,12 @@ class Command:
         if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
             path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
             raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
-                        tool=self.tool, path=path)
+                        **self.slots(), path=path)
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
                          "version": self.version})
         else:
-            self.t.line("version.line", tool=self.tool, version=self.version)
+            self.t.line("version.line", **self.slots(), version=self.version)
         return 0
 
     def do_install_cli(self, nouns):
@@ -280,8 +308,8 @@ class Command:
     def do_setup(self, nouns):
         for noun in nouns:
             if not NOUN.match(noun):
-                raise Usage("bad_name", "err.setup.name", "%s setup --dry-run" % self.tool,
-                            name=noun, tool=self.tool)
+                raise Usage("bad_name", "err.setup.name", self.say("setup", "--dry-run"),
+                            name=noun, **self.slots())
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)
@@ -301,27 +329,29 @@ class Command:
         rows, last = [], None
         for s in steps:
             after = t.text("setup." + s["line"], command=s["command"]) if s["command"] else None
+            if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
+                after = t.text("setup.cmd.get")  # where Claude Code comes from (row sm2 R2)
             n = str(s["n"]) if s["n"] != last else ""
             last = s["n"]
             subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
             rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
         t.table(rows, mark_at=1)
-        t.hint(*self._closing(steps), tool=self.tool)
+        t.hint(*self._closing(steps, nouns), **self.slots())
         return 0
 
-    @staticmethod
-    def _closing(steps):
-        """The closing hint by state: what to install when step 1 is blocked; done when steps 1
-        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names one; the add line
-        when it is all that is left; else what this version can do is done."""
-        blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
-        if blocked:
-            return "hint.setup.blocked", {"missing": ", ".join(blocked)}
+    def _closing(self, steps, nouns):
+        """The closing hint by state: the setup command, with the names given, when step 1 is
+        blocked or one of steps 1 to 6 names a line setup would run (row sm2 R1, R2); done when
+        steps 1 to 6 read ok; the add line when it is all that is left; else what this version
+        can do is done."""
+        again = "hint.setup.next", {"command": self.say("setup", *dict.fromkeys(nouns))}
+        if any(s["state"] == "blocked" for s in steps):
+            return again
         early = [s for s in steps if s["n"] <= 6]
         if all(s["state"] == "ok" for s in early):
             return "hint.setup.done", {}
         if any(s["command"] and s["line"] == "run" for s in early):
-            return "hint.setup.todo", {}
+            return again
         if any(s["command"] for s in early):
             return "hint.setup.path", {}
         return "hint.setup.rest", {}
