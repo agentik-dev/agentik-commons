@@ -302,6 +302,40 @@ class Review1Test(Sc4Home):
     def test_f6_a_plugin_with_no_command_is_a_tool_by_its_name(self):
         self.refusal(("plumm",), "plumm is not a tool", "agentik help plum", code_word="unknown_verb")
 
+    def test_f7_a_hint_that_does_not_start_next(self):
+        class Tty(io.StringIO):
+            encoding = "utf-8"
+
+            def isatty(self):
+                return True
+
+        values = {"name": "murmur", "path": "~/x.json", "status": "agentik status"}
+        for err, start in ((Tty(), "·  murmur is not checked"), (io.StringIO(), "next: murmur is not checked")):
+            t = base.term.Term(no_color=True, env={}, out=io.StringIO(), err=err)
+            t.hint("hint.status.unchecked", **values)
+            self.assertTrue(err.getvalue().startswith(start), err.getvalue())
+        for err in (Tty(), io.StringIO()):
+            t = base.term.Term(no_color=True, env={}, out=io.StringIO(), err=err)
+            t.hint("hint.help", setup="agentik setup")
+            self.assertTrue(err.getvalue().startswith("next: agentik setup"), err.getvalue())
+
+    def test_f7_each_hint_in_a_pipe_starts_next(self):
+        for argv in (("help",), ("help", "config"), ("config",), ("config", "murmur"),
+                     ("config", "murmur.width"), ("setup", "--dry-run")):
+            code, out, err = self.run_cli(*argv)
+            self.assertEqual(code, 0, (argv, err))
+            self.assertRegex(err, r"\Anext: [^\n]*\n\Z", argv)
+            self.assertNotIn("next: next:", err, argv)
+
+    def test_f8_line_and_direction_controls_never_reach_the_screen(self):
+        marks = "  ‪‫‬‭‮⁦⁧⁨⁩"
+        for argv in (("‮confg",), ("confg", "x y"), ("confg", "a⁦b c"),
+                     ("config", "murmr‭"), ("--zz⁧",)):
+            code, out, err = self.run_cli(*argv)
+            self.assertEqual((code, out), (2, ""), argv)
+            self.assertIn("\nnext: ", err, argv)
+            self.assertFalse([c for c in err if c in marks], (argv, err))
+
 
 class CatalogueTest(unittest.TestCase):
     def test_l8_each_cause_is_short_and_holds_no_command(self):

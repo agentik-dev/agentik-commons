@@ -272,7 +272,7 @@ class WriterTest(unittest.TestCase):
         self.assertIn("  ok    a  b  " + "x" * 300 + "\n", text)
         self.assertIn("  note  c  d  e\n", text)
         self.assertIn("\n" + " " * 14 + "run: z\n", text)
-        self.assertEqual(err.getvalue(), "t 1\n")  # a hint has no mark (row sc4 R1)
+        self.assertEqual(err.getvalue(), "next: t 1\n")  # a hint that is no next: (sc4 review 1 F7)
 
     def test_on_a_terminal_glyphs_colour_and_the_switches(self):
         for env, flag, colour in (({}, False, True), ({"NO_COLOR": "1"}, False, False),
