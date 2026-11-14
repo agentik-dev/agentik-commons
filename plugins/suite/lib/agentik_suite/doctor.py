@@ -309,7 +309,7 @@ def read_own(out, failed):
     """The checks of an answer of R5's doctor read that counts (row ak9b R5), else None: one
     object whose schema is `agentik.doctor/N`, N at most 1, `ok` true and checks of the contract's
     shape; `ok` false is sc10's one fail check. Each detail and message is one line of at most
-    300 characters (R6)."""
+    300 characters (R6), and a remedy that is not `tools.plain` is none (review 1 lead 2)."""
     try:
         obj = json.loads(out.decode("utf-8", "replace"))
     except (ValueError, RecursionError):
@@ -322,8 +322,7 @@ def read_own(out, failed):
         error = obj.get("error") if isinstance(obj.get("error"), dict) else {}
         message, remedy = error.get("message"), error.get("remedy")
         message = tools.one_line(message) if isinstance(message, str) else ""
-        return [_check("doctor", "fail", message or failed,
-                       remedy if isinstance(remedy, str) and remedy else None)]
+        return [_check("doctor", "fail", message or failed, tools.plain(remedy) or None)]
     checks = obj.get("checks")
     if obj.get("ok") is not True or not isinstance(checks, list):
         return None
@@ -333,7 +332,8 @@ def read_own(out, failed):
                 and isinstance(c.get("detail"), str)
                 and (c.get("remedy") is None or isinstance(c.get("remedy"), str))):
             return None
-        found.append(dict({k: c.get(k) for k in KEYS}, detail=tools.one_line(c["detail"])))
+        found.append(dict({k: c.get(k) for k in KEYS}, detail=tools.one_line(c["detail"]),
+                          remedy=tools.plain(c.get("remedy"))))
     return found
 
 

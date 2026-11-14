@@ -377,10 +377,18 @@ def one_line(text, cap=LINE_CAP):
     return term.clean(text).strip()[:cap]
 
 
+def plain(text):
+    """The text where it is a string that holds no control character, a newline, a tab or a
+    direction control among them, else None: a remedy that would join a second line of the
+    tool's to a line a person pastes is no remedy (row ak9b review 1 lead 2)."""
+    from . import term
+    return text if isinstance(text, str) and term.clean(text) == text else None
+
+
 def config_error(out):
     """{code, message, remedy} of a config read's counted error (R4), whatever the exit, else None:
     one object of the config schema, `ok` false, an `error` whose code and message are strings and
-    whose remedy is a string or null."""
+    whose remedy is a string or null; a remedy that is not `plain` reads as null (lead 2)."""
     try:
         obj = json.loads(out.decode("utf-8", "replace"))
     except (ValueError, RecursionError):
@@ -395,7 +403,7 @@ def config_error(out):
     if not (isinstance(code, str) and isinstance(message, str) and (remedy is None or isinstance(remedy, str))):
         return None
     return {"code": one_line(code), "message": one_line(message),
-            "remedy": one_line(remedy) if remedy is not None else None}
+            "remedy": one_line(remedy) if plain(remedy) is not None else None}
 
 
 def _described(code, out):

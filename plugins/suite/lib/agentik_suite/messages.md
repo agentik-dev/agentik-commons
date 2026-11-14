@@ -181,6 +181,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.read.error`: its settings read failed
 - `config.reason.other`: its command answers under another tool's name
 - `config.reason.unread`: its command gave no answer that reads
+- `config.remedy`: `{remedy}`
 - `config.changed.title`: Settings that differ from their defaults: `{count}`.
 - `config.changed.none`: Every setting that was read holds its default.
 - `config.changed.silent`: These tools gave no settings, so their changes are not here: `{names}`.
@@ -196,6 +197,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.config.back`: next: `{config}` lists every tool and its state.
 - `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 - `hint.config.remedy`: next: `{remedy}`
+- `hint.config.again`: next: `{command}` reads its settings again, once the line above has run.
 
 ## The suite's settings
 

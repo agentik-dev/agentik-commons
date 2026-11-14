@@ -63,6 +63,13 @@ def reason(t, row):
     return t.text(REASON[row["reason"]]) if row.get("reason") else None
 
 
+def asks(remedy):
+    """A remedy that answers a question for the person (`--yes`, `-y`) or removes: it stands on
+    its own line, never behind `next:` (row sc5 R8, ruled for config by ak9b review 1 lead 1)."""
+    from . import cli
+    return any(w.partition("=")[0] in cli.SKIPS or w == "remove" for w in remedy.split())
+
+
 def silent(rows):
     """The tools whose settings were not read: each but those that answer and name no read."""
     return [row["name"] for row in rows if row["config"] is None and why(row) != "noread"]
@@ -383,7 +390,11 @@ def _silent(cmd, r, row, table):
     if row["reason"]:
         t.line(REASON[row["reason"]], style="hint")
     remedy = (row["error"] or {}).get("remedy")
-    close = ("hint.config.remedy", {"remedy": remedy}) if remedy else ("hint.config.back", cmd.slots())
+    held = bool(remedy) and asks(remedy)
+    if held:  # the close names the read again (lead 1)
+        close = ("hint.config.again", {"command": cmd.say("config", name)})
+    else:
+        close = ("hint.config.remedy", {"remedy": remedy}) if remedy else ("hint.config.back", cmd.slots())
     if table:
         desc = tools.descriptions(cmd.env).get(name)
         t.line("config.table.title", name=name)
@@ -398,6 +409,8 @@ def _silent(cmd, r, row, table):
         for need in table.get("needs") or ():
             rows.append(("note", [t.text("config.label.needs"), str(need)], None))
         t.table(rows)
+    if held:
+        t.line("config.remedy", remedy=remedy)
     t.hint(close[0], **close[1])
     return 0
 
