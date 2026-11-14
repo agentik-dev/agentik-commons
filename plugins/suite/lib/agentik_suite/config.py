@@ -461,7 +461,9 @@ def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None):
     else:
         t.table([row(s, s["key"]) for s in rows])
     for w in cfg.get("warnings") or ():
-        if w.get("reason") in WARNED:  # a file skipped, a key not taken from it (row ak9c R7)
+        # a file skipped, a key not taken from it (row ak9c R7); a reason that is no string reads
+        # as an unknown key, as at the pin (review 1 F2)
+        if isinstance(w.get("reason"), str) and w["reason"] in WARNED:
             where = _where(w, r.home)
             t.table([("warn", [t.text(WARNED[w["reason"]], name=name, key=w.get("key"))]
                       + ([term.path(where)] if where else []), None)])
