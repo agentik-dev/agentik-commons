@@ -92,8 +92,7 @@ SCP = re.compile(r"(?<![\w.@+-])[\w.+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*:(?!//
                  r"(?![0-9]+(?:[^\w/]|\Z))[^\s<>\"'`%s]*[\w/~-]" % STOP)
 TRAIL = ".,;:!?)]}'\""
 EMAIL_CORE = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
-NAMED = re.compile(r"(?:(?<![\w.'-])\"?((?:[^\W\d_][\w.'-]*[ \t]+){0,3}[^\W\d_][\w.'-]*)\"?[ \t]*)?"
-                   r"<[ \t]*(" + EMAIL_CORE + r")[ \t]*>")
+BRACKETED = re.compile(r"<[ \t]*(" + EMAIL_CORE + r")[ \t]*>")
 EMAIL = re.compile(r"(?<![\w.%+-])" + EMAIL_CORE + r"(?![\w-])")
 
 RUN = re.compile(r"(?:[^\s\"'`<>()\[\]{},;:|=*?\\%s]|\\ )+" % STOP)
@@ -480,11 +479,22 @@ class _Pass:
         return SCP.sub(lambda mt: self.put("url", mt.group()), s)
 
     def _emails(self, s):
-        def named(mt):
-            mail = self.put("email", mt.group(2))
-            return self.put("name", mt.group(1)) + " " + mail if mt.group(1) else mail
-        s = NAMED.sub(named, s)
-        return EMAIL.sub(lambda mt: self.put("email", mt.group()), s)
+        """4(c): a bracketed email and every word before it, back to the line's last colon or its
+        start (or a bracket, or a placeholder), as one name; then each other email."""
+        out, pos = [], 0
+        for mt in BRACKETED.finditer(s):
+            a = k = mt.start()
+            while k > pos and s[k - 1] not in ":<>\n" and ord(s[k - 1]) < BASE:
+                k -= 1
+            lead = k + len(s[k:a]) - len(s[k:a].lstrip(" \t,"))
+            name = s[lead:a].rstrip(" \t")
+            out.append(s[pos:lead])
+            if name:
+                out.append(self.put("name", name) + " ")
+            out.append(self.put("email", mt.group(1)))
+            pos = mt.end()
+        out.append(s[pos:])
+        return EMAIL.sub(lambda mt: self.put("email", mt.group()), "".join(out))
 
     def _paths(self, s):
         s, held = self.hold(s)

@@ -525,5 +525,38 @@ class R1F3Test(Review1Case):
                 self.assertEqual(self.closes(m, raw), want)
 
 
+class R1F4Test(Review1Case):
+    """R1-F4: every word before a bracketed email, back to the line's last colon or its start,
+    is taken; a word may hold `@`, a comma or a quote."""
+
+    def test_r1f4_every_word_before(self):
+        m = machine()
+        me = "zqvme" + AT + "zqvcorp.example"
+        other = "zqvother" + AT + "zqvcorp.example"
+        cases = [
+            ("Author: %s <%s>" % (me, me), "Author: <name-1> <email-1>"),
+            ("commit 3f9a2b7c Author: zqvme %szqvcorp <%s>" % (AT, me), "commit 3f9a2b7c Author: <name-1> <email-1>"),
+            ("From: %s <%s>" % (me, other), "From: <name-1> <email-1>"),
+            ('"Zqvlast, Zqvfirst" <%s>' % me, "<name-1> <email-1>"),
+            ("Zqva Zqvb Zqvc Zqvd Zqve <%s>" % me, "<name-1> <email-1>"),
+            ("To: Zqva <%s>, Zqvb Zqvc <%s>" % (me, other), "To: <name-1> <email-1>, <name-2> <email-2>"),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw[:10]):
+                self.assertEqual(self.closes(m, raw), want)
+
+    def test_r1f4_plain_lines_stay(self):
+        m = machine()
+        me = "zqvme" + AT + "zqvcorp.example"
+        for line in ("error: cannot open the file: permission denied",
+                     "warning: 3 checks skipped (see the log)",
+                     "a < b and c > d: compare"):
+            with self.subTest(line=line):
+                self.assertEqual(scrub.scrub(line, m)[0], line)
+                self.assertEqual(scrub.detect(line, m), [])
+        out = self.closes(m, "error: no route\nAuthor: Zqvfirst <%s>\nDate: Mon 3 Nov" % me)
+        self.assertEqual(out, "error: no route\nAuthor: <name-1> <email-1>\nDate: Mon 3 Nov")
+
+
 if __name__ == "__main__":
     unittest.main()
