@@ -26,7 +26,8 @@ sys.path.insert(0, str(LIB))
 from agentik_suite import form, gather, scrub  # noqa: E402
 
 PUBLIC = json.loads((LIB / "public.json").read_text())
-TOOL = sorted(t for t in PUBLIC["tools"] if t != "suite")[0]
+NAMES = sorted(t for t in PUBLIC["tools"] if t != "suite")  # the fixture's {tool-N}, filled here
+TOOL = NAMES[0]
 REPO = PUBLIC["tools"][TOOL]
 FIXTURE = ROOT / "tests" / "fixtures" / "rp6-example.md"
 SKILL = PLUGIN / "skills" / "issue" / "SKILL.md"
@@ -72,6 +73,8 @@ class IssueHome(Home):
         self.stub("gh", GH % self.ghdir)
         self.stub("ps", PS)
         self.stub("agentik-" + TOOL, DOCTOR)
+        self.plugin_files(os.path.join(self.home, ".claude"), {TOOL: "2.0.0-alpha.101", "suite": "0.6.0"},
+                          whole=False)
         self.gh_answer("auth_status", json.dumps({"hosts": {"github.com": [
             {"active": True, "host": "github.com", "login": LOGIN, "state": "success"}]}}))
         self.gh_answer("issue_list", "[]")
@@ -105,7 +108,8 @@ class IssueHome(Home):
                           "--output", "err.txt", "--expected", EXPECTED, *more, **env)
 
     def draft_dir(self):
-        names = sorted(os.listdir(self.drafts))
+        names = sorted(os.listdir(self.drafts),
+                       key=lambda n: (n[:16], os.lstat(os.path.join(self.drafts, n)).st_ctime_ns))
         return os.path.join(self.drafts, names[-1])
 
     def draft(self):
@@ -175,7 +179,7 @@ class ReadTest(IssueHome):
         self.assertEqual(code, 0, err)
         self.assertIn("usage:", out)
         self.assertEqual(self.issue("new", "nosuchtool")[0], 2)
-        code, out, err = self.issue("frobnicate")
+        code, out, err = self.issue("strke")
         self.assertEqual(code, 2)
         self.assertIn("strike", err)  # the nearest word is named
         code, out, err = self.new("--json")
@@ -188,8 +192,10 @@ class ReadTest(IssueHome):
 
 class NewTest(IssueHome):
     def expected_bytes(self):
-        text = FIXTURE.read_text()
-        return text.replace("{tool}", TOOL).replace("{system}", system_line()).encode()
+        text = FIXTURE.read_text().replace("{system}", system_line())
+        for n, name in enumerate(NAMES):
+            text = text.replace("{tool-%d}" % n, name)
+        return text.encode()
 
     def test_2_the_designs_example(self):
         code, out, err = self.new()

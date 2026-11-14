@@ -792,19 +792,31 @@ class _Pass:
         return sorted(spans)
 
 
-def scrub(text, m):
+def numbering(texts=()):
+    """The numbering one draft's values share (`scrub`'s `state`), past the highest placeholder
+    of each kind in `texts`, so one thing has one placeholder in the whole draft (item 4)."""
+    st = _State()
+    for text in texts:
+        for mt in PH.finditer(text):
+            if mt.group(1):
+                st.top[mt.group(1)] = max(st.top[mt.group(1)], int(mt.group(2)))
+    return st
+
+
+def scrub(text, m, state=None):
     """(text, counts, spans): `clean`, then a pass applied to its own output until a pass changes
     nothing. `counts` is {kind: n} of what was replaced, and `unsure`; `spans` is over the text.
     A text that does not settle, or that no pass can read, is the secret mark whole: this never
-    raises on its input."""
+    raises on its input. `state`, from `numbering`, is shared by one draft's values."""
     try:
-        return _settle(text, m)
+        return _settle(text, m, state)
     except Exception:
         return "<secret>", {"secret": 1}, [(0, len("<secret>"), "secret")]
 
 
-def _settle(text, m):
-    st = _State()
+def _settle(text, m, st=None):
+    st = _State() if st is None else st
+    before = dict(st.counts)
     t = clean(text)
     for _ in range(LIMIT):
         p = _Pass(m, st)
@@ -816,7 +828,7 @@ def _settle(text, m):
     else:
         raise ValueError("the scrub did not settle")
     spans = p.spans(s)
-    counts = dict(st.counts)
+    counts = {k: v - before.get(k, 0) for k, v in st.counts.items() if v - before.get(k, 0)}
     unsure = sum(1 for _, _, k in spans if k == "unsure")
     if unsure:
         counts["unsure"] = unsure

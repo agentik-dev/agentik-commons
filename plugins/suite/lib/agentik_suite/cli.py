@@ -8,13 +8,16 @@ command and the agentik door under a prefix's bin (install.py), and doctor, the 
 in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
 install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
 --user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
---prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
+--prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit, --output,
+--expected, --as and --draft, each with a value. Those nine are the only flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
 precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
 asks once on a terminal before its first command. config writes only its cache under
 ${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most; setup starts the plan's commands
 and writes what they write and its journal; install-cli writes under its prefix; doctor writes
-nothing itself, and starts each listed tool's own doctor.
+nothing itself, and starts each listed tool's own doctor; issue drafts a report of a problem
+under ${XDG_STATE_HOME:-~/.local/state}/agentik-suite/issues/ and files it only when a person types
+send on the terminal device (issue.py).
 """
 import difflib
 import os
@@ -23,30 +26,37 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, install, plan, prog, status, term, tools
+from . import apply, config, doctor, install, issue, plan, prog, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor")
-WRITES = ("setup", "install-cli")
+VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor", "issue")
+WRITES = ("setup", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
+ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
+               ("--not-a-duplicate", None, "not_a_duplicate"))
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
 VERB_FLAGS["doctor"] = DOCTOR_FLAGS
+VERB_FLAGS["issue"] = WRITE_FLAGS + ISSUE_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
-               "--prefix": ("prefix", "install-cli")}
+               "--prefix": ("prefix", "install-cli"),
+               "--ran": ("ran", "issue"), "--exit": ("exit", "issue"), "--output": ("output", "issue"),
+               "--expected": ("expected", "issue"), "--as": ("as_login", "issue"),
+               "--draft": ("draft", "issue")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
+             + ISSUE_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
-         ("install", ("install-cli",)))
+         ("install", ("install-cli",)), ("issue", ("issue",)))
 
 
 class Usage(Exception):
@@ -154,7 +164,7 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS:
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + ISSUE_FLAGS:
             if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
                 self._bad_flag(long)
         for flag, (key, verb) in VALUE_FLAGS.items():
@@ -374,6 +384,11 @@ class Command:
 
     def do_doctor(self, nouns):
         return doctor.do_doctor(self, nouns)
+
+    # ---- issue ----------------------------------------------------------------------------
+
+    def do_issue(self, nouns):
+        return issue.do_issue(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):

@@ -21,6 +21,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
+- `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private, and send it only when you type send.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -29,6 +30,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.status`: usage: `{status}` --check [flags]
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
+- `usage.issue`: usage: `{issue}` [new [TOOL] | show | strike WORD... | drop SECTION... | edit | reword FILE | send | discard] [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -39,6 +41,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
+- `flag.web`: Send the issue by the browser's new-issue page, not through gh.
+- `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
 ## Version
@@ -295,20 +299,82 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
 - `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
 - `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
-- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run it from your own terminal.
-- `err.issue.send.inside`: send files nothing from inside Claude Code. Run it from your own terminal.
-- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run it from your own terminal.
-- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run it from your own terminal.
-- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then name that login.
-- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then send again.
-- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
-- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
-- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run send again to see it.
-- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and send again, or file the issue by the browser.
-- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then send again.
-- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
-- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
-- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run send again and type the word once.
-- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run send again and answer once the question shows.
-- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then send again.
+- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run `{send}` from your own terminal.
+- `err.issue.send.inside`: send files nothing from inside Claude Code. Run `{send}` from your own terminal.
+- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run `{send}` from your own terminal.
+- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run `{send}` from your own terminal.
+- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then `{send}` --as LOGIN.
+- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then run `{send}` again.
+- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then run `{send}` again.
+- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run `{send}` again to see it.
+- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run `{send}` again to see it.
+- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and run `{send}` again, or file the issue by the browser.
+- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then run `{send}` again.
+- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run `{send}` again.
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you run `{send}` again.
+- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run `{send}` again and type the word once.
+- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run `{send}` again and answer once the question shows.
+- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then run `{send}` again.
 - `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.
+- `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send there.
+- `err.issue.send.open`: An open issue already holds this failure: `{url}`. Add to it there, or run `{send}` --not-a-duplicate to file another.
+- `err.issue.sent`: This draft was already filed: `{url}`
+- `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
+- `issue.send.browser`: the account signed in to the browser
+- `issue.send.dry`: A dry run: the issue was shown and nothing was filed.
+- `issue.send.url`: `{url}`
+- `issue.send.web.path`: The draft: `{path}`
+- `issue.send.web.search`: Search for an earlier issue: `{url}`
+- `issue.send.web.new`: File it on GitHub's own page: `{url}`
+- `issue.list.none`: No draft of an issue waits.
+- `issue.list.unsent`: `{id}` unsent, for `{tool}`: `{title}`
+- `issue.list.sent`: `{id}` sent: `{url}`
+- `issue.check.waits`: `{id}` is a draft for `{tool}` that waits to be sent.
+- `hint.issue.read`: next: `{show}` prints the newest draft, and `{send}` files it from your own terminal.
+- `hint.issue.which`: `{count}` drafts wait, so this acts on the newest, `{id}`. Pass --draft ID for another.
+- `issue.ask.tool`: Which tool failed? One of `{tools}`, or Enter for the suite:
+- `issue.ask.ran`: The command that failed, or Enter for none:
+- `issue.ask.expected`: What you expected it to do, or Enter to leave it out:
+- `issue.new.done`: Drafted for `{tool}`. Nothing has left this machine.
+- `issue.new.mark`: line `{line}` holds `{marks}`
+- `issue.new.replaced`: replaced `{n}` `{kind}` on line `{lines}`
+- `issue.new.unsure`: unsure `{n}`
+- `issue.new.weak`: This machine's `{kinds}` is also a common word, so the scan leaves it as a word; strike it where it names you.
+- `issue.new.went`: To stay under the ceiling the draft left out: `{went}`.
+- `issue.new.size`: size `{size}` of `{ceiling}` bytes
+- `issue.new.over`: The draft is `{size}` bytes, `{over}` over the ceiling, and send refuses it until `{drop}` SECTION or `{strike}` WORD takes it under.
+- `issue.new.repo`: to `{repo}`
+- `issue.new.warning`: The scan knows shapes and the names on this machine's lists. It cannot know that a project's name, a customer's name or a branch's name is private. Read every line. What you file is public at once and may be copied before it can be removed.
+- `hint.issue.new`: next: `{strike}` WORD, `{drop}` SECTION or `{edit}` changes the draft, and `{send}` files it from your own terminal.
+- `hint.issue.mend`: next: `{strike}` WORD or `{edit}` mends the line, then run `{send}` again.
+- `issue.count.word`: 1 word
+- `issue.count.words`: `{n}` words
+- `issue.count.place`: 1 place
+- `issue.count.places`: `{n}` places
+- `issue.strike.done`: Struck `{words}` in `{places}`: `{marks}`.
+- `issue.strike.none`: Struck `{words}` in `{places}`; the draft is unchanged.
+- `issue.drop.done`: Dropped `{sections}` from the draft.
+- `issue.edit.done`: The edit reads back as the form, and the scan ran over it.
+- `issue.reword.kept`: The render brings in what the draft did not hold (`{kinds}`), so the template stands.
+- `issue.reword.done`: The two lines now read as the render gave them, and the scan ran over them.
+- `issue.reword.added`: Words the render added, each unsure: `{words}`
+- `issue.discard.done`: Discarded the draft `{id}`.
+- `err.issue.word.near`: `{word}` is not a word of issue; the nearest is `{near}`. Run `{issue}` --help for the words.
+- `err.issue.word`: `{word}` is not a word of issue. Run `{issue}` --help for the words.
+- `err.issue.check`: --check reads the drafts and takes no word. Run `{check}` alone.
+- `err.issue.draft`: No draft is named `{id}`. Run `{issue}` for the list.
+- `err.issue.none`: No draft waits. Run `{new}` to draft one.
+- `err.issue.public`: The table of public tools at `{path}` cannot be read, so no draft was written. Reinstall the plugin to mend it.
+- `err.issue.private`: The private list exists and cannot be read, so nothing was written or sent. Mend its file, then run `{issue}` again.
+- `err.issue.tool`: `{tool}` is no tool an issue can name. Name one of `{tools}`.
+- `err.issue.exit`: --exit takes the command's exit code, 0 to 255, not `{value}`.
+- `err.issue.form`: The draft does not read back as the form at line `{line}`. Run `{discard}`, then `{new}` again.
+- `err.issue.unreadable`: `{path}` cannot be read as a regular file.
+- `err.issue.unsafe`: `{path}` is a link, or open to others, so nothing was read or sent.
+- `err.issue.strike`: strike takes the words to strike. Run `{strike}` WORD.
+- `err.issue.drop`: `{section}` is no part of the draft. Name one of `{sections}`.
+- `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`.
+- `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal.
+- `err.issue.edit.none`: Neither VISUAL nor EDITOR names an editor that starts.
+- `err.issue.edit.form`: The saved draft does not read back as the form at line `{line}`, so the draft stands as it was.
+- `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected.

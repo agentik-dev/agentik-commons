@@ -434,10 +434,10 @@ class AccountTest(Base):
         t = term.Term(env={}, out=io.StringIO(), err=io.StringIO())
         road = send.account(self.env(), None)
         self.assertEqual(road["road"], "refuse")
-        self.assertIn("gh auth switch --user", t.text(road["why"], **road["values"]))
+        self.assertIn("gh auth switch --user", t.text(road["why"], send="agentik issue send", **road["values"]))
         road = send.account(self.env(), "other-example")
         self.assertEqual(road["road"], "refuse")
-        self.assertIn("gh auth switch --user other-example", t.text(road["why"], **road["values"]))
+        self.assertIn("gh auth switch --user other-example", t.text(road["why"], send="agentik issue send", **road["values"]))
         self.assertEqual(send.account(self.env(), LOGIN), {"road": "gh", "login": LOGIN})
         self.fixture("auth_status.out", json.dumps({"hosts": {"github.com": [
             {"active": True, "login": LOGIN, "state": "success"}]}}))
@@ -685,7 +685,7 @@ class ApprovalTest(Base):
         self.assertEqual(self.calls("issue create"), [])
         self.assertEqual(MESSAGES["err.issue.send.unapproved"],
                          "This issue has no approval left, since an approval is used once, so "
-                         "nothing was sent. Run send again to see it.")
+                         "nothing was sent. Run {send} again to see it.")
 
     def test_r1_f4_a_rewrite_that_keeps_the_hash_files_nothing(self):
         other = draft(happened="something no one saw")
@@ -892,7 +892,7 @@ class DoorTest(unittest.TestCase):
         ids = {m.group(1) for m in map(catalogue.ITEM.match, section.splitlines()) if m}
         self.assertEqual(used - ids, set())
         self.assertFalse(re.search(r"`(?:err\.)?issue\.", head))
-        self.assertTrue(all(i.startswith(("issue.screen.", "issue.send.", "err.issue.send."))
+        self.assertTrue(all(i.startswith(("issue.", "err.issue.", "hint.issue."))  # rp6 joins the verb's
                             for i in ids), ids)
 
 
