@@ -318,11 +318,12 @@ def _summary(t, group, waiting):
 def screen(cmd, groups, failed, warned, total):
     t = cmd.t
     hint = close_command(cmd, groups)
+    closed = None if t.quiet else hint  # -q prints no close, so each row keeps its fix: line
     wide = max(len(g["name"]) for g in groups)
     marks = {g["name"]: _mark(g) for g in groups}
     mark_w = max(len(t.out.mark(m)[0]) for m in marks.values())
     for g in groups:
-        rows, waiting = _rows(cmd, g, hint, cmd.opts["all"])
+        rows, waiting = _rows(cmd, g, closed, cmd.opts["all"])
         mark = marks[g["name"]]
         pad = " " * (mark_w - len(t.out.mark(mark)[0]))
         t.table([(mark, [(pad + g["name"].ljust(wide), "name"), _summary(t, g, waiting)], None)],
