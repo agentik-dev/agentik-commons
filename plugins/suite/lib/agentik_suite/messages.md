@@ -72,24 +72,22 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.version`: `{tool}` has no version: `{path}` cannot be read
 - `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
 
-- `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{config}` for the list.
-- `err.config.tool`: `{name}` is not a tool here. Run `{config}` for the list.
-- `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{config}` `{name}` for its keys.
-- `err.config.key`: `{name}` has no setting `{key}`. Run `{config}` `{name}` for its keys.
-- `err.config.noname`: A tool's name goes before the dot. Run `{config}` for the list.
-- `err.config.nokey`: A key goes after the dot. Run `{config}` `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no settings (`{state}`). Run `{config}` `{name}` for what it gives.
-- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{config}` `{name}` for what it gives.
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its settings. Run `{config}` `{name}` for what it gives.
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{config}` `{name}` for what it gives.
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{config}` `{name}` for what it gives.
-- `err.config.file`: `{fault}`. Mend the file by hand, then run `{config}` `{name}` again.
+- `err.config.tool`: `{name}` is not a tool here
+- `err.config.key`: `{name}` has no key `{key}`
+- `err.config.noname`: a tool's name goes before the dot
+- `err.config.nokey`: a key goes after the dot
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no keys (`{state}`)
+- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.file`: `{fault}`
 - `err.status.check`: `{status}` only checks in this version. Run `{status}` --check.
 - `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
 - `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
 - `err.status.file`: `{fault}`. Mend the file by hand, then run `{status}` --check again.
-- `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{config}` --changed first.
-- `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{config}` suite to read the settings.
+- `err.config.both`: --changed and --user-files are two answers
+- `err.describe.json`: describe prints JSON for other tools, so it needs --json
 
 ## Config
 

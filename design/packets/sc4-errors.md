@@ -5,7 +5,7 @@
 | from | agentik-hq's brief sc4-errors of 2026-11-13, R1 to R8; hq design/23 §4, §7, §8 and §9 (row sc4-errors); level S2 |
 | pin | agentik-commons main 88d25d2 (`Merge fk1-sources`, suite 0.6.5; sc2-name landed); worktree `.claude/worktrees/sc4-errors`, branch `sc4-errors`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync into another repo; no bare `make`; no relay verb or binary; no `claude` process; made-up names in fixtures; the door (`bin/agentik`) is sc13's; no version in the first build |
-| may touch | `plugins/suite/lib/agentik_suite/{term,cli,config}.py`; `plugins/suite/lib/agentik_suite/messages.md` (`## Errors`); `design/voice/checked.sha256` (by `make voice` only); `tests/test_sc4_errors.py` and the older tests that assert a refusal's or a hint's words (`tests/test_{agentik_suite,suite_word}.py`); `NICE_TO_HAVE.md`; this packet; `history/sittings/2026-11-13-17.md` |
+| may touch | `plugins/suite/lib/agentik_suite/{term,cli,config}.py`; `plugins/suite/lib/agentik_suite/messages.md` (`## Errors`); `design/voice/checked.sha256` (by `make voice` only); `tests/test_sc4_errors.py` and the older tests that assert a refusal's or a hint's words (`tests/test_{agentik_suite,suite_word,ak2b_reach}.py`); `NICE_TO_HAVE.md`; this packet; `history/sittings/2026-11-13-17.md` |
 | verify | `make voice`, then `make check` once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 9 below; `python3 -m unittest tests.test_sc4_errors` OK; verify green |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls. `claude-opus-5-5` |

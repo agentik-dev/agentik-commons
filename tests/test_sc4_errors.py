@@ -119,10 +119,10 @@ class PathTest(Sc4Home):
         for spaced, dotted in ((("murmur", "width"), "murmur.width"),
                                (("murmur", "paint", "colour"), "murmur.paint.colour")):
             code, out, err = self.run_cli("config", *spaced)
-            self.assertEqual((code, err), (0, ""), spaced)
-            self.assertEqual((code, out), self.run_cli("config", dotted)[:2], spaced)
-            self.assertNotIn("murmur width", out)
-            self.assertNotIn("murmur paint", out)
+            self.assertEqual(code, 0, err)
+            self.assertEqual((code, out, err), self.run_cli("config", dotted), spaced)
+            self.assertNotIn("murmur width", out + err)
+            self.assertNotIn("murmur paint", out + err)
 
     def test_l5_no_tool_within_the_cutoff_is_offered(self):
         code, out, err = self.run_cli("config", "turns")

@@ -382,7 +382,8 @@ class VerbTest(Home):
         for args in (("setup", "Bad_name"), ("setup", "-y", "Bad_name"), ("setup", "--yes", "alpha", "Bad_name")):
             code, out, err = self.run_cli(*args)
             self.assertEqual((code, out), (2, ""), args)
-            self.assertEqual(len(err.splitlines()), 1)
+            self.assertEqual(len(err.splitlines()), 2)  # the cause, then next: (row sc4 R1)
+            self.assertIn("\nnext: ", err)
             self.assertIn("setup --dry-run", err)
         self.assertEqual(self.snapshot(), before)
         self.assertFalse(os.path.exists(self.calls))
@@ -727,7 +728,8 @@ class CorruptInstallTest(Home):
             if "--json" in args:
                 self.assertFalse(json.loads(p.stdout)["ok"])
             else:
-                self.assertEqual((p.stdout, len(p.stderr.splitlines())), ("", 1))
+                lines = 1 if broken.endswith(".md") else 2  # a manifest: the cause, then next: (row sc4)
+                self.assertEqual((p.stdout, len(p.stderr.splitlines())), ("", lines))
             shutil.rmtree(root)
 
 
@@ -910,13 +912,15 @@ class ConfigTest(ConfigHome):
         self.assertIn("line 2", out)
         code, out, err = self.cfg("config", "dmeo")
         self.assertEqual(code, 2)
-        self.assertIn("the nearest is demo", err)
+        self.assertIn("dmeo is not a tool here\nnext: ", err)  # row sc4: the near word mended
+        self.assertTrue(err.endswith(" config demo\n"), err)
         code, out, err = self.cfg("config", "nosuch")
         self.assertEqual(code, 2)
-        self.assertIn("the nearest is", err)
+        self.assertTrue(err.endswith(" config\n"), err)
         code, out, err = self.cfg("config", "demo.colr")
         self.assertEqual(code, 2)
-        self.assertIn("the nearest is colour", err)
+        self.assertIn("demo has no key colr\nnext: ", err)
+        self.assertTrue(err.endswith(" config demo.colour\n"), err)
 
     def test_a8_the_fallback_table(self):
         table = json.loads((LIB / "fallback.json").read_text())
@@ -1168,7 +1172,8 @@ class LineTest(ConfigHome):
     def test_f8_the_suites_own_nearest_key(self):
         code, out, err = self.cfg("config", "suite.checkout")
         self.assertEqual(code, 2)
-        self.assertIn("the nearest is checkouts", err)
+        self.assertIn("suite has no key checkout\nnext: ", err)
+        self.assertTrue(err.endswith(" config suite.checkouts\n"), err)
 
     def test_f9_a_config_read_that_fails_says_so_at_every_level(self):
         self.stub("agentik-lag", LAG % os.path.join(self.side, "lag.pid"))
@@ -1184,7 +1189,8 @@ class LineTest(ConfigHome):
             self.assertIn("%s answers, but %s" % (name, words), out)
             code, out, err = self.cfg("config", name + ".colour")
             self.assertEqual(code, 2)
-            self.assertIn("%s answers, but %s" % (name, words), err)
+            keys = words.replace("its settings answer", "the answer of its keys").replace("settings", "keys")
+            self.assertIn("%s answers, but %s" % (name, keys), err)  # a cause says key (row sc4 R8)
             for text in (out, err):
                 self.assertNotIn("describe", text)
 
@@ -1219,10 +1225,10 @@ class LineTest(ConfigHome):
         for word in (".key", "."):
             code, out, err = self.cfg("config", word)
             self.assertEqual(code, 2)
-            self.assertIn("A tool's name goes before the dot.", err)
+            self.assertIn("a tool's name goes before the dot\n", err)
         code, out, err = self.cfg("config", "demo.")
         self.assertEqual(code, 2)
-        self.assertIn("A key goes after the dot.", err)
+        self.assertIn("a key goes after the dot\n", err)
         self.assertEqual(self.describes(), [])
 
     def test_f13_a_user_file_that_cannot_be_opened_has_no_line(self):

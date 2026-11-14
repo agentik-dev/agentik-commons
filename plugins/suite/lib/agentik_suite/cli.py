@@ -40,7 +40,7 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
-NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
+NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
@@ -242,7 +242,7 @@ class Command:
                          "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
                                    "remedy": u.remedy}})
         else:
-            self.t.error(u.mid, command=u.remedy if u.paste else None, **u.values)
+            self.t.error(u.mid, next_=u.remedy if u.paste else None, **u.values)
         return u.status
 
     def _no_nouns(self, nouns, one=False):

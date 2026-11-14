@@ -10,7 +10,7 @@ from test_agentik_suite import LAUNCHER, Home
 
 CMD = str(LAUNCHER)  # a printed command with no door: the launcher's path, as typed (row sc2)
 
-LINE = "pear is a plugin with no command here. Run %s setup --dry-run pear for the steps." % CMD
+LINE = "FAIL  pear is not installed\nnext: %s setup pear\n" % CMD  # row sc4 R7
 
 
 class PluginWordTest(Home):
@@ -29,13 +29,12 @@ class PluginWordTest(Home):
     def assert_not_installed(self, *args):
         code, out, err = self.run_cli(*args)
         self.assertEqual((code, out), (3, ""), args)
-        self.assertEqual(len(err.splitlines()), 1, err)
-        self.assertIn(LINE, err)
+        self.assertEqual(err, LINE)
         code, out, err = self.run_cli(*args, "--json")
         self.assertEqual(code, 3, args)
         answer = json.loads(out)
         self.assertEqual((answer["ok"], answer["error"]["code"]), (False, "not_installed"))
-        self.assertEqual(answer["error"]["remedy"], "%s setup --dry-run pear" % CMD)
+        self.assertEqual(answer["error"]["remedy"], "%s setup pear" % CMD)
         self.assertEqual(len(out.splitlines()), 1)
 
     def test_a4_a_plugin_with_no_command_exits_three(self):
@@ -47,15 +46,15 @@ class PluginWordTest(Home):
         for args in (("paer",), ("help", "paer")):
             code, out, err = self.run_cli(*args)
             self.assertEqual((code, out), (2, ""), args)
-            self.assertIn("the nearest is pear", err)
+            self.assertIn("paer is not a verb or a tool\n", err)  # a plugin with no command is no tool (sc4 R6)
         code, out, _ = self.run_cli("paer", "--json")
         self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "unknown_verb"))
         self.assertEqual(self.run_cli("nosuch")[0], 2)
 
     def test_f3_the_json_remedy_names_a_verb_only(self):
         # review 1 F3: `agentik-suite pear` never succeeds, so a nearest plugin's remedy is --help
-        for args, remedy in ((("paer",), CMD + " --help"), (("stup",), CMD + " setup"),
-                             (("nosuch",), CMD + " --help")):
+        for args, remedy in ((("paer",), CMD + " help"), (("stup",), CMD + " setup"),
+                             (("nosuch",), CMD + " help")):
             code, out, _ = self.run_cli(*args, "--json")
             self.assertEqual((code, json.loads(out)["error"]["remedy"]), (2, remedy), args)
 
@@ -81,7 +80,7 @@ class PluginWordTest(Home):
         name = sorted(rows)[0]
         code, _, err = self.run_cli(name)
         self.assertEqual(code, 3)
-        self.assertIn("setup --dry-run %s" % name, err)
+        self.assertIn("setup %s" % name, err)
 
 
 if __name__ == "__main__":

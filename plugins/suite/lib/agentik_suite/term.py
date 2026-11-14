@@ -192,14 +192,14 @@ class Term:
             stream = self.err  # its message starts `next:`, so no mark goes before it (row sc4 R1)
             stream.write(stream.paint(self.text(mid, **values), STYLE_SGR["hint"]))
 
-    def error(self, mid, command=None, **values):
+    def error(self, mid, next_=None, **values):
         """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
         command to paste, with no mark (row sc4 R1)."""
         stream = self.err
         shown, painted = stream.mark("fail")
         stream.write(painted + GAP + self.text(mid, **values))
-        if command:
-            stream.write(self.text("err.next", command=command))
+        if next_:  # a value of the cause's own may be called `command`
+            stream.write(self.text("err.next", command=next_))
 
     def json(self, obj):
         self.out.write(json.dumps(_cleaned(obj), ensure_ascii=True, sort_keys=False))

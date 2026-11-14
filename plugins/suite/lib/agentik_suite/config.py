@@ -15,6 +15,8 @@ import time
 
 from . import plan, settings, sources, term, tools
 
+NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
+
 SUITE_READ = {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}
 GROUP_PAST = 20
 STATUS = {"answers": "ok", "timed out": "warn", "unreadable": "warn", "no command": "note"}
@@ -154,19 +156,31 @@ class Reader:
 
 
 def _nearest(word, names):
-    near = difflib.get_close_matches(word, names, n=1, cutoff=0.0)
+    near = difflib.get_close_matches(word, names, n=1, cutoff=NEAR)
     return near[0] if near else None
 
 
+def path(nouns):
+    """The words after `config` are one path, joined by dots (row sc4 R5)."""
+    return ".".join(nouns)
+
+
+def _again(cmd, dotted):
+    """`config` as typed with its words as the one path `dotted`, none where it is empty."""
+    at = cmd.at[1:]
+    swap = {i: [] for i in at[1:]}
+    swap[at[0]] = [dotted] if dotted else []
+    return cmd.again(swap)
+
+
 def do_config(cmd, nouns):
-    o, t, Usage = cmd.opts, cmd.t, cmd.Usage
-    if len(nouns) > 1:
-        cmd._no_nouns(nouns[1:])
+    o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
     if o["changed"] and o["user_files"]:
-        raise Usage("two_answers", "err.config.both", cmd.say("config", "--changed"), **cmd.slots())
+        raise Refusal("two_answers", "err.config.both", cmd.say("config", "--changed"))
     if nouns and (o["changed"] or o["user_files"]):
-        where = cmd.say("config", "--changed" if o["changed"] else "--user-files")
-        raise Usage("extra_word", "err.extra", cmd.say("config", "--help"), word=nouns[0], where=where)
+        flag = "--changed" if o["changed"] else "--user-files"
+        raise Refusal("extra_word", "err.extra", cmd.say("config", flag),
+                      verb="config " + flag, word=nouns[0])
     r = Reader(cmd)
     entries = r.entries()
     if not nouns:
@@ -176,28 +190,26 @@ def do_config(cmd, nouns):
         if o["user_files"]:
             return _user_files(cmd, rows)
         return _list(cmd, r, rows)
-    name, dot, key = nouns[0].partition(".")
+    name, dot, key = path(nouns).partition(".")
     if not name:
-        raise Usage("unknown_tool", "err.config.noname", cmd.say("config"), **cmd.slots())
+        raise Refusal("unknown_tool", "err.config.noname", cmd.say("config"))
     names = [e["name"] for e in entries]
     if name not in names:
         near = _nearest(name, names)
-        raise Usage("unknown_tool", "err.config.tool.near" if near else "err.config.tool",
-                    cmd.say("config"), name=name, near=near or "", **cmd.slots())
+        raise Refusal("unknown_tool", "err.config.tool", _again(cmd, near and near + dot + key),
+                      name=name)
     entry = entries[names.index(name)]
     if dot and not key:
-        raise Usage("unknown_key", "err.config.nokey", cmd.say("config", name),
-                    name=name, **cmd.slots())
+        raise Refusal("unknown_key", "err.config.nokey", _again(cmd, name), name=name)
     row = r.survey([entry], key=key or None)[0]
-    if row["fault"]:
-        raise Usage("bad_file", "err.config.file", cmd.say("config", name),
-                    fault=row["fault"], **cmd.slots(), name=name)
+    if row["fault"]:  # no command mends a file that does not parse (R7)
+        raise Refusal("bad_file", "err.config.file", None, fault=row["fault"])
     table = tools.fallback(cmd.lib).get(name)
     cfg = row["config"]
     if cfg is None:
         if key:
-            raise Usage("no_answer", KEY_LINE[why(row)], cmd.say("config", name),
-                        name=name, key=key, state=row["state"], **cmd.slots())
+            raise Refusal("no_answer", KEY_LINE[why(row)], _again(cmd, name),
+                          name=name, key=key, state=row["state"])
         return _silent(cmd, r, row, table)
     if not key:
         return _tool(cmd, r, name, cfg)
@@ -206,9 +218,8 @@ def do_config(cmd, nouns):
         whole = r.suite_config() if row["name"] == r.suite else r.read_one(row, None)
         keys = [s["key"] for s in (whole or {}).get("settings") or ()]
         near = _nearest(key, keys)
-        raise Usage("unknown_key", "err.config.key.near" if near else "err.config.key",
-                    cmd.say("config", name), name=name, key=key, near=near or "",
-                    **cmd.slots())
+        raise Refusal("unknown_key", "err.config.key", _again(cmd, name + "." + near if near else name),
+                      name=name, key=key)
     return _card(cmd, r, name, cfg, found[0])
 
 
@@ -429,31 +440,30 @@ def _user_files(cmd, rows):
 # ---- describe ---------------------------------------------------------------------------------
 
 def do_describe(cmd, nouns):
-    Usage, r = cmd.Usage, Reader(cmd)
+    Refusal, r = cmd.Refusal, Reader(cmd)
     if not cmd.opts["json"]:
-        raise Usage("needs_json", "err.describe.json", cmd.say("describe", "--json"), **cmd.slots())
+        raise Refusal("needs_json", "err.describe.json", cmd.again({}, tail=["--json"]))
     if not nouns:
         cmd.t.json(r.suite_describe())
         return 0
     if nouns[0] == "sources":
         return _describe_sources(cmd, r, nouns[1:])
     if nouns[0] != "config":
-        raise Usage("extra_word", "err.extra", cmd.say("describe", "--help"),
-                    word=nouns[0], where=cmd.say("describe"))
+        raise Refusal("extra_word", "err.extra", cmd.say("help", "describe"), verb="describe",
+                      word=nouns[0])
     if len(nouns) > 2:
         cmd._no_nouns(nouns[2:])
     key = nouns[1] if len(nouns) > 1 else None
     try:
         cfg = r.suite_config(key)
     except settings.Fault as f:
-        raise Usage("bad_file", "err.config.file", cmd.say("config", "suite"),
-                    fault=r.fault_text(f), **cmd.slots(), name=r.suite)
+        raise Refusal("bad_file", "err.config.file", None, fault=r.fault_text(f))
     if key is not None and not cfg["settings"]:
         keys = [s["key"] for s in r.suite_config()["settings"]]
         near = _nearest(key, keys)
-        raise Usage("unknown_key", "err.config.key.near" if near else "err.config.key",
-                    cmd.say("config", r.suite), name=r.suite, key=key,
-                    near=near or "", **cmd.slots())
+        raise Refusal("unknown_key", "err.config.key",
+                      cmd.mend(cmd.at[2], near) if near else cmd.say("config", r.suite),
+                      name=r.suite, key=key)
     cmd.t.json(cfg)
     return 0
 
@@ -474,7 +484,6 @@ def _describe_sources(cmd, r, nouns):
     try:
         rows = sources.read(cmd.env, cwd, names, more=more)
     except settings.Fault as f:
-        raise cmd.Usage("bad_file", "err.config.file", cmd.say("config", "suite"),
-                        fault=r.fault_text(f), **cmd.slots(), name=r.suite)
+        raise cmd.Refusal("bad_file", "err.config.file", None, fault=r.fault_text(f))
     cmd.t.json({"schema": sources.SCHEMA, "ok": True, "tools": rows})
     return 0
