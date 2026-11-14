@@ -328,7 +328,7 @@ class SendTest(IssueHome):
         code, out, err = self.issue("send", "--dry-run")
         self.assertEqual(code, 1)
         n = [i for i, l in enumerate(data.split("\n"), 1) if raw in l][0]
-        self.assertIn("Line %d" % n, err)
+        self.assertIn("line %d" % n, err)
         self.assertIn("path", err)
         self.assertNotIn(self.home, out + err)
         self.assertNotIn("secret-notes", out + err)

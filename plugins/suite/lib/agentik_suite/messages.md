@@ -401,26 +401,27 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
 - `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
 - `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
-- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run `{send}` from your own terminal.
-- `err.issue.send.inside`: send files nothing from inside Claude Code. Run `{send}` from your own terminal.
-- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run `{send}` from your own terminal.
-- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run `{send}` from your own terminal.
-- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then `{send}` --as LOGIN.
-- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then run `{send}` again.
-- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then run `{send}` again.
-- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run `{send}` again to see it.
-- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run `{send}` again to see it.
-- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and run `{send}` again, or file the issue by the browser.
-- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then run `{send}` again.
-- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run `{send}` again.
-- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you run `{send}` again.
-- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run `{send}` again and type the word once.
-- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run `{send}` again and answer once the question shows.
-- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then run `{send}` again.
-- `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.
-- `err.issue.send.yes`: send takes no --yes. An issue is filed only when you read it on your terminal and type send there.
-- `err.issue.send.open`: An open issue already holds this failure: `{url}`. Add to it there, or run `{send}` --not-a-duplicate to file another.
-- `err.issue.sent`: This draft was already filed: `{url}`
+- `err.issue.send.tty`: send needs a terminal to type in, and this process has none; send from your own terminal
+- `err.issue.send.inside`: send files nothing from inside Claude Code; send from your own terminal
+- `err.issue.send.parent`: send files nothing from a process that Claude Code started; send from your own terminal
+- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it
+- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs --as LOGIN; gh auth switch --user LOGIN makes that login active
+- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh; gh auth switch --user `{login}` makes it active
+- `err.issue.send.line`: line `{line}` of the draft fails the `{kind}` check, so nothing was sent
+- `err.issue.send.changed`: the approved issue changed after it was shown, so nothing was sent
+- `err.issue.send.unapproved`: this issue has no approval left, since an approval is used once, so nothing was sent
+- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh
+- `err.issue.send.switched`: the active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent; gh auth switch --user `{login}` makes it active
+- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown
+- `err.issue.send.flood`: more input came on the terminal right after the word, so nothing was sent; send again and type it once
+- `err.issue.send.early`: input came on the terminal before the question could be read, so nothing was sent; send again and answer once it shows
+- `err.issue.send.small`: the terminal is too small to show a line of the issue beside its question, so nothing was sent
+- `err.issue.send.nogh`: gh could not start, so nothing was filed; install gh, or file the issue by the browser
+- `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send there
+- `err.issue.send.open`: an open issue already holds this failure: `{url}`; add to it there, or pass --not-a-duplicate to file another
+- `err.issue.sent`: this draft was already filed: `{url}`
+- `err.issue.sent.unkept`: the issue was filed, and the draft `{id}` could not record it
 - `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
 - `issue.send.browser`: the account signed in to the browser
 - `issue.send.dry`: A dry run: the issue was shown and nothing was filed.
@@ -461,22 +462,26 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.reword.done`: The two lines now read as the render gave them, and the scan ran over them.
 - `issue.reword.added`: Words the render added, each unsure: `{words}`
 - `issue.discard.done`: Discarded the draft `{id}`.
-- `err.issue.word.near`: `{word}` is not a word of issue; the nearest is `{near}`. Run `{issue}` --help for the words.
-- `err.issue.word`: `{word}` is not a word of issue. Run `{issue}` --help for the words.
-- `err.issue.check`: --check reads the drafts and takes no word. Run `{check}` alone.
-- `err.issue.draft`: No draft is named `{id}`. Run `{issue}` for the list.
-- `err.issue.none`: No draft waits. Run `{new}` to draft one.
-- `err.issue.public`: The table of public tools at `{path}` cannot be read, so no draft was written. Reinstall the plugin to mend it.
-- `err.issue.private`: The private list exists and cannot be read, so nothing was written or sent. Mend its file, then run `{issue}` again.
-- `err.issue.tool`: `{tool}` is no tool an issue can name. Name one of `{tools}`.
-- `err.issue.exit`: --exit takes the command's exit code, 0 to 255, not `{value}`.
-- `err.issue.form`: The draft does not read back as the form at line `{line}`. Run `{discard}`, then `{new}` again.
-- `err.issue.unreadable`: `{path}` cannot be read as a regular file.
-- `err.issue.unsafe`: `{path}` is a link, or open to others, so nothing was read or sent.
-- `err.issue.strike`: strike takes the words to strike. Run `{strike}` WORD.
-- `err.issue.drop`: `{section}` is no part of the draft. Name one of `{sections}`.
-- `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`.
-- `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal.
-- `err.issue.edit.none`: Neither VISUAL nor EDITOR names an editor that starts.
-- `err.issue.edit.form`: The saved draft does not read back as the form at line `{line}`, so the draft is unchanged.
-- `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected.
+- `err.issue.word.near`: `{word}` is not a word of issue; the nearest is `{near}`
+- `err.issue.word`: `{word}` is not a word of issue
+- `err.issue.check`: --check reads the drafts and takes no word
+- `err.issue.draft`: no draft is named `{id}`
+- `err.issue.none`: no draft waits
+- `err.issue.public`: the table of public tools at `{path}` cannot be read, so no draft was written
+- `err.issue.private`: the private list exists and cannot be read, so nothing was written or sent
+- `err.issue.tool`: `{tool}` is no tool an issue can name; one of `{tools}`
+- `err.issue.exit`: --exit takes the command's exit code, 0 to 255, not `{value}`
+- `err.issue.form`: the draft `{id}` does not read back as the form at line `{line}`
+- `err.issue.unreadable`: `{path}` cannot be read as a regular file
+- `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
+- `err.issue.io`: a file of the drafts could not be read, written or removed
+- `err.issue.unsafe`: the draft `{id}` is a link, not a folder, or open to others, so nothing was read, sent or removed
+- `err.issue.unsafe.file`: `{name}` of the draft `{id}` is a link, not a file, or open to others, so nothing was read or sent
+- `err.issue.unsafe.root`: the drafts folder is a link, not a folder, or open to others, so nothing was read, sent or removed
+- `err.issue.strike`: strike takes the words to strike
+- `err.issue.drop`: `{section}` is no part of the draft; one of `{sections}`
+- `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`
+- `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal
+- `err.issue.edit.none`: neither VISUAL nor EDITOR names an editor that starts
+- `err.issue.edit.form`: the saved draft does not read back as the form at line `{line}`, so the draft is unchanged
+- `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected

@@ -683,9 +683,9 @@ class ApprovalTest(Base):
             send._file(forged, REPO, self.env())
         self.assertEqual((cm.exception.code, cm.exception.mid), (2, "err.issue.send.unapproved"))
         self.assertEqual(self.calls("issue create"), [])
-        self.assertEqual(MESSAGES["err.issue.send.unapproved"],
-                         "This issue has no approval left, since an approval is used once, so "
-                         "nothing was sent. Run {send} again to see it.")
+        self.assertEqual(MESSAGES["err.issue.send.unapproved"],  # sc4's cause alone (rp6 phase 2)
+                         "this issue has no approval left, since an approval is used once, so "
+                         "nothing was sent")
 
     def test_r1_f4_a_rewrite_that_keeps_the_hash_files_nothing(self):
         other = draft(happened="something no one saw")

@@ -12,15 +12,15 @@ that write, also take --dry-run and -y/--yes; config takes --changed and --user-
 --all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
 install-cli takes --prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit,
 --output, --expected, --as and --draft, each with a value. Those nine are the only flags with a
-value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage
-or a failed precondition, 3 not installed (a plugin's name with no command here). Nothing here
-loops; setup asks once on a terminal before its first command. config writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache and starts each tool's status
-reads and ps, each under its wall, and --check starts ps at most; setup starts the plan's commands
-and writes what they write and its journal; install-cli writes under its prefix; doctor writes
-nothing itself, and starts each listed tool's own doctor; issue drafts a report of a problem
-under ${XDG_STATE_HOME:-~/.local/state}/agentik-suite/issues/ and files it only when a person types
-send on the terminal device (issue.py).
+value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said
+no or a step failed, 2 usage or a failed precondition, 3 not installed (a plugin's name with no
+command here). Nothing here loops; setup asks once on a terminal before its first command. config
+writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache
+and starts each tool's status reads and ps, each under its wall, and --check starts ps at most;
+setup starts the plan's commands and writes what they write and its journal; install-cli writes
+under its prefix; doctor writes nothing itself, and starts each listed tool's own doctor; issue
+drafts a report of a problem under ${XDG_STATE_HOME:-~/.local/state}/agentik-suite/issues/ and
+files it only when a person types send on the terminal device (issue.py).
 """
 import difflib
 import os
@@ -147,7 +147,7 @@ def _flag_fault(opts, words, verb):
 
 def _takes(verb, o, nouns):
     """True where `verb` takes these flags and words: each verb's refusals that read no file, in
-    the order the verb raises them (cli.py, config.py, install.py, status.py)."""
+    the order the verb raises them (cli.py, config.py, install.py, status.py, issue.py)."""
     if verb == "help":
         return len(nouns) <= 1 and all(n in VERBS for n in nouns)
     if verb in ("version", "doctor"):
@@ -158,6 +158,8 @@ def _takes(verb, o, nouns):
         return all(NOUN.match(n) for n in nouns)
     if verb == "status":
         return not (nouns and o["check"])
+    if verb == "issue":
+        return issue.takes(o, nouns)
     if verb == "describe":
         return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
                               not nouns or (nouns[0] == "config" and len(nouns) <= 2))
@@ -236,13 +238,16 @@ class Command:
         and it does no more than the typed line asked; else the help line of its verb. A line
         is not offered that the suite refuses, that holds a flag answering a question for the
         person, that holds more flags than the person typed, that would write (a verb that
-        writes is offered with --dry-run alone), or that the door it starts with refuses (sc4
-        review 1)."""
+        writes is offered with --dry-run alone; of `issue`, only a word that reads, since none
+        but `send` keeps --dry-run and `send` is never offered: rp6 phase 2), or that the door
+        it starts with refuses (sc4 review 1)."""
         opts, words = _parse(line)[:2]
         verb = words[0] if words and words[0] in VERBS else self.verb
         flags = sum(1 for w in line if w.startswith("-") and w != "-")
         typed = sum(1 for w in self.argv if w.startswith("-") and w not in SWITCHES + ("-",))
         writes = verb in WRITES and not opts["dry_run"] and not opts["help"]
+        if verb == "issue" and not opts["help"]:
+            writes = not issue.reads(words[1:])
         door = prog.form(self.env, self.tool)[0] != "typed"
         if refused(line) or set(line) & set(SKIPS) or flags > typed or writes or \
                 door and not _door_takes(line):
