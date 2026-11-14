@@ -168,6 +168,39 @@ class Fk2Test(Base):
         self.assertEqual(code, 0, err)
         self.assertEqual([t["name"] for t in json.loads(out)["tools"]], ["suite", T])
 
+    # R4 to R6, beyond the lines
+    def test_r4_a_lone_plugin_a_repos_settings_brought_is_held(self):
+        h = self.home("hG")
+        project = os.path.join(h.home, "work", "app")
+        os.makedirs(project)
+        h.install(U, "0.11.0", scope="project", project=project)
+        rows = self.of(self.plan(h, cwd=project))
+        self.assertEqual([(s["state"], s["command"], s["mid"]) for s in rows],
+                         [("todo", None, "setup.plugin.held.repo")])
+
+    def test_r5_a_link_to_the_sources_own_file_reads_ok_and_step_7_names_it(self):
+        h = self.home("hC")
+        steps = self.plan(h)
+        self.assertEqual(self.one(steps, 4)["mid"], "setup.launcher.link")
+        self.assertEqual(self.one(steps, 7)["command"], h.link + " doctor")
+
+    def test_r5_another_sources_version_is_never_called_behind(self):
+        h = self.home("hD")
+        h.launcher(os.path.join(".local", "bin"), "0.11.0")
+        s4 = self.one(self.plan(h), 4)
+        self.assertEqual((s4["state"], s4["mid"], s4["values"]),
+                         ("todo", "setup.launcher.other", {"have": "0.11.0", "want": "0.12.6"}))
+        self.assertEqual(s4["command"], h.cmd + " install-cli")
+        self.assertNotRegex(s4["detail"], r"behind|older|newer")
+
+    def test_r6_step_7_names_the_file_that_runs_and_the_door_waits_on_no_row(self):
+        h = self.home("pC")
+        h.user_file("sources:\n  %s: %s\n" % (T, U))
+        h.file(os.path.join(h.home, ".local", "bin", SUITE), "#!/bin/sh\nVERSION=%s\nTREE=%s/t\n" % (version(), h.home))
+        steps = self.plan(h)
+        self.assertEqual(self.one(steps, 7)["command"], os.path.join(h.home, "bin", "agentik-" + T) + " doctor")
+        self.assertEqual([s["mid"] for s in steps if s["id"] == "door"], ["setup.door.place"])
+
     # R1, R2
     def test_r1_installed_names_the_known_whose_kind_is_not_absent(self):
         h = self.home("hA")
