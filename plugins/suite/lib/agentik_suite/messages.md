@@ -10,7 +10,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.flags`: flags
 - `help.path`: agentik commands on PATH
 - `help.path.none`: No agentik command is on PATH yet.
-- `hint.help`: next: `{setup}` --dry-run shows what setup would do on this machine.
+- `hint.help`: next: `{setup}`
+- `hint.help.done`: next: `{doctor}`
 - `hint.verb`: next: `{help}` lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
@@ -154,6 +155,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setting.watcher.start`: The line that starts the watcher.
 - `setting.watcher.beat`: The file the watcher writes while it runs.
 - `setting.watcher.writer`: The name a beat must carry to count as the watcher's own.
+- `setting.sources`: Where a tool comes from: a plugin id, or the folder of its plugin.
 
 ## Setup
 
@@ -164,6 +166,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.add`: add to your shell profile: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
+- `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
 - `setup.market.ok`: known to Claude Code
@@ -196,7 +199,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each `would run:` line above, in order, then `{setup}` --dry-run again.
+- `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.

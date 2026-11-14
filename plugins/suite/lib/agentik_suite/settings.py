@@ -10,6 +10,12 @@ The user file, `${XDG_CONFIG_HOME:-~/.config}/agentik/suite/config.yaml`, writte
 `beat` and `writer`. The repo file, `.claude/agentik/config.yaml` in the nearest folder upward
 from the cwd holding `.git`: its `suite` section's `kind`, whose one value is `hq`. Each of the
 three keys is read from its one file; anywhere else in the suite's reach it is an unknown key.
+
+The user file's `sources` (row fk1-sources R1 to R3): a tool's name to a plugin id,
+`<name>@<marketplace>`, or a folder starting `/` or `~/`, the plugin's root. Each line is a setting,
+`sources.<tool>`; any other value is a `value` warning and the line stands as declared. The repo
+file's `suite.sources` is `ignored`, `sources.suite` is `self`, and the whole block is `relative`,
+unread, when `XDG_CONFIG_HOME` is set and not absolute. `sources.py` reads what a line names.
 """
 import json
 import os
@@ -20,6 +26,8 @@ NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
 REFUSED = "&*|>!%@`"
 WATCHER_FIELDS = ("match", "start", "beat", "writer")
 KINDS = ("hq",)
+PLUGIN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+SELF = "suite"
 
 
 class Fault(Exception):
@@ -216,8 +224,10 @@ def resolve(env, cwd, summaries):
         f.path = user
         raise
     layers.append({"name": "user", "path": user, "present": present, "travels": False})
+    lines_by_tool, found = _sources(env, user, tree, lines)
+    warnings.extend(found)
     for key in tree:
-        if key not in ("checkouts", "watchers"):
+        if key not in ("checkouts", "watchers", "sources"):
             warnings.append({"path": user, "line": lines[key], "key": key, "reason": "unknown"})
     checkouts = tree.get("checkouts")
     if checkouts is not None and not isinstance(checkouts, list):
@@ -239,6 +249,10 @@ def resolve(env, cwd, summaries):
             settings.append(_setting(path, value, None, "string", summaries["watcher." + field],
                                      "user", user, lines.get(path),
                                      "watchers:\n  %s:\n    %s: <value>" % (name, field)))
+    for tool, d in lines_by_tool.items():
+        settings.append(_setting("sources." + tool, d["value"], "%s@agentik" % tool, "string",
+                                 summaries["sources"], "user", user, d["line"],
+                                 "sources:\n  %s: <id or folder>" % tool))
     kind, kind_line = None, None
     if repo:
         try:
@@ -248,7 +262,10 @@ def resolve(env, cwd, summaries):
             raise
         section = tree.get("suite") if isinstance(tree.get("suite"), dict) else {}
         for key in section:
-            if key != "kind":
+            if key == "sources":
+                warnings.append({"path": repo, "line": lines.get("suite.sources"),
+                                 "key": "suite.sources", "reason": "ignored"})
+            elif key != "kind":
                 warnings.append({"path": repo, "line": lines.get("suite." + key), "key": "suite." + key,
                                  "reason": "unknown"})
         kind, kind_line = section.get("kind"), lines.get("suite.kind")
@@ -262,6 +279,50 @@ def resolve(env, cwd, summaries):
                              repo or ".claude/agentik/config.yaml", kind_line,
                              "suite:\n  kind: hq", choices=list(KINDS)))
     return {"layers": layers, "settings": settings, "warnings": warnings}
+
+
+def source_form(value):
+    """`plugin` for an id, `folder` for a path from `/` or `~/`, else None (R1)."""
+    if isinstance(value, str):
+        if PLUGIN_ID.match(value):
+            return "plugin"
+        if value.startswith("/") or value.startswith("~/"):
+            return "folder"
+    return None
+
+
+def _sources(env, user, tree, lines):
+    """({tool: {value, path, line, form}}, warnings) for the user file's `sources` block."""
+    if "sources" not in tree:
+        return {}, []
+    block, at = tree["sources"], lines.get("sources")
+    xdg = env.get("XDG_CONFIG_HOME")
+    if xdg and not os.path.isabs(xdg):
+        return {}, [{"path": user, "line": at, "key": "sources", "reason": "relative"}]
+    if not isinstance(block, dict):
+        return {}, [{"path": user, "line": at, "key": "sources", "reason": "value", "value": block}]
+    found, warnings = {}, []
+    for tool, value in block.items():
+        key, line = "sources." + tool, lines.get("sources." + tool)
+        if tool == SELF:
+            warnings.append({"path": user, "line": line, "key": key, "reason": "self"})
+            continue
+        form = source_form(value)
+        if form is None:
+            warnings.append({"path": user, "line": line, "key": key, "reason": "value", "value": value})
+        found[tool] = {"value": value, "path": user, "line": line, "form": form}
+    return found, warnings
+
+
+def declared(env):
+    """The user file's source lines and their warnings, as `_sources`; a Fault carries `path`."""
+    user = user_path(env)
+    try:
+        present, tree, lines = read(user)
+    except Fault as f:
+        f.path = user
+        raise
+    return _sources(env, user, tree, lines)
 
 
 def _at(fault, path):

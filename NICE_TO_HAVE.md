@@ -6,6 +6,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n104 | S4 | `plugins/suite` `config.py`, `scripts/voice` | `describe sources T extra` names `describe` alone; a TOOL of `""` or `suite` reads `absent`; voice says `line 0` for an unreadable user file | notes 9, 10 | 2026-11-13, fk1 review 1 |
+| n103 | S4 | `plugins/suite` `sources.py` `entries` | the v1 dict shape of `installed_plugins.json` reads `absent`, as `plan.py` does | note 8 | 2026-11-13, fk1 review 1 |
+| n102 | S4 | `plugins/suite` `sources.py` `read` | an entry whose folder is gone stands `found`, where `plan.py` reads it not installed | note 7, read only | 2026-11-13, fk1 review 1 |
+| n101 | S4 | `plugins/suite` `sources.py` `mirror` | an `agentik` source that is no mapping reads `mirror` false; R8 may mean true | note 6 | 2026-11-13, fk1 review 1 |
+| n100 | S4 | `plugins/suite` `sources.py` `_runs` | an unset or empty PATH reads `.`, so a stray `./agentik-T` runs as `placed`; R6 copies `doctor.first_door` | note 5, p4 S7 | 2026-11-13, fk1 review 1 |
+| n99 | S4 | `plugins/suite` `sources.py` `whose` | a `projectPath` of `.` or `""` is read against the process cwd, so it is the repo's from any folder | note 4, p4 S8 | 2026-11-13, fk1 review 1 |
 | n58 | S4 | `scripts/door-probe` `rules` | a conditional line (`ifeq`, `else`, `endif`) inside a recipe ends the rule, so a `+` line after it in the same recipe is not read and `make -n` would run it; read a conditional inside a reached rule as `unread` | read only, not reproduced | 2026-11-13, ak2 review 3 |
 | n57 | S4 | `plugins/suite` `status.py` `matches` | `env -C DIR prog` and `env -S "..."` are read as plain flags, so `-C`'s folder or `-S`'s string is taken for the program and such a watcher reads missing: a false alarm, never a false running | `status.matches` by hand: `env -C /tmp lampd watch` reads no match, its head the folder | 2026-11-13, su1 review 2 |
 | n56 | S4 | `plugins/suite` `status.py` `beat` | an `at` in milliseconds counts as a beat in the future, so a stale one reads fresh for ever (running) and a missing watcher prints a `since` in year 55840; both follow R6 and R7, and a bound on a beat's future skew would catch it | review 1's L8 | 2026-11-13, su1 review 1 |
@@ -85,6 +91,22 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n85 | S4 | `plugins/suite` `prog.py` `form` | the door form says `agentik` whenever a door at 0.2.0 or newer and any `agentik-suite` are on PATH, so from a newer clone `next: agentik doctor` runs the older suite; per design/23 §3, but may surprise | review 1's N2 | 2026-11-13, sc2 review 1 |
 | n86 | S4 | `plugins/suite` `doctor.py` | `"%s doctor" % exe` still writes another tool's name before a verb outside `prog.start`; it runs, since the exe came from PATH, but in the door form reads `agentik-session doctor`, and R1's source test does not see it | review 1's N3: `doctor.py:111` | 2026-11-13, sc2 review 1 |
 | n87 | S4 | `plugins/suite` `messages.md` | `next: ... config suite.<key>` is a template: pasted, `sh` reads `<key>` as a redirection and exits 2 (before sc2 too) | review 1's N4: the line pasted into `sh -c` exits 2 | 2026-11-13, sc2 review 1 |
+
+## From packet rp1-shapes (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n88 | S4 | `scripts/hygiene` `secret` | Slack's app-level token (`xapp-1-...`) and refresh token (`xoxe-1-...`) count 0; the configuration token `xoxe.xoxp-...` counts 1; one more pattern | review 1's N1, probe p1 | 2026-11-13, rp1 review 1 |
+| n89 | S4 | `scripts/hygiene` `secret` | OpenAI's `sk-svcacct-...`, `sk-admin-...` and `sk-None-...` keys count 0; the brief named the key with and without its project part only | review 1's N2, probe p1 and an in-process check | 2026-11-13, rp1 review 1 |
+| n90 | S4 | `scripts/hygiene` `secret` | the AWS key pattern's `\b` misses a key after a JSON `\n` escape, as R1-F1 did for three shapes; `TOKEN_START` is the fix | review 1's N3, in-process at b62ddad and 0af1a76 | 2026-11-13, rp1 review 1 |
+| n91 | S4 | `scripts/hygiene` `secret` | random base64 can go red: 134 MB of it gives 3 hits (`AIza`), 134 MB of base64url 47 (4 at the base, `ghp_`); a repo that commits big blobs may go red after the sync | review 1's N4; nine sibling copies found no new hit | 2026-11-13, rp1 review 1 |
+| n92 | S4 | `scripts/hygiene` `--json` | none found in matching: keys and exit codes unchanged, `--commits` counts a token in a diff line and a message; binary, UTF-16, oversize and path cases count 1 | review 1's N5 | 2026-11-13, rp1 review 1 |
+| n93 | S4 | `scripts/hygiene` | the new shapes may cost 14 to 28 percent of wall time over a 120 MB tree (base 29.9 s and 23.3 s, tip 38.4 s and 26.5 s), noisy under host load; time it on a quiet host | review 1's N6 | 2026-11-13, rp1 review 1 |
+| n94 | S4 | `tests/test_agentik_suite.py` | `WallTest` f1, f2, f4 and `ConfigTest.test_a1_a4_three_levels_piped` fail at 3.09 to 3.41 s against a 3.0 s bound under host load, at base and tip alike | review 1's N7 | 2026-11-13, rp1 review 1 |
+| n95 | S4 | `design/packets/rp1-shapes.md` | the review's acceptance read: 1 held bare only (R1-F1), 2, 3, 5 and 6 hold, 4 holds with the copy at 100644, 7 rests on the build's gate | review 1's N8 | 2026-11-13, rp1 review 1 |
+| n96 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
+| n97 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |
+| n98 | S4 | `scripts/hygiene` `secret` | a lead for rp2: GitLab's `glpat-<body>.01.<suffix>` form counts 1 but the match ends at the first `.`, so a scrub of the match alone leaves the suffix | review 1's N11 | 2026-11-13, rp1 review 1 |
 
 ## From packet sc10-doctor-checks (review 1)
 

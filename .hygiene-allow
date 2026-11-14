@@ -38,3 +38,9 @@ GUIDE.md: renamed,sibling
 
 # the copyright line names its holder
 LICENSE: person
+
+# fk1-sources' first commits wrote the ssh form of the suite's hosting URL, user, host and
+# repo, which the email group reads; a URL's form, no address (the files now split it)
+design/packets/fk1-sources.md: email
+plugins/suite/lib/agentik_suite/sources.py: email
+tests/test_fk1_sources.py: email
