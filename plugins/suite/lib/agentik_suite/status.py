@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import time
 
 from . import plan, settings, tools
@@ -227,8 +228,40 @@ def check(w, procs, now, env, uid):
             "writer": w["writer"], "beat_at": b["at"] if b else None}
 
 
+class Signalled(BaseException):
+    """SIGTERM or SIGHUP while the reads run: raised so run_all ends every read on its way out."""
+
+    def __init__(self, signum):
+        BaseException.__init__(self, signum)
+        self.signum = signum
+
+
+def _signalled(signum, frame):
+    raise Signalled(signum)
+
+
 def do_status(cmd, nouns):
-    """`--check` (su1), or the full read, `status [<path>...] --json` (packet su2-read R2)."""
+    """`--check` (su1), or the full read, `status [<path>...] --json` (packet su2-read R2). For
+    the life of the reads SIGTERM and SIGHUP end every read and exit 128 plus the signal's
+    number; an interrupt ends them and exits 130, with no traceback (su2-read, review 1)."""
+    saved = {}
+    try:
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            saved[sig] = signal.signal(sig, _signalled)
+    except ValueError:  # not the main thread: the default actions stay
+        pass
+    try:
+        return _status(cmd, nouns)
+    except KeyboardInterrupt:
+        return 130
+    except Signalled as s:
+        return 128 + s.signum
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def _status(cmd, nouns):
     o, t, Usage = cmd.opts, cmd.t, cmd.Usage
     again = "%s status --check" % cmd.tool
     if o["check"]:

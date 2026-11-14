@@ -98,6 +98,32 @@ class EveryWayOutTest(FixHome):
                 self.assertEqual([pid for pid in found if not gone(pid)], [])
 
 
+    def verb_signalled(self, sig):
+        self.read()
+        path = os.path.join(self.side, "pids-%d" % sig)
+        self.answer(gate={"file": os.path.join(FIX, "gate.json"), "sleep": 10, "child": path})
+        p = subprocess.Popen([LAUNCHER, "status", "--json", "--now", NOW, "--ps", self.ps],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env(TZ="UTC"),
+                             cwd=self.repo)
+        self.addCleanup(self.kill, p.pid)
+        found = self.pids(path)
+        p.send_signal(sig)
+        out, err = p.communicate(timeout=10)
+        self.assertEqual([pid for pid in found if not gone(pid)], [])
+        return p.returncode, out, err
+
+    def test_f1_a_term_or_a_hangup(self):
+        """The coordinator's ruling: SIGTERM and SIGHUP end every read, then exit 128 + n."""
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(sig=int(sig)):
+                code, out, err = self.verb_signalled(sig)
+                self.assertEqual((code, out), (128 + sig, b""), err)
+
+    def test_f1_an_interrupt_exits_130(self):
+        code, out, err = self.verb_signalled(signal.SIGINT)
+        self.assertEqual((code, out), (130, b""))
+        self.assertNotIn(b"Traceback", err)
+
 class UnattendedKindsTest(FixHome):
     """R1-F2: `row`, `age_s` and the stop reason held to a kind; a string cleaned and bounded."""
 
@@ -178,15 +204,26 @@ class OwnProcessTest(FixHome):
         return ps
 
     def test_f6_a_listing_without_the_verb(self):
+        """The coordinator's ruling: one source's fault, the object whole, a partial read's exit."""
         for body in ("garbage one\ngarbage two\n", text(self.ps)):
             with self.subTest(body=body[:12]):
                 ps = self.stand_in(body)
                 code, out, err = self.run_here("status", "--json", "--now", NOW)
-                self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "bad_listing"), out)
-                self.assertEqual(json.loads(out)["error"]["remedy"], "agentik-suite status")
-                self.assertIn(ps, json.loads(out)["error"]["message"])
+                obj = json.loads(out)
+                self.assertEqual((code, obj["ok"], obj["fault"], err), (0, True, "bad_listing", ""), out)
+                self.assertEqual([obj[p]["state"] for p in ("sessions", "gate", "runs")], ["partial"] * 3)
+                self.assertEqual((obj["sessions"]["checked"], obj["watchers"][0]["state"]), (False, "unknown"))
+                self.assertEqual(obj["backlog"]["state"], "ok")
                 code, out, err = self.run_here("status", "--check", "--json", "--now", NOW)
-                self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "bad_listing"), out)
+                obj = json.loads(out)
+                self.assertEqual((code, obj["fault"], obj["watchers"][0]["state"]), (1, "bad_listing", "unknown"))
+                code, out, err = self.run_here("status", "--check", "--now", NOW)
+                self.assertEqual((code, err), (1, ""))
+                self.assertEqual(out, "lamp: not checked: %s gave a listing that lacks this process\n" % ps)
+
+    def test_f6_a_ps_file_stays_refused(self):
+        code, out, err = self.run_here("status", "--json", "--now", NOW, "--ps", self.side)
+        self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "bad_listing"))
 
     def test_f6_a_listing_with_the_verb(self):
         row = "%5d     1 %5d       00:01 /usr/bin/python3 -I agentik-suite status\n" % (os.getpid(), os.getuid())
