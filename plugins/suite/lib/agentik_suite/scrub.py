@@ -110,7 +110,7 @@ VALUE = r"(?:\"([^\"\n%s]*)\"|'([^'\n%s]*)'|([^\s\"',;%s]+))" % (STOP, STOP, STO
 ASSIGN = re.compile(r"(?<![A-Za-z0-9_.-])%s[\"']?[ \t]*[:=][ \t]*%s" % (SECRET_NAME, VALUE), re.I)
 FLAG = re.compile(r"(?<!\S)--?%s[ \t]+%s" % (SECRET_NAME, VALUE), re.I)
 NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
-AUTH = re.compile(r"(?<![\w-])(?:proxy-)?authorization[\"']?[ \t]*[:=][ \t]*([\"'`]?)", re.I)
+AUTH = re.compile(r"(?<![\w-])[\w-]*?authorization[\"']?[ \t]*[:=][ \t]*([\"'`]?)", re.I)
 SCHEME = re.compile(r"(?:Basic|Bearer|Digest|token)[ \t]+(?=\S)", re.I)
 BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 

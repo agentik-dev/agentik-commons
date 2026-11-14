@@ -679,5 +679,23 @@ class R2F1Test(Review1Case):
         self.assertEqual(self.closes(m, "Authorization: Basic"), "Authorization: <secret>")
 
 
+class R2F2Test(Review1Case):
+    """R2-F2: a header or variable whose name ends in `authorization`, whatever stands before
+    it, is read the same way."""
+
+    def test_r2f2_any_prefix(self):
+        m = machine()
+        value = rand(20)
+        cases = [
+            ("X-Authorization: token %s" % value, "X-Authorization: token <secret>"),
+            ("HTTP_AUTHORIZATION=token %s" % value, "HTTP_AUTHORIZATION=token <secret>"),
+            ("X-Amz-Authorization: %s" % value, "X-Amz-Authorization: <secret>"),
+            ("env MY_PROXY_AUTHORIZATION=%s ok" % value, "env MY_PROXY_AUTHORIZATION=<secret>"),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw[:16]):
+                self.assertEqual(self.closes(m, raw, [value]), want)
+
+
 if __name__ == "__main__":
     unittest.main()
