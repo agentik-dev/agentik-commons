@@ -288,6 +288,34 @@ class PrivacyTest(GatherHome):
         self.assertNotIn(mark, json.dumps(f))
         self.assertEqual(f["system"]["where"], "in Claude Code")
 
+    def test_r1f2_a_config_folder_not_absolute_reads_nothing(self):
+        """HOME empty or unset, or a relative CLAUDE_CONFIG_DIR: the working folder's plugin file
+        is never read, and the facts are equal from two working folders (review 1, R1-F2)."""
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        folders = [os.path.join(self.side, "work-" + name) for name in ("a", "b")]
+        rel = os.path.join("conf", "x")
+        for where in (".claude", rel):
+            plugins = os.path.join(folders[0], where, "plugins")
+            os.makedirs(plugins)
+            with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
+                json.dump({"version": 2, "plugins": {
+                    "alpha@" + MARKET: [{"version": "7.7.7", "gitCommitSha": SHA}],
+                    "%s@%s" % (OUTSIDE, MARKET): [{"version": "1.0.0"}]}}, fh)
+        os.makedirs(folders[1])
+        for drop, more in ((("HOME",), {}), ((), {"HOME": ""}), ((), {"CLAUDE_CONFIG_DIR": rel}),
+                           (("HOME",), {"CLAUDE_CONFIG_DIR": ".claude"})):
+            seen = []
+            for folder in folders:
+                os.chdir(folder)
+                env = self.env(**more)
+                for key in drop:
+                    env.pop(key)
+                seen.append(json.dumps(gather.facts(env, self.lib, dict(GIVEN), lambda: None)))
+            self.assertEqual(seen[0], seen[1], (drop, more))
+            self.assertEqual(json.loads(seen[0])["plugins"], {"named": [], "others": 0})
+            self.assertNotIn("7.7.7", seen[0])
+
 
 class OutputTest(GatherHome):
     def test_line8_three_mib(self):

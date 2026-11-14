@@ -126,7 +126,12 @@ def _launcher(env, command):
 
 
 def _installed(env):
-    found = plan._read_json(os.path.join(tools._config_dir(env), "plugins", "installed_plugins.json"))
+    """Claude Code's installed plugins, by key; {} when the config folder is no absolute path (HOME
+    empty or unset, a relative CLAUDE_CONFIG_DIR), so the working folder is never read."""
+    folder = tools._config_dir(env)
+    if not os.path.isabs(folder):
+        return {}
+    found = plan._read_json(os.path.join(folder, "plugins", "installed_plugins.json"))
     table = found.get("plugins") if isinstance(found, dict) else None
     return table if isinstance(table, dict) else {}
 
