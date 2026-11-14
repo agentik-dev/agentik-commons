@@ -16,7 +16,6 @@ that is not the marketplace's own gives (its id, marketplace, folder, version) s
 name, detail or remedy: the `from`, `seen`, `runs` and `passed over` lines under a group are made
 from `source` at print time, and the checks name a step by its tool.
 """
-import collections
 import json
 import os
 import re
@@ -47,6 +46,13 @@ FACT.update(HELD)
 SOURCE_OK = {"setup.plugin.source": "doctor.plan.source", "setup.plugin.source.none": "doctor.plan.source",
              "setup.launcher.ok": "doctor.plan.launcher"}
 SAID = ("value", "ignored", "self", "relative")  # the config read's warnings the doctor shows (R4)
+
+
+class _Blank(dict):
+    """The settings' summaries the doctor does not print: each is empty."""
+
+    def __missing__(self, key):
+        return ""
 
 
 def _check(name, state, detail, remedy=None):
@@ -117,7 +123,7 @@ def source_settings(cmd):
         cwd = None
     try:
         lines, _ = settings.declared(env)
-        body = settings.resolve(env, cwd, collections.defaultdict(str))
+        body = settings.resolve(env, cwd, _Blank())
     except settings.Fault:
         return []
     found = []
