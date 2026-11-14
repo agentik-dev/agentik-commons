@@ -21,6 +21,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
+- `verb.inbox`: List what waits on you in each checkout: open questions, and what needs your hand.
 - `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private. It is sent only when you type send.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
@@ -30,6 +31,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
+- `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
 - `usage.issue`: usage: `{issue}` [new [TOOL] | show | strike WORD... | drop SECTION... | edit | reword FILE | send | discard] [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
@@ -40,7 +42,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.all`: Print every check, the ok ones too.
-- `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
+- `flag.check`: Print one line for each thing that needs a hand, and exit 1 when there is one.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
@@ -395,6 +397,70 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
 - `hint.doctor.next`: next: `{command}`
+
+## Inbox
+
+- `inbox.title`: Waiting on you: `{n}`, in `{checkouts}` (`{covers}`).
+- `inbox.title.partial`: Waiting on you: at least `{n}`, in `{checkouts}` (`{covers}`).
+- `inbox.title.none`: Nothing waits on you in `{checkouts}` (`{covers}`).
+- `inbox.title.partial.none`: Nothing readable waits on you, in `{checkouts}` (`{covers}`).
+- `inbox.checkouts`: `{m}` checkouts
+- `inbox.checkouts.one`: 1 checkout
+- `inbox.covers.args`: from the command line
+- `inbox.covers.user`: from your checkouts list
+- `inbox.covers.hq`: the hq `{name}` and the repos beside it
+- `inbox.covers.cwd`: this repo alone: no list, no hq
+- `inbox.repo.waits`: `{n}` wait
+- `inbox.repo.waits.one`: 1 waits
+- `inbox.repo.none`: nothing waits
+- `inbox.repo.partial`: nothing readable waits
+- `inbox.repo.unread`: not read: `{why}`
+- `inbox.why.notdir`: not a directory
+- `inbox.why.denied`: the folder cannot be opened
+- `inbox.kind.question`: question `{n}`
+- `inbox.kind.hand`: hand
+- `inbox.kind.row`: row `{n}`
+- `inbox.kind.sitting`: sitting
+- `inbox.kind.decided`: decided
+- `inbox.kind.unread`: not read
+- `inbox.question.open`: recommended: `{label}`; asked `{age}`
+- `inbox.question.answered`: answered, not entered yet; its sitting enters it
+- `inbox.question.unreadable`: cannot be asked yet, since `{why}`; its sitting mends it
+- `inbox.hand.run`: run: `{command}`
+- `inbox.hand.bare`: no command is given; see `{file}`:`{line}`
+- `inbox.row.holds`: waits on it: `{title}`
+- `inbox.sitting`: `{charter}`, `{age}`: `{word}`
+- `inbox.sitting.nopart`: `{charter}`, `{age}`, with no Waits part: `{word}`
+- `inbox.sitting.closed`: `{charter}`, closed `{age}`: `{word}`
+- `inbox.decided`: `{count}` without asking, the newest on `{newest}`
+- `inbox.age.min`: `{n}` min ago
+- `inbox.age.h`: `{n}` h ago
+- `inbox.age.d`: `{n}` d ago
+- `inbox.age.today`: today
+- `inbox.read.where`: `{read}` in `{name}`
+- `inbox.read.no_tool`: `{read}`: no command on PATH gives that read
+- `inbox.read.no_answer`: `{read}`: `{command}` exited `{exit}`
+- `inbox.read.unknown`: `{read}`: `{command}` answers in a shape this version does not know
+- `inbox.read.timed_out`: `{read}`: `{command}` gave no answer in `{wall}` s
+- `inbox.check.question`: `{name}`: question `{n}`: `{title}`; recommended: `{label}`
+- `inbox.check.hand`: `{name}`: hand: `{what}`; run: `{command}`
+- `inbox.check.hand.bare`: `{name}`: hand: `{what}`; no command, see `{file}`:`{line}`
+- `inbox.check.row`: `{name}`: row `{n}`: `{text}`
+- `inbox.check.unread`: `{name}`: not read: `{why}`
+- `inbox.check.read`: not read: `{what}`
+- `inbox.open.title`: question `{n}`, `{state}`, asked `{age}`
+- `inbox.open.line`: `{text}`
+- `inbox.open.answer`: To answer: type after "Your answer:" in the block at `{file}`:`{line}`.
+- `inbox.open.sitting`: Or start claude in `{name}` and ask for its open questions.
+- `inbox.note.entry`: `{entry}` in `{path}` is not read: a checkout is an absolute path, or one under ~/.
+- `hint.inbox.open`: next: `{command}` opens question `{n}` as it is written.
+- `hint.inbox.doctor`: next: `{doctor}` shows which command is missing or behind its plugin.
+- `hint.inbox.checkouts`: next: to read every checkout at once, list them under checkouts: in `{path}`.
+- `err.inbox.file`: `{fault}`
+- `err.inbox.nowhere`: there is no checkout to read: the cwd is in no repo, and `{path}` lists none
+- `err.inbox.tools`: no command on PATH gives a read the inbox needs
+- `err.inbox.number`: no checkout read here holds a question `{n}`
+- `err.inbox.both`: --check and a question's number are two answers
 
 ## Issue
 
