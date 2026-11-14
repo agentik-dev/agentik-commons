@@ -27,9 +27,9 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, install, plan, prog, status, term, tools
+from . import apply, config, doctor, inbox, install, plan, prog, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor")
+VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor", "inbox")
 WRITES = ("setup", "install-cli")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
@@ -40,6 +40,7 @@ DOCTOR_FLAGS = (("--all", None, "all"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
+VERB_FLAGS["inbox"] = STATUS_FLAGS
 VERB_FLAGS["doctor"] = DOCTOR_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
                "--prefix": ("prefix", "install-cli")}
@@ -148,6 +149,8 @@ def _takes(verb, o, nouns):
         return all(NOUN.match(n) for n in nouns)
     if verb == "status":
         return not (nouns and o["check"])
+    if verb == "inbox":  # a number and --check are two answers (row in4-inbox R2)
+        return not (o["check"] and any(inbox.number(n) for n in nouns))
     if verb == "describe":
         return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
                               not nouns or (nouns[0] == "config" and len(nouns) <= 2))
@@ -520,6 +523,11 @@ class Command:
 
     def do_doctor(self, nouns):
         return doctor.do_doctor(self, nouns)
+
+    # ---- inbox ----------------------------------------------------------------------------
+
+    def do_inbox(self, nouns):
+        return inbox.do_inbox(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):

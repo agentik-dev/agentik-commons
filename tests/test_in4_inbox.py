@@ -131,8 +131,8 @@ class InboxHome(base.Home):
         with open(os.path.join(side, "tools.json"), "w") as fh:
             json.dump(READS, fh)
         for name in READS:
-            self.stub("agentik-" + name, '#!/bin/sh\nexec /usr/bin/python3 "%s" %s "$@"\n'
-                      % (os.path.join(side, "tool.py"), name))
+            self.stub("agentik-" + name, '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -B "%s" %s "$@"\n'
+                      % (os.path.join(side, "pyc"), os.path.join(side, "tool.py"), name))
         self.walked = [self.T]
         self.pear, self.quince, self.fig = (self.checkout(os.path.join(self.T, n))
                                             for n in ("pear-hq", "quince-hq", "fig-hq"))
@@ -267,7 +267,7 @@ class ListTest(InboxHome):
     def test_2_the_same_on_a_terminal_of_80(self):
         code, text = self.run_pty("inbox", self.pear, self.quince, cols=80, TZ="UTC")
         self.assertEqual(code, 0)
-        self.assertIn("\x1b[1mpear-hq\x1b[0m", text)
+        self.assertIn("\x1b[1m" + "pear-hq" + "\x1b[0m", text)  # the name bold
         lines = ANSI.sub("", text).replace("\r\n", "\n").splitlines()
         self.assertIn("!  pear-hq  3 wait", lines)
         self.assertIn("✓  quince-hq  nothing waits", lines)
@@ -425,7 +425,7 @@ class CheckTest(InboxHome):
                                                    "next: %s inbox --check\n" % self.L))
         code, out, err = self.inbox("1", self.pear, self.fig)
         self.assertEqual(code, 0)
-        self.assertTrue(out.startswith(OPENED + "\nfig-hq  question 1, answered, asked 3 d ago\n\n## 1. Paint"), out)
+        self.assertTrue(out.startswith(OPENED + "\n" + "fig-hq  question 1, answered, asked 3 d ago\n\n## 1. Paint"), out)
         code, out, err = self.inbox("--json", "1", self.pear)
         opened = json.loads(out)["opened"]
         self.assertEqual([(o["name"], o["n"], o["state"], o["text"]) for o in opened],
