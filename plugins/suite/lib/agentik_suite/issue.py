@@ -22,12 +22,13 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import time
 
-from . import form, gather, plan, scrub, send, term
+from . import form, gather, plan, render, scrub, send, term
 
 WORDS = ("new", "show", "strike", "drop", "edit", "reword", "send", "discard")
 WRITERS = ("new", "strike", "drop", "edit", "reword", "discard")  # each refuses --dry-run (review 2)
@@ -49,9 +50,10 @@ def reads(nouns):
 def takes(o, nouns):
     """True where `issue` takes these words and flags, by its refusals that read no file."""
     if not nouns:
-        return True
+        return not o["render"]
     word, rest = nouns[0], nouns[1:]
-    if word not in WORDS or o["check"] or o["dry_run"] and word in WRITERS:
+    if word not in WORDS or o["check"] or o["dry_run"] and word in WRITERS or \
+            o["render"] and word != "new":
         return False
     if word == "new":
         return len(rest) <= 1 and (o["exit"] is None or _exit(o["exit"]) is not None)
@@ -153,6 +155,8 @@ def _word(cmd, nouns):
             raise _usage(cmd, "unknown_word", "err.issue.word.near", cmd.again({cmd.at[1]: near}),
                          word=word, near=near[0])
         raise _usage(cmd, "unknown_word", "err.issue.word", word=word)
+    if o["render"] and word != "new":  # new alone renders: a draft is rendered as it is made
+        raise _usage(cmd, "render_new", "err.issue.render", cmd.offer(["issue"] + ([word] if word else [])))
     if word is None:
         return _read(cmd)
     if o["dry_run"] and word in WRITERS:  # send alone keeps it: nothing is read, made or removed
@@ -413,17 +417,82 @@ def _new(cmd, nouns):
             "title": fields["title"], "counts": counts, "unsure": layer.unsure, "fields": fields}
     term.keep(os.path.join(path, "issue.md"), data)
     term.keep(os.path.join(path, "draft.json"), (json.dumps(meta, indent=1) + "\n").encode("utf-8"))
+    said = None
+    if o["render"]:
+        said = _render(cmd, {"id": meta["id"], "path": path, "meta": meta}, fields, public, data)
+        data = said.pop("data")
+        if "stopped" in said:  # review 1 F1, F5: the draft stands as made, and the verb ends
+            try:
+                t.line("issue.render.stopped", err=True, id=meta["id"])
+                t.flush()
+            except OSError:  # a closed terminal: the exit says it
+                pass
+            return 128 + said["stopped"]
+    unsure = meta["unsure"]
     if o["json"]:
-        t.json({"schema": SCHEMA, "ok": True, "id": meta["id"], "path": path, "tool": tool,
-                "repo": meta["repo"], "size": len(data),
-                "counts": {k: v["n"] for k, v in counts.items()}, "unsure": len(layer.unsure),
-                "went": [list(w) for w in went]})
+        t.json(dict({"schema": SCHEMA, "ok": True, "id": meta["id"], "path": path, "tool": tool,
+                     "repo": meta["repo"], "size": len(data),
+                     "counts": {k: v["n"] for k, v in counts.items()}, "unsure": len(unsure),
+                     "went": [list(w) for w in went]}, **({"render": said} if said else {})))
         return 0
     t.line("issue.new.done", tool=meta["tool"])
-    _print_draft(cmd, data, layer.unsure)
-    _report(cmd, data, counts, layer.unsure, m, went, meta["repo"])
+    if said:
+        _said(cmd, said)
+    _print_draft(cmd, data, unsure)
+    _report(cmd, data, counts, unsure, m, went, meta["repo"])
     t.hint("hint.issue.new", _slots(cmd))
     return 0
+
+
+def _render(cmd, d, fields, public, data):
+    """`new --render` (packet rp8 R4): the narrator's script over the draft on disk, held to
+    reword's road. {"rendered", and "why" with its slots, or "kept", or "added"; "data", the
+    draft's bytes as they now stand}. No render is ever a refusal: the template stands."""
+    why = {}
+    try:
+        script = render.find(cmd.env, cmd.lib)
+        if script is None:
+            return {"rendered": False, "why": "none", "data": data}
+        try:
+            mode = render.load(cmd.lib)["mode"]
+        except ValueError:
+            return {"rendered": False, "why": "none", "data": data}
+        got = render.run(script, data, cmd.env, mode=mode, why=why)
+    except render.Stopped as s:  # the script's group is ended and its folder gone by now
+        _left(cmd, why)
+        return {"rendered": False, "stopped": s.signum, "data": data}
+    except KeyboardInterrupt:  # before the script started: nothing of it to end (review 1 F5)
+        return {"rendered": False, "stopped": signal.SIGINT, "data": data}
+    _left(cmd, why)
+    if got is None:
+        return dict({"rendered": False, "data": data}, why=why.get("code", "shape"),
+                    **({"exit": why["exit"]} if "exit" in why else {}))
+    kinds, added, saved = _rendered(cmd, d, fields, public, got)
+    if kinds:
+        return {"rendered": False, "why": "kept", "kept": kinds, "data": data}
+    return {"rendered": True, "added": added, "data": saved}
+
+
+def _left(cmd, why):
+    """One line on stderr naming the render's folder when it could not be removed (review 1 F3)."""
+    if "left" in why:
+        try:
+            cmd.t.line("issue.render.left", err=True, path=why["left"])
+        except OSError:  # a closed terminal
+            pass
+
+
+def _said(cmd, said):
+    """The render's one line, before the draft is printed."""
+    t = cmd.t
+    if said["rendered"]:
+        t.line("issue.reword.done")
+        if said["added"]:
+            t.line("issue.reword.added", words=", ".join(said["added"]))
+    elif said["why"] == "kept":
+        t.line("issue.reword.kept", kinds=", ".join(said["kept"]))
+    else:
+        t.line("issue.render." + said["why"], secs=render.WALL, **({"code": said["exit"]} if "exit" in said else {}))
 
 
 def _make(root):
@@ -642,16 +711,32 @@ def _reword(cmd, nouns):
             render[mt.group(1).lower()] = mt.group(2).strip()
     if set(render) != {"happened", "expected"}:
         raise _usage(cmd, "no_file", "err.issue.reword.file")
-    if fields["expected"] is None:
-        render["expected"] = ""
-    misses = form.nothing_new(render, fields)
-    if misses:
-        kinds = list(dict.fromkeys(k for k, _ in misses))
+    kinds, added, _data = _rendered(cmd, d, fields, public, render)
+    if kinds:
         if cmd.opts["json"]:
             _json(cmd, d, reworded=False, kept=kinds)
         else:
             cmd.t.line("issue.reword.kept", kinds=", ".join(kinds))
         return 1
+    if cmd.opts["json"]:
+        _json(cmd, d, reworded=True, added=added)
+        return 0
+    cmd.t.line("issue.reword.done")
+    if added:
+        cmd.t.line("issue.reword.added", words=", ".join(added))
+    return 0
+
+
+def _rendered(cmd, d, fields, public, render):
+    """A render's road onto the draft `d`, for `reword` and `new --render` alike: (the kinds
+    of the nothing-new check's misses, the words it added, the bytes saved). A miss leaves the
+    draft as it was and returns no bytes; a pass puts the two values, runs layer 1 over them
+    again and saves them with each added word unsure (design/22 item 10, R1-F11)."""
+    if fields["expected"] is None:
+        render["expected"] = ""
+    misses = form.nothing_new(render, fields)
+    if misses:
+        return list(dict.fromkeys(k for k, _ in misses)), [], None
     m = _machine(cmd, public)
     new = form.put(fields, "happened", render["happened"])
     if fields["expected"] is not None:
@@ -661,15 +746,9 @@ def _reword(cmd, nouns):
     # the words the render added, read from what the layer made of it: nothing of a render is
     # printed or saved before the scrub (review 1 F2, design/22 item 14)
     added = form.added({"happened": new["happened"], "expected": new["expected"] or ""}, fields)
-    unsure = list(d["meta"].get("unsure") or []) + added + layer.unsure
-    _save(cmd, d, new, list(dict.fromkeys(unsure)))
-    if cmd.opts["json"]:
-        _json(cmd, d, reworded=True, added=added)
-        return 0
-    cmd.t.line("issue.reword.done")
-    if added:
-        cmd.t.line("issue.reword.added", words=", ".join(added))
-    return 0
+    unsure = list(dict.fromkeys(list(d["meta"].get("unsure") or []) + added + layer.unsure))
+    d["meta"]["unsure"] = unsure
+    return [], added, _save(cmd, d, new, unsure)
 
 
 # ---- send, show, discard (R6, R7) ----------------------------------------------------------
