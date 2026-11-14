@@ -16,6 +16,7 @@ import datetime
 import json
 import os
 import re
+import signal
 import time
 
 from . import covers as covering, plan, settings, status, term, tools
@@ -40,27 +41,37 @@ def number(noun):
 
 # ---- the two seams' work: which checkouts, and which reads --------------------------------------
 
+def _one_each(paths):
+    """The paths less a second naming of one folder, by device and inode (os.stat, links followed),
+    the first kept; a path that cannot be stat-ed stays as the rule gave it (F4, F5)."""
+    seen, kept = set(), []
+    for path in paths:
+        try:
+            st = os.stat(path)
+        except (OSError, ValueError):
+            kept.append(path)
+            continue
+        if (st.st_dev, st.st_ino) not in seen:
+            seen.add((st.st_dev, st.st_ino))
+            kept.append(path)
+    return kept
+
+
 def _covers(cmd, paths, notes):
-    """covers.covers' {rule, hq, checkouts}, less a second naming of one folder on the command
-    line and less an entry of the user file's list that is neither absolute nor under `~/` (each
-    one named in `notes`); a list with none left falls to the next rule. A settings.Fault for a
-    user file outside the subset."""
+    """covers.covers' {rule, hq, checkouts}, less an entry of the user file's list that is neither
+    absolute nor under `~/` (each one named in `notes`; a list with none left falls to the next
+    rule), then, under every rule, less a second naming of one folder. A settings.Fault for a user
+    file outside the subset."""
     cov = covering.covers(cmd.env, cmd.cwd, paths)
     rule, found = cov["rule"], cov["checkouts"]
-    if rule == "args":
-        seen, kept = set(), []
-        for path in found:
-            if os.path.realpath(path) not in seen:
-                seen.add(os.path.realpath(path))
-                kept.append(path)
-        found = kept
-    elif rule == "checkouts":
+    if rule == "checkouts":
         notes.extend(p for p in found if not os.path.isabs(p))
         found = [p for p in found if os.path.isabs(p)]
         if not found:
             repo = covering._repo(cmd.cwd)
             beside = covering._hq_folder(repo) if repo else None
             rule, found = ("hq", beside) if beside else ("cwd", [repo]) if repo else ("none", [])
+    found = _one_each(found)
     hq = next((c for c in found if os.path.isdir(c) and covering.declares_hq(c)), None)
     return {"rule": rule, "hq": hq, "checkouts": found}
 
@@ -98,6 +109,8 @@ def _reads(cmd):
 
 
 # ---- an answer held to R3's object --------------------------------------------------------------
+# Each check reads a value's kind by isinstance alone, so no value is walked before it passes: a text
+# field is a str or null, a number an int or a finite float, a path a str with no NUL (F2, F3, F8).
 
 def _has(obj, keys):
     return isinstance(obj, dict) and all(k in obj for k in keys)
@@ -107,10 +120,21 @@ def _int(value):
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def _num(value):
+    return _int(value) or isinstance(value, float) and value == value and abs(value) != float("inf")
+
+
+def _text(value):
+    return value is None or isinstance(value, str)
+
+
+def _path(value):
+    return isinstance(value, str) and "\x00" not in value
+
+
 def _schema(obj, name):
-    m = re.match(r"agentik\.%s/([0-9]+)\Z" % name, obj.get("schema") or "") \
-        if isinstance(obj.get("schema"), str) else None
-    return bool(m) and int(m.group(1)) <= 1 and obj.get("ok") is True
+    m = re.match(r"agentik\.%s/([0-9]+)\Z" % name, obj["schema"]) if isinstance(obj.get("schema"), str) else None
+    return bool(m) and m.group(1).lstrip("0") in ("", "1") and obj.get("ok") is True  # no int() of digits
 
 
 def _day(text):
@@ -122,64 +146,71 @@ def _day(text):
 
 
 def _when(value):
-    if isinstance(value, (int, float)) and not isinstance(value, bool) and abs(value) < float("inf"):
+    if _num(value):
         return float(value)
     return status.when(value) if isinstance(value, str) else None
 
 
-def _skips(obj):
-    return isinstance(obj.get("skipped"), list) and all(
-        _has(s, ("repo", "why")) and isinstance(s["repo"], str) for s in obj["skipped"])
-
-
-def _questions(obj):
-    if not (_has(obj, ("repos", "skipped")) and _schema(obj, "questions") and isinstance(obj["repos"], list)
-            and _skips(obj)):
+def _top(obj, name):
+    """The answer's frame: `repos` a list of mappings each with a path in `repo`, and `skipped` as
+    R3 gives it; questions and charter also hold their schema and `ok`."""
+    if not (_has(obj, ("repos", "skipped")) and isinstance(obj["repos"], list) and isinstance(obj["skipped"], list)):
         return False
-    for r in obj["repos"]:
-        if not (_has(r, ("repo", "file", "questions", "answered", "decided")) and isinstance(r["repo"], str)
-                and isinstance(r["questions"], list) and _has(r["decided"], ("count", "newest"))
-                and _int(r["decided"]["count"])):
-            return False
-        for q in r["questions"]:
-            if not (_has(q, Q_KEYS) and _int(q["n"]) and q["state"] in STATES):
-                return False
-            if q["state"] == "open" and _day(q["proposed"]) is None:
-                return False
-    return True
-
-
-def _charter(obj):
-    if not (_has(obj, ("repos", "skipped")) and _schema(obj, "charter") and isinstance(obj["repos"], list)
-            and _skips(obj)):
+    if not all(isinstance(r, dict) and _path(r.get("repo")) for r in obj["repos"]):
         return False
-    for r in obj["repos"]:
-        if not (_has(r, C_KEYS) and isinstance(r["repo"], str) and _when(r["mtime"]) is not None):
-            return False
-        if r["waits"] is not None and not (isinstance(r["waits"], list) and all(
-                _has(w, ("line", "what", "command")) for w in r["waits"])):
-            return False
-    return True
+    if name == "backlog":
+        return all(_path(s) for s in obj["skipped"])
+    return _schema(obj, name) and all(_has(s, ("repo", "why")) and _path(s["repo"]) and _text(s["why"])
+                                      for s in obj["skipped"])
 
 
-def _backlog(obj):
-    if not (_has(obj, ("repos", "skipped")) and isinstance(obj["repos"], list)
-            and isinstance(obj["skipped"], list) and all(isinstance(s, str) for s in obj["skipped"])):
+def _question(q):
+    return _has(q, Q_KEYS) and _int(q["n"]) and isinstance(q["state"], str) and q["state"] in STATES \
+        and (q["line"] is None or _num(q["line"])) \
+        and all(_text(q[k]) for k in ("title", "why", "proposed", "recommended", "text")) \
+        and (q["state"] != "open" or _day(q["proposed"]) is not None)
+
+
+def _questions(e):
+    d = e.get("decided")
+    return _has(e, ("file", "questions", "answered", "decided")) and (e["file"] is None or _path(e["file"])) \
+        and (e["answered"] is None or _num(e["answered"])) and _has(d, ("count", "newest")) \
+        and _num(d["count"]) and _text(d["newest"]) \
+        and isinstance(e["questions"], list) and all(_question(q) for q in e["questions"])
+
+
+def _charter(e):
+    if not (_has(e, C_KEYS) and (e["file"] is None or _path(e["file"])) and _text(e["name"])
+            and _text(e["next_act"]) and _when(e["mtime"]) is not None
+            and (e["closed"] is None or isinstance(e["closed"], (bool, str)) or _num(e["closed"]))):
         return False
-    for r in obj["repos"]:
-        if not (_has(r, ("repo", "handoff", "steps")) and isinstance(r["repo"], str) and isinstance(r["steps"], list)):
-            return False
-        for s in r["steps"]:
-            if not (_has(s, S_KEYS) and (s["state"] is None or _has(s["state"], ("word", "on", "text")))):
-                return False
-    return True
+    return e["waits"] is None or isinstance(e["waits"], list) and all(
+        _has(w, ("line", "what", "command")) and (w["line"] is None or _num(w["line"]))
+        and _text(w["what"]) and _text(w["command"]) for w in e["waits"])
 
 
-SHAPES = {"questions": _questions, "charter": _charter, "backlog": _backlog}
+def _step(s):
+    st = s.get("state") if isinstance(s, dict) else None
+    return _has(s, S_KEYS) and _int(s["n"]) and _text(s["title"]) and _text(s["level"]) \
+        and (s["line"] is None or _num(s["line"])) \
+        and (st is None or _has(st, ("word", "on", "text")) and all(_text(st[k]) for k in ("word", "on", "text")))
+
+
+def _backlog(e):
+    return _has(e, ("handoff", "steps")) and (e["handoff"] is None or _path(e["handoff"])) \
+        and isinstance(e["steps"], list) and all(_step(s) for s in e["steps"])
+
+
+ITEMS = {"questions": _questions, "charter": _charter, "backlog": _backlog}
+
+
+def _refuse_constant(word):
+    raise ValueError("%s is no JSON number" % word)  # NaN, Infinity, -Infinity (F1)
 
 
 def _settle(call, result):
-    """The call's state, `ok` or one of R7's, and its answer."""
+    """The call's state, `ok` or one of R7's, and its answer; a checkout's own item is held to R3's
+    kinds when it is read (`read`), so one bad item costs that checkout's read alone."""
     code, out, state = result
     call["exit"] = code
     if state == "timed out":
@@ -189,10 +220,11 @@ def _settle(call, result):
         call["state"] = "no_answer"
         return
     try:
-        answer = json.loads(out.decode("utf-8", "replace")) if state == "ran" else None
+        answer = json.loads(out.decode("utf-8", "replace"), parse_constant=_refuse_constant) \
+            if state == "ran" else None
     except (ValueError, RecursionError):
         answer = None
-    if isinstance(answer, dict) and SHAPES[call["name"]](answer):
+    if isinstance(answer, dict) and _top(answer, call["name"]):
         call["state"], call["answer"] = "ok", answer
     else:  # exit 0 and no R3 object, or past tools.CAP, or it could not start
         call["state"] = "unknown"
@@ -200,34 +232,40 @@ def _settle(call, result):
 
 # ---- the read ----------------------------------------------------------------------------------
 
+def _real(path):
+    try:
+        return os.path.realpath(path)
+    except (ValueError, OSError):
+        return None
+
+
 def _rel(path, repo):
     """A path from the checkout, where it is under it."""
     if not isinstance(path, str):
         return path
-    if os.path.isabs(path):
-        top, real = os.path.realpath(repo), os.path.realpath(path)
-        if real.startswith(top.rstrip("/") + "/"):
-            return os.path.relpath(real, top)
+    top, real = _real(repo), _real(path)
+    if os.path.isabs(path) and top and real and real.startswith(top.rstrip("/") + "/"):
+        return os.path.relpath(real, top)
     return path
 
 
 def _by_repo(entries):
     found = {}
     for e in entries:
-        found.setdefault(os.path.realpath(e["repo"] if isinstance(e, dict) else e), e)
+        found.setdefault(_real(e["repo"] if isinstance(e, dict) else e), e)
     return found
 
 
 def _checkout(path):
     co = {"repo": path, "name": os.path.basename(path.rstrip("/")) or path, "read": True, "why": None,
           "skipped": {}, "questions": [], "hands": None, "rows": [], "sitting": None, "decided": None,
-          "answered": None, "unread": []}
+          "answered": None, "unread": {}, "states": {}}
     if not os.path.isdir(path):
         co["read"], co["why"] = False, "notdir"
     else:
         try:
             os.listdir(path)
-        except OSError:
+        except (OSError, ValueError):
             co["read"], co["why"] = False, "denied"
     return co
 
@@ -240,7 +278,8 @@ def _call(name, found, repo, argv_tail):
 
 def read(cmd, cov, found):
     """(checkouts, calls): every checkout with what each read gave it, and every call made, or
-    one `no_tool` entry for a read no command gives."""
+    one `no_tool` entry for a read no command gives. A checkout's state for a read is its call's,
+    or `unknown` where the call answered and that checkout's item is not R3's."""
     cos = [_checkout(p) for p in cov["checkouts"]]
     ready = [co for co in cos if co["read"]]
     calls = []
@@ -258,28 +297,35 @@ def read(cmd, cov, found):
         for i, _ in jobs:
             _settle(calls[i], results.get(i, (None, b"", "timed out")))
     for co in ready:
-        real = os.path.realpath(co["repo"])
+        real = _real(co["repo"])
         for call in calls:
-            if call["repo"] is not None and os.path.realpath(call["repo"]) != real:
+            if call["state"] == "no_tool" or call["repo"] is not None and _real(call["repo"]) != real:
                 continue
-            if call["state"] != "ok":
-                co["unread"].append(call["name"])
-                continue
-            answer = call["answer"]
-            entry = _by_repo(answer["repos"]).get(real)
-            if entry is None:
-                skipped = _by_repo(answer["skipped"]).get(real)
+            state, entry = call["state"], None
+            if state == "ok":
+                entry = _by_repo(call["answer"]["repos"]).get(real)
+                if entry is not None and not ITEMS[call["name"]](entry):
+                    state = "unknown"
+            co["states"][call["name"]] = (state, call)
+            if state != "ok":
+                co["unread"][call["name"]] = state
+            elif entry is not None:
+                _take(co, call["name"], entry)
+            else:
+                skipped = _by_repo(call["answer"]["skipped"]).get(real)
                 if skipped is not None:
                     co["skipped"][call["name"]] = skipped.get("why") if isinstance(skipped, dict) else None
-                continue
-            _take(co, call["name"], entry)
+        for call in calls:
+            if call["state"] == "no_tool":
+                co["unread"][call["name"]] = "no_tool"
     return cos, calls
 
 
 def _take(co, name, entry):
     repo = co["repo"]
     if name == "questions":
-        co["answered"], co["decided"] = entry["answered"], entry["decided"]
+        d = entry["decided"]
+        co["answered"], co["decided"] = entry["answered"], {"count": d["count"], "newest": d["newest"]}
         co["questions"] = [{"n": q["n"], "title": q["title"], "state": q["state"], "why": q["why"],
                             "recommended": q["recommended"], "proposed": q["proposed"],
                             "file": _rel(entry["file"], repo), "line": q["line"],
@@ -327,20 +373,23 @@ def _wall():
 
 
 def _unanswered(t, calls, cos):
-    """The texts of R7's rows, in READS' order: `backlog`'s once where every call ended in one
-    state, else once for each checkout whose call gave none."""
-    names = {os.path.realpath(co["repo"]): co["name"] for co in cos}
+    """The texts of R7's rows, in READS' order: a read no command gives, once; else, where every
+    checkout's read ended in one state that is no answer, once, and otherwise once for each
+    checkout whose read gave none, as `<read> in <name>`."""
     texts = []
     for name in READS:
-        mine = [c for c in calls if c["name"] == name]
-        bad = [c for c in mine if c["state"] != "ok"]
+        lost = [c for c in calls if c["name"] == name and c["state"] == "no_tool"]
+        if lost:
+            texts.append(t.text("inbox.read.no_tool", read=name))
+            continue
+        units = [(co, co["states"][name]) for co in cos if co["read"] and name in co["states"]]
+        bad = [(co, state, call) for co, (state, call) in units if state != "ok"]
         if not bad:
             continue
-        once = name != "backlog" or (len(bad) == len(mine) and len({c["state"] for c in bad}) == 1)
-        for c in bad[:1] if once else bad:
-            word = name if once or c["repo"] is None else t.text(
-                "inbox.read.where", read=name, name=names.get(os.path.realpath(c["repo"]), c["repo"]))
-            texts.append(t.text("inbox.read." + c["state"], read=word, command=_command(c), exit=c["exit"],
+        once = len(bad) == len(units) and len({state for _, state, _ in bad}) == 1
+        for co, state, call in bad[:1] if once else bad:
+            word = name if once else t.text("inbox.read.where", read=name, name=co["name"])
+            texts.append(t.text("inbox.read." + state, read=word, command=_command(call), exit=call["exit"],
                                 wall=_wall()))
     return texts
 
@@ -423,7 +472,37 @@ def _check_lines(t, unanswered, cos):
 # ---- the verb ----------------------------------------------------------------------------------
 
 def do_inbox(cmd, nouns):
-    """`inbox [REPO...] [NUMBER...] [--check] [--json]` (packet in4-inbox R2 to R14)."""
+    """`inbox [REPO...] [NUMBER...] [--check] [--json]` (packet in4-inbox R2 to R14), framed as
+    `status` is (status.do_status): while it reads, SIGTERM and SIGHUP raise status.Signalled, so
+    tools.run_all ends every read's group on its way out, and the verb exits 128 plus the signal;
+    an interrupt exits 130 and a closed stdout 141, each with no traceback (review 1 F10)."""
+    saved = {}
+    try:
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            saved[sig] = signal.signal(sig, status._signalled)
+    except ValueError:  # not the main thread: the default actions stay
+        pass
+    try:
+        return _inbox(cmd, nouns)
+    except KeyboardInterrupt:
+        return 130
+    except BrokenPipeError:
+        return 128 + signal.SIGPIPE
+    except status.Signalled as s:
+        return 128 + s.signum
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def _flushed(t):
+    """The answer so far sent; a BrokenPipeError where the reader has gone."""
+    t.flush()
+    if t.out.gone:
+        raise BrokenPipeError("stdout closed")
+
+
+def _inbox(cmd, nouns):
     o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
     home = cmd.env.get("HOME")
     numbers = [k for k, noun in enumerate(nouns) if number(noun)]
@@ -448,13 +527,14 @@ def do_inbox(cmd, nouns):
     cos, calls = read(cmd, cov, found)
     now = time.time()
     count = sum(_count(co) for co in cos if co["read"])
-    complete = all(c["state"] == "ok" for c in calls) and all(co["read"] for co in cos)
+    complete = all(co["read"] and not co["unread"] for co in cos) and \
+        not any(c["state"] == "no_tool" for c in calls)
     unanswered = _unanswered(t, calls, cos)
     obj = {"schema": "agentik.inbox/1", "ok": True, "covers": cov, "count": count, "complete": complete,
            "reads": [{"name": c["name"], "tool": c["tool"], "state": c["state"], "exit": c["exit"],
                       "repo": c["repo"]} for c in calls],
-           "checkouts": [{k: co[k] for k in ("repo", "name", "read", "why", "skipped", "hands", "rows",
-                                            "sitting", "decided", "answered")}
+           "checkouts": [{k: co[k] for k in ("repo", "name", "read", "why", "skipped", "unread", "hands",
+                                            "rows", "sitting", "decided", "answered")}
                          for co in cos]}
     for shown, co in zip(obj["checkouts"], cos):
         shown["questions"] = [{k: q[k] for k in ("n", "title", "state", "why", "recommended", "proposed",
@@ -468,9 +548,11 @@ def do_inbox(cmd, nouns):
         else:
             for line in lines:
                 t.line("inbox.open.line", text=line)
+        _flushed(t)
         return 1 if lines else 0
     if o["json"]:
         t.json(obj)
+        _flushed(t)
         return 0
     _list(cmd, cov, cos, unanswered, count, complete, now)
     first = next((q["n"] for co in cos for q in co["questions"] if q["waits"]), None)
@@ -499,6 +581,7 @@ def _list(cmd, cov, cos, unanswered, count, complete, now):
         t.blank()
         mark, text = _head(t, co)
         t.table([(mark, [term.name(co["name"]), text], None)], indent=0)
+        _flushed(t)
         rows = _rows(t, co, now) if co["read"] else []
         if not rows:
             continue
@@ -514,6 +597,7 @@ def _list(cmd, cov, cos, unanswered, count, complete, now):
             else:
                 table.append((None, [kind, text], after))
         t.table(table, indent=INDENT)
+        _flushed(t)
 
 
 def _opened(cmd, nouns, numbers, cos, obj, now):
@@ -531,6 +615,7 @@ def _opened(cmd, nouns, numbers, cos, obj, now):
     if cmd.opts["json"]:
         t.json(dict(obj, opened=[{"repo": co["repo"], "name": co["name"], "n": q["n"], "state": q["state"],
                                   "text": q["text"], "file": q["file"], "line": q["line"]} for co, q in opened]))
+        _flushed(t)
         return 0
     for i, (co, q) in enumerate(opened):
         if i:
@@ -543,4 +628,5 @@ def _opened(cmd, nouns, numbers, cos, obj, now):
         t.blank()
         t.line("inbox.open.answer", file=_shown(q["file"]), line=_shown(q["line"]))
         t.line("inbox.open.sitting", name=co["name"])
+    _flushed(t)
     return 0
