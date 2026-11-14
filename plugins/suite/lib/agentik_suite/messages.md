@@ -411,11 +411,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.changed`: the approved issue changed after it was shown, so nothing was sent
 - `err.issue.send.unapproved`: this issue has no approval left, since an approval is used once, so nothing was sent
 - `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh
-- `err.issue.send.switched`: the active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent; gh auth switch --user `{login}` makes it active
+- `err.issue.send.switched`: gh's active account is not `{login}`, the one shown, so nothing was sent; gh auth switch --user `{login}` mends it
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown
 - `err.issue.send.flood`: more input came on the terminal right after the word, so nothing was sent; send again and type it once
-- `err.issue.send.early`: input came on the terminal before the question could be read, so nothing was sent; send again and answer once it shows
+- `err.issue.send.early`: input came on the terminal before the question showed, so nothing was sent; send again and answer once it shows
 - `err.issue.send.small`: the terminal is too small to show a line of the issue beside its question, so nothing was sent
 - `err.issue.send.nogh`: gh could not start, so nothing was filed; install gh, or file the issue by the browser
 - `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send there
@@ -476,7 +476,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
 - `err.issue.io`: a file of the drafts could not be read, written or removed
 - `err.issue.unsafe`: the draft `{id}` is a link, not a folder, or open to others, so nothing was read, sent or removed
-- `err.issue.unsafe.file`: `{name}` of the draft `{id}` is a link, not a file, or open to others, so nothing was read or sent
+- `err.issue.unsafe.file`: `{name}` of the draft `{id}` is a link, not a file, or open to others, so nothing was sent
 - `err.issue.unsafe.root`: the drafts folder is a link, not a folder, or open to others, so nothing was read, sent or removed
 - `err.issue.strike`: strike takes the words to strike
 - `err.issue.drop`: `{section}` is no part of the draft; one of `{sections}`
