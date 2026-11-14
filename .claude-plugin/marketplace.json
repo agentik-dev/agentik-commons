@@ -38,7 +38,7 @@
         "url": "https://github.com/agentik-dev/agentik-relay.git",
         "path": "plugin"
       },
-      "description": "Runs a queue of written tasks unattended, one branch and one session a task: resume, status, plan, gate, report and doctor over the relay binary, plus the guards: one commit per act, no remote writes."
+      "description": "Runs a queue of written tasks unattended, one branch, one session a task: resume, status, plan, gate, report and doctor over the relay binary, plus the guards: one commit per act, no remote writes."
     },
     {
       "name": "agents",
