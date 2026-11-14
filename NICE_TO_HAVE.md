@@ -111,3 +111,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n81 | S4 | `plugins/suite` `doctor.py` `_last_line` | a tool's last line has no length bound: a 900,000-character line is the detail in the text and in `--json`; cut it near 200 characters | ak3d review 1's R1-F7: 902,737 bytes out | 2026-11-13, ak3d review 1 |
 | n82 | S4 | `plugins/suite` `messages.md` | `err.verb.plugin`'s remedy still names `setup --dry-run <word>`, now that `setup <word>` applies | ak3-setup build 1's lead | 2026-11-13, ak3-setup build 1 |
 | n83 | S4 | `plugins/suite` `apply.py` failed step | a failed step's line quotes the command's last output line, for a wrapped message a fragment, and adds a period after one: `said and the repository exists.. Mend that`; quote a full line and add no second period | `setup --yes` in a temp HOME behind a network wall, step 2's `marketplace add` | 2026-11-13, ak3p phase 2 |
+
+## From packet su2-screen (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n105 | S4 | `plugins/suite` `status_screen.py` | two numbers print in a form a person cannot use: with more than five sessions and no `sessions` source listed the cap's row reads `and 5 more: ?`, which is no command; `%g` prints a `wall_s` of 1234567 as `1.23457e+06 s` | su2-screen review 1's R1-F8 (`status_screen.py` `capped` and `wall`) | 2026-11-13, su2-screen review 1 |
