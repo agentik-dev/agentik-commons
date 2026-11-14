@@ -50,28 +50,31 @@ def runner_pid(text, runner):
     """The pid of the first line whose program is the runner's (its name, its old `agent-` name or
     `agentik-` name) and whose words hold `run`, `gate` or `plan`, or `agentik <runner>` with one of
     them; the words stop at the first environment value, and a path's text is never a word (R3).
-    None when no line holds."""
+    The program is each prefix of the words in turn, joined by one space, so a runner under a path
+    with a space holds (review 1 F3); where that reads an editor's two file words as a runner and
+    its verb (`vim /x/relay run`), the update is held, the safe side. None when no line holds."""
     programs = (runner, "agent-" + runner, "agentik-" + runner)
     for line in text.splitlines():
         parts = line.split()
         if len(parts) < 2 or not parts[0].isdigit():
             continue
         words = []
-        for word in parts[2:]:
+        for word in parts[1:]:
             if ASSIGN.match(word):
                 break
             words.append(word)
-        program = os.path.basename(parts[1])
-        if program in programs and any(w in HOLDS for w in words):
-            return parts[0]
-        if program == "agentik" and words[:1] == [runner] and len(words) > 1 and words[1] in HOLDS:
-            return parts[0]
+        for k in range(1, len(words) + 1):
+            program, rest = os.path.basename(" ".join(words[:k])), words[k:]
+            if program in programs and any(w in HOLDS for w in rest):
+                return parts[0]
+            if program == "agentik" and rest[:1] == [runner] and len(rest) > 1 and rest[1] in HOLDS:
+                return parts[0]
     return None
 
 
 def _unattended(path, argv, env):
-    """True when the tool at `path` answers `argv` with JSON other than null, exit 0, inside
-    SESSION_WALL; absent, slow or unreadable is False."""
+    """True when the tool at `path` answers `argv` with JSON other than null inside SESSION_WALL,
+    whatever its exit (review 1 lead c); absent, slow, or text that is no JSON is False."""
     try:
         p = subprocess.Popen([path] + argv, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=dict(env),
@@ -84,8 +87,6 @@ def _unattended(path, argv, env):
         apply._kill(p.pid)
         p.kill()
         p.communicate()
-        return False
-    if p.returncode != 0:
         return False
     try:
         return json.loads(out.decode("utf-8")) is not None
@@ -132,6 +133,8 @@ class Update:
         self.config = self.env.get("CLAUDE_CONFIG_DIR") or os.path.join(self.home, ".claude")
         self.bindir = os.path.join(self.home, ".local", "bin")
         self.slots = dict(cmd.slots(), setup=cmd.say("update"))  # setup's lines name this verb
+        self.names, self.tools, self.skips, self.shown, self.absent, self.gone = [], [], {}, [], [], []
+        self.suite, self.order = None, []  # a held run's JSON reads no scope (review 1 F1)
 
     # ---- the scope (R2) ---------------------------------------------------------------------
 
