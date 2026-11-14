@@ -710,5 +710,25 @@ class R2F3Test(Review1Case):
         self.assertEqual(scrub.scrub("see %s/blob/main/a..b now" % GH, m)[0], "see %s/blob/main/a..b now" % GH)
 
 
+class R2F4Test(Review1Case):
+    """R2-F4: the value of each pair after `Cookie:` and `Set-Cookie:` is replaced, the pair's
+    name kept."""
+
+    def test_r2f4_cookie_values(self):
+        m = machine()
+        value = rand(20)
+        cases = [
+            ("Cookie: sid=%s; theme=dark" % value, "Cookie: sid=<secret>; theme=<secret>"),
+            ("Set-Cookie: session=%s; Path=/; HttpOnly" % value, "Set-Cookie: session=<secret>; Path=<secret>; HttpOnly"),
+            ('curl -H "cookie: a=%s" x' % value, 'curl -H "cookie: a=<secret>" x'),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw[:12]):
+                self.assertEqual(self.closes(m, raw, [value]), want)
+        for line in ("cookie: none set", "the cookie jar is empty"):
+            with self.subTest(line=line):
+                self.assertEqual(scrub.scrub(line, m)[0], line)
+
+
 if __name__ == "__main__":
     unittest.main()

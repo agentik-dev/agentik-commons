@@ -112,6 +112,8 @@ FLAG = re.compile(r"(?<!\S)--?%s[ \t]+%s" % (SECRET_NAME, VALUE), re.I)
 NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
 AUTH = re.compile(r"(?<![\w-])[\w-]*?authorization[\"']?[ \t]*[:=][ \t]*([\"'`]?)", re.I)
 SCHEME = re.compile(r"(?:Basic|Bearer|Digest|token)[ \t]+(?=\S)", re.I)
+COOKIE = re.compile(r"(?<![\w-])(?:set-)?cookie[ \t]*:[ \t]*([\"'`]?)", re.I)
+PAIR = re.compile(r"([^=;\s]+[ \t]*=[ \t]*)([^;]*)")
 BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 
 V6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
@@ -350,6 +352,18 @@ def _norm(m, run):
         if low == h or low.startswith(h + "/"):
             return "~" + p[len(h):]
     return p
+
+
+def _value_end(s, mt):
+    """Where a header's value ends: its line's end, or the close of the quote that opens it or
+    the header."""
+    stop = s.find("\n", mt.end())
+    stop = len(s) if stop < 0 else stop
+    quote = mt.group(1) or (s[mt.start() - 1] if mt.start() and s[mt.start() - 1] in "\"'`" else "")
+    if quote:
+        q = s.find(quote, mt.end(), stop)
+        stop = q if q >= 0 else stop
+    return stop
 
 
 class _State:
@@ -624,13 +638,7 @@ class _Pass:
             if mt.start() < pos:
                 continue
             a = mt.end()
-            stop = s.find("\n", a)
-            stop = len(s) if stop < 0 else stop
-            quote = mt.group(1) or (s[mt.start() - 1] if mt.start() and s[mt.start() - 1] in "\"'`" else "")
-            if quote:
-                q = s.find(quote, a, stop)
-                stop = q if q >= 0 else stop
-            value = s[a:stop].rstrip(" \t")
+            value = s[a:_value_end(s, mt)].rstrip(" \t")
             scheme = SCHEME.match(value)
             b = a + (scheme.end() if scheme else 0)
             cred = s[b:a + len(value)]
@@ -643,8 +651,26 @@ class _Pass:
         out.append(s[pos:])
         return "".join(out)
 
+    def _cookie(self, s):
+        """The value of each pair after `Cookie:` and `Set-Cookie:`, the pair's name kept."""
+        def pair(pm):
+            v = pm.group(2).rstrip(" \t")
+            if any(ord(c) < BASE and not c.isspace() for c in v):
+                return pm.group(1) + self.put("secret", v) + pm.group(2)[len(v):]
+            return pm.group()
+        out, pos = [], 0
+        for mt in COOKIE.finditer(s):
+            if mt.start() < pos:
+                continue
+            end = _value_end(s, mt)
+            out.append(s[pos:mt.end()])
+            out.append(PAIR.sub(pair, s[mt.end():end]))
+            pos = end
+        out.append(s[pos:])
+        return "".join(out)
+
     def _assign(self, s):
-        s = self._auth(s)
+        s = self._cookie(self._auth(s))
 
         def value(mt):
             for g in (1, 2, 3):
