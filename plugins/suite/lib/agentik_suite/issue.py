@@ -22,6 +22,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -447,18 +448,20 @@ def _render(cmd, d, fields, public, data):
     """`new --render` (packet rp8 R4): the narrator's script over the draft on disk, held to
     reword's road. {"rendered", and "why" with its slots, or "kept", or "added"; "data", the
     draft's bytes as they now stand}. No render is ever a refusal: the template stands."""
-    script = render.find(cmd.env, cmd.lib)
-    if script is None:
-        return {"rendered": False, "why": "none", "data": data}
     why = {}
     try:
-        mode = render.load(cmd.lib)["mode"]
-    except ValueError:
-        return {"rendered": False, "why": "none", "data": data}
-    try:
+        script = render.find(cmd.env, cmd.lib)
+        if script is None:
+            return {"rendered": False, "why": "none", "data": data}
+        try:
+            mode = render.load(cmd.lib)["mode"]
+        except ValueError:
+            return {"rendered": False, "why": "none", "data": data}
         got = render.run(script, data, cmd.env, mode=mode, why=why)
     except render.Stopped as s:  # the script's group is ended and its folder gone by now
         return {"rendered": False, "stopped": s.signum, "data": data}
+    except KeyboardInterrupt:  # before the script started: nothing of it to end (review 1 F5)
+        return {"rendered": False, "stopped": signal.SIGINT, "data": data}
     if got is None:
         return dict({"rendered": False, "data": data}, why=why.get("code", "shape"),
                     **({"exit": why["exit"]} if "exit" in why else {}))

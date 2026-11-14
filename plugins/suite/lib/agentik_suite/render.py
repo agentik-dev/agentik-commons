@@ -24,7 +24,7 @@ SOURCE, CONTRACT, OUT = "issue.md", "contract.md", "render.md"
 READ_CAP = 1 << 16  # bytes of an answer read back; two lines of a draft are far under it
 LABELS = ("Happened", "Expected")
 LIB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STOPS = (signal.SIGTERM, signal.SIGHUP)  # the signals that end a render and then the verb
+STOPS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)  # what ends a render, then the verb
 
 
 def load(lib):
