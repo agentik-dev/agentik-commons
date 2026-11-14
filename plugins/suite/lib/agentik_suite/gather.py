@@ -3,9 +3,10 @@
 `facts` reads the machine once and gives one object, `agentik.issue-facts/1`; it reads named
 keys only, prints nothing and scrubs nothing. A typed value is validated: a value that is not of
 its type reads `unreadable`, an absent one None. A free value (a doctor row's name and detail,
-the command run, each output line, the words expected) is returned whole up to a read cap, so
-the caller can scrub it before `bound` cuts it to the table below; `map_free` reaches each free
-value in a fixed order. The tools an issue may name are those of `public.json`, beside the
+the command run, each output line, the words expected) is returned whole, never cut, so the
+caller's scrub sees all of it before `bound` cuts it to the table below (hq design/22 item 4:
+layer 1 runs before any cut); a value over READ_CAP reads `unreadable` whole. `map_free`
+reaches each free value in a fixed order. The tools an issue may name are those of `public.json`, beside the
 package, made from the suite's own marketplace file: a tool or plugin outside it is counted and
 never named. Never read: a transcript, a prompt, a run's id, a ledger, a CLAUDE.md, a
 charter or any file of a repo, the working folder, PATH's value or any other environment value
@@ -41,9 +42,13 @@ CLAUDE_READ = 4096
 # A placeholder the scrub writes, numbered as `<path-12>` or single as `<secret>`: `bound`
 # never cuts inside one.
 PLACEHOLDER = re.compile(r"<[a-z][a-z-]*(?:-[0-9]+)?>")
-# What `facts` keeps: a free value up to READ_CAP bytes, READ_ROWS rows, the last TAIL_LINES
-# lines of the output's last TAIL bytes, PLUGINS public plugins by name.
-READ_CAP = 16384
+# What `facts` keeps: a free value of READ_CAP bytes or fewer whole, a longer one as `unreadable`
+# whole (no cut lands before the scrub: rp6 review 1 F1), READ_ROWS rows, the last TAIL_LINES
+# lines of the output's last TAIL bytes, PLUGINS public plugins by name. A window that starts
+# inside its one line is a read's edge no scrub can see past: the line loses its first EDGE bytes
+# and the rest of the word there, so no secret of EDGE bytes and no word straddles it.
+READ_CAP = 1 << 20
+EDGE = 1024
 READ_ROWS = 200
 TAIL = 64 * 1024
 TAIL_LINES = 200
@@ -91,22 +96,25 @@ def _cut(text, limit):
     return text[:cut]
 
 
-def _last(text, limit):
-    """The last `limit` UTF-8 bytes of `text`, cut on a character's edge."""
-    data = text.encode("utf-8", "replace")
-    if len(data) <= limit:
-        return text
-    start = len(data) - limit
+def _past_edge(line):
+    """A line the read's window cut into at its start, less its first EDGE bytes and the rest of
+    the word there: what is kept starts after a space the window holds whole."""
+    data = line.encode("utf-8", "replace")
+    start = min(len(data), EDGE)
     while start < len(data) and data[start] & 0xC0 == 0x80:
         start += 1
-    return data[start:].decode("utf-8")
+    rest = data[start:].decode("utf-8")
+    space = re.search(r"\s", rest)
+    return rest[space.end():] if space else ""
 
 
 def _free(value):
-    """A free value as read: text up to READ_CAP bytes, a lone surrogate replaced; else None."""
+    """A free value as read, whole, a lone surrogate replaced; `unreadable` past READ_CAP bytes,
+    so nothing is cut before the scrub; None for no text."""
     if not isinstance(value, str):
         return None
-    return _cut(value.encode("utf-8", "replace").decode("utf-8"), READ_CAP)
+    text = value.encode("utf-8", "replace").decode("utf-8")
+    return text if len(text.encode("utf-8")) <= READ_CAP else UNREADABLE
 
 
 def _typed(value, pattern):
@@ -264,8 +272,8 @@ def plugins(public, table):
 def _tail(path):
     """The last TAIL_LINES lines of the last TAIL bytes of the regular file at `path`, bad bytes
     replaced; a first line the window cut into is dropped when another line follows it, and when
-    none does, the window sits inside one line and that line's last READ_CAP bytes are kept. []
-    for no such file."""
+    none does, the window sits inside one line and that line's tail is kept past its edge
+    (`_past_edge`). [] for no such file."""
     if not isinstance(path, str) or not path or not os.path.isfile(path):
         return []
     try:
@@ -295,8 +303,8 @@ def _tail(path):
     lines = [l[:-1] if l.endswith("\r") else l for l in lines]
     if start and len(lines) > 1:
         lines.pop(0)
-    elif start and lines:  # the window sits inside one line: its tail
-        lines = [_last(lines[0], READ_CAP)]
+    elif start and lines:  # the window sits inside one line: its tail, past the window's edge
+        lines = [_past_edge(lines[0])]
     return [_free(l) for l in lines[-TAIL_LINES:]]
 
 
