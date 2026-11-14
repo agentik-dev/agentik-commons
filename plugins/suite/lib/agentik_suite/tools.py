@@ -490,6 +490,13 @@ def fallback(lib):
     return {k: v for k, v in found.items() if isinstance(v, dict)} if isinstance(found, dict) else {}
 
 
+def page(table, name):
+    """The `page` of `name`'s row of the table (row fh13-relay-plan R1): the tool installs its own
+    command, and this page has the line. A string that starts https://, else None; never opened."""
+    value = (table.get(name) or {}).get("page")
+    return value if isinstance(value, str) and value.startswith("https://") and len(value) > 8 else None
+
+
 def descriptions(env):
     """{plugin name: description} from the agentik marketplace's own file."""
     known = plan._read_json(os.path.join(_config_dir(env), "plugins", "known_marketplaces.json"))
