@@ -121,6 +121,12 @@ class _Stream:
             pass
 
 
+def _ordered(line):
+    """A refusal's line with U+2028, U+2029 and the direction controls (U+202A to U+202E, U+2066
+    to U+2069) removed, so a typed word neither starts a line nor reorders one (sc4 review 1 F8)."""
+    return re.sub("[  ‪-‮⁦-⁩]", "", line)
+
+
 def unreadable(path, err=None):  # the one line written with no catalogue to write it from
     _Stream(sys.stderr if err is None else err, True).write(
         "FAIL  cannot read %s; reinstall the plugin to mend it" % path)
@@ -189,14 +195,22 @@ class Term:
         values = dict(values or {}, **more)
         if not self.quiet:
             self.flush()  # the answer first, where both streams share one pipe
-            stream = self.err
-            shown, painted = stream.mark("note")
-            stream.write(painted + GAP + stream.paint(self.text(mid, **values), STYLE_SGR["hint"]))
+            stream = self.err  # a message that starts `next:` has no mark before it (row sc4 R1)
+            text = self.text(mid, **values)
+            lead = ""
+            if not text.startswith("next:"):  # its mark on a terminal, `next:` off one (review 1 F7)
+                lead = stream.mark("note")[1] + GAP if stream.tty else "next: "
+            stream.write(lead + stream.paint(text, STYLE_SGR["hint"]))
 
-    def error(self, mid, **values):
+    def error(self, mid, next_=None, **values):
+        """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
+        command to paste, with no mark (row sc4 R1); neither line holds a line or direction
+        control (sc4 review 1 F8)."""
         stream = self.err
         shown, painted = stream.mark("fail")
-        stream.write(painted + GAP + self.text(mid, **values))
+        stream.write(_ordered(painted + GAP + self.text(mid, **values)))
+        if next_:  # a value of the cause's own may be called `command`
+            stream.write(_ordered(self.text("err.next", command=next_)))
 
     def json(self, obj):
         self.out.write(json.dumps(_cleaned(obj), ensure_ascii=True, sort_keys=False))

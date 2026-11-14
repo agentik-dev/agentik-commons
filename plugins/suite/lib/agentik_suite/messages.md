@@ -59,33 +59,37 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Errors
 
-- `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{prog}` --help for the list.
-- `err.verb`: `{word}` is not a verb. Run `{prog}` --help for the list.
-- `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{setup}` --dry-run `{word}` for the steps.
-- `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
-- `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
-- `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
-- `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{setup}` --dry-run for the default set.
+- `err.next`: next: `{command}`
+- `err.verb`: `{word}` is not a verb
+- `err.verb.tool`: `{word}` is not a tool
+- `err.verb.none`: `{word}` is not a verb or a tool
+- `err.verb.own`: `{word}` is a tool, not a verb
+- `err.verb.plugin`: `{word}` is a plugin with no command
+- `err.verb.missing`: `{word}` is not installed
+- `err.flag`: `{flag}` is not a flag
+- `err.flag.of`: `{flag}` is not a flag of `{verb}`
+- `err.flag.version`: --version takes no verb and no --help
+- `err.extra`: `{verb}` takes no name; `{word}` is one more
+- `err.extra.one`: `{verb}` takes one name; `{word}` is one more
+- `err.version`: `{tool}` has no version: `{path}` cannot be read
+- `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
 
-- `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{config}` for the list.
-- `err.config.tool`: `{name}` is not a tool here. Run `{config}` for the list.
-- `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{config}` `{name}` for its keys.
-- `err.config.key`: `{name}` has no setting `{key}`. Run `{config}` `{name}` for its keys.
-- `err.config.noname`: A tool's name goes before the dot. Run `{config}` for the list.
-- `err.config.nokey`: A key goes after the dot. Run `{config}` `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no settings (`{state}`). Run `{config}` `{name}` for what it gives.
-- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{config}` `{name}` for what it gives.
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its settings. Run `{config}` `{name}` for what it gives.
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{config}` `{name}` for what it gives.
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{config}` `{name}` for what it gives.
-- `err.config.file`: `{fault}`. Mend the file by hand, then run `{config}` `{name}` again.
+- `err.config.tool`: `{name}` is not a tool here
+- `err.config.key`: `{name}` has no key `{key}`
+- `err.config.noname`: a tool's name goes before the dot
+- `err.config.nokey`: a key goes after the dot
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no keys (`{state}`)
+- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.file`: `{fault}`
 - `err.status.check`: `{status}` only checks in this version. Run `{status}` --check.
 - `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
 - `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
 - `err.status.file`: `{fault}`. Mend the file by hand, then run `{status}` --check again.
-- `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{config}` --changed first.
-- `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{config}` suite to read the settings.
+- `err.config.both`: --changed and --user-files are two answers
+- `err.describe.json`: describe prints JSON for other tools, so it needs --json
 
 ## Config
 
@@ -140,11 +144,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{config}` <tool> lists one tool's settings.
-- `hint.config.tool`: next: `{config}` `{name}`.<key> shows one setting, where it is set and how to change it.
+- `hint.config`: next: `{config}` TOOL lists one tool's settings.
+- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
 - `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
-- `hint.config.changed`: next: `{config}` <tool>.<key> shows where one is set and how to change it.
+- `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 
 ## The suite's settings
 

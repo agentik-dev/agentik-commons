@@ -158,7 +158,7 @@ class PasteTest(Home):
             for c in found:
                 self.assertNotEqual(self.paste(c, env), 127, (argv, c))
         hint = self.screen(["./setup", "--dry-run"], env).splitlines()[-1]
-        self.assertTrue(hint.endswith(" next: ./setup"), hint)  # row sm2 R1
+        self.assertEqual(hint, "next: ./setup")  # row sm2 R1; no mark before next: (row sc4)
         self.assertIn(TOOL + " ", self.screen(["plugins/suite/bin/agentik-suite"], env).splitlines()[0])
 
     def placed(self):

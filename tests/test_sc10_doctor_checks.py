@@ -125,7 +125,7 @@ class ReadyTest(Checks):
         self.assertEqual(code, 1, out + err)
         self.assertIn(("FAIL", "root", detail.replace(self.home, "~")), self.rows(out))
         self.assertNotIn(TAIL, out + err)
-        self.assertEqual(err.splitlines()[-1], "note  next: agentik murmur doctor")
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")
         code, raw, obj = self.json_of(PATH=path)
         self.assertEqual(code, 1)
         root = [c for g in obj["tools"] if g["name"] == "murmur" for c in g["checks"]]
@@ -202,7 +202,7 @@ class ReadyTest(Checks):
         at = [i for i, l in enumerate(lines) if ROW.match(l) and ROW.match(l).group(2) == "launcher"][0]
         self.assertEqual(lines[at + 1].strip(), "in Claude Code: /murmur:install-cli")
         self.assertNotIn("/murmur", err)
-        self.assertEqual(err.splitlines()[-1], "note  next: agentik murmur doctor")
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")
         self.assertNotIn("run:", out + err)
         code, out, err = self.screen()  # an empty HOME
         self.assertNotIn("run:", out + err)
@@ -236,8 +236,8 @@ class EmptyTest(Checks):
         self.assertLessEqual(len(lines), 8, "\n".join(lines))
         self.assertEqual(len(set(lines)), len(lines), "\n".join(lines))
         last = lines[-1]
-        self.assertTrue(last.startswith("note  next: "), last)
-        command = last[len("note  next: "):]
+        self.assertTrue(last.startswith("next: "), last)
+        command = last[len("next: "):]
         self.assertEqual(command, "%s setup" % LAUNCHER)
         p = subprocess.run(["sh", "-c", command], stdin=subprocess.DEVNULL, capture_output=True,
                            env=self.env(), cwd=str(ROOT), timeout=60)
@@ -260,7 +260,7 @@ class QuietTest(Checks):
                                        "detail": "the store is locked", "remedy": "agentik zed repair"}]
         self.tool("zed", self.answer_of("zed", checks), code=1)
         code, out, err = self.screen(PATH=path)
-        self.assertEqual(err.splitlines()[-1], "note  next: agentik zed repair")
+        self.assertEqual(err.splitlines()[-1], "next: agentik zed repair")
         self.assertNotIn("fix: agentik zed repair", out)
         code, out, err = self.screen("-q", PATH=path)
         self.assertEqual(code, 1, out + err)
@@ -277,7 +277,7 @@ class QuietTest(Checks):
         self.tool("zed", self.answer_of("zed", checks), code=1)
         code, out, err = self.screen(PATH=path)
         self.assertEqual(code, 1, out + err)
-        self.assertEqual(err.splitlines()[-1:], ["note  next: agentik zed doctor"], err)
+        self.assertEqual(err.splitlines()[-1:], ["next: agentik zed doctor"], err)
         for args in ((), ("-q",)):
             code, out, err = self.screen(*args, PATH=path)
             for l in out.splitlines():
