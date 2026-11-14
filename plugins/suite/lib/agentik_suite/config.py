@@ -18,7 +18,7 @@ import json
 import os
 import time
 
-from . import plan, settings, sources, term, tools
+from . import doctor, plan, settings, sources, term, tools
 
 NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
 
@@ -35,6 +35,8 @@ KEY_LINE = {"timed out": "err.config.silent", "unreadable": "err.config.silent",
             "read timed out": "err.config.read.timed_out",
             "read unreadable": "err.config.read.unreadable", "read error": "err.config.read.error"}
 REASON = {"other": "config.reason.other", "unread": "config.reason.unread"}  # row ak9b R3
+WARNED = {"unreadable": "config.warn.unreadable", "ignored": "config.warn.ignored"}  # row ak9c R7
+CLAIM = {"suite": "config.claim.suite", "kept": "config.claim.kept", "market": "config.claim.market"}  # R4
 READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable",
              "error": "config.read.error"}
 SUITE_SUMMARIES = ("checkouts", "kind", "watcher.match", "watcher.start", "watcher.beat",
@@ -137,7 +139,7 @@ class Reader:
         for e in entries:
             row = {"name": e["name"], "exe": e["exe"], "answer": None, "config": None,
                    "fault": None, "read": None, "read_state": None, "source": e.get("source"),
-                   "reason": reasons.get(e["name"]), "error": None}
+                   "reason": reasons.get(e["name"]), "error": None, "claims": []}
             if e["name"] == self.suite:
                 row["state"] = "answers"
                 row["answer"] = self.suite_describe()
@@ -150,6 +152,8 @@ class Reader:
             else:
                 row["state"], row["answer"] = described[e["name"]]
                 row["read"] = tools.config_read(row["answer"]) if row["answer"] else None
+                row["claims"] = [{k: c[k] for k in ("verb", "counts", "reason")}  # row ak9c R4
+                                 for c in doctor.claims(self.cmd, [e], described)]
                 if e["name"] in reads:
                     code, out, state = reads[e["name"]]
                     row["config"] = tools.counted_config(code, out) if state == "ran" else None
@@ -279,7 +283,7 @@ def do_config(cmd, nouns):
                           state=state, message=(row["error"] or {}).get("message"), **cmd.slots())
         return _silent(cmd, r, row, table)
     if not key:
-        return _tool(cmd, r, name, cfg, _from(row["source"], r.home))
+        return _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"])
     found = [s for s in cfg["settings"] if s["key"] == key]
     if not found and name == r.suite and key.startswith("sources."):
         known = tools.rows(cmd.env, cmd.lib)
@@ -380,6 +384,8 @@ def _silent(cmd, r, row, table):
             obj["error"] = row["error"]
         if row["reason"]:
             obj["reason"] = row["reason"]
+        if row["claims"]:
+            obj["claims"] = row["claims"]
         if table:
             obj["table"] = table
             obj["description"] = tools.descriptions(cmd.env).get(name)
@@ -409,17 +415,28 @@ def _silent(cmd, r, row, table):
         for need in table.get("needs") or ():
             rows.append(("note", [t.text("config.label.needs"), str(need)], None))
         t.table(rows)
+    _claims(cmd, name, row["claims"])
     if held:
         t.line("config.remedy", remedy=remedy)
     t.hint(close[0], **close[1])
     return 0
 
 
-def _tool(cmd, r, name, cfg, origin=None):
+def _claims(cmd, name, claims):
+    """One line a claim that does not count: the word, and why `agentik W` does not run it (R4)."""
+    for c in claims:
+        if not c["counts"]:
+            cmd.t.line(CLAIM[c["reason"]], name=name, verb=c["verb"], run=cmd.say(c["verb"]))
+
+
+def _tool(cmd, r, name, cfg, origin=None, claims=()):
     t, rows = cmd.t, cfg["settings"]
     if cmd.opts["json"]:
-        t.json({"schema": "agentik.config/1", "ok": True, "tool": name, "layers": cfg["layers"],
-                "settings": rows, "warnings": cfg.get("warnings") or []})
+        obj = {"schema": "agentik.config/1", "ok": True, "tool": name, "layers": cfg["layers"],
+               "settings": rows, "warnings": cfg.get("warnings") or []}
+        if claims:
+            obj["claims"] = list(claims)
+        t.json(obj)
         return 0
     changed = sum(1 for s in rows if differs(s))
     _titled(cmd, "config.tool.title", origin, name=name, changed=changed,
@@ -442,13 +459,30 @@ def _tool(cmd, r, name, cfg, origin=None):
     else:
         t.table([row(s, s["key"]) for s in rows])
     for w in cfg.get("warnings") or ():
+        if w.get("reason") in WARNED:  # a file skipped, a key not taken from it (row ak9c R7)
+            where = _where(w, r.home)
+            t.table([("warn", [t.text(WARNED[w["reason"]], name=name, key=w.get("key"))]
+                      + ([term.path(where)] if where else []), None)])
+            continue
         said = t.text("config.badvalue", key=w.get("key"), value=shown_value(w.get("value"))) \
             if w.get("reason") == "choice" else t.text("config.unknown", key=w.get("key"))
         t.table([("warn", [said,
                            term.path("%s:%s" % (plan.shown(str(w.get("path")), r.home), w.get("line")))],
                   None)])
+    _claims(cmd, name, claims)
     t.hint("hint.config.tool", **cmd.slots(), name=name)
     return 0
+
+
+def _where(row, home):
+    """A row's file as the card's set-by line shows one, `~` for the home, one line, its `line`
+    after a colon where one is given; None where the row names no file (row ak9c R7, R8)."""
+    path = row.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    shown = tools.one_line(plan.shown(path, home))
+    line = row.get("line")
+    return "%s:%s" % (shown, line) if isinstance(line, int) and not isinstance(line, bool) else shown
 
 
 def _card(cmd, r, name, cfg, s):
@@ -474,7 +508,9 @@ def _card(cmd, r, name, cfg, s):
     else:
         rows.append((None, [label("set_by"), str(src.get("layer") or "default")], None))
     for v in s.get("values") or ():
-        rows.append((None, [label("layer"), t.text("config.layer", layer=v.get("layer"),
+        where = _where(v, r.home)  # a layer of several files: the one that holds this value (R8)
+        rows.append((None, [label("layer"), t.text("config.layer.at" if where else "config.layer",
+                                                     layer=v.get("layer"), where=where,
                                                      value=shown_value(v.get("value")))], None))
     kind = change.get("kind")
     if kind in ("command", "launch") and change.get("command"):

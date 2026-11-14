@@ -538,6 +538,34 @@ def describe_all(entries, env, read=False, key=None, deadline=None, reasons=None
     return found, {name: result for (kind, name), result in ran.items() if kind == "config"}
 
 
+def claims(entries, described, kept_out, kept):
+    """[{tool, verb, counts, reason}]: each `{"name": W, "top": true}` of each entry's counted
+    describe in `described` (describe_all's first value), in the list's order (row ak9c R2). The
+    claim counts (reason null) where W is not in `kept_out` (the suite's verbs and the doctor's
+    reserved words), where `kept` ({word: tool or None}) keeps W for the claimant alone, and where
+    the tool's standing source is the finder's kind `own` with a file that runs. Else the reason is
+    `suite` (the suite keeps W, for itself or for no tool yet), `kept` (for another tool) or
+    `market` (the tool is not from the agentik marketplace). An entry is listed's, never the suite's."""
+    found = []
+    for e in entries:
+        answer = described.get(e["name"], (None, None))[1]
+        for v in (answer or {}).get("verbs") or ():
+            if not (isinstance(v, dict) and v.get("top") is True and isinstance(v.get("name"), str)
+                    and NAME.match(v["name"])):
+                continue
+            word, source = v["name"], e.get("source") or {}
+            if word in kept_out or (word in kept and kept[word] is None):
+                reason = "suite"
+            elif word in kept and kept[word] != e["name"]:
+                reason = "kept"
+            elif source.get("kind") != "own" or not e.get("exe"):
+                reason = "market"
+            else:
+                reason = None
+            found.append({"tool": e["name"], "verb": word, "counts": reason is None, "reason": reason})
+    return found
+
+
 def config_read(answer):
     for read in answer.get("reads") or ():
         if read.get("kind") == "config":

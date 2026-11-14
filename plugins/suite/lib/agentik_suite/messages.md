@@ -98,6 +98,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.verb.plugin`: `{word}` is a plugin with no command
 - `err.verb.page`: `{word}` has no command here yet: it installs its own. Its page has the line: `{page}`
 - `err.verb.missing`: `{word}` is not installed
+- `err.verb.claimed`: `{word}` is claimed by `{tools}`, so none of them runs
 - `err.flag`: `{flag}` is not a flag
 - `err.flag.of`: `{flag}` is not a flag of `{verb}`
 - `err.flag.version`: --version takes no verb and no --help
@@ -146,6 +147,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.changed`: changed
 - `config.unknown`: unknown key `{key}`
 - `config.badvalue`: `{key}` holds `{value}`, which is not one of its choices
+- `config.warn.unreadable`: `{name}` skipped this file: it could not be read
+- `config.warn.ignored`: `{name}` does not take `{key}` from this file
+- `config.claim.suite`: `{name}` claims `{verb}`; `{run}` does not run it: the suite keeps that word
+- `config.claim.kept`: `{name}` claims `{verb}`; `{run}` does not run it: the suite keeps that word for another tool
+- `config.claim.market`: `{name}` claims `{verb}`; `{run}` does not run it: `{name}` is not from the agentik marketplace
 - `config.card.title`: `{name}`.`{key}`
 - `config.label.value`: value
 - `config.label.summary`: about
@@ -190,6 +196,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.was`: default `{default}`
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
+- `config.layer.at`: `{layer}`: `{value}` at `{where}`
 - `config.file`: `{path}`
 - `hint.config`: next: `{config}` TOOL lists one tool's settings.
 - `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
@@ -466,6 +473,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
+- `doctor.claim.twice`: `{tools}` each claim the verb `{word}`, so `{run}` runs none of them
 - `doctor.settings.ok`: `{path}` reads
 - `doctor.settings.none`: no user file at `{path}`, so the defaults hold
 - `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it

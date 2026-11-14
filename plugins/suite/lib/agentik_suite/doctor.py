@@ -92,7 +92,7 @@ def door(cmd, on_path):
 
 
 def shadow(cmd, on_path):
-    words = set(cmd.VERBS) | set(RESERVED)
+    words = set(cmd.VERBS) | set(RESERVED) | set(cmd.KEPT)  # the kept words too (row ak9c R5)
     found = []
     for f in on_path:
         word = f["name"][len("agentik-"):]
@@ -100,6 +100,27 @@ def shadow(cmd, on_path):
             found.append(_check("shadow", "fail", cmd.t.text("doctor.shadow.hit", path=f["path"],
                                                              word=word)))
     return found or [_check("shadow", "ok", cmd.t.text("doctor.shadow.ok"))]
+
+
+def claims(cmd, entries, described):
+    """tools.claims with the words the suite keeps: its verbs, RESERVED and cmd.KEPT (row ak9c R2)."""
+    return tools.claims(entries, described, set(cmd.VERBS) | set(RESERVED), cmd.KEPT)
+
+
+def joined(names):
+    """`a and b`, `a, b and c`: the tools of one word's claims, in order."""
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def twice(cmd, found):
+    """One fail check, a shadow row's form, for each word two or more counted claims name (R3)."""
+    words = {}
+    for c in found:
+        if c["counts"]:
+            words.setdefault(c["verb"], []).append(c["tool"])
+    return [_check("claim", "fail", cmd.t.text("doctor.claim.twice", word=w, tools=joined(names),
+                                                run=cmd.say(w)))
+            for w, names in words.items() if len(names) > 1]
 
 
 def user_settings(cmd):
@@ -354,13 +375,20 @@ def tool_doctor(cmd, name, exe):
     return "%s doctor" % prog.shown(exe, cmd.env.get("HOME"), full=cmd.opts["json"])
 
 
-def own_doctors(cmd, entries):
+def describes(cmd, entries):
+    """describe_all's first value for each listed tool with a file, under the describe wall."""
+    exes = {e["name"]: e["exe"] for e in entries if e["exe"]}
+    return tools.describe_all([{"name": n, "exe": x} for n, x in exes.items()], cmd.env,
+                              deadline=time.monotonic() + tools.WALL)[0] if exes else {}
+
+
+def own_doctors(cmd, entries, described=None):
     """[group] for each listed tool but the suite, in the list's order. A group is {name,
-    checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2)."""
+    checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2).
+    `described` is the describes `read` made for the claims (row ak9c R3), else read here."""
     t = cmd.t
     exes = {e["name"]: e["exe"] for e in entries if e["exe"]}
-    described = tools.describe_all([{"name": n, "exe": x} for n, x in exes.items()], cmd.env,
-                                   deadline=time.monotonic() + tools.WALL)[0] if exes else {}
+    described = describes(cmd, entries) if described is None else described
     reads = {}
     for name in exes:
         r = doctor_read(described.get(name, (None, None))[1])
@@ -612,11 +640,12 @@ def read(cmd):
     on_path = cmd._on_path()
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     entries = tools.listed(suite, on_path, cmd.env)
-    own = [door(cmd, on_path)] + shadow(cmd, on_path) + user_settings(cmd) + source_settings(cmd) \
-        + plan_rows(cmd)
+    described = describes(cmd, entries[1:])
+    own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
+        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
-    groups += own_doctors(cmd, entries[1:])
+    groups += own_doctors(cmd, entries[1:], described)
     checks = [c for g in groups for c in g["checks"]]
     failed = sum(c["status"] == "fail" for c in checks)
     warned = sum(c["status"] == "warn" for c in checks)
