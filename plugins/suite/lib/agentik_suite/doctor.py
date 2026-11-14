@@ -338,10 +338,11 @@ def read_own(out, failed):
 
 
 def doctor_read(answer):
-    """The read of kind `doctor` a counted describe answer names, or None (R5)."""
+    """The read of kind `doctor` a counted describe answer names, or None (R5); one whose `argv`
+    is empty does not count, since it would run the tool bare (review 1)."""
     for r in (answer or {}).get("reads") or ():
         if r.get("kind") == "doctor":
-            return r
+            return r if r["argv"] else None
     return None
 
 

@@ -364,9 +364,9 @@ def counted_describe(code, out, name):
 
 def describe_reason(code, out, name):
     """None for an answer that counts; `other` for one that would count under another tool's
-    name; `unread` for one that does not read (R3)."""
+    name; `unread` for one that does not read, or whose `tool` is no string (R3, review 1)."""
     obj = _described(code, out)
-    if obj is None:
+    if obj is None or not isinstance(obj.get("tool"), str):
         return "unread"
     return None if obj.get("tool") == name else "other"
 
