@@ -545,14 +545,16 @@ def claims(entries, described, kept_out, kept):
     reserved words), where `kept` ({word: tool or None}) keeps W for the claimant alone, and where
     the tool's standing source is the finder's kind `own` with a file that runs. Else the reason is
     `suite` (the suite keeps W, for itself or for no tool yet), `kept` (for another tool) or
-    `market` (the tool is not from the agentik marketplace). An entry is listed's, never the suite's."""
-    found = []
+    `market` (the tool is not from the agentik marketplace). An entry is listed's, never the suite's.
+    A tool claims a word once however often its describe lists it (review 1 F1)."""
+    found, seen = [], set()
     for e in entries:
         answer = described.get(e["name"], (None, None))[1]
         for v in (answer or {}).get("verbs") or ():
             if not (isinstance(v, dict) and v.get("top") is True and isinstance(v.get("name"), str)
-                    and NAME.match(v["name"])):
+                    and NAME.match(v["name"])) or (e["name"], v["name"]) in seen:
                 continue
+            seen.add((e["name"], v["name"]))
             word, source = v["name"], e.get("source") or {}
             if word in kept_out or (word in kept and kept[word] is None):
                 reason = "suite"
