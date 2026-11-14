@@ -12,7 +12,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fk_homes import HOMES, T, build  # noqa: E402
+from fk_homes import HOMES, T, build, describing  # noqa: E402
 from test_agentik_suite import LAUNCHER, LIB, PLUGIN  # noqa: E402
 from test_fk2_plan import Base  # noqa: E402
 from agentik_suite import plan  # noqa: E402
@@ -92,6 +92,24 @@ class Fk2bTest(Reads):
                         row = [g for g in self.json_of(h, verb)["tools"] if g["name"] == tool][0]
                         self.assertEqual(row["source"]["version"], "0.12.6-acme.1")
 
+    def test_1_a_fork_that_answers_describe(self):
+        """Review 1 F1: hE's fork answers `describe --json` with its own version; `config --json`'s
+        row keeps that version under `source` alone, and `summary` stays the tool's own sentence."""
+        for tool in (T, "session"):
+            h = self.made("hE", tool, setup=False)
+            h.commands(describing(tool, h.fork, "0.12.6-acme.1"))
+            for verb in ("doctor", "config"):
+                obj = self.json_of(h, verb, more=h.bins())
+                row = [g for g in obj["tools"] if g["name"] == tool][0]
+                self.assertEqual(row["source"]["version"], "0.12.6-acme.1", (tool, verb))
+                for g in obj["tools"]:
+                    g.pop("source")
+                self.assertNotIn("acme", json.dumps(obj), (tool, verb))
+                if verb == "config":
+                    self.assertEqual(row["state"], "answers", row)
+                    self.assertIsNone(row["version"], row)
+                    self.assertEqual(row["summary"], "A made-up tool.", row)
+
     def test_1_a_fork_in_the_default_set_is_named_by_its_tool(self):
         h = self.made("hA", "session", setup=False)
         names = [c["name"] for c in self.checks(self.json_of(h, "doctor"), "suite")]
@@ -157,6 +175,55 @@ class Fk2bTest(Reads):
             said = [c for c in self.checks(obj, "suite") if c["name"] == "settings" and c["status"] == "warn"]
             self.assertEqual(len(said), 1, (text, self.checks(obj, "suite")))
             self.assertIn("config.yaml:%d" % at, said[0]["detail"])
+
+    def test_5_a_line_passed_over_reads_no_source_under_the_tool(self):
+        """Review 1 F3: a value the config read passes over gives no `from` line and no folder
+        warn under the tool; the suite group's settings warn speaks for the line."""
+        for value in ("./fork", "''", "\n    x: y"):
+            h = self.made("hD")
+            h.user_file("sources:\n  %s: %s\n" % (T, value))
+            code, out, err = self.go(h, "doctor")
+            self.assertEqual(code, 0, err)
+            self.assertTrue([l for l in self.group(out, "suite")
+                             if "sources.%s at %s:2 is no plugin id or folder" % (T, USER) in l], out)
+            lines = self.group(out, T)
+            self.assertFalse([l for l in lines if l.startswith("    from")], (value, lines))
+            self.assertNotIn("declared folder", out, value)
+            details = [c["detail"] for c in self.checks(self.json_of(h, "doctor"), T)]
+            self.assertFalse([d for d in details if "folder" in d or "plugins have" in d], (value, details))
+
+    # the named warn (review 1 F2)
+    def test_4_the_named_warn_counts_what_is_there(self):
+        """Review 1 F2: `named` shows only where the declared source stands, and counts the plugins
+        seen with the one that stands; a declared source not installed has its own warn alone."""
+        for name, line in (("hD", T + "@other"), ("hF", F)):
+            h = self.made(name)
+            h.user_file("sources:\n  %s: %s\n" % (T, line))
+            details = [c["detail"] for c in self.checks(self.json_of(h, "doctor"), T)]
+            self.assertIn("its declared source is not installed", details, (name, line))
+            self.assertFalse([d for d in details if "plugins have this name" in d], (name, details))
+        h = self.made("hB")
+        h.user_file("sources:\n  %s: %s\n" % (T, F))
+        details = [c["detail"] for c in self.checks(self.json_of(h, "doctor"), T)]
+        self.assertIn("2 plugins have this name; the declared one stands", details)
+        self.assertNotIn("its declared source is not installed", details)
+
+    # the gate list without HOME (review 1 F4)
+    def test_4_no_home_reads_no_gate_list(self):
+        h = self.made("hJ")
+        cfg = os.path.join(h.home, ".claude")
+        with open(os.path.join(cfg, "edit-gates"), "w") as fh:
+            fh.write("~/.config/agentik/suite/config.yaml\n")
+        env = self.env(h, CLAUDE_CONFIG_DIR=cfg, XDG_CONFIG_HOME=os.path.join(h.home, ".config"))
+        del env["HOME"]
+        for flags in ((), ("--json",)):
+            p = subprocess.run([str(LAUNCHER), "doctor"] + list(flags), capture_output=True, text=True,
+                               env=env, cwd=h.home, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertNotIn("Traceback", p.stderr)
+            self.assertNotIn("gate list", p.stdout)
+            if flags:
+                json.loads(p.stdout)
 
     # line 6
     def test_6_passed_over(self):
