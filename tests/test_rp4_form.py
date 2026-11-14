@@ -399,6 +399,24 @@ class FitTest(unittest.TestCase):
         self.assertEqual(went, [("plugins", 80)])
         self.assertEqual(got["rows"], f["rows"])
 
+    def test_still_over_after_the_three_drops_went_says_so(self):
+        f = example()
+        f["rows"] = [["lantern", "fail", "n" * 60, "d" * 200] for _ in range(12)]
+        f["expected"], f["ran"] = "e" * 600, "agentik lantern doctor " + "r" * 177
+        f["lines"] = ["l" * 200 for _ in range(20)]
+        got, went = form.fit(f)
+        size = len(form.build(got))
+        self.assertGreater(size, 4096)
+        self.assertEqual(went, [("plugins", 4), ("lines", 20), ("over", size)])
+        self.assertIsNone(got["plugins"])
+        self.assertIsNone(got["lines"])
+        self.assertEqual(got["rows"], f["rows"])
+        bare = form.drop(example(), "plugins", "output")
+        bare["expected"] = "e" * 4096
+        got, went = form.fit(bare)
+        self.assertEqual((got, went), (bare, [("over", len(form.build(bare)))]))
+        self.assertEqual(form.fit(bare, len(form.build(bare))), (bare, []))
+
     def test_under_the_ceiling_as_it_was(self):
         self.assertEqual(form.fit(example()), (example(), []))
 

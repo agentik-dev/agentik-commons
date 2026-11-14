@@ -540,7 +540,8 @@ def draft(facts, tool, title, happened, fingerprint):
 
 def fit(fields, ceiling=CEILING):
     """(fields, went): over the ceiling the plugins go first, then the `warn` rows, then the
-    oldest lines, one at a time; `went` names each with its count, in that order."""
+    oldest lines, one at a time; `went` names each with its count, in that order, and ends with
+    `("over", <bytes>)` when the form is still over the ceiling after the three, to be cut by hand."""
     f, went = _copy(fields), []
 
     def over():
@@ -560,6 +561,8 @@ def fit(fields, ceiling=CEILING):
             f["lines"] = f["lines"][1:] or None
             n += 1
         went.append(("lines", n))
+    if over():
+        went.append(("over", len(build(f))))
     return f, went
 
 
