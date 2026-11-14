@@ -696,7 +696,7 @@ class PlanTruthTest(Home):
         out = WriterTest.stream(None, True)
         term.Term(env={"NO_COLOR": "1"}, out=out, err=WriterTest.stream(None, True)).table(
             [("ok", ["a", "x" * 100], "run: z")])
-        self.assertEqual(out.getvalue(), "  ✓  a\n" + " " * 8 + "x" * 100 + "\n" + " " * 8 + "run: z\n")
+        self.assertEqual(out.getvalue(), "  ✓  a\n" + " " * 6 + "x" * 100 + "\n" + " " * 8 + "run: z\n")  # sc3 R4
 
 
 

@@ -5,7 +5,7 @@
 | from | agentik-hq's brief sc3-table of 2026-11-13, R1 to R10, and its start line of 2026-11-14; hq design/23 §2 (F2), §9 (row sc3-table); level S3 |
 | pin | agentik-commons main 43e902e (`Merge rp6-verb`, suite 0.7.2); worktree `.claude/worktrees/sc3-table`, branch `sc3-table`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` process; made-up names; no test reads the live home or the real terminal's size; no message changes; no version (a phase 2 names it) |
-| may touch | `plugins/suite/lib/agentik_suite/term.py` (`Term.table`, `_Stream.width`, `columns`, one helper); `tests/test_sc3_table.py` (new); this packet; `history/sittings/2026-11-14-3.md` |
+| may touch | `plugins/suite/lib/agentik_suite/term.py` (`Term.table`, `_Stream.width`, `columns`, one helper); `tests/test_sc3_table.py` (new); `tests/test_agentik_suite.py` (one expectation of `PlanTruthTest.test_r7`, R4's indent); this packet; `history/sittings/2026-11-14-3.md` |
 | verify | `make check` once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 9 below; `python3 -m unittest tests.test_sc3_table` OK; verify green |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
