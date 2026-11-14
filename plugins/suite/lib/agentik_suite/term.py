@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 
 from . import catalogue
 
@@ -39,6 +40,25 @@ def clean(value):
     space, so no value splits a row or glues two words, and the line and direction controls go,
     so no value reorders a row or starts another."""
     return LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value))))
+
+
+def columns(text):
+    """The screen columns a text takes: a wide character two, a combining mark none."""
+    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
+               for c in text)
+
+
+def fit(text, room, mark):
+    """The text cut so that it and its mark take at most `room` columns; a combining mark stays
+    with the character it follows."""
+    room -= columns(mark)
+    kept, used = [], 0
+    for c in text:
+        used += columns(c)
+        if used > room:
+            break
+        kept.append(c)
+    return "".join(kept) + mark
 
 
 def _cleaned(obj):
@@ -198,15 +218,15 @@ class Term:
         status is None, two spaces, the label bold and padded to 8, two spaces, then each row at
         the text's column. A row is (text or [cell...], style, whole); a row of cells pads each
         cell but the last to the widest of its column among the part's rows, two spaces apart.
-        On a terminal a row past the width ends at it with an ellipsis, unless it is whole. No
-        row ends in a space."""
+        On a terminal a row past the width ends at it with an ellipsis, unless it is whole. A
+        width is in screen columns (`columns`). No row ends in a space."""
         stream = self._stream(err)
         rows = rows or [("", None, False)]
         widths = {}
         for cells, _, _ in rows:
             if isinstance(cells, (list, tuple)):
                 for i, cell in enumerate(cells[:-1]):
-                    widths[i] = max(widths.get(i, 0), len(clean(cell)))
+                    widths[i] = max(widths.get(i, 0), columns(clean(cell)))
         lead = 1 if stream.glyphs else 4
         label = clean(label)
         try:
@@ -217,7 +237,7 @@ class Term:
         for n, (cells, style, whole) in enumerate(rows):
             if isinstance(cells, (list, tuple)):
                 cells = [clean(c) for c in cells]
-                line = "".join(c + " " * (widths[i] - len(c)) + GAP for i, c in enumerate(cells[:-1]))
+                line = "".join(c + " " * (widths[i] - columns(c)) + GAP for i, c in enumerate(cells[:-1]))
                 line += cells[-1] if cells else ""
             else:
                 line = clean(cells)
@@ -227,10 +247,10 @@ class Term:
             if n == 0:
                 shown, painted = stream.mark(status) if status else ("", "")
                 head = (painted + " " * (lead - len(shown)) + GAP
-                        + stream.paint(label, STYLE_SGR["name"]) + " " * (8 - len(label)) + GAP)
+                        + stream.paint(label, STYLE_SGR["name"]) + " " * (8 - columns(label)) + GAP)
             room = stream.width() - len(plain)
-            if stream.tty and not whole and len(line) > room:
-                line = line[:max(room - len(ellipsis), 0)] + ellipsis
+            if stream.tty and not whole and columns(line) > room:
+                line = fit(line, room, ellipsis)
             shown = head + stream.paint(line, STYLE_SGR.get(style))
             stream.write(shown if line else shown.rstrip(" "))
 

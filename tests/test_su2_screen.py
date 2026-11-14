@@ -317,5 +317,24 @@ class CleanTest(unittest.TestCase):
         self.assertIn("first line second line col", text(obj))
 
 
+class ColumnsTest(unittest.TestCase):
+    """R1-F4: a cut and a pad count screen columns."""
+
+    def test_r1f4_wide_and_combining(self):
+        obj = load("busy")
+        obj["backlog"]["first"]["title"] = "\u5bfc\u5165\u7a0b\u5e8f\u8bfb\u53d6" * 10
+        row = next(r for r in tty(obj) if "first:" in r)
+        self.assertEqual(columns(row), 80, row)
+        self.assertTrue(row.endswith("\u2026"), row)
+        obj["backlog"]["first"]["title"] = "e\u0301" * 80
+        row = next(r for r in tty(obj) if "first:" in r)
+        self.assertEqual(columns(row), 80, row)
+        obj = load("busy")
+        obj["sessions"]["live"][1]["name"] = "\u6570\u636e\u5e93"
+        for lines in (tty(obj), rows(obj)):
+            at = {columns(r[:r.index("k/1M") - 3]) for r in part_rows(lines, "sessions", 16 - 3 * (lines[0][0] != "o"))[1:]}
+            self.assertEqual(len(at), 1, lines)
+
+
 if __name__ == "__main__":
     unittest.main()
