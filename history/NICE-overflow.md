@@ -54,3 +54,24 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n36 | S4 | `plugins/suite` `term.py` | at 40 columns each moved detail starts at column 40 of 40, so every row is followed by a line that looks blank; nothing is cut | a pty 40 columns wide, fresh home | 2026-11-13, ak1a review 2 L8 |
 | n37 | S4 | `plugins/suite` `plan.py` | a placed launcher with mode 0644 reads `ok` at step 4, and its doctor line cannot run; read the same at 3b7cc56 | the review's states | 2026-11-13, ak1a review 2 L9 |
 | n38 | S4 | `plugins/suite` `messages.md` | the table of words' rest: `hint.setup.done` as `setup is done`, `hint.setup.todo` and `hint.setup.blocked` with `run` before the command, `err.setup.plan_only` result first, and term's missing-catalogue line naming the reinstall command | review 2's table of words; its two step 5 and rest lines are built (M3) | 2026-11-13, ak1a review 2 |
+
+## From packet ak1b (`config`, reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
+| n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
+| n42 | S4 | `plugins/suite` `fallback.json` | the table's lines (R7, word for word) name `agentik <tool> ...`, which runs only once the door lands; until then `config <tool>` hints at a command that does not exist yet. Ordered after ak2 | review 1's leads | 2026-11-13, ak1b review 1 |
+| n43 | S4 | `plugins/suite` `messages.md` | the rest of ak1b review 1's words table, for the voice pass: `config.later` as `at the next session`; the `ok` mark on a changed row reads as fine, `note` would read truer; the list's read cell widens the settings column | review 1's words table; build 2's list | 2026-11-13, ak1b review 1 |
+| n44 | S4 | `plugins/suite` `tools.py` `run_all` | the group is killed after `proc.poll()` has reaped the process, so where the group is empty its number is free for a moment before the kill; read the exit with `os.waitid(..., WNOWAIT)` and reap after the kill | review 2's lead | 2026-11-13, ak1b review 2 |
+| n45 | S4 | `plugins/suite` `tools.py` `run_all` | `os.pipe()` sits outside the `try`, so more tools than the process has file descriptors for ends `config` in a traceback; give that tool the `unreadable` row | review 2's lead | 2026-11-13, ak1b review 2 |
+
+## From packet ak2 (the door's writers)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n48 | S4 | `scripts/door-probe` `main` | `--code ""` is taken as no flag and falls back to `AGENTIK_CODE` or the folder above the main checkout, where exit 2 for usage was expected | read only, not run | 2026-11-13, ak2 review 1 L1 |
+| n49 | S4 | `scripts/door-probe` `make_lines` | a `$(shell ...)` in a clone's makefile runs when `make -n` reads it, and GNU make remakes an included makefile even under `-n`; the brief's `make -n` design allows both, so a writer's makefile can still run a command during the scan | read only; neither reproduced alone | 2026-11-13, ak2 review 1 L2 |
+| n50 | S4 | `plugins/suite` `tools.py` | `agentik-suite <typo>` now reads `known_marketplaces.json`, the marketplace file and `installed_plugins.json` before it answers; a FIFO at one of those paths would hang the answer for an unknown word | read only, not reproduced | 2026-11-13, ak2 review 1 L4 |
+| n51 | S4 | `scripts/door-probe` `cases` | for a careful writer that never overwrites an existing door, `race` reads `1 of 1 rounds ended below 0.9.0`, the expected note, which a reader could take for a fault | the probe's run over made-up checkouts | 2026-11-13, ak2 review 1 L7 |
+| n52 | S4 | `tests/test_agentik_suite.py` `WallTest` | `test_f2_twenty_slow_tools_add_nothing_past_the_wall` holds a 3.0 s bound that a loaded machine misses by a few ms: it read 3.005 s with three other gate jobs running, and the same commit passed on the next run | gate job `20261113-045824-1435` exit 2, then `20261113-050930-1439` exit 0, both on one commit | 2026-11-13, ak2 build 2 |
