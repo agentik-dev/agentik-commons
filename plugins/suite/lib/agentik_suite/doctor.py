@@ -205,7 +205,8 @@ def _is_slash(remedy):
 
 
 def _is_shell(remedy):
-    return bool(remedy) and not _is_slash(remedy)
+    """A line to paste in a shell: not blank after strip(), and no slash command."""
+    return bool(remedy and remedy.strip()) and not _is_slash(remedy)
 
 
 def _left(checks, low, high):
@@ -216,7 +217,7 @@ def close_command(cmd, groups):
     """The one command the close names (R8), first match, or None."""
     suite = groups[0]["checks"]
     for c in suite:
-        if c["status"] == "fail" and c["remedy"]:
+        if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
             return c["remedy"]
     if _left(suite, 1, 5):
         return cmd.say("setup")
@@ -241,7 +242,7 @@ def _under(cmd, c, hint, left):
             return None
         return cmd.t.text("setup." + s["line"], command=s["command"])
     remedy = c["remedy"]
-    if not remedy:
+    if not remedy or not remedy.strip():
         return None
     if _is_slash(remedy):
         return cmd.t.text("doctor.slash", command=remedy)
