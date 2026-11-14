@@ -14,8 +14,10 @@ import hashlib
 import json
 import os
 import re
+import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -577,6 +579,186 @@ class ReadOnlyTest(InboxHome):
             "pear-hq", "a1").replace("quince-hq", "b2")
         self.assertEqual((code2, out2, err2), (code, swap(out), swap(err)))
         self.assertIn("ok  b2  nothing waits", out2)
+
+
+def strict(text):
+    """One JSON object, parsed with no NaN, Infinity or -Infinity (review 1 F1)."""
+    def refuse(word):
+        raise ValueError("constant " + word)
+    obj = json.loads(text, parse_constant=refuse)
+    assert isinstance(obj, dict), text[:200]
+    return obj
+
+
+# the verb under the launcher's default python and under the one running these tests
+PYTHONS = (None, sys.executable)
+
+
+class Review1Test(InboxHome):
+    """Review 1's findings: what a read answers is held to R3's kinds before anything draws or walks
+    it (F1, F2, F3, F8); one folder is one checkout (F4, F5); an interrupt ends the verb as status
+    ends (F10)."""
+
+    SHAPE = "agentik-ledger questions --json answers in a shape this version does not know"
+
+    def run_both(self, *args, **more):
+        found = []
+        for py in PYTHONS:
+            extra = dict(more, AGENTIK_PYTHON=py) if py else more
+            code, out, err = self.inbox(*args, **extra)
+            self.assertNotIn("Traceback", err, (py, args))
+            found.append((code, out, err))
+        return found
+
+    def raw_q(self, q=None, entry=None, repo=None):
+        e = dict(self.world["questions"][self.pear], repo=repo or self.pear, **(entry or {}))
+        e["questions"] = [dict(e["questions"][0], **(q or {}))]
+        return json.dumps({"schema": "agentik.questions/1", "ok": True, "repos": [e], "skipped": []})
+
+    def assert_unknown(self, results, n=0):
+        for code, out, err in results:
+            self.assertEqual(code, 0, err)
+            self.assertIn("note  not read  questions: %s\n" % self.SHAPE, out)
+            self.assertNotIn("Which barn", out)
+
+    def test_f1_no_constant_reaches_json(self):
+        for text in (self.raw_q(q={"line": float("nan")}, entry={"answered": float("inf")}),
+                     self.raw_q(q={"line": 5}).replace('"line": 5', '"line": 1e999'),
+                     self.raw_q(entry={"answered": float("-inf")})):
+            self.how("questions", print=text)
+            for code, out, err in self.run_both("--json", self.pear):
+                obj = strict(out)
+                self.assertEqual((code, obj["checkouts"][0]["unread"]), (0, {"questions": "unknown"}))
+            self.assert_unknown(self.run_both(self.pear))
+
+    def test_f2_f8_each_field_of_its_kind(self):
+        deep = "[" * 2000 + "]" * 2000
+        cases = [self.raw_q().replace('"Which barn holds the hay"', deep),
+                 self.raw_q(q={"title": {"a": [1, 2]}}), self.raw_q(q={"text": ["a", "b"]}),
+                 self.raw_q(q={"n": 1.0}), self.raw_q(q={"line": "5"}),
+                 self.raw_q(entry={"decided": {"count": "2", "newest": None}})]
+        for text in cases:
+            self.how("questions", print=text)
+            self.assert_unknown(self.run_both(self.pear))
+            for code, out, err in self.run_both("--json", self.pear):
+                self.assertEqual(strict(out)["checkouts"][0]["unread"], {"questions": "unknown"})
+            for code, out, err in self.run_both("1", self.pear):
+                self.assertEqual((code, out), (2, ""))
+        self.how("questions")
+        ch = dict(self.world["charter"][self.pear], repo=self.pear,
+                  waits=[{"line": None, "what": 5, "command": {"x": 1}}])
+        self.how("charter", print=json.dumps({"schema": "agentik.charter/1", "ok": True, "repos": [ch],
+                                              "skipped": []}))
+        for code, out, err in self.run_both("--check", self.pear):
+            self.assertNotIn("{'x'", out)
+            self.assertEqual(out.splitlines()[0], "not read: charter: agentik-bench charter show --json answers "
+                                                  "in a shape this version does not know")
+
+    def test_f2_one_checkouts_bad_item_costs_that_checkout_alone(self):
+        good = dict(self.world["questions"][self.fig], repo=self.fig)
+        bad = json.loads(self.raw_q(q={"title": ["x"]}))["repos"][0]
+        self.how("questions", print=json.dumps({"schema": "agentik.questions/1", "ok": True,
+                                                "repos": [bad, good], "skipped": []}))
+        code, out, err = self.inbox(self.pear, self.fig)
+        self.assertEqual(code, 0)
+        self.assertIn("note  not read  questions in pear-hq: %s\n" % self.SHAPE, out)
+        self.assertIn("   question 1  Paint the gate green\n", out)
+
+    def test_f3_a_nul_in_a_path(self):
+        for text in (self.raw_q(repo="/x\u0000y"), self.raw_q(entry={"file": "/x\u0000y"}),
+                     self.raw_q().replace("agentik.questions/1", "agentik.questions/" + "9" * 5000)):
+            self.how("questions", print=text)
+            self.assert_unknown(self.run_both(self.pear))
+            for code, out, err in self.run_both("--json", self.pear):
+                self.assertEqual(code, 0)
+                strict(out)
+        self.how("questions")
+        ch = dict(self.world["charter"][self.pear], repo=self.pear, file="/x\u0000y")
+        self.how("charter", print=json.dumps({"schema": "agentik.charter/1", "ok": True, "repos": [ch],
+                                              "skipped": []}))
+        for code, out, err in self.run_both(self.pear):
+            self.assertEqual(code, 0)
+            self.assertIn("note  not read  charter: agentik-bench", out)
+
+    def agree(self, *args, checkouts=1, **more):
+        """The count, --check and --json agree: three things wait in one checkout."""
+        code, out, err = self.inbox(*args, **more)
+        self.assertEqual(code, 0, err)
+        self.assertTrue(out.startswith("Waiting on you: 3, in %d checkout" % checkouts), out)
+        self.assertEqual(out.count("pear-hq  3 wait") + out.count("pear-link  3 wait"), 1, out)
+        obj = strict(self.inbox("--json", *args, **more)[1])
+        self.assertEqual((obj["count"], len(obj["checkouts"])), (3, checkouts))
+        self.assertEqual(len([r for r in obj["reads"] if r["name"] == "backlog"]), checkouts)
+        code, out, err = self.inbox("--check", *args, **more)
+        self.assertEqual((code, len(out.splitlines())), (1, 3))
+        return obj
+
+    def test_f4_one_folder_named_twice_on_the_command_line(self):
+        link = os.path.join(self.side, "pear-link")
+        os.symlink(self.pear, link)
+        self.agree(self.pear, self.pear + "/", link)
+        upper = os.path.join(self.T, "PEAR-HQ")
+        if os.path.isdir(upper):  # a case-blind disk
+            obj = self.agree(self.pear, upper)
+            self.assertEqual(obj["covers"]["checkouts"], [self.pear])
+
+    def test_f5_one_folder_four_ways_in_the_user_file(self):
+        os.symlink(self.pear, os.path.join(self.home, "pear-link"))
+        path = os.path.join(self.home, ".config", "agentik", "suite", "config.yaml")
+        os.makedirs(os.path.dirname(path))
+        with open(path, "w") as fh:
+            fh.write("checkouts:\n  - %s\n  - %s/\n  - ~/pear-link\n  - %s\n" % (self.pear, self.pear, self.pear))
+        obj = self.agree()
+        self.assertEqual((obj["covers"]["rule"], obj["covers"]["checkouts"]), ("checkouts", [self.pear]))
+
+    def test_f5_one_folder_twice_beside_the_hq(self):
+        tree = os.path.join(self.T, "tree")
+        hq, apple = os.path.join(tree, "pear-hq"), os.path.join(tree, "apple")
+        for path in (hq, apple):
+            os.makedirs(os.path.join(path, ".git"))
+            self.give("plain", path)
+        os.makedirs(os.path.join(hq, ".claude", "agentik"))
+        with open(os.path.join(hq, ".claude", "agentik", "config.yaml"), "w") as fh:
+            fh.write("suite:\n  kind: hq\n")
+        os.symlink(apple, os.path.join(tree, "zz-apple"))
+        self.save()
+        code, out, err = self.inbox(cwd=apple)
+        self.assertEqual(code, 0, err)
+        self.assertTrue(out.startswith("Nothing waits on you in 2 checkouts (the hq pear-hq"), out)
+        self.assertNotIn("zz-apple", out)
+
+    def wait_for(self, path):
+        for _ in range(200):
+            if os.path.exists(path) and open(path).read():
+                return int(open(path).read())
+            time.sleep(0.05)
+        self.fail("no %s" % path)
+
+    def test_f10_an_interrupt_ends_it_as_status_ends(self):
+        self.inbox(self.pear)  # the describe cache
+        self.how("charter", sleep=30)
+        pidf = os.path.join(self.side, "charter.pid")
+        for sig, want in ((signal.SIGINT, 130), (signal.SIGTERM, 143), (signal.SIGHUP, 129)):
+            if os.path.exists(pidf):
+                os.unlink(pidf)
+            p = subprocess.Popen([self.L, "inbox", self.pear], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 env=self.env(TZ="UTC"), cwd=self.side)
+            pid = self.wait_for(pidf)
+            time.sleep(0.2)
+            p.send_signal(sig)
+            out, err = p.communicate(timeout=20)
+            self.assertEqual((p.returncode, err), (want, b""), sig)
+            time.sleep(0.3)
+            with self.assertRaises(ProcessLookupError):
+                os.kill(pid, 0)
+
+    def test_f10_a_closed_stdout(self):
+        self.how("charter", sleep=1)
+        p = subprocess.Popen([self.L, "inbox", self.pear, self.quince], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, env=self.env(TZ="UTC"), cwd=self.side)
+        p.stdout.close()
+        err = p.stderr.read()
+        self.assertEqual((p.wait(timeout=20), err), (141, b""))
 
 
 if __name__ == "__main__":
