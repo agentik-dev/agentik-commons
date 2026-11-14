@@ -16,9 +16,11 @@ import hashlib
 import json
 import os
 import re
+import select
 import shutil
 import signal
 import subprocess
+import time
 import unicodedata
 
 from . import term
@@ -30,6 +32,8 @@ READ_WALL = 20  # seconds for a reading gh call or ps
 FILE_WALL = 60  # seconds for the one writing call
 WORD = b"send\n"
 FALLBACK = (80, 24)
+QUIET = 0.3  # seconds with no input, since a question was drawn, before its answer is read
+BOUND = 3.0  # seconds of input that keeps coming after a question: past them, a refusal
 MARKER = re.compile(r"^agentik-issue/1 (\S+) (\S+) ([0-9a-f]{12})$")
 # What a terminal does not draw as itself (hq design/22 section 3 item 4(e)): the one list of the
 # package. Each character of these categories but the plain space is refused anywhere in the bytes.
@@ -268,28 +272,40 @@ def _height(text, cols):
     return max(1, -(-width // cols))
 
 
-def _drain(fd):
-    """Drop whatever was typed before a question is shown, so only an answer to it counts."""
-    os.set_blocking(fd, False)
-    try:
-        while os.read(fd, 4096):
-            pass
-    except (BlockingIOError, OSError):
-        pass
-    finally:
-        os.set_blocking(fd, True)
+def _settle(fd):
+    """Drop what is typed until no input has come for QUIET seconds since the question was drawn,
+    so only an answer to it counts. False for an end of input or a device gone; a Refusal, exit
+    2, when input still comes BOUND seconds after the question, as a flood of typed lines does."""
+    start = last = time.monotonic()
+    while True:
+        now = time.monotonic()
+        if now - last >= QUIET:
+            return True
+        if now - start >= BOUND:
+            raise Refusal(2, "err.issue.send.flood", secs=int(BOUND))
+        if select.select([fd], [], [], min(QUIET - (now - last), BOUND - (now - start)))[0]:
+            try:
+                if not os.read(fd, 4096):
+                    return False
+            except OSError:
+                return False
+            last = time.monotonic()
 
 
-def _ask(fd, dev, mid):
-    """Write the question on the device and read one line from it: the bytes, or None for an
-    end of input or a device gone."""
-    _drain(fd)
+def _ask(fd, dev, mid, word=False):
+    """Write the question on the device, wait for quiet input and read one line from it: the
+    bytes, or None for an end of input or a device gone. For the word, a byte that comes on
+    within QUIET seconds after the line is the flood's Refusal, exit 2."""
     dev.line(mid)
     dev.flush()
+    if not _settle(fd):
+        return None
     try:
         answer = os.read(fd, 4096)
     except OSError:
         return None
+    if answer and word and select.select([fd], [], [], QUIET)[0]:
+        raise Refusal(2, "err.issue.send.flood", secs=int(BOUND))
     return answer or None
 
 
@@ -315,7 +331,7 @@ def _screen(fd, data, lines, repo, login, notes_, env, t):
                     break
                 used = 0
             if mid == "issue.send.ask":
-                answer = _ask(fd, dev, mid)
+                answer = _ask(fd, dev, mid, word=True)
                 break
             dev.line(mid, **values)
             used += height

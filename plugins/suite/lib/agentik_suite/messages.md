@@ -285,4 +285,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
+- `err.issue.send.flood`: Input kept coming on the terminal for `{secs}` s after the question, so nothing was sent. Run send again and type the word once the question shows.
 - `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.

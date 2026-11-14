@@ -42,6 +42,8 @@ except ImportError:
 MESSAGES = catalogue.load()
 HEAD, END = MESSAGES.get("issue.screen.head", "\0head"), MESSAGES.get("issue.screen.end", "\0end")
 MORE, ASK = MESSAGES.get("issue.screen.more", "\0more"), MESSAGES.get("issue.send.ask", "\0ask")
+WITHIN = MESSAGES.get("issue.screen.within", "\0within")
+PAUSE = getattr(send, "QUIET", 0) + 0.2  # a person reads the question before answering it
 
 GH = r'''#!/usr/bin/python3 -I
 import json, os, sys
@@ -151,9 +153,12 @@ class Base(unittest.TestCase):
             found = [json.loads(line) for line in fh]
         return [c for c in found if verb is None or c["argv"][:2] == verb.split()]
 
-    def drive(self, data, word, rows=24, cols=200, env=None, notes=(), after=None):
+    def drive(self, data, word, rows=24, cols=200, env=None, notes=(), after=None, ahead=None,
+              flood=None):
         """approve, then _file when approved, in a child of pty.fork; this side reads the screen,
-        presses Enter at each page's prompt and types `word` at the last. (screen, result)."""
+        presses Enter at each page's prompt and types `word` at the last, each after a person's
+        pause; `word` may be [(pause, bytes)]. `ahead` is typed before any screen; `flood` is
+        typed every 5 ms whatever the screen shows. (screen, result)."""
         env = env or self.env()
         out = os.path.join(self.home, "result.json")
         pid, fd = pty.fork()
@@ -177,27 +182,42 @@ class Base(unittest.TestCase):
                     json.dump(result, fh)
             finally:
                 os._exit(0)
-        replies = {MORE.encode(): b"\n", ASK.encode(): word}
+        words = word if isinstance(word, list) else [(PAUSE, word)]
+        replies = {MORE.encode(): [(PAUSE, b"\n")], WITHIN.encode(): [(PAUSE, b"\n")],
+                   ASK.encode(): words}
         buf, pos, deadline = b"", 0, time.monotonic() + 30
+        if ahead:
+            os.write(fd, ahead)
+        if flood:
+            os.set_blocking(fd, False)
         try:
             while True:
                 if time.monotonic() > deadline:
                     os.kill(pid, signal.SIGKILL)
                     self.fail("the child ran past 30 s; the screen: %r" % buf[-400:])
-                if select.select([fd], [], [], 1)[0]:
+                if flood:
+                    try:
+                        os.write(fd, flood)
+                    except (BlockingIOError, OSError):
+                        pass
+                if select.select([fd], [], [], 0.005 if flood else 1)[0]:
                     try:
                         chunk = os.read(fd, 65536)
+                    except BlockingIOError:
+                        continue
                     except OSError:
                         break
                     if not chunk:
                         break
                     buf += chunk
-                while True:
+                while not flood:
                     hits = sorted((buf.find(k, pos), k) for k in replies if buf.find(k, pos) >= 0)
                     if not hits:
                         break
                     pos = hits[0][0] + len(hits[0][1])
-                    os.write(fd, replies[hits[0][1]])
+                    for pause, typed in replies[hits[0][1]]:
+                        time.sleep(pause)
+                        os.write(fd, typed)
         finally:
             os.close(fd)
             os.waitpid(pid, 0)
@@ -465,6 +485,35 @@ class UnseenTest(Base):
                 self.assertEqual(result, {"refusal": [1, "err.issue.send.line",
                                                       {"line": n, "kind": kind}]})
                 self.assertNotIn(HEAD, screen)
+        self.assertEqual(self.calls("issue create"), [])
+
+
+class QuietTest(Base):
+    """R1-F2: the word is read only after the input has been quiet since the question was drawn;
+    input that keeps coming through the bound is a refusal, exit 2, and nothing is filed."""
+
+    def test_r1_f2_a_flood_of_typed_lines_never_answers(self):
+        began = time.monotonic()
+        _, result = self.drive(draft(), b"", flood=b"send\n")
+        self.assertEqual(result, {"refusal": [2, "err.issue.send.flood", {"secs": 3}]})
+        self.assertGreaterEqual(time.monotonic() - began, 3)
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f2_a_word_typed_ahead_is_dropped(self):
+        _, result = self.drive(draft(), [(0, b"send\n"), (PAUSE, b"\x04")])
+        self.assertEqual(result, {"approved": False})
+        _, result = self.drive(draft(), b"\x04", ahead=b"send\n")
+        self.assertEqual(result, {"approved": False})
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f2_a_word_typed_after_quiet_input_sends(self):
+        _, result = self.drive(draft(), [(0, b"send\n"), (PAUSE, b"send\n")], ahead=b"send\n")
+        self.assertEqual(result, {"approved": True, "url": URL})
+        self.assertEqual(len(self.calls("issue create")), 1)
+
+    def test_r1_f2_a_line_on_after_the_word_is_a_flood(self):
+        _, result = self.drive(draft(), [(PAUSE, b"send\n"), (0.05, b"send\n")])
+        self.assertEqual(result, {"refusal": [2, "err.issue.send.flood", {"secs": 3}]})
         self.assertEqual(self.calls("issue create"), [])
 
 
