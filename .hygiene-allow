@@ -47,3 +47,6 @@ LICENSE: person
 design/packets/fk1-sources.md: email
 plugins/suite/lib/agentik_suite/sources.py: email
 tests/test_fk1_sources.py: email
+# su2-screen build 1's charter names a function of status.py by its dotted name, which the lan
+# group reads as a host name; it is no host
+history/sittings/2026-11-13-18.md: lan

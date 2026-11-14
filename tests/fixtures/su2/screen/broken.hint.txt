@@ -1,0 +1,1 @@
+next: lampd watch --every 60, for the first of 4 that need a hand

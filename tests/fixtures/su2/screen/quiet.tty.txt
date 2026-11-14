@@ -1,0 +1,11 @@
+✓  watchers  lamp: running; its beat is 20 s old
+             no sitting is live
+✓  sessions  none live
+✓  gate      idle; last: acme-cli passed
+✓  backlog   3 open steps in this checkout, acme-cli
+             first: 4 The importer reads a file twice
+             items: S3 2, S4 9
+✓  runs      none since yesterday
+   sources   4 read in 0.4 s; the slowest, agentik-crew, took 0.4 s
+             not installed: agentik-baton
+   not read  what waits on the owner, the rows in flight

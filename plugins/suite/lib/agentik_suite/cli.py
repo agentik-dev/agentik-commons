@@ -2,17 +2,20 @@
 
 Verbs: help (bare, -h, --help), version (--version), setup, which plans with --dry-run and
 otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
-settings drilled down to one, describe, the suite's own answer to that read, status, which in
-this version only checks the declared watchers (`status --check`), install-cli, which places this
-command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
-in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
-install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
---user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
---prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
-stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
-precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
-asks once on a terminal before its first command. config writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most; setup starts the plan's commands
+settings drilled down to one, describe, the suite's own answer to that read, status, five parts
+on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
+status_screen.py draws each as it is read), the object alone with --json, and with --check only
+the declared watchers (status.py), install-cli, which places this command and the agentik door
+under a prefix's bin (install.py), and doctor, the machine checked in one read (doctor.py).
+Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and install-cli, the verbs
+that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
+--all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
+install-cli takes --prefix DIR. Those three are the only flags with a value. stdout carries the
+answer alone; stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage
+or a failed precondition, 3 not installed (a plugin's name with no command here). Nothing here
+loops; setup asks once on a terminal before its first command. config writes only its cache under
+${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache and starts each tool's status
+reads and ps, each under its wall, and --check starts ps at most; setup starts the plan's commands
 and writes what they write and its journal; install-cli writes under its prefix; doctor writes
 nothing itself, and starts each listed tool's own doctor.
 """
@@ -64,8 +67,9 @@ class Usage(Exception):
 
 class Refusal(Usage):
     """A refusal in the two-line form (row sc4 R1): the message is the cause alone and the remedy,
-    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py,
-    install.py and status.py until their rows turn them, keeps the pin's one sentence (R3)."""
+    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py and
+    install.py until their rows turn them, keeps the pin's one sentence (R3); status.py's are
+    turned (su2-read phase 2)."""
     paste = True
 
 
@@ -143,7 +147,7 @@ def _takes(verb, o, nouns):
     if verb == "setup":
         return all(NOUN.match(n) for n in nouns)
     if verb == "status":
-        return not nouns and o["check"]
+        return not (nouns and o["check"])
     if verb == "describe":
         return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
                               not nouns or (nouns[0] == "config" and len(nouns) <= 2))

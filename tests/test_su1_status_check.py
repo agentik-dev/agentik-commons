@@ -147,9 +147,6 @@ class MatchAndDeclarationTest(StatusHome):
         self.assertEqual(self.check("-q"), (0, "", ""))
 
     def test_a9_usage(self):
-        code, out, err = self.cfg("status")
-        self.assertEqual((code, out), (2, ""))
-        self.assertIn("--check", err)
         self.assertEqual(self.cfg("status", "--check", "--now", "soon")[:2], (2, ""))
         self.assertEqual(self.cfg("status", "--check", "--ps", self.ps + ".none")[:2], (2, ""))
         self.assertEqual(self.cfg("status", "--check", "--ps")[:2], (2, ""))
@@ -246,8 +243,9 @@ class BeatTest(StatusHome):
         """Review 1's F4: a local --now near year 1 exits 2 with the line, no traceback."""
         self.assertIsNone(status.when("0001-01-01T00:00:00"))
         code, out, err = self.cfg("status", "--check", "--now", "0001-01-01T00:00:00", TZ="UTC")
-        self.assertEqual((code, out, len(err.splitlines())), (2, "", 1))
-        self.assertIn("is not a time", err)
+        self.assertEqual((code, out, len(err.splitlines())), (2, "", 2))  # the cause, then next: (sc4)
+        self.assertIn("is not an ISO 8601 time", err)
+        self.assertEqual(err.splitlines()[1], "next: %s status --check" % LAUNCHER)
         self.assertNotIn("Traceback", err)
 
 
@@ -264,7 +262,7 @@ class JsonListingAndRecordsTest(StatusHome):
         self.assertEqual(code, 1)
         self.assertEqual(obj, {"schema": "agentik.status/1", "ok": True, "check": True, "watchers": [
             {"name": "lamp", "state": "missing", "pid": None, "since": 1793799937,
-             "beat_writer": "watch", "beat_line": None, "start": "lampd watch --every 60"}]})
+             "beat_writer": "watch", "beat_line": None, "start": "lampd watch --every 60", "writer": "watch", "beat_at": 1793799937}]})
         self.listing("/opt/bin/lampd watch")
         self.beat(NOW_S - 600)
         code, obj = self.obj(*self.check("--json"))
