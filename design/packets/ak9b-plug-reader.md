@@ -76,3 +76,16 @@ The coordinator's ruling of 2026-11-14 on review 1's finding F1 and its leads, b
 | 14 | `-k test_14_` (lead 2: config and doctor) | red, the second line joins |
 | 15 | `-k test_15_` (R3) | red, `other` |
 | 16 | `-k test_16_` (R5) | red, the tool run bare |
+
+## 8. The fix of review 2
+
+The coordinator's ruling of 2026-11-14 on review 2's findings F3 and F2, built in one round, each with a test red at c32afb7; no third review, the coordinator's read of the diff closes it:
+
+- F3 (S3, R4): a config remedy is never cut. `tools.config_error` takes a `plain` remedy with its outer spaces gone where that is at most `tools.LINE_CAP` characters, the tool's text whole, else None: null in `--json`, and `config T` closes as it does for a null remedy. `code` and `message` keep `one_line`'s cut.
+- F2 (S4): `tools.plain` also refuses a text holding a character of Unicode category Cf or Cs (a direction mark, a zero-width character, a soft hyphen, a lone surrogate), so such a remedy is none on R4's path and on R5's (a check's remedy and an `ok` false remedy). `term.clean` stays as it is: every screen shares it.
+- To NICE: F1 at S3 (`config.asks` and `doctor._closes` share sc5 R8's word rule, which a quoted `-y` or a cluster such as `-yq` passes; one rule for both sites); at S4, an R5 `argv` of `[""]` or one opening with a flag, and R7's plain close taken from a later group on sc10's path.
+
+| # | line | at c32afb7 |
+|---|---|---|
+| 17 | `-k test_17_` (F3: past the cap no remedy; at the cap and padded, whole) | red, `next:` ends `--dry-ru` |
+| 18 | `-k test_18_` (F2: U+200E, U+200F, U+061C, U+200B, U+FEFF, U+00AD, U+D800 on R4's path and R5's) | red, each mark reaches `next:` |
