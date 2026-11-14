@@ -14,6 +14,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import time
 
 from . import apply, catalogue, form, gather, term, tools
 
@@ -24,6 +25,7 @@ SOURCE, CONTRACT, OUT = "issue.md", "contract.md", "render.md"
 READ_CAP = 1 << 16  # bytes of an answer read back; two lines of a draft are far under it
 LABELS = ("Happened", "Expected")
 LIB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GRACE = apply.GRACE  # seconds between the group's SIGTERM and its SIGKILL
 STOPS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)  # what ends a render, then the verb
 
 
@@ -138,7 +140,7 @@ def _run(script, data, env, wall, mode, why, state):
 
 
 def _start(argv, folder, env, wall, why, state):
-    """The script's exit, or None with `why` filled; its group killed on every way out, a
+    """The script's exit, or None with `why` filled; its group ended on every way out, a
     signal of STOPS held off from then on."""
     state["armed"] = False  # a signal while the child is made is held: no script is left unseen
     try:
@@ -158,14 +160,35 @@ def _start(argv, folder, env, wall, why, state):
         return None
     finally:
         state["armed"] = False
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except OSError:
-            pass
-        try:
-            proc.wait(timeout=tools.REAP)
-        except (subprocess.TimeoutExpired, OSError):
-            pass
+        _end(proc)
+
+
+def _end(proc):
+    """The script's group ended, at the wall and at the script's own exit alike (review 1 F2):
+    SIGTERM, up to GRACE for the group to go, so a trap can end what the script started, then
+    SIGKILL; the head reaped. A child that left the group (setsid, setpgid) is out of reach,
+    unless the script's trap ends it."""
+    if _signal(proc.pid, signal.SIGTERM):
+        end = time.monotonic() + GRACE
+        while time.monotonic() < end:
+            proc.poll()  # the head reaped as it goes, so an empty group reads as gone
+            if not _signal(proc.pid, 0):
+                break
+            time.sleep(0.02)
+        _signal(proc.pid, signal.SIGKILL)
+    try:
+        proc.wait(timeout=tools.REAP)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+
+
+def _signal(group, sig):
+    """True when `sig` reached the process group `group`."""
+    try:
+        os.killpg(group, sig)
+        return True
+    except OSError:
+        return False
 
 
 def _read(path):
