@@ -516,6 +516,8 @@ class Command:
             return "hint.setup.done", {}
         if any(s["command"] and s["line"] == "run" for s in early):
             return again
+        if apply.page_close(steps):  # before the PATH line's close (row fh13-relay-plan R7)
+            return apply.page_close(steps)
         if any(s["command"] for s in early):
             return "hint.setup.path", {}
         return "hint.setup.rest", {}

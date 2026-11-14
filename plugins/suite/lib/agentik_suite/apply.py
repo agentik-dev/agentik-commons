@@ -421,6 +421,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     if failure:
         t.flush()
         t.error(failure[0], **cmd.slots(), **failure[1])
+    elif page_close(steps):  # fh13 R7
+        t.hint(*page_close(steps))
     else:
         t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
     return code
