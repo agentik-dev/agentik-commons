@@ -74,8 +74,8 @@ class EmptyHomeTest(DoctorHome):
     def test_line_1_empty_home(self):
         code, out, err = self.doctor()
         self.assertEqual(code, 0, out + err)
-        self.assertIn("run: %s setup" % CMD, out)
-        self.assertIn("%s setup" % CMD, err)
+        self.assertNotIn("run:", out)  # sc10: the close names the one command
+        self.assertIn("next: %s setup" % CMD, err)
         code, obj = self.answer()  # line 7
         self.assertEqual(code, 0)
         self.assertEqual(obj["tools"][0]["name"], "suite")
@@ -112,7 +112,7 @@ class DoorTest(DoctorHome):
         self.assertEqual(code, 1)
         code, out, err = self.doctor(PATH=self.path(self.bindir))
         self.assertEqual(code, 1)
-        self.assertIn("run: %s install-cli" % CMD, out)
+        self.assertIn("next: %s install-cli" % CMD, err)  # sc10: a failing suite row's remedy
         # the door at this command's own version
         self.place(self.bindir, "agentik", "#!/bin/sh\nVERSION=0.2.0\n")
         code, obj = self.answer(PATH=self.path(self.bindir))
@@ -171,13 +171,14 @@ class ToolTest(DoctorHome):
         self.assertEqual([(c["name"], c["status"]) for c in self.group(obj, "alpha")], [("doctor", "ok")])
         beta = self.group(obj, "beta")
         self.assertEqual([(c["name"], c["status"], c["detail"], c["remedy"]) for c in beta],
-                         [("doctor", "fail", "beta: one failed", "agentik-beta doctor")])
+                         [("doctor", "fail", "its doctor failed", "%s/agentik-beta doctor" % self.stubs)])
         self.assertEqual([c["status"] for c in self.group(obj, "gamma")], ["note"])
         self.assertEqual(code, 1)
         code, out, err = self.doctor(read=False)
         self.assertEqual(code, 1)
-        self.assertIn("beta: one failed", out)
-        self.assertIn("run: agentik-beta doctor", out)
+        self.assertNotIn("beta: one failed", out)  # sc10: a tool's own lines are not printed
+        self.assertIn("its doctor failed", [l.split("  ")[-1].strip() for l in out.splitlines() if "beta" in l])
+        self.assertIn("next: %s setup" % CMD, err)  # steps 2 to 5 are left, so setup comes first
 
     def test_line_5_a_slow_doctor_in_process(self):
         pid = os.path.join(self.home, "slow.pid")

@@ -7,7 +7,7 @@ this version only checks the declared watchers (`status --check`), install-cli, 
 command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
 in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
 install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
---user-files; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
+--user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
 --prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
 precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
@@ -32,12 +32,14 @@ FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", No
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
+DOCTOR_FLAGS = (("--all", None, "all"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
+VERB_FLAGS["doctor"] = DOCTOR_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
                "--prefix": ("prefix", "install-cli")}
-ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
@@ -152,7 +154,7 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS:
             if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
                 self._bad_flag(long)
         for flag, (key, verb) in VALUE_FLAGS.items():
@@ -259,7 +261,10 @@ class Command:
             t.table([("ok", [term.name(f["name"]), term.path(f["path"])], None) for f in found])
         else:
             t.table([("note", [t.text("help.path.none")], None)])
-        t.hint("hint.help", **self.slots())
+        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3)
+            steps = plan.build(plan.default_set(self.lib), self.env, self.lib, self.tool, self.version)
+            t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
+                   else "hint.help.done", **self.slots())
         return 0
 
     def help_verb(self, verb):
@@ -324,27 +329,29 @@ class Command:
         rows, last = [], None
         for s in steps:
             after = t.text("setup." + s["line"], command=s["command"]) if s["command"] else None
+            if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
+                after = t.text("setup.cmd.get")  # where Claude Code comes from (row sm2 R2)
             n = str(s["n"]) if s["n"] != last else ""
             last = s["n"]
             subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
             rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
         t.table(rows, mark_at=1)
-        t.hint(*self._closing(steps), **self.slots())
+        t.hint(*self._closing(steps, nouns), **self.slots())
         return 0
 
-    @staticmethod
-    def _closing(steps):
-        """The closing hint by state: what to install when step 1 is blocked; done when steps 1
-        to 6 read ok; the run lines, in order, while one of steps 1 to 6 names one; the add line
-        when it is all that is left; else what this version can do is done."""
-        blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
-        if blocked:
-            return "hint.setup.blocked", {"missing": ", ".join(blocked)}
+    def _closing(self, steps, nouns):
+        """The closing hint by state: the setup command, with the names given, when step 1 is
+        blocked or one of steps 1 to 6 names a line setup would run (row sm2 R1, R2); done when
+        steps 1 to 6 read ok; the add line when it is all that is left; else what this version
+        can do is done."""
+        again = "hint.setup.next", {"command": self.say("setup", *dict.fromkeys(nouns))}
+        if any(s["state"] == "blocked" for s in steps):
+            return again
         early = [s for s in steps if s["n"] <= 6]
         if all(s["state"] == "ok" for s in early):
             return "hint.setup.done", {}
         if any(s["command"] and s["line"] == "run" for s in early):
-            return "hint.setup.todo", {}
+            return again
         if any(s["command"] for s in early):
             return "hint.setup.path", {}
         return "hint.setup.rest", {}

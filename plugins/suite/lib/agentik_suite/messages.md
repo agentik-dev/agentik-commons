@@ -10,7 +10,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.flags`: flags
 - `help.path`: agentik commands on PATH
 - `help.path.none`: No agentik command is on PATH yet.
-- `hint.help`: next: `{setup}` --dry-run shows what setup would do on this machine.
+- `hint.help`: next: `{setup}`
+- `hint.help.done`: next: `{doctor}`
 - `hint.verb`: next: `{help}` lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
@@ -36,6 +37,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.yes`: Run setup's lines without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
+- `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
@@ -153,6 +155,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setting.watcher.start`: The line that starts the watcher.
 - `setting.watcher.beat`: The file the watcher writes while it runs.
 - `setting.watcher.writer`: The name a beat must carry to count as the watcher's own.
+- `setting.sources`: Where a tool comes from: a plugin id, or the folder of its plugin.
 
 ## Setup
 
@@ -163,6 +166,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.add`: add to your shell profile: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
+- `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
 - `setup.market.ok`: known to Claude Code
@@ -195,7 +199,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each `would run:` line above, in order, then `{setup}` --dry-run again.
+- `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
@@ -238,25 +242,39 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Doctor
 
-- `doctor.title`: `{tool}` doctor: each check of this machine, by tool.
-- `doctor.group`: `{name}`
-- `doctor.run`: run: `{command}`
+- `doctor.group.ok`: `{count}` checks
+- `doctor.group.one`: 1 check
+- `doctor.part.failed`: `{n}` failed
+- `doctor.part.warned`: `{n}` to look at
+- `doctor.part.ok`: `{n}` ok
+- `doctor.part.waiting`: (`{n}` waiting on the rest)
+- `doctor.fold`: `{fact}`: `{subjects}`
+- `doctor.total`: `{failed}` failed, `{warned}` to look at, `{ok}` ok.
+- `doctor.done`: This machine is set up.
+- `doctor.fix`: fix: `{command}`
+- `doctor.slash`: in Claude Code: `{command}`
 - `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
-- `doctor.door.behind`: `{path}` is at version `{have}`, older than `{want}`, so it hands this command no verb
+- `doctor.door.behind`: `{path}` is at `{have}`, too old to pass a verb to the suite
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
-- `doctor.door.none`: no agentik door is on PATH
+- `doctor.door.none`: no agentik command on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.settings.ok`: `{path}` reads
 - `doctor.settings.none`: no user file at `{path}`, so the defaults hold
 - `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it
-- `doctor.tool.ok`: its doctor exits 0
-- `doctor.tool.silent`: its doctor exits `{code}` and prints nothing
+- `doctor.plan.path`: not on PATH
+- `doctor.plan.market`: not known to Claude Code
+- `doctor.plan.plugin`: not installed
+- `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
+- `doctor.plan.broken`: installed at `{version}`, with its folder gone
+- `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.unread`: holds no version line
+- `doctor.plan.placed`: not placed
+- `doctor.tool.passed`: its doctor passed
+- `doctor.tool.failed`: its doctor failed
+- `doctor.tool.silent`: its doctor failed, and printed nothing
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
-- `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
-- `hint.doctor.done`: next: nothing to do, since this machine is set up.
-- `hint.doctor.setup`: next: run `{setup}`, then `{doctor}` again.
-- `hint.doctor.fail`: next: run each `run:` line above, then `{doctor}` again.
-- `hint.doctor.warn`: next: nothing failed; the warn rows above say what to look at.
+- `doctor.tool.nocmd`: no command on PATH, so no doctor
+- `hint.doctor.next`: next: `{command}`
