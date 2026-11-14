@@ -383,5 +383,37 @@ class GoneTest(unittest.TestCase):
             "baton 2026-11-13-2: running; 1 green, 1 running"])
 
 
+class MarkTest(unittest.TestCase):
+    """R1-F2: only a part the object says was read whole takes the ok mark."""
+
+    def test_r1f2_an_absent_part(self):
+        obj = load("quiet")
+        for name in ("sessions", "gate", "backlog", "runs"):
+            del obj[name]
+        got = piped(obj)
+        for name in ("sessions", "gate", "backlog", "runs"):
+            self.assertIn("warn  %-8s  not read: the status object holds no %s" % (name, name),
+                          got[0].splitlines())
+
+    def test_r1f2_a_missing_or_unknown_state(self):
+        obj = load("quiet")
+        obj["gate"]["state"] = "broken"
+        self.assertIn("warn  gate      unknown: gate reads a state not known here, broken", rows(obj))
+        obj["gate"]["state"] = "hand"
+        self.assertTrue(part_rows(rows(obj), "gate")[0].startswith("warn  gate"))
+        del obj["gate"]["state"]
+        self.assertIn("warn  gate      not read: gate holds no state", rows(obj))
+
+    def test_r1f2_a_watcher_not_running(self):
+        obj = load("quiet")
+        for state in (None, "crashed"):
+            obj["watchers"][0]["state"] = state
+            self.assertEqual(rows(obj)[0], "warn  watchers  lamp: unknown: its state reads %s" % (state or "?"))
+        obj["watchers"][0]["state"] = "missing"
+        self.assertTrue(rows(obj)[0].startswith("warn  watchers  lamp: not running since"), rows(obj)[0])
+        del obj["watchers"]
+        self.assertEqual(rows(obj)[0], "warn  watchers  not read: the status object holds no watchers")
+
+
 if __name__ == "__main__":
     unittest.main()

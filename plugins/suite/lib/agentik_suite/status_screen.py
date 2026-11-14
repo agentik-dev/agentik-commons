@@ -13,6 +13,7 @@ PARTS = ("watchers", "sessions", "gate", "backlog", "runs")
 SOURCES = {"watchers": (), "sessions": ("sessions",), "gate": ("gate",), "backlog": ("backlog",),
            "runs": ("unattended", "run")}
 READ = ("ok", "changed")
+STATES = ("ok", "hand", "partial", "not read")  # a part's; only `ok` is read whole
 GAVE_NOTHING = ("timed out", "unreadable", "changed")
 CAP = 5  # rows under a part's first, before `and {n} more`
 HELPER_ORDER = ("busy", "quiet", "done")
@@ -90,9 +91,12 @@ def capped(t, rows, source):
 # ---- the parts
 
 def _watchers(t, obj, hand, tool):
+    """The rows and the mark: `warn` for a hand, or for a watcher the object does not say runs."""
+    if "watchers" not in obj:
+        return [row(t.text("status.part.absent", part=t.text("status.label.watchers")))], "warn"
     watchers = obj.get("watchers") or []
     if not watchers:
-        return [row(t.text("status.watcher.none"))], True
+        return [row(t.text("status.watcher.none"))], "warn" if hand else "note"
     rows = []
     for w in watchers:
         name, state = shown(w.get("name")), w.get("state")
@@ -112,11 +116,14 @@ def _watchers(t, obj, hand, tool):
                 rows.append(row(w["beat_line"], DIM))
             else:
                 rows.append(row(t.text("status.watcher.running", name=name)))
-        else:
+        elif state == "unknown":
             rows.append(row(t.text("status.watcher.unknown", name=name), whole=True))
+        else:
+            rows.append(row(t.text("status.watcher.state", name=name, state=shown(state)), whole=True))
         if w.get("beat_writer") and w.get("writer") and w["beat_writer"] != w["writer"]:
             rows.append(row(t.text("status.watcher.writer", by=w["beat_writer"], writer=w["writer"])))
-    return rows, False
+    running = all(w.get("state") == "running" for w in watchers)
+    return rows, "warn" if hand or not running else "ok"
 
 
 def _helpers(t, helpers, skip_busy):
@@ -324,21 +331,29 @@ def part(t, obj, name, tool):
     """One of the five parts: its mark, its label and its rows."""
     hand = [h for h in obj.get("hand") or [] if h.get("part") == name]
     sources = [s for s in obj.get("sources") or [] if s.get("name") in SOURCES[name]]
-    note = False
+    label = t.text("status.label." + name)
     if name == "watchers":
-        rows, note = _watchers(t, obj, hand, tool)
+        rows, mark = _watchers(t, obj, hand, tool)
+        t.grid(mark, label, rows)
+        return
+    p = obj.get(name) or {}
+    state = p.get("state")
+    note = state in ("partial", "not read")
+    if name == "backlog" and (obj.get("covers") or {}).get("rule") == "none":
+        rows, note = [row(t.text("status.backlog.nowhere", tool=tool))], True
+    elif name not in obj:
+        rows = [row(t.text("status.part.absent", part=label))]
+    elif state is None:
+        rows = [row(t.text("status.part.stateless", part=label))]
+    elif state not in STATES:
+        rows = [row(t.text("status.part.unknown", part=label, state=shown(state)))]
+    elif state == "not read":
+        rows = _gave_nothing(t, sources, True)
     else:
-        p = obj.get(name) or {}
-        state = p.get("state")
-        note = state in ("partial", "not read")
-        if name == "backlog" and (obj.get("covers") or {}).get("rule") == "none":
-            rows, note = [row(t.text("status.backlog.nowhere", tool=tool))], True
-        elif state == "not read":
-            rows = _gave_nothing(t, sources, True)
-        else:
-            rows = BUILD[name](t, obj, p, hand, sources, tool) + _gave_nothing(t, sources, False)
-    mark = "warn" if hand else "note" if note else "ok"
-    t.grid(mark, t.text("status.label." + name), rows)
+        rows = BUILD[name](t, obj, p, hand, sources, tool) + _gave_nothing(t, sources, False)
+    said = state == "ok" or note  # read whole, or said to be read in part or not at all
+    mark = "warn" if hand or not said else "note" if note else "ok"
+    t.grid(mark, label, rows)
 
 
 def foot(t, obj, tool):

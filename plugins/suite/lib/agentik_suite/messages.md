@@ -255,6 +255,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.watcher.hung`: `{name}`: running but silent
 - `status.watcher.hung.since`: `{name}`: running but silent since `{when}` (`{age}`)
 - `status.watcher.unknown`: `{name}`: not checked: ps gave no listing
+- `status.watcher.state`: `{name}`: unknown: its state reads `{state}`
 - `status.watcher.start`: start it: `{start}`
 - `status.watcher.writer`: its beat file was last written by `{by}`, not `{writer}`
 - `status.sessions.none`: none live
@@ -308,6 +309,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.run.gone`: `{by}` `{run}`: reads running, and its process (pid `{pid}`) is gone
 - `status.source.absent`: not read: agentik-`{tool}` is not installed
 - `status.source.none`: not read: no tool here gives it
+- `status.part.absent`: not read: the status object holds no `{part}`
+- `status.part.stateless`: not read: `{part}` holds no state
+- `status.part.unknown`: unknown: `{part}` reads a state not known here, `{state}`
 - `status.source.slow`: not read: agentik-`{tool}` gave no answer in `{wall}` s
 - `status.source.failed`: not read: `{command}` failed
 - `status.source.nojson`: not read: `{command}` printed no JSON object
