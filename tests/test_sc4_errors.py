@@ -258,6 +258,14 @@ class Review1Test(Sc4Home):
             self.refusal(argv, cause, nxt, code_word="unknown_flag")
             self.assert_writes_nothing(nxt, argv)
         self.refusal(("setup", "--dry-rn"), "--dry-rn is not a flag of setup", "agentik setup --dry-run")
+        # with --dry-run typed, the writes guard lets the line through, so only the rule on a flag
+        # that skips a question keeps --yes out (review 2 F4)
+        for argv in (("setup", "--dry-run", "--test"), ("install-cli", "--dry-run", "--ask")):
+            code, out, err = self.run_cli(*argv)
+            nxt = err.split("\nnext: ", 1)[1].rstrip("\n")
+            self.assertEqual(code, 2, (argv, err))
+            self.assertFalse(set(nxt.split()) & set(cli.SKIPS), (argv, nxt))
+            self.assert_writes_nothing(nxt, argv)
 
     def test_f2_a_word_that_is_no_verb_is_never_mended_into_a_verb_that_writes(self):
         for word in ("uninstall", "stop", "stup"):
