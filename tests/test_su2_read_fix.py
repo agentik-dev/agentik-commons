@@ -98,5 +98,14 @@ class EveryWayOutTest(FixHome):
                 self.assertEqual([pid for pid in found if not gone(pid)], [])
 
 
+class CleanerTest(FixHome):
+    """R1-F3: U+009B and the other C1 controls are dropped with the C0 ones."""
+
+    def test_f3_c1_controls(self):
+        self.assertEqual(status_read._first_line(b"\xc2\x9b31mred\xc2\x9d!\n"), "31mred!")
+        self.answer(gate={"exit": 3, "err": "\u009b31mred\nmore\n"})
+        self.assertEqual(self.source(self.read(), "gate")["stderr"], "31mred")
+
+
 if __name__ == "__main__":
     unittest.main()
