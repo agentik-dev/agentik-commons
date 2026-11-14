@@ -29,12 +29,14 @@ import os
 import re
 import shlex
 import sys
+import time
 
 import agentik_install
 
 from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools, update
 
 VERBS = ("help", "version", "setup", "update", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
+KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
 WRITES = ("setup", "update", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
@@ -211,7 +213,7 @@ def refused(line):
 
 
 class Command:
-    Usage, Refusal, VERBS = Usage, Refusal, VERBS
+    Usage, Refusal, VERBS, KEPT = Usage, Refusal, VERBS, KEPT
 
     def __init__(self, argv, env, out, err):
         self.argv = list(argv)
@@ -352,21 +354,52 @@ class Command:
                               self.say("config", word), exit_code=3, word=word, **more)
             raise Refusal("not_installed", "err.verb.page" if page else "err.verb.missing",
                           self.say("setup", word), exit_code=3, word=word, **more)
+        claimed = self._claimed(word, at) if at == 0 and not asked_help else None
         names = sorted(set(found) | set(tools.plugin_names(self.env, self.lib)))
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=NEAR)
         if not near:
-            raise Refusal("unknown_verb", "err.verb.none", self.say("help"), word=word)
+            raise Refusal("unknown_verb", "err.verb.none", claimed or self.say("help"), word=word)
         near = near[0]
         if near in VERBS:  # never into a verb that writes from a word that is none (review 1 F2)
             run = self.say("help") if near in NEVER_MENDED and not asked_help else self.mend(at, near)
-            raise Refusal("unknown_verb", "err.verb", run, word=word)
+            raise Refusal("unknown_verb", "err.verb", claimed or run, word=word)
         rest = [w for w in self.argv[at + 1:] if w not in SWITCHES]
         if near == own and rest and not asked_help:  # the suite by its name: its own line
             run = self.offer(rest)
         else:
             run = self._tool_line(near, found.get(near), rest, asked_help)
-        raise Refusal("unknown_verb", "err.verb.tool", run, word=word)
+        raise Refusal("unknown_verb", "err.verb.tool", claimed or run, word=word)
+
+    def _claimed(self, word, at):
+        """Row ak9c R1 to R4, for a first word nothing above settles: the claims read from each
+        listed tool's describe, the cache's or one under the describe wall (R6). One claim of
+        `word` that counts: the suite replaced by the claimant's file, `word` and every later word
+        unchanged. Two or more: refused, exit 2, naming each. Else the pin's refusal follows, its
+        `next:` the claimant's own line where exactly one tool claims `word` without counting
+        (returned), or None."""
+        suite = self.tool[len("agentik-"):]
+        entries = [e for e in tools.listed(suite, self._on_path(), self.env, self.lib)[1:] if e["exe"]]
+        described = tools.describe_all(entries, self.env, deadline=time.monotonic() + tools.WALL)[0] \
+            if entries else {}
+        mine = [c for c in doctor.claims(self, entries, described) if c["verb"] == word]
+        counts = [c["tool"] for c in mine if c["counts"]]
+        if len(counts) == 1:
+            exe = [e["exe"] for e in entries if e["name"] == counts[0]][0]
+            self._run_tool(exe, [word] + self.argv[at + 1:])
+            return None  # it cannot run: the pin's refusal (ak9b R2)
+        if counts:
+            raise Refusal("claimed_twice", "err.verb.claimed", self.say("doctor"), word=word,
+                          tools=doctor.joined(counts))
+        idle = sorted({c["tool"] for c in mine})
+        if len(idle) != 1:
+            return None
+        entry = [e for e in entries if e["name"] == idle[0]][0]
+        row = entry.get("source") or {}
+        if (row.get("runs") or {}).get("path") and row.get("kind") not in ("absent", "undecided"):
+            return self.say(idle[0], word)  # `agentik T` runs T's file
+        # the finder knows T only as a file on PATH: that file's own line (review 1 F3)
+        return prog.shown(entry["exe"], self.env.get("HOME"), self.opts["json"]) + " " + shlex.quote(word)
 
     def _bad_flag(self, flag):
         if flag == "--version":
