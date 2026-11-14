@@ -57,4 +57,4 @@ Measured at 70dcd97 by `tests/test_ak9c_plug_rest.py`, before the change: see th
 
 ## 6. Choices
 
-Listed in the charter's handover as they are made. Two meet the unedited tests: a claim's line is said on `config T` only where the finder knows a source for T (`test_agentik_suite` a1 and `test_sc4_errors` f7 hold a bare file on PATH whose `config T` has no line more on either stream), and the keeper's name is data (above).
+Listed in the charter's handover as they are made. Two meet the unedited tests: a claim's line is said on `config T` only where the finder knows a source for T (`test_agentik_suite` a1 and `test_sc4_errors` f7 hold a bare file on PATH whose `config T` has no line more on either stream), and the keeper's name is data (above). So a bare file on PATH that claims a verb gets no line on the `config T` screen; its claim shows in `--json` and in the `next:` of `agentik W`.

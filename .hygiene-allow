@@ -25,6 +25,15 @@ plugins/suite/lib/public.json: sibling
 # the narrator plugin whose script `issue new --render` starts, its script and its mode, as data (packet rp8 R1)
 plugins/suite/lib/render.json: sibling
 
+# the suite keeps the word `rows` for one tool's claim, and the table names that tool
+# (design/15 P2, packet ak9c R2)
+plugins/suite/lib/kept.json: sibling
+
+# the branch's history only: commits 3ddaca3 and fc746b6 named the tool that keeps `rows`,
+# a later commit took it out; these two rows leave with this repo's next row after the push
+tests/test_ak9c_plug_rest.py: sibling
+plugins/suite/lib/agentik_suite/cli.py: sibling
+
 # the issue skill hands the draft's two lines to that sibling's narrator agent (packet rp6-verb R8)
 plugins/suite/skills/issue/SKILL.md: sibling
 
