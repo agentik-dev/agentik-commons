@@ -7,7 +7,8 @@ LOWER=abcdefghijklmnopqrstuvwxyz
 UPPER=ABCDEFGHIJKLMNOPQRSTUVWXYZ
 USAGE="usage: agentik [<verb or tool> [args...]] | agentik help [<verb or tool>] | agentik --version"
 NEXT="next: git clone https://github.com/agentik-dev/agentik-commons && agentik-commons/setup"
-case $0 in */*) self=${0%/*}/ ;; *) self= ;; esac
+# The door's own folder, `./` before one that opens with `-`, so exec never reads it as an option.
+case $0 in -*/*) self=./${0%/*}/ ;; */*) self=${0%/*}/ ;; *) self= ;; esac
 
 usage() { echo "$USAGE" >&2; exit 2; }
 
@@ -22,13 +23,16 @@ valid() {
 can() { [ -f "$1" ] && [ -x "$1" ] && hit=$1; }
 
 # found NAME: the first agentik-NAME on PATH, else in the door's own folder, in $hit.
-# An empty PATH entry, the trailing one included, is the current directory.
+# An empty PATH entry, the trailing one included, is the current directory; an unset PATH is none.
 found() {
 	hit=
 	oldifs=$IFS
-	IFS=: p=$PATH:
+	IFS=: p=${PATH+$PATH:}
 	set -f
-	for dir in $p; do can "${dir:-.}/agentik-$1" && break; done
+	for dir in $p; do
+		case ${dir:-.} in -*) dir=./$dir ;; esac
+		can "${dir:-.}/agentik-$1" && break
+	done
 	set +f
 	IFS=$oldifs
 	[ -n "$hit" ] || { [ -n "$self" ] && can "${self}agentik-$1"; }
@@ -45,14 +49,19 @@ missing() {
 	exit 3
 }
 
-# refuse WORD: not a name; the word is shown only when it holds no byte a terminal reads.
+# plain WORD [/]: WORD holds no byte a terminal reads: ASCII letters, digits, `.`, `_`, `-`, and `/`
+# when it is given.
+plain() { case $1 in '' | *[!${LOWER}${UPPER}0123456789._$2-]*) return 1 ;; esac; }
+
+# refuse WORD: not a name; the word is shown only when it is plain.
 refuse() {
-	case $1 in '' | *[!${LOWER}${UPPER}0123456789._-]*) set -- 'that word' ;; esac
+	plain "$1" || set -- 'that word'
 	printf '%s\n' "agentik: $1 is not a name: lowercase letters, digits and dashes" "next: agentik help" >&2
 	exit 2
 }
 
-# listdir DIR: each agentik-NAME in DIR not yet seen, under set -f.
+# listdir DIR: each agentik-NAME in DIR not yet seen, under set -f; a path that is not plain
+# is shown as `that folder`.
 listdir() {
 	set +f
 	for path in "$1"agentik-*; do
@@ -62,6 +71,7 @@ listdir() {
 		seen="$seen$name "
 		[ "$count" -gt 0 ] || echo "tools on PATH:"
 		count=$((count + 1))
+		plain "$path" / || path='that folder'
 		printf '  %-12s %s\n' "$name" "$path"
 	done
 	set -f
@@ -70,7 +80,7 @@ listdir() {
 list() {
 	echo "$USAGE"
 	seen=' ' count=0 oldifs=$IFS
-	IFS=: p=$PATH:
+	IFS=: p=${PATH+$PATH:}
 	set -f
 	for dir in $p; do listdir "${dir:-.}/"; done
 	[ -z "$self" ] || listdir "$self"

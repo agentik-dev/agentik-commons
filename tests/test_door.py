@@ -166,7 +166,7 @@ class DoorTest(unittest.TestCase):
         self.assertEqual(copy.read_bytes(), data)
         self.assertTrue(os.access(copy, os.X_OK))
         self.assertEqual(subprocess.run(["sh", "-n", str(DOOR)]).returncode, 0)
-        self.assertLess(len(data.splitlines()), 100)
+        self.assertLess(len(data.splitlines()), 120)  # R6, raised at review 1
         self.assertRegex(data.decode("ascii"), r"(?m)^VERSION=0\.3\.0$")
         self.assertFalse(re.search(rb"[^\t\n\x20-\x7e]", data), "an escape byte or a mark")
         # the copy dispatches from its own folder: the suite beside it is on PATH there

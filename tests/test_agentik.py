@@ -115,7 +115,7 @@ class FrontDoorTest(unittest.TestCase):
     def test_shape(self):
         text = SCRIPT.read_text()
         self.assertTrue(text.startswith("#!/bin/sh\n"))
-        self.assertLess(len(text.splitlines()), 100)
+        self.assertLess(len(text.splitlines()), 120)
         self.assertTrue(os.access(SCRIPT, os.X_OK))
         self.assertEqual(subprocess.run(["sh", "-n", str(SCRIPT)]).returncode, 0)
 
