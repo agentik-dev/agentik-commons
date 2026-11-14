@@ -43,6 +43,8 @@ Cited: hq design/23 §3 (`cmd.say`) and §8 (the voice); hq entry 37 (made-up na
 - R7, the catalogue: new ids for the rows, the usage's second line, `more`, `tools`, the no-command line, the nine glosses and `also`; `help.path`, `help.path.none` and `hint.verb` leave. No `verb.*`, `flag.*` or `usage.*` changes a byte. A new message: at most 76 characters before its values, the present tense, `key`, no path, no code.
 - R8, doctor's close (the coordinator's, 2026-11-14, reversible): a tool's remedy goes behind the close's `next:` only when it holds no word of `cli.SKIPS` and not the word `remove`. One that fails stands on its check's line as the tool wrote it, and the close names `agentik <tool> doctor`, the tool's own doctor through the door, with no door the tool's file and `doctor` (`doctor.tool_doctor`). A write such as `install-cli` or `setup` stays the close. Amended by review 1 F1 (the coordinator, 2026-11-14): the first build's `agentik doctor <tool>` exits 2, since doctor takes no name.
 
+- R5 amended by review 1 F2 (the coordinator, 2026-11-14): an example's command is never wrapped. On a terminal where the command and its words do not fit side by side (the widest command past a third of the width, or a row past the width), each command stands whole on its own line, two spaces in, and its words on the next, six in, wrapped to the width; where they fit, the rows read as at the pin. The builder's choice: the whole block stacks or none does, so the words of one block keep one column. Off a terminal one row is one line, as every table.
+
 The builder's reading: with no door, the usage's second line names the tool's own command, `agentik-<tool>`, since the suite by its own name runs no tool; `more` holds every verb not in the five rows (`inbox` and `issue` came after the brief); with no tool the full list's `tools` holds one row, `none is installed yet`.
 
 ## 4. Acceptance
@@ -61,6 +63,7 @@ Each in a temp HOME under `env -i`, the homes of §2.
 | 8 | `--json` bare and `help`: R6's `tools`; every other key byte-equal to the pin's | no `tools` |
 | 9 | no `verb.*`, `flag.*`, `usage.*` changed; no new message past 76 characters before its values | |
 | 10 | R8: a tool's failing check with `agentik-murmur reset --yes`, and one with `remove`: `next: agentik murmur doctor` (F1), the remedy on its row byte for byte, and a warn the same; with `agentik-murmur install-cli` the close is that command; in the finished home the close pasted under `sh -c` exits neither 2 nor 127 | red, red, holds; at 6d73e06 the close exits 2 |
+| 12 | F2, on a pty: finished, `help config` at 60 shows `agentik config suite.kind` whole on one line, and at 80 the rows as before; empty, `help setup` at 80 and 60 shows the launcher and `setup`, `setup --dry-run`, `setup <plugin>...` each on one line | red, red at 6d73e06; the rows at 80 hold |
 | 11 | `tests/test_door.py` as it stands; `make voice` and its sum; the suite under `/usr/bin/python3`; `make check` once, last, through the gate queue | |
 
 ## 5. Not built

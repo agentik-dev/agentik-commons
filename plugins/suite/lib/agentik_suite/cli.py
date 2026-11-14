@@ -515,6 +515,22 @@ class Command:
             found.append((self.say(*words) + tail, self.t.text(gloss)))
         return found
 
+    def _show_examples(self, examples):
+        """R5's example rows, a command and its words side by side. On a terminal where one row of
+        the block does not fit so, its command wider than the table's column (a third of the
+        width) or the row wider than the width, the whole block stacks: each command whole on
+        its own line, two spaces in, and its words under it, six in, wrapped to the width (review
+        1 F2). A command is never wrapped or cut; it may pass the width."""
+        t, out = self.t, self.t.out
+        wide = max(term.columns(term.clean(command)) for command, _ in examples)
+        row = 2 + wide + len(term.GAP) + max(term.columns(term.clean(gloss)) for _, gloss in examples)
+        if not out.tty or (wide <= out.width() // 3 and row <= out.width()):
+            t.table([(None, [command, gloss], None) for command, gloss in examples])
+            return
+        for command, gloss in examples:
+            out.write("  " + term.clean(command))
+            t.table([(None, [gloss], None)], indent=6)
+
     def help_verb(self, verb):
         flags = FLAGS + VERB_FLAGS.get(verb, ())
         if self.opts["json"]:
@@ -530,7 +546,7 @@ class Command:
         t.blank()
         examples = self._examples(verb)
         if examples:
-            t.table([(None, [command, gloss], None) for command, gloss in examples])
+            self._show_examples(examples)
             t.blank()
         t.line("help.flags", style="name")
         shared = tuple(f for f in FLAGS if f[0] != "--help")

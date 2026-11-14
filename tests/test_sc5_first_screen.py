@@ -7,15 +7,20 @@ Each screen runs in a temp HOME under a bare environment. The empty home has a s
 the door in ~/.local/bin on PATH, three stub tools with made-up names (`murmur` answers `describe
 --json`, `paint` and `quill` print nothing) and a plugin `sketch` installed with no command.
 Nothing here starts the real `claude` or writes outside its temp folder."""
+import fcntl
 import hashlib
 import io
 import json
 import os
+import pty
 import re
+import select
+import struct
 import shutil
 import subprocess
 import sys
 import tempfile
+import termios
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -267,6 +272,54 @@ class VerbHelpTest(Homes):
     def test_r5_hint_verb_leaves(self):
         self.assertNotIn("hint.verb", catalogue.load())
 
+
+class ExampleWidthTest(Homes):
+    """Review 1 F2: on a terminal an example's command is never wrapped. Each screen runs on a pty
+    opened by `pty.openpty` and sized by TIOCSWINSZ (`script` needs a terminal on stdin)."""
+    def pty(self, argv, env, cols):
+        env = dict(env, NO_COLOR="1", TERM="xterm")
+        master, slave = pty.openpty()
+        self.addCleanup(os.close, master)
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, cols, 0, 0))
+        p = subprocess.Popen(argv, cwd=self.home, env=env, stdin=slave, stdout=slave, stderr=slave,
+                             close_fds=True)
+        os.close(slave)
+        got = b""
+        while select.select([master], [], [], 60)[0]:
+            try:
+                data = os.read(master, 65536)
+            except OSError:  # the child closed its end
+                break
+            if not data:
+                break
+            got += data
+        self.assertEqual(p.wait(timeout=60), 0, got)
+        return got.decode("utf-8", "replace").replace("\r", "").splitlines()
+
+    def commands(self, lines):
+        """The first cell of each line under the usage's two lines: a command, or its words."""
+        return [re.split(r"  +", l.strip())[0] for l in lines[2:] if l.strip()]
+
+    def test_f2_a_key_example_is_whole_at_60(self):
+        env = self.finished()
+        lines = self.pty([os.path.join(self.bindir, "agentik"), "help", "config"], env, 60)
+        self.assertIn("agentik config suite.kind", self.commands(lines), "\n".join(lines))
+        for line in lines:
+            self.assertNotEqual(line.strip(), "suite.kind", "\n".join(lines))
+
+    def test_f2_the_launcher_and_its_words_are_one_line(self):
+        env = self.empty()
+        for cols in (80, 60):
+            lines = self.pty([str(LAUNCHER), "help", "setup"], env, cols)
+            found = self.commands(lines)
+            for words in ("setup", "setup --dry-run", "setup <plugin>..."):
+                self.assertIn("%s %s" % (LAUNCHER, words), found, "%d:\n%s" % (cols, "\n".join(lines)))
+
+    def test_f2_examples_that_fit_read_as_before(self):
+        env = self.finished()
+        lines = self.pty([os.path.join(self.bindir, "agentik"), "help", "config"], env, 80)
+        self.assertIn("  agentik config suite.kind  one key, where it is set and how to change it", lines)
+        self.assertIn("  agentik config             every tool, and how many keys changed", lines)
 
 class CatalogueTest(unittest.TestCase):
     def test_a9_kept_ids_and_bounds(self):
