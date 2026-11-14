@@ -64,6 +64,11 @@ PIECES = ["`", "``", "```", "````", "`````", "|", "\\|", "\\", "</details>", "<s
 GEN_TOOLS = ["alpha", "beta-two", "gamma", "suite", "door"]
 
 
+def fence(lines):
+    """R3's fence for these lines, counted here and not by the module."""
+    return "`" * max([3] + [len(run) + 1 for line in lines for run in re.findall("`+", line)])
+
+
 def gen_value(rng, lo=0):
     return "".join(rng.choice(PIECES) for _ in range(rng.randint(lo, 6)))
 
@@ -264,20 +269,37 @@ class FreeTest(unittest.TestCase):
         lines = [line for _, line, _ in listed]
         self.assertEqual(lines, sorted(lines))
         for key, line, value in listed:
+            fences = ()
             if key == "lines":
-                self.assertEqual(old[line - 1:line - 1 + len(f["lines"])], f["lines"])
-                new_value = "\n".join("q" for _ in f["lines"])
                 span = len(f["lines"])
+                self.assertEqual(old[line - 1:line - 1 + span], f["lines"])
+                news = ["\n".join(text for _ in f["lines"]) for text in ("q", "a ``` b", "````")]
+                fences = (line - 2, line - 1 + span)
             else:
                 self.assertIn(value.replace("|", "\\|") if key.startswith("rows") else value, old[line - 1])
-                new_value, span = "q", 1
-            new = form.build(form.put(f, key, new_value)).decode().split("\n")
-            self.assertEqual(len(new), len(old), key)
-            for i, (a, b) in enumerate(zip(old, new)):
-                if not line - 1 <= i < line - 1 + span:
-                    self.assertEqual(a, b, "%s changed line %d" % (key, i + 1))
-            self.assertNotEqual(old, new, key)
-            self.assertEqual(form.free(form.put(f, key, new_value))[keys.index(key)][2], new_value)
+                news, span = ["q"], 1
+            for new_value in news:
+                g = form.put(f, key, new_value)
+                new = form.build(g).decode().split("\n")
+                self.assertEqual(len(new), len(old), key)
+                # R3: the fence is three backticks or one longer than the lines' longest run, so new
+                # lines may change the two fence lines around them, and no other byte.
+                for i in fences:
+                    self.assertEqual(old[i], fence(f["lines"]))
+                    self.assertEqual(new[i], fence(g["lines"]))
+                for i, (a, b) in enumerate(zip(old, new)):
+                    if not line - 1 <= i < line - 1 + span and i not in fences:
+                        self.assertEqual(a, b, "%s changed line %d" % (key, i + 1))
+                self.assertNotEqual(old, new, key)
+                self.assertEqual(form.free(g)[keys.index(key)][2], new_value)
+
+    def test_three_backticks_in_the_lines_change_the_two_fences_and_nothing_else(self):
+        old = form.build(example()).decode().split("\n")
+        new = form.build(form.put(example(), "lines", "a ``` b\nc")).decode().split("\n")
+        changed = {i + 1: (a, b) for i, (a, b) in enumerate(zip(old, new)) if a != b}
+        self.assertEqual(len(new), len(old))
+        self.assertEqual(changed, {17: ("```", "````"), 18: ("no profile resolved for <path-1>", "a ``` b"),
+                                   19: (FAILING, "c"), 20: ("```", "````")})
 
     def test_the_example(self):
         self.check(example())
@@ -289,8 +311,6 @@ class FreeTest(unittest.TestCase):
         rng = random.Random(5)
         for i in range(40):
             f = gen_fields(rng)
-            if f["lines"] is not None:
-                f["lines"] = [line.replace("`", "") for line in f["lines"]]
             with self.subTest(i=i):
                 self.check(f)
 
