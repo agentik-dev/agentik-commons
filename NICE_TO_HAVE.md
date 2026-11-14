@@ -23,10 +23,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n12 | S4 | `scripts/hygiene` | a private term under an encoding inside a binary (UTF-16, base64, deflate, zip, PDF) is not found, nor a non-ASCII term a 1 MiB cut splits; the range cuts each blob over 1 MiB, the tree a file over 4 MiB; a term in a 4 KiB overlap counts twice | packet h2 ruling 6, its refuter's F4 (`p3_split.py`); `stream_fh`'s cut | 2026-11-10, packet h2 |
-| n14 | S4 | `scripts/hygiene` | `re`'s compile cache gives a private row equal to a built-in group's joined pattern the built-in's object, so `GENERIC`'s identity test reads it as built-in and it skips a binary; mark private rows by index instead | the refuter's `p4_identity_anchor.py`: `netpriv` misses net.bin, `netcopy` hits | 2026-11-10, h2's refuter round 1, F3 |
-| n15 | S4 | `scripts/plugin-description-bytes` | counts descriptions only; Claude Code lists an agent as `- plugin:name: desc (Tools: ...)`, so the agents plugin's 777 B load as 1,096 B (+319), about 1,350 B in all vs the gate's 1,001; count prefix and suffix, or say in GUIDE §1 it counts descriptions only | listing format read from the Claude Code binary | 2026-11-12, p1 review r1 |
-| n16 | S4 | `scripts/plugin-description-bytes` | only `true`/`True`/`TRUE` read as true for `disable-model-invocation`; Claude Code also takes `yes`, `on`, `1` in any case, so a command hidden so is overcounted; a UTF-8 BOM gives `error: no description`, Claude Code's BOM handling unverified | probe: `disable-model-invocation: yes` is listed `10 command yeshidden` | 2026-11-12, p1 review r1 |
 | n17 | S4 | `scripts/hygiene` | a private row with an interior wildcard (`a.*b`; a leading or trailing `.*` is stripped) is quadratic on a long newline-free span: a text file's line or a binary's content, which a NUL-padded binary leaves whole; cap the span | `.*` and a term over one line of `a`: 16 KiB 0.6 s, 32 KiB 2.3 s | 2026-11-12, packet h2-hygiene-binary |
 | n18 | S4 | `scripts/hygiene` | `unwild` (`:242`) keeps a DOTALL row whole, though a stripped edge `.*` matches the same there too: `(?s).*zqterm`, `.+zqterm`, `.*?zqterm` stay quadratic on a binary; strip under DOTALL too, `.+` and `.*?` with n17 | 64 KiB NUL binary at `2e2431f`: 6.8 s, 7.3 s, 9.0 s, as before the fix | 2026-11-12, h2-hygiene-binary review r2 F1 |
 | n19 | S4 | `scripts/plugin-version-check` | the second read takes `refs/heads/main` before `origin/main`, so a stale local main hides the fault: a branch that merged a bumped `origin/main` meets an older merge base, below the merged bump; the newer merge base of the two would close it | a local main behind the bump the branch merged; ruling R1's order | 2026-11-12, packet c7-version-read |
@@ -109,3 +105,14 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n92 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
 | n93 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |
 | n94 | S4 | `scripts/hygiene` `secret` | a lead for rp2: GitLab's `glpat-<body>.01.<suffix>` form counts 1 but the match ends at the first `.`, so a scrub of the match alone leaves the suffix | review 1's N11 | 2026-11-13, rp1 review 1 |
+
+## From packet rp2-scrub (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n95 | S4 | `scripts/hygiene` `lan`, `email` | quadratic on a long dashed run with a `.`: 0.55 s at 10 KB, 13.1 s at 40 KB; nearly every text holds a `.`, so the scrub's gate rarely skips `lan` | review 1's notes; 0.60 s at 10 KB on the fix | 2026-11-13, rp2 review 1 |
+| n96 | S4 | `plugins/suite` `scrub.py` `_reach` | counts quotes from the line's start for each path: one line of 10,000 paths takes 9.3 s, 66,000 paths on their own lines 1.9 s | review 1's notes | 2026-11-13, rp2 review 1 |
+| n97 | S4 | `plugins/suite` `scrub.py` `_assign` | a password glued to its flag (`-p<value>`, as mysql takes it) is no flag, so its value stays | review 1's T3 | 2026-11-13, rp2 review 1 |
+| n98 | S4 | `plugins/suite` `scrub.py` `_emails` | an email whose domain runs on into more text holding a digit keeps its local part; found only in a fuzz of glued pieces | review 1's notes, its fuzz | 2026-11-13, rp2 review 1 |
+| n99 | S4 | `plugins/suite` `scrub.py` `strike` | `strike` and `spans` assume a text with no plane-15 private-use character: `scrub` cleans first, but `strike` on a hand-edited draft holding one indexes past its seals | review 1's notes, not run | 2026-11-13, rp2 review 1 |
+| n100 | S4 | rp4 the form | GitHub renders an unfenced `<path-1>` as an unknown HTML tag, so a placeholder may vanish on the page | review 1's notes, not verified | 2026-11-13, rp2 review 1 |
