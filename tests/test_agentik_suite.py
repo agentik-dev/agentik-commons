@@ -33,7 +33,7 @@ SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
 STDLIB = {"ast", "datetime", "difflib", "fnmatch", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
-          "select", "signal", "subprocess", "tempfile", "time"}
+          "select", "signal", "subprocess", "tempfile", "time", "agentik_hygiene", "hashlib", "unicodedata"}
 
 sys.path.insert(0, str(LIB))
 from agentik_suite import catalogue, settings, term  # noqa: E402

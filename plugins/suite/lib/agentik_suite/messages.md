@@ -154,6 +154,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setting.watcher.start`: The line that starts the watcher.
 - `setting.watcher.beat`: The file the watcher writes while it runs.
 - `setting.watcher.writer`: The name a beat must carry to count as the watcher's own.
+- `setting.sources`: Where a tool comes from: a plugin id, or the folder of its plugin.
 
 ## Setup
 
