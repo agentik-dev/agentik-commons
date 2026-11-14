@@ -272,7 +272,7 @@ class WriterTest(unittest.TestCase):
         self.assertIn("  ok    a  b  " + "x" * 300 + "\n", text)
         self.assertIn("  note  c  d  e\n", text)
         self.assertIn("\n" + " " * 14 + "run: z\n", text)
-        self.assertEqual(err.getvalue(), "note  t 1\n")
+        self.assertEqual(err.getvalue(), "t 1\n")  # a hint has no mark (row sc4 R1)
 
     def test_on_a_terminal_glyphs_colour_and_the_switches(self):
         for env, flag, colour in (({}, False, True), ({"NO_COLOR": "1"}, False, False),
@@ -345,7 +345,7 @@ class VerbTest(Home):
             text = out + err
             self.assertNotIn(ESC, text, args)
             self.assertRegex(text, r"(?m)^ *(\d  )?ok  ", args)
-            self.assertRegex(text, r"(?m)^ *(\d  )?note  ", args)
+            self.assertRegex(text, r"(?m)^(?: *(\d  )?note  |next: )", args)  # a hint has no mark (sc4)
         # the help lists the stub by name and path, first in PATH order winning
         self.assertIn("agentik-zeta  %s" % os.path.join(self.stubs, "agentik-zeta"),
                       self.run_cli("help")[1])
@@ -424,7 +424,7 @@ class StreamTest(Home):
             if quiet:
                 self.assertEqual(err, "")
             else:  # the hint alone, no word of the broken pipe
-                self.assertRegex(err, r"\Anote  next: [^\n]*\n\Z")
+                self.assertRegex(err, r"\Anext: [^\n]*\n\Z")
 
     def test_r5_a_character_the_stream_cannot_hold(self):
         code, text = self.run_pty("setup", "--dry-run", cols=80, LANG="en_US.ISO8859-1")
@@ -856,7 +856,7 @@ class ConfigTest(ConfigHome):
             code, text = self.run_pty(*args)
             self.assertEqual(code, 0, text)
             self.assertIn(ESC + "[", text)
-            self.assertIn("\u00b7", text)
+            self.assertIn(ESC + "[2mnext: ", text)  # the hint, dim and with no mark (row sc4 R1)
             code, text = self.run_pty(*args, NO_COLOR="1")
             self.assertNotIn(ESC + "[", text)
 

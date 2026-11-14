@@ -57,6 +57,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Errors
 
+- `err.next`: next: `{command}`
 - `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{prog}` --help for the list.
 - `err.verb`: `{word}` is not a verb. Run `{prog}` --help for the list.
 - `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{setup}` --dry-run `{word}` for the steps.

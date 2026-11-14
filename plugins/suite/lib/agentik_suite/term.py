@@ -189,14 +189,17 @@ class Term:
         values = dict(values or {}, **more)
         if not self.quiet:
             self.flush()  # the answer first, where both streams share one pipe
-            stream = self.err
-            shown, painted = stream.mark("note")
-            stream.write(painted + GAP + stream.paint(self.text(mid, **values), STYLE_SGR["hint"]))
+            stream = self.err  # its message starts `next:`, so no mark goes before it (row sc4 R1)
+            stream.write(stream.paint(self.text(mid, **values), STYLE_SGR["hint"]))
 
-    def error(self, mid, **values):
+    def error(self, mid, command=None, **values):
+        """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
+        command to paste, with no mark (row sc4 R1)."""
         stream = self.err
         shown, painted = stream.mark("fail")
         stream.write(painted + GAP + self.text(mid, **values))
+        if command:
+            stream.write(self.text("err.next", command=command))
 
     def json(self, obj):
         self.out.write(json.dumps(_cleaned(obj), ensure_ascii=True, sort_keys=False))

@@ -55,6 +55,16 @@ class Usage(Exception):
         self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, exit_code, values
 
 
+class Refusal(Usage):
+    """A refusal in the two-line form (row sc4 R1): the message is the cause alone and the remedy,
+    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py,
+    install.py and status.py until their rows turn them, keeps the pin's one sentence (R3)."""
+    paste = True
+
+
+Usage.paste = False
+
+
 def _lib():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -96,7 +106,7 @@ def parse(argv):
 
 
 class Command:
-    Usage, VERBS = Usage, VERBS
+    Usage, Refusal, VERBS = Usage, Refusal, VERBS
 
     def __init__(self, argv, env, out, err):
         self.opts, self.words, self.bad = parse(argv)
@@ -196,7 +206,7 @@ class Command:
                          "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
                                    "remedy": u.remedy}})
         else:
-            self.t.error(u.mid, **u.values)
+            self.t.error(u.mid, command=u.remedy if u.paste else None, **u.values)
         return u.status
 
     def _no_nouns(self, nouns):
