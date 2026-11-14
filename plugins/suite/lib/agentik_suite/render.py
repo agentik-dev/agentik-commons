@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 import time
 
-from . import apply, catalogue, form, gather, term, tools
+from . import apply, catalogue, form, gather, plan, term, tools
 
 FILE = "render.json"
 KEYS = ("plugin", "script", "mode")
@@ -48,7 +48,7 @@ def load(lib):
 
 def find(env, lib):
     """The narrator's script under the root the finder names for `<plugin>@<marketplace>`
-    (row fk2-plan R7), a regular executable file; else None."""
+    (row fk2-plan R7), a regular executable file that resolves inside that root; else None."""
     try:
         conf, market = load(lib), gather.load_public(lib)["marketplace"]
     except ValueError:
@@ -57,7 +57,8 @@ def find(env, lib):
     if not there:
         return None
     path = os.path.join(root, conf["script"])
-    return path if os.path.isfile(path) and os.access(path, os.X_OK) else None
+    ok = os.path.isfile(path) and os.access(path, os.X_OK) and plan._under(path, root)  # as plan._command
+    return path if ok else None
 
 
 def contract():

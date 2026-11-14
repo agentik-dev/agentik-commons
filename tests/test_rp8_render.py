@@ -191,6 +191,48 @@ class RenderTest(RenderHome):
             self.assertEqual(len([l for l in (out + err).splitlines() if "template stands" in l]), 1)
         self.assertEqual(len(self.script_calls()), 2)
 
+    def outside(self):
+        folder, mark = os.path.join(self.side, "outside"), os.path.join(self.side, "outside-ran")
+        path = os.path.join(folder, os.path.basename(self.script))
+        os.makedirs(folder)
+        with open(path, "w") as fh:
+            fh.write("#!/bin/sh\necho ran > %s\nexit 1\n" % mark)
+        os.chmod(path, 0o755)
+        return path, mark
+
+    def held(self, mark):
+        happened, expected = self.template()
+        code, out, err = self.new("--render")
+        self.assertEqual(code, 0, err)
+        self.assertFalse(os.path.exists(mark))
+        self.assertIn("installed", [l for l in (out + err).splitlines() if "template stands" in l][0])
+        self.assertEqual((self.fields()["happened"], self.fields()["expected"]), (happened, expected))
+
+    def test_4a_a_script_linked_out_of_the_root_is_no_script(self):
+        self.install()
+        path, mark = self.outside()
+        os.remove(self.script)
+        os.symlink(path, self.script)
+        self.held(mark)
+
+    def test_4b_a_folder_linked_out_of_the_root_is_no_script(self):
+        self.install()
+        path, mark = self.outside()
+        os.remove(self.script)
+        os.rmdir(os.path.dirname(self.script))
+        os.symlink(os.path.dirname(path), os.path.dirname(self.script))
+        self.held(mark)
+
+    def test_4c_a_link_to_a_file_inside_the_root_is_started(self):
+        self.install()
+        real = self.script + ".real"
+        os.rename(self.script, real)
+        os.symlink(real, self.script)
+        happened, expected = self.template()
+        self.behave("Happened: %s, and more\nExpected: %s\n" % (happened, expected))
+        self.new("--render")
+        self.assertEqual(len(self.script_calls()), 1)
+
     def test_4_no_plugin_and_a_failing_script_keep_the_template(self):
         self.install(narrator=False)
         happened, expected = self.template()
