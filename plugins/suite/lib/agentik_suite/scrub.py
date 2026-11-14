@@ -477,9 +477,9 @@ class _Pass:
             cut = mt.group().rstrip(TRAIL)
             rest = mt.group()[len(cut):]
             gh = self.m["_github"] and self.m["_github"].match(cut)
-            if gh:
-                tail = gh.group(2) or ""
-                k = len(re.match(r"[^?#]*", tail).group())
+            tail = (gh.group(2) or "") if gh else ""
+            k = len(re.match(r"[^?#]*", tail).group())
+            if gh and ".." not in re.split(r"[/\\]", tail[:k]):
                 return self.seal(gh.group(1)) + (OPEN + tail[:k] + CLOSE if k else "") + tail[k:] + rest
             return self.put("url", cut) + rest
         s = URL.sub(url, s)

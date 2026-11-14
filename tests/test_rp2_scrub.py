@@ -697,5 +697,18 @@ class R2F2Test(Review1Case):
                 self.assertEqual(self.closes(m, raw, [value]), want)
 
 
+class R2F3Test(Review1Case):
+    """R2-F3: a kept URL whose path holds a `..` part, plain or percent-encoded, is not kept:
+    it is replaced as any other URL."""
+
+    def test_r2f3_climb_out_of_the_repo(self):
+        m = machine()
+        for tail in ("/../../zqvorg/zqvprivate", "/%2e%2e/%2E%2E/zqvorg/zqvprivate",
+                     ".git/../zqvprivate", "/issues/..?q=1"):
+            with self.subTest(tail=tail):
+                self.assertEqual(self.closes(m, "see %s%s now" % (GH, tail)), "see <url-1> now")
+        self.assertEqual(scrub.scrub("see %s/blob/main/a..b now" % GH, m)[0], "see %s/blob/main/a..b now" % GH)
+
+
 if __name__ == "__main__":
     unittest.main()
