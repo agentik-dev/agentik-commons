@@ -34,9 +34,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n120 | S4 | `gather.py` `_launcher` | an unreadable launcher (mode 000) reads None, as an absent one does, not `unreadable`: `read_regular` gives None for both | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
-| n121 | S4 | `gather.py` `_installed` | reads `installed_plugins.json` with no size limit (`read_regular`, limit -1), so a huge file costs memory | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
-| n122 | S4 | `gather.py` `bound` | assumes `map_free`'s `fn` gives text: a None in a row's name, detail or a line raises in `_cut`, and a lone surrogate raises `UnicodeEncodeError`; the join's contract | review 1's note; read, not run | 2026-11-13, rp3 review 1 |
 | n123 | S4 | `gather.py` `facts` | catches `Exception` from `read_doctor`, so a `SystemExit` raised by an in-process doctor passes through; the join's concern | review 1's note; read | 2026-11-13, rp3 review 1 |
 | n124 | S4 | `gather.py` `system` | a release of dots alone (`...`) is kept as it is; only one with no leading digit or dot reads `unreadable`; cosmetic | review 1's note; read | 2026-11-13, rp3 review 1 |
 | n125 | S4 | `gather.py` version patterns | `VERSION` and `CLAUDE` admit up to 36 freely chosen digits (`[0-9]{1,9}` three times and an rc number), a side channel in theory only | review 1's note; read | 2026-11-13, rp3 review 1 |
@@ -144,3 +141,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n188 | S4 | `plugins/suite` `update.py` `--json` | `update NAME --json` for a listed tool that is not installed prints an object that does not name it: `tools` and `skipped` are both `[]` | review 2 lead | 2026-11-14, ak4a review 2 |
 | n189 | S4 | `plugins/suite` `update.py` `update.skip.id` | the skip row for an id that is no plugin id gives no next step | review 2 lead | 2026-11-14, ak4a review 2 |
 | n190 | S4 | `plugins/suite` `update.py` `err.update.left` | a run that leaves a step 3 row to do prints an ok row for the same tool above it, and that row's words are setup's (`setup would install it again`) | review 2 lead, F5's run | 2026-11-14, ak4a review 2 |
+
+## From packet ak9c-plug-rest (build 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n200 | S4 | `plugins/suite` `cli.py` help | `help` lists no claimed verb: a word a tool claims runs from `agentik <word>`, and no help screen names it | brief R9; design/15 P2 | 2026-11-14, ak9c build 1 |
+| n201 | S4 | `plugins/suite` `tools.py` `claims` | a claim of a word that is a tool's or a plugin's name reads as counting in `config T --json`, though `_not_a_verb` settles that word first and never runs the claim | read; `cli.py` `_not_a_verb` | 2026-11-14, ak9c build 1 |
