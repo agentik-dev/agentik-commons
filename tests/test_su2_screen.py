@@ -125,8 +125,11 @@ class FixtureTest(unittest.TestCase):
                     self.assertNotIn("…", out)
                     self.assertEqual(long, [])
                 for row in out.splitlines():
-                    if "…" in row:
+                    if row.endswith("…"):
                         self.assertEqual(len(row), width, row)
+                    for cell in re.split(r" {2,}", row[13:])[:-1]:  # a cell cut at a third
+                        if cell.endswith("…"):
+                            self.assertEqual(len(cell), width // 3, (row, cell))
 
     def test_line5_bytes_and_colour(self):
         for name in NAMES:
@@ -334,6 +337,24 @@ class ColumnsTest(unittest.TestCase):
         for lines in (tty(obj), rows(obj)):
             at = {columns(r[:r.index("k/1M") - 3]) for r in part_rows(lines, "sessions", 16 - 3 * (lines[0][0] != "o"))[1:]}
             self.assertEqual(len(at), 1, lines)
+
+
+class ThirdTest(unittest.TestCase):
+    """R1-F6: no column but the last takes more than a third of the width."""
+
+    def test_r1f6_a_long_cell_is_cut_at_a_third(self):
+        obj = load("broken")
+        obj["gate"]["queued"][0]["label"] = "land the importer fix and the follow-up review round"
+        got = part_rows(tty(obj), "gate", 13)
+        self.assertTrue(got[-1].endswith("failed"), got)
+        self.assertTrue(got[2][13:].startswith("queued  acme-cli: land the import\u2026  "), got)
+        for r in got[2:]:
+            self.assertLessEqual(columns(re.split(r"\s{2,}", r[13:])[1]), 80 // 3, r)
+        obj = load("busy")
+        obj["sessions"]["live"][0]["name"] = "s" * 70
+        for r in part_rows(tty(obj), "sessions", 13)[1:]:
+            self.assertIn(" turns", r)
+        self.assertIn("s" * 70, piped(obj)[0])
 
 
 if __name__ == "__main__":

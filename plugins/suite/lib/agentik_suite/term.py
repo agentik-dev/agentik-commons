@@ -218,25 +218,31 @@ class Term:
         status is None, two spaces, the label bold and padded to 8, two spaces, then each row at
         the text's column. A row is (text or [cell...], style, whole); a row of cells pads each
         cell but the last to the widest of its column among the part's rows, two spaces apart.
-        On a terminal a row past the width ends at it with an ellipsis, unless it is whole. A
-        width is in screen columns (`columns`). No row ends in a space."""
+        On a terminal no cell but the last takes more than a third of the width: a longer one
+        ends at it with an ellipsis, so one row's long cell never pushes another row's last cell
+        off; a row past the width ends at it with an ellipsis, unless it is whole. A width is in
+        screen columns (`columns`). No row ends in a space."""
         stream = self._stream(err)
         rows = rows or [("", None, False)]
-        widths = {}
-        for cells, _, _ in rows:
-            if isinstance(cells, (list, tuple)):
-                for i, cell in enumerate(cells[:-1]):
-                    widths[i] = max(widths.get(i, 0), columns(clean(cell)))
-        lead = 1 if stream.glyphs else 4
-        label = clean(label)
         try:
             ellipsis = "…"
             ellipsis.encode(stream.encoding)
         except (LookupError, UnicodeEncodeError):
             ellipsis = "..."
-        for n, (cells, style, whole) in enumerate(rows):
+        third = stream.width() // 3
+        widths, laid = {}, []
+        for cells, style, whole in rows:
             if isinstance(cells, (list, tuple)):
                 cells = [clean(c) for c in cells]
+                if stream.tty and not whole:
+                    cells = [fit(c, third, ellipsis) if columns(c) > third else c for c in cells[:-1]] + cells[-1:]
+                for i, cell in enumerate(cells[:-1]):
+                    widths[i] = max(widths.get(i, 0), columns(cell))
+            laid.append((cells, style, whole))
+        lead = 1 if stream.glyphs else 4
+        label = clean(label)
+        for n, (cells, style, whole) in enumerate(laid):
+            if isinstance(cells, list):
                 line = "".join(c + " " * (widths[i] - columns(c)) + GAP for i, c in enumerate(cells[:-1]))
                 line += cells[-1] if cells else ""
             else:

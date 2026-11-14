@@ -5,11 +5,11 @@
              acme-hq   295k/1M  99 turns   busy; 13 helpers busy, 7 done
              billing   172k/1M  48 turns   waits on 3 helpers
 ✓  gate      3 running, 2 queued; last: flight0127 passed
-             running  acme-api: land importer-fix  14 min of est. 15 min
-             running  gate43: go1274               15 min of est. 50 min
-             running  acme-cli                     9 min
-             queued   acme-site                    waits on running 3 of 3
-             queued   ledger-chain                 waits on running 3 of 3; est…
+             running  acme-api: land importer-f…  14 min of est. 15 min
+             running  gate43: go1274              15 min of est. 50 min
+             running  acme-cli                    9 min
+             queued   acme-site                   waits on running 3 of 3
+             queued   ledger-chain                waits on running 3 of 3; est.…
 ✓  backlog   41 open steps in 9 checkouts beside acme-hq (kind: hq)
              first: 22 The review's builds 5 (one state root) and 6 (an unatten…
              items: S3 26, S4 200, 13 not placed
