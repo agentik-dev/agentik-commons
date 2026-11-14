@@ -208,15 +208,20 @@ class FrozenTest(PasteTest):
         return env
 
     def check(self, launcher, env, start):
+        later = []  # sc10: doctor may name install-cli alone; it is pasted once the screens are read
         for words in self.SCREENS:
             text = self.screen([launcher] + words, env)
             self.assertIsNone(self.RUNNER.search(text), (words, text))
             found, safe = self.commands(text, every=True), self.commands(text)
-            self.assertTrue(found, (words, text))  # sc10: doctor may name install-cli alone
+            self.assertTrue(found, (words, text))
             for c in found:
                 self.assertTrue(c.startswith(start + " "), (words, c))
                 if c in safe:
                     self.assertNotEqual(self.paste(c, env), 127, (words, c))
+                elif c.split()[-1] == "install-cli" and c not in later:
+                    later.append(c)
+        for c in later:
+            self.assertNotEqual(self.paste(c, env), 127, c)
 
     def test_f1_no_door_on_path(self):
         env = self.frozen()

@@ -285,6 +285,10 @@ class QuietTest(Checks):
 
 
 class VoiceTest(unittest.TestCase):
+    # The one id past 76 with its slots in; R9 keeps its words as at the pin 2bf868c.
+    PIN_WORDS = {"doctor.settings.unchecked":
+                 "watcher {name} in {path} needs both match and start, so status --check skips it"}
+
     def test_a9_the_doctor_section(self):
         with open(os.path.join(str(LIB), "agentik_suite", "messages.md"), encoding="utf-8") as fh:
             text = fh.read()
@@ -295,7 +299,10 @@ class VoiceTest(unittest.TestCase):
             words = catalogue.LONE.sub(r"\1", m.group(2))
             for bad in ("exit", "would", "run:", "{code}"):
                 self.assertNotIn(bad, words, m.group(1))
-            self.assertLessEqual(len(catalogue.SLOT.sub("", words)), 76, m.group(1))
+            if m.group(1) in self.PIN_WORDS:  # R9: an id not in the table keeps the pin's words
+                self.assertEqual(words, self.PIN_WORDS[m.group(1)], m.group(1))
+                continue
+            self.assertLessEqual(len(words), 76, m.group(1))  # review 1: counted with the slots in
         ids = [m.group(1) for m in items]
         for gone in ("doctor.title", "doctor.group", "doctor.run", "doctor.tool.ok", "hint.doctor.done",
                      "hint.doctor.setup", "hint.doctor.fail", "hint.doctor.warn"):
