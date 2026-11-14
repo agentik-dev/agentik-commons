@@ -581,5 +581,41 @@ class R1F5Test(Review1Case):
                 self.assertEqual(scrub.scrub(line, m)[0], line)
 
 
+class R1F6Test(Review1Case):
+    """R1-F6: each word of git's `user.name` of three letters or more is a name word, matched
+    as a whole word."""
+
+    def test_r1f6_each_word_through_machine(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        home = os.path.realpath(tmp.name)
+        stubs = os.path.join(home, "stubs")
+        os.mkdir(stubs)
+        git = os.path.join(stubs, "git")
+        with open(git, "w") as fh:
+            fh.write('#!/bin/sh\ncase "$*" in\n*user.name*) echo "Zqvfirst Zqvlast";;\nesac\n')
+        os.chmod(git, 0o755)
+        env = {"HOME": home, "USER": LOGIN, "PATH": stubs + ":/usr/bin:/bin",
+               "XDG_CONFIG_HOME": os.path.join(home, ".config"),
+               "AGENTIK_HYGIENE_PRIVATE": os.path.join(home, "absent.tsv")}
+        m = scrub.machine(env, home, PUBLIC)
+        raw = "by Zqvfirst Zqvlast, Zqvlast Zqvfirst, Zqvfirst alone; ZQVLAST"
+        out = self.closes(m, raw)
+        self.assertEqual(out, "by <name-1>, <name-2> <name-3>, <name-3> alone; <name-2>")
+
+    def test_r1f6_whole_words_only(self):
+        m = machine(names=("Ann Zqvlast",))
+        self.assertEqual(self.closes(m, "Ann said hi to zqvlast"), "<name-1> said hi to <name-2>")
+        out, counts, spans = scrub.scrub("the annual plan", m)
+        self.assertEqual(out, "the annual plan")
+        self.assertEqual(spans, [(4, 10, "unsure")])
+        self.assertEqual(scrub.detect("the annual plan", m), [])
+        m = machine(names=("Al Git Zqvlast",))
+        for line in ("Al said hi", "git status", "the gitignore"):
+            with self.subTest(line=line):
+                self.assertEqual(scrub.scrub(line, m)[0], line)
+        self.assertEqual(scrub.scrub("Zqvlast" + AT + "box", m)[0], "<name-1>" + AT + "box")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -244,6 +244,8 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
                     if alts else None)
     m["_checkouts"] = frozenset(_norm(m, c).lower().rstrip("/") for c in checkouts if c)
     repos = list(repos) + [os.path.basename(c.rstrip("/")) for c in checkouts if c]
+    words_of = [w.strip(".'-") for v in names if v for w in re.split(r"[\s,;()\"]+", v)]
+    names = list(names) + [w for w in words_of if len(LETTER.findall(w)) >= 3]
     named = ([(v, "user") for v in logins] + [(v, "host") for v in hosts]
              + [(v, "name") for v in names] + [(v, "email") for v in emails]
              + [(v, "repo") for v in repos])
