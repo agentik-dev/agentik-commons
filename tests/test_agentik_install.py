@@ -310,13 +310,17 @@ class Generic(Base):
         self.assertNotIn('dir="$state/"', text)
         self.assertEqual(sorted(p.name for p in self.bin().parent.iterdir()), ["agentik", "agentik-x"])
 
-    def test_an_old_name_links_and_its_state_folder_holds_the_marker(self):
+    def dry_link(self, plugin):
+        spec = importlib.util.spec_from_file_location("dry", plugin / "lib" / "agentik_install.py")
+        spec.loader.exec_module(mod := importlib.util.module_from_spec(spec))
+        return mod.install(str(self.home / ".local"), self.env, dry_run=True)["link"]
+
+    def test_an_old_name_link_is_refreshed_only_where_one_stands_and_the_marker(self):
         plugin = self.plugin(old_name="agentik-oldx", old_state="agentik-oldstate")
         out = self.install(plugin)
-        self.assertIn("links to it", out)
-        link = self.bin("agentik-oldx")
-        self.assertEqual(os.readlink(link), "agentik-x")
-        self.assertEqual(self.run_tool(link, "--version")[1], "1.0.0\n")
+        self.assertNotIn("links to it", out)
+        self.assertEqual(sorted(p.name for p in self.bin().parent.iterdir()), ["agentik", "agentik-x"])
+        self.assertIsNone(self.dry_link(plugin))
         old = self.home / ".local/state/agentik-oldstate"
         old.mkdir(parents=True)
         shutil.rmtree(self.share() / self.trees()[0])
@@ -324,6 +328,23 @@ class Generic(Base):
         self.assertTrue((old / "install-needed").exists())
         self.install(plugin)
         self.assertFalse((old / "install-needed").exists())
+        link = self.bin("agentik-oldx")
+        os.symlink(str(self.home / "gone"), str(link))
+        self.assertEqual(self.dry_link(plugin), str(link))
+        self.assertIn("links to it", self.install(plugin))
+        self.assertEqual(os.readlink(link), "agentik-x")
+        self.assertEqual(self.run_tool(link, "--version")[1], "1.0.0\n")
+
+    def test_an_old_name_that_is_no_link_is_left(self):
+        plugin, path = self.plugin(old_name="agentik-oldx"), self.bin("agentik-oldx")
+        path.parent.mkdir(parents=True)
+        path.write_text("mine\n")
+        self.assertNotIn("links to it", self.install(plugin))
+        self.assertEqual((path.is_symlink(), path.read_bytes()), (False, b"mine\n"))
+        path.unlink()
+        path.mkdir()
+        self.assertNotIn("links to it", self.install(plugin))
+        self.assertTrue(path.is_dir() and not path.is_symlink())
 
     def test_the_plugin_launcher_with_no_names_or_no_runner(self):
         for missing in ("agentik-tool.conf", "agentik-x"):

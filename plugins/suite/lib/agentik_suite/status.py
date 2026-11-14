@@ -287,13 +287,13 @@ def _full(cmd, nouns, now, text):
 
 def _status(cmd, nouns):
     o, t, Usage = cmd.opts, cmd.t, cmd.Usage
-    again = "%s status --check" % cmd.tool
+    again = cmd.say("status", "--check")
     if o["check"]:
         cmd._no_nouns(nouns)
     else:
         for path in nouns:
             if not os.path.isdir(path):
-                raise Usage("bad_path", "err.status.path", "%s status" % cmd.tool, path=path)
+                raise Usage("bad_path", "err.status.path", cmd.say("status"), path=path)
     now = time.time()
     if o["now"] is not None:
         now = when(o["now"])
@@ -313,7 +313,7 @@ def _status(cmd, nouns):
         home = cmd.env.get("HOME")
         fault = t.text("config.fault" if f.line else "config.fault.noline",
                        path=plan.shown(f.path, home), line=f.line, why=f.why)
-        raise Usage("bad_file", "err.status.file", again, fault=fault, tool=cmd.tool)
+        raise Usage("bad_file", "err.status.file", again, fault=fault, **cmd.slots())
     procs, bad = None, None
     if watchers:
         if text is None:
@@ -341,5 +341,5 @@ def _status(cmd, nouns):
                 t.line(LINE[r["state"]], name=r["name"], start=r["start"])
     for name in unchecked:
         t.hint("hint.status.unchecked", name=name, path=plan.shown(path, cmd.env.get("HOME")),
-               tool=cmd.tool)
+               **cmd.slots())
     return 1 if shown else 0

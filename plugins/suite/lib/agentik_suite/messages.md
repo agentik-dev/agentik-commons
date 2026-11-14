@@ -5,13 +5,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 ## Help
 
 - `help.title`: `{tool}` `{version}` manages the agentik suite's default set of plugins.
-- `help.usage`: usage: `{tool}` <verb> [<name>...] [flags]
+- `help.usage`: usage: `{prog}` <verb> [<name>...] [flags]
 - `help.verbs`: verbs
 - `help.flags`: flags
 - `help.path`: agentik commands on PATH
 - `help.path.none`: No agentik command is on PATH yet.
-- `hint.help`: next: `{tool}` setup --dry-run shows what setup would do on this machine.
-- `hint.verb`: next: `{tool}` help lists every verb and the agentik commands on PATH.
+- `hint.help`: next: `{setup}`
+- `hint.help.done`: next: `{doctor}`
+- `hint.verb`: next: `{help}` lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
@@ -20,14 +21,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
-- `usage.help`: usage: `{tool}` help [<verb>] [flags]
-- `usage.version`: usage: `{tool}` version [flags]
-- `usage.setup`: usage: `{tool}` setup [<plugin>...] [flags]
-- `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
-- `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
-- `usage.status`: usage: `{tool}` status [<path>...] [--check] [flags]
-- `usage.install_cli`: usage: `{tool}` install-cli [--prefix <dir>] [flags]
-- `usage.doctor`: usage: `{tool}` doctor [flags]
+- `usage.help`: usage: `{help}` [<verb>] [flags]
+- `usage.version`: usage: `{prog}` version [flags]
+- `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
+- `usage.config`: usage: `{config}` [<tool>[.<key>]] [flags]
+- `usage.describe`: usage: `{describe}` [config [<key>]] --json
+- `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
+- `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
+- `usage.doctor`: usage: `{doctor}` [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -36,6 +37,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.yes`: Run setup's lines without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
+- `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
@@ -52,38 +54,42 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `install.door.unversioned`: The door `{door}` holds no version to compare, so it stays as it is.
 - `install.pruned`: `{line}`
 - `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
-- `err.install.prefix`: --prefix needs a folder after it, and got none. Run `{tool}` install-cli --prefix <folder>, or leave it out for ~/.local.
-- `err.install`: install-cli stopped: `{why}`. Mend that, then run `{tool}` install-cli again.
+- `err.install.prefix`: --prefix needs a folder after it, and got none. Run `{install}` --prefix <folder>, or leave it out for ~/.local.
+- `err.install`: install-cli stopped: `{why}`. Mend that, then run `{install}` again.
 
 ## Errors
 
-- `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{tool}` --help for the list.
-- `err.verb`: `{word}` is not a verb. Run `{tool}` --help for the list.
-- `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{tool}` setup --dry-run `{word}` for the steps.
-- `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
-- `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
-- `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
-- `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{tool}` setup --dry-run for the default set.
+- `err.next`: next: `{command}`
+- `err.verb`: `{word}` is not a verb
+- `err.verb.tool`: `{word}` is not a tool
+- `err.verb.none`: `{word}` is not a verb or a tool
+- `err.verb.own`: `{word}` is a tool, not a verb
+- `err.verb.plugin`: `{word}` is a plugin with no command
+- `err.verb.missing`: `{word}` is not installed
+- `err.flag`: `{flag}` is not a flag
+- `err.flag.of`: `{flag}` is not a flag of `{verb}`
+- `err.flag.version`: --version takes no verb and no --help
+- `err.extra`: `{verb}` takes no name; `{word}` is one more
+- `err.extra.one`: `{verb}` takes one name; `{word}` is one more
+- `err.version`: `{tool}` has no version: `{path}` cannot be read
+- `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
 
-- `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{tool}` config for the list.
-- `err.config.tool`: `{name}` is not a tool here. Run `{tool}` config for the list.
-- `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{tool}` config `{name}` for its keys.
-- `err.config.key`: `{name}` has no setting `{key}`. Run `{tool}` config `{name}` for its keys.
-- `err.config.noname`: A tool's name goes before the dot. Run `{tool}` config for the list.
-- `err.config.nokey`: A key goes after the dot. Run `{tool}` config `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no settings (`{state}`). Run `{tool}` config `{name}` for what it gives.
-- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{tool}` config `{name}` for what it gives.
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its settings. Run `{tool}` config `{name}` for what it gives.
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{tool}` config `{name}` for what it gives.
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{tool}` config `{name}` for what it gives.
-- `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
+- `err.config.tool`: `{name}` is not a tool here
+- `err.config.key`: `{name}` has no key `{key}`
+- `err.config.noname`: a tool's name goes before the dot
+- `err.config.nokey`: a key goes after the dot
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no keys (`{state}`)
+- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.file`: `{fault}`
 - `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
 - `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
-- `err.status.file`: `{fault}`. Mend the file by hand, then run `{tool}` status --check again.
+- `err.status.file`: `{fault}`. Mend the file by hand, then run `{status}` --check again.
 - `err.status.path`: `{path}` is not a folder
-- `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{tool}` config --changed first.
-- `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{tool}` config suite to read the settings.
+- `err.config.both`: --changed and --user-files are two answers
+- `err.describe.json`: describe prints JSON for other tools, so it needs --json
 
 ## Config
 
@@ -138,11 +144,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{tool}` config <tool> lists one tool's settings.
-- `hint.config.tool`: next: `{tool}` config `{name}`.<key> shows one setting, where it is set and how to change it.
-- `hint.config.card`: next: `{tool}` config --changed lists every setting that differs from its default.
-- `hint.config.back`: next: `{tool}` config lists every tool and its state.
-- `hint.config.changed`: next: `{tool}` config <tool>.<key> shows where one is set and how to change it.
+- `hint.config`: next: `{config}` TOOL lists one tool's settings.
+- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
+- `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
+- `hint.config.back`: next: `{config}` lists every tool and its state.
+- `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 
 ## The suite's settings
 
@@ -153,6 +159,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setting.watcher.start`: The line that starts the watcher.
 - `setting.watcher.beat`: The file the watcher writes while it runs.
 - `setting.watcher.writer`: The name a beat must carry to count as the watcher's own.
+- `setting.sources`: Where a tool comes from: a plugin id, or the folder of its plugin.
 
 ## Setup
 
@@ -163,6 +170,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.add`: add to your shell profile: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
+- `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
 - `setup.market.ok`: known to Claude Code
@@ -195,8 +203,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each `would run:` line above, in order, then `{tool}` setup --dry-run again.
-- `hint.setup.blocked`: next: install `{missing}`, then `{tool}` setup --dry-run again.
+- `hint.setup.next`: next: `{command}`
+- `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
@@ -209,23 +217,23 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.ran.start`: ran: `{command}`, which could not start
 - `setup.wrote`: wrote: `{path}`
 - `setup.nothing`: Setup has nothing to do: no step from 2 to 5 has a line to run.
-- `hint.setup.doctor`: next: `{tool}` doctor checks each plugin.
-- `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{tool}` setup --yes to run the lines above.
-- `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{tool}` setup again when you are ready.
-- `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{tool}` setup from a terminal to approve it.
-- `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{tool}` setup again.
-- `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{tool}` setup again.
-- `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{tool}` setup again.
-- `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{tool}` setup again to retry it.
-- `err.setup.wall.silent`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{tool}` setup again to retry it.
-- `err.setup.start`: Setup stopped: `{command}` could not start, since `{last}`. Mend that, then run `{tool}` setup again.
-- `err.setup.todo`: Setup stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{tool}` setup --dry-run to see why.
+- `hint.setup.doctor`: next: `{doctor}` checks each plugin.
+- `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{setup}` --yes to run the lines above.
+- `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
+- `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
+- `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{setup}` again.
+- `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{setup}` again.
+- `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{setup}` again.
+- `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{setup}` again to retry it.
+- `err.setup.wall.silent`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{setup}` again to retry it.
+- `err.setup.start`: Setup stopped: `{command}` could not start, since `{last}`. Mend that, then run `{setup}` again.
+- `err.setup.todo`: Setup stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{setup}` --dry-run to see why.
 - `err.setup.journal`: Setup could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
 - `setup.ran.stopped`: ran: `{command}`, stopped when setup was interrupted
 - `setup.gate.notfile`: it is not a file
-- `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{tool}` setup again to go on.
-- `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{tool}` setup again to go on.
-- `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{tool}` setup from a terminal.
+- `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{setup}` again to go on.
+- `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{setup}` again to go on.
+- `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{setup}` from a terminal.
 
 ## Status
 
@@ -235,7 +243,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
 - `status.unknown.listing`: `{name}`: not checked: `{path}` gave a listing that lacks this process
-- `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{tool}` status --check.
+- `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{status}` --check.
 - `status.label.watchers`: watchers
 - `status.label.sessions`: sessions
 - `status.label.gate`: gate
@@ -336,25 +344,73 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Doctor
 
-- `doctor.title`: `{tool}` doctor: each check of this machine, by tool.
-- `doctor.group`: `{name}`
-- `doctor.run`: run: `{command}`
+- `doctor.group.ok`: `{count}` checks
+- `doctor.group.one`: 1 check
+- `doctor.part.failed`: `{n}` failed
+- `doctor.part.warned`: `{n}` to look at
+- `doctor.part.ok`: `{n}` ok
+- `doctor.part.waiting`: (`{n}` waiting on the rest)
+- `doctor.fold`: `{fact}`: `{subjects}`
+- `doctor.total`: `{failed}` failed, `{warned}` to look at, `{ok}` ok.
+- `doctor.done`: This machine is set up.
+- `doctor.fix`: fix: `{command}`
+- `doctor.slash`: in Claude Code: `{command}`
 - `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
-- `doctor.door.behind`: `{path}` is at version `{have}`, older than `{want}`, so it hands this command no verb
+- `doctor.door.behind`: `{path}` is at `{have}`, too old to pass a verb to the suite
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
-- `doctor.door.none`: no agentik door is on PATH
+- `doctor.door.none`: no agentik command on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.settings.ok`: `{path}` reads
 - `doctor.settings.none`: no user file at `{path}`, so the defaults hold
 - `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it
-- `doctor.tool.ok`: its doctor exits 0
-- `doctor.tool.silent`: its doctor exits `{code}` and prints nothing
+- `doctor.plan.path`: not on PATH
+- `doctor.plan.market`: not known to Claude Code
+- `doctor.plan.plugin`: not installed
+- `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
+- `doctor.plan.broken`: installed at `{version}`, with its folder gone
+- `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.unread`: holds no version line
+- `doctor.plan.placed`: not placed
+- `doctor.tool.passed`: its doctor passed
+- `doctor.tool.failed`: its doctor failed
+- `doctor.tool.silent`: its doctor failed, and printed nothing
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
-- `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
-- `hint.doctor.done`: next: nothing to do, since this machine is set up.
-- `hint.doctor.setup`: next: run `{tool}` setup, then `{tool}` doctor again.
-- `hint.doctor.fail`: next: run each `run:` line above, then `{tool}` doctor again.
-- `hint.doctor.warn`: next: nothing failed; the warn rows above say what to look at.
+- `doctor.tool.nocmd`: no command on PATH, so no doctor
+- `hint.doctor.next`: next: `{command}`
+
+## Issue
+
+- `issue.screen.head`: The issue as it would be filed, byte for byte; its first line is the title.
+- `issue.screen.text`: `{text}`
+- `issue.screen.end`: The issue ends above this line.
+- `issue.screen.repo`: It goes to github.com/`{repo}` as a new issue.
+- `issue.screen.login`: It is filed as `{login}`, and that login shows on the issue as its author.
+- `issue.screen.closed`: A closed issue already holds this failure: `{url}`
+- `issue.screen.failed`: The search for an earlier issue failed, so none is known.
+- `issue.screen.more`: Press Enter for the next lines of the issue.
+- `issue.screen.within`: Press Enter for the rest of this line of the issue.
+- `issue.send.ask`: Type send and press Enter to file it; any other answer keeps the draft.
+- `issue.send.kept`: Nothing was filed, and the draft is kept as it was.
+- `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
+- `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
+- `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
+- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run it from your own terminal.
+- `err.issue.send.inside`: send files nothing from inside Claude Code. Run it from your own terminal.
+- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run it from your own terminal.
+- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run it from your own terminal.
+- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then name that login.
+- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
+- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
+- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run send again to see it.
+- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and send again, or file the issue by the browser.
+- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
+- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run send again and type the word once.
+- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run send again and answer once the question shows.
+- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then send again.
+- `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.

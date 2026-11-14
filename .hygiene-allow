@@ -19,6 +19,9 @@ plugins/suite/.claude-plugin/plugin.json: sibling
 # one that does not answer (packet ak1b R7)
 plugins/suite/lib/fallback.json: sibling
 
+# the tools an issue may name and the repo each files to, made from the marketplace (packet rp3-gather R2)
+plugins/suite/lib/public.json: sibling
+
 # the voice gate runs that sibling's scanner, found by its plugin's name; its test fakes one
 scripts/voice: sibling
 tests/test_voice.py: sibling
@@ -39,6 +42,11 @@ GUIDE.md: renamed,sibling
 # the copyright line names its holder
 LICENSE: person
 
+# fk1-sources' first commits wrote the ssh form of the suite's hosting URL, user, host and
+# repo, which the email group reads; a URL's form, no address (the files now split it)
+design/packets/fk1-sources.md: email
+plugins/suite/lib/agentik_suite/sources.py: email
+tests/test_fk1_sources.py: email
 # su2-screen build 1's charter names a function of status.py by its dotted name, which the lan
 # group reads as a host name; it is no host
 history/sittings/2026-11-13-18.md: lan
