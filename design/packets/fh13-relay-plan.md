@@ -45,3 +45,19 @@ T is `murmur` with the row `{"lines": ["agentik murmur doctor"], "user_file": nu
 | 9 | each `next:` and `yours to run later:` line of lines 1 to 4, run by `sh -c` in that home with stdin closed, exits other than 127; `hint.setup.page` is no command and is left out | not measured |
 | 10 | at 60 columns on a pty, the page stands whole on its own line | not measured |
 | 11 | `make voice` green with the sidecar committed; the suite's tests under `/usr/bin/python3`; `make check` green | green |
+
+## 4. Review 1's ruling, the fix round
+
+The coordinator's ruling on review 1 (adversary, slice `82d634b..12677ea`), built at the branch tip `aad26fc`, no version, main not merged:
+
+- F1. `hint.setup.page` is printed only when step 4's row and its `setup.page` line stand above it on the same screen: an applied run's report (`show(..., lines=False)`) keeps the `page` line under step 4, and a run with nothing to do prints step 4's row and its page before the close, for `setup T` with stdin closed and `setup --yes T`, the suite placed or not. The page is still never run, opened or fetched (R6).
+- F2, R2 to R4 amended. A file that runs is the file `runs` names or, where `runs` is null, W when W is a file the finder's own test (`sources._executable`) calls executable. Then step 4 is `setup.launcher.theirs` with W from `~`, ok; step 7 the pin's doctor row with W's path and ` doctor`; no page row is left, so step 6's add line carries the close as at the pin. No `install-cli` for T, nothing written at W. A dangling link, a file that is not executable, or a folder at W stays R2.
+- R1 narrowed. A `page` holding whitespace or a character that is not printable (a control or format character) reads as absent (line 8).
+
+| # | line | at 12677ea |
+|---|---|---|
+| 12 | settled `hL`, `setup T` with stdin closed and `setup --yes T`: `Setup has nothing to do`, then step 4's row with the page under it, then `hint.setup.page`; nothing ran | red: no page on the screen |
+| 13 | `hL`, `setup --yes T`: the report's step 4 row has the page under it; the last line `hint.setup.page` | red: no page under step 4 |
+| 14 | settled `hM`, PATH without `~/.local/bin`: step 4 ok `setup.launcher.theirs` at W, step 7 `W doctor`, no page; the close `hint.setup.path`; `--yes` leaves W as it was and runs nothing of T | red: `setup.launcher.page` |
+| 15 | a dangling link, a plain file or a folder at W, on PATH or off: steps 4 and 7 the page's | green |
+| 16 | a `page` with a space, a newline, a tab, ESC, NUL, BEL, U+202E or U+00A0 reads as absent | red: read as a page |

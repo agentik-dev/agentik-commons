@@ -211,12 +211,15 @@ def _terminal(cmd):
 
 
 def show(cmd, steps, upto=7, lines=True):
+    """The plan's table; with `lines` false a page row still holds its page, which the close
+    points to (row fh13 review 1 F1)."""
     t, rows, last = cmd.t, [], None
     for s in steps:
         if s["n"] > upto:
             continue
         shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
-        after = t.text("setup." + s["line"], command=shown) if lines and shown else None
+        keep = lines or s["line"] == "page"
+        after = t.text("setup." + s["line"], command=shown) if keep and shown else None
         n = str(s["n"]) if s["n"] != last else ""
         last = s["n"]
         subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
@@ -399,6 +402,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
         return code
     if not ran:
         t.line("setup.nothing")
+        if not failure and page_close(steps):  # the close's page stands above it (fh13 review 1 F1)
+            show(cmd, [s for s in steps if s["line"] == "page"], lines=False)
     else:
         t.line("setup.after")
         show(cmd, steps, upto=6, lines=False)
