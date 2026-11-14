@@ -142,11 +142,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{config}` <tool> lists one tool's settings.
-- `hint.config.tool`: next: `{config}` `{name}`.<key> shows one setting, where it is set and how to change it.
+- `hint.config`: next: `{config}` TOOL lists one tool's settings.
+- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
 - `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
-- `hint.config.changed`: next: `{config}` <tool>.<key> shows where one is set and how to change it.
+- `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 
 ## The suite's settings
 
@@ -200,7 +200,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each `would run:` line above, in order, then `{setup}` --dry-run again.
+- `hint.setup.todo`: next: run each line marked would run above, in order, then `{setup}` --dry-run again.
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
@@ -263,5 +263,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
 - `hint.doctor.done`: next: nothing to do, since this machine is set up.
 - `hint.doctor.setup`: next: run `{setup}`, then `{doctor}` again.
-- `hint.doctor.fail`: next: run each `run:` line above, then `{doctor}` again.
-- `hint.doctor.warn`: next: nothing failed; the warn rows above say what to look at.
+- `hint.doctor.fail`: next: run each line marked run above, then `{doctor}` again.
+- `hint.doctor.warn`: next: nothing failed. The warn rows above say what to look at.

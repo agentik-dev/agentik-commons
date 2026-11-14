@@ -387,6 +387,18 @@ class Review2Test(Sc4Home):
 
 
 class CatalogueTest(unittest.TestCase):
+    def test_r2_f6_no_message_behind_next_holds_a_character_a_shell_reads(self):
+        """Every hint prints behind `next:` off a terminal (review 1 F7), and err.next is the
+        `next:` line itself; a placeholder in one is an upper-case word (review 2 F6)."""
+        found = catalogue.load()
+        behind = [mid for mid, body in found.items() if mid.startswith("hint.") or body.startswith("next:")]
+        self.assertIn("err.next", behind)
+        self.assertGreaterEqual(len(behind), 20)
+        for mid in behind:
+            body = catalogue.SLOT.sub("", found[mid])
+            for mark in ("<", ">", "|", ";", "&", "`", "$("):
+                self.assertNotIn(mark, body, (mid, found[mid]))
+
     def test_l8_each_cause_is_short_and_holds_no_command(self):
         text = open(catalogue.PATH, encoding="utf-8").read()
         section = text.split("\n## Errors\n", 1)[1].split("\n## ", 1)[0]

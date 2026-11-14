@@ -850,8 +850,8 @@ class ConfigTest(ConfigHome):
         for text, hint in ((out + err, err), (out2 + err2, err2), (out3 + err3, err3)):
             self.assertNotIn(ESC, text)
             self.assertIn("next:", hint)
-        self.assertIn("config <tool>", err)
-        self.assertIn("config demo.<key>", err2)
+        self.assertIn("config TOOL", err)
+        self.assertIn("config demo.KEY", err2)
 
     def test_a2_pty(self):
         for args in (("config",), ("config", "demo"), ("config", "demo.colour")):
