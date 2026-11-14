@@ -434,7 +434,7 @@ class ReviewOneTest(Base):
         self.assertEqual(h.claude(), [])
 
     def test_15_a_runner_under_a_path_with_a_space_holds(self):
-        held = ("10 /Users/a b/bin/relay run", "11 /opt/x y/agentik-relay gate --row r", "12 /usr/local/bin/relay run",
+        held = ("10 /Volumes/a b/bin/relay run", "11 /opt/x y/agentik-relay gate --row r", "12 /usr/local/bin/relay run",
                 "13 /usr/bin/vim /tmp/relay run")  # the last: a false hold, the safe side
         free = ("77 /usr/bin/vim /tmp/relay run/notes.md", "78 /bin/sleep 9 NOTE=relay run", "18 vim relay-run.md",
                 "80 /usr/local/bin/relay status", "19 /bin/cat /x/relay/run", "79 /opt/relay run/bin/watch",
@@ -444,7 +444,7 @@ class ReviewOneTest(Base):
         for line in free:
             self.assertIsNone(update.runner_pid(line + "\n", "relay"), line)
         h = self.two_behind()
-        h.ps("4243 /Users/a b/bin/relay run --row r1\n")
+        h.ps("4243 /Volumes/a b/bin/relay run --row r1\n")
         code, out, err = h.run("update", "--dry-run")
         self.assertEqual(code, 2, out + err)
         self.assertIn("held install: a relay run is live (pid 4243)", err)
