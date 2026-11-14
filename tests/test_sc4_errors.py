@@ -386,6 +386,58 @@ class Review2Test(Sc4Home):
     refusal = Review1Test.refusal
 
 
+class MergedVerbsTest(Sc4Home):
+    """Phase 2: the verbs and flags main brought since the pin (doctor's --all, setup's and status's
+    flags, install-cli's --prefix) go through the row's rules: each refusal names a line that runs,
+    and none carries a flag that skips a question or a word of NEVER_MENDED the person did not type."""
+
+    CASES = [  # (argv, cause, next, error.code)
+        (("doctor", "--al"), "--al is not a flag of doctor", "agentik doctor --all", "unknown_flag"),
+        (("doctor", "--all", "--jsno"), "--jsno is not a flag of doctor", "agentik doctor --all --json",
+         "unknown_flag"),
+        (("doctor", "--all", "extra"), "doctor takes no name; extra is one more", "agentik help doctor",
+         "extra_word"),
+        (("doctor", "murmur"), "doctor takes no name; murmur is one more", "agentik help doctor",
+         "extra_word"),
+        (("doctr", "--all"), "doctr is not a verb", "agentik doctor --all", "unknown_verb"),
+        (("doctor", "--all", "--yes"), "--yes is not a flag of doctor", "agentik help doctor",
+         "unknown_flag"),
+        (("doctor", "--dry-run"), "--dry-run is not a flag of doctor", "agentik help doctor",
+         "unknown_flag"),
+        (("docter", "--yes"), "docter is not a verb", "agentik help doctor", "unknown_verb"),
+        (("status", "--all"), "--all is not a flag of status", "agentik help status", "unknown_flag"),
+        (("setup", "--all"), "--all is not a flag of setup", "agentik help setup", "unknown_flag"),
+        (("install-cli", "--all"), "--all is not a flag of install-cli", "agentik help install-cli",
+         "unknown_flag"),
+        (("config", "--all"), "--all is not a flag of config", "agentik help config", "unknown_flag"),
+        (("--all",), "--all is not a flag", "agentik help", "unknown_flag"),
+        (("status", "--chek"), "--chek is not a flag of status", "agentik status --check", "unknown_flag"),
+        (("statsu", "--check"), "statsu is not a verb", "agentik status --check", "unknown_verb"),
+        (("status", "--check", "x"), "status takes no name; x is one more", "agentik help status",
+         "extra_word"),
+        (("install-cli", "--prefx", "/x"), "--prefx is not a flag of install-cli",
+         "agentik help install-cli", "unknown_flag"),
+        (("instal-cli", "--dry-run"), "instal-cli is not a verb", "agentik help", "unknown_verb"),
+        (("setup", "--dryrun", "plum"), "--dryrun is not a flag of setup", "agentik setup --dry-run plum",
+         "unknown_flag"),
+        (("setup", "plum", "--yess"), "--yess is not a flag of setup", "agentik help setup",
+         "unknown_flag"),
+        (("help", "setp"), "setp is not a verb", "agentik help setup", "unknown_verb"),
+    ]
+
+    def test_each_new_flag_and_verb_is_refused_with_a_line_that_runs(self):
+        for argv, cause, nxt, code_word in self.CASES:
+            self.refusal(argv, cause, nxt, code_word=code_word)
+            words = set(nxt.split())
+            self.assertFalse(words & set(cli.SKIPS), (argv, nxt))
+            runs = set() if nxt.split()[1:2] == ["help"] else words
+            self.assertFalse((runs & set(cli.NEVER_MENDED)) - set(argv), (argv, nxt))  # help X runs no X
+            self.assert_runs(nxt, argv)  # first: the system python caches its bytecode under HOME
+            self.assert_writes_nothing(nxt, argv)
+
+    refusal = Review1Test.refusal
+
+
 class CatalogueTest(unittest.TestCase):
     def test_r2_f6_no_message_behind_next_holds_a_character_a_shell_reads(self):
         """Every hint prints behind `next:` off a terminal (review 1 F7), and err.next is the
@@ -393,7 +445,8 @@ class CatalogueTest(unittest.TestCase):
         found = catalogue.load()
         behind = [mid for mid, body in found.items() if mid.startswith("hint.") or body.startswith("next:")]
         self.assertIn("err.next", behind)
-        self.assertGreaterEqual(len(behind), 20)
+        # 18 since main's sc10 and sm2 made doctor's and setup's closes one `next: {command}` each
+        self.assertGreaterEqual(len(behind), 18)
         for mid in behind:
             body = catalogue.SLOT.sub("", found[mid])
             for mark in ("<", ">", "|", ";", "&", "`", "$("):
