@@ -52,7 +52,8 @@ d = %r
 args = sys.argv[1:]
 data = sys.stdin.buffer.read().decode("utf-8") if args[:2] == ["issue", "create"] else ""
 with open(os.path.join(d, "calls.jsonl"), "a") as fh:
-    fh.write(json.dumps({"argv": args, "stdin": data}) + "\n")
+    fh.write(json.dumps({"argv": args, "stdin": data,
+                         "vars": sorted(k for k in os.environ if k.endswith("_TOKEN"))}) + "\n")
 key = "_".join(args[:2])
 if os.path.exists(os.path.join(d, key + ".out")):
     with open(os.path.join(d, key + ".out")) as fh:
@@ -275,6 +276,7 @@ class TypedWordTest(Base):
         joined = (argv[argv.index("-t") + 1] + "\n\n" + created[0]["stdin"]).encode("utf-8")
         self.assertEqual(joined, data)
         self.assertEqual(self.shown(screen).encode("utf-8"), data)
+        self.assertEqual(created[0]["vars"], [])
         with open(path, "rb") as fh:
             self.assertEqual(fh.read(), joined)
         self.assertIn(MESSAGES["issue.screen.repo"].replace("{repo}", REPO), screen)
@@ -587,6 +589,46 @@ class ApprovalTest(Base):
         _, result = self.drive(draft(), b"send\n", env=env, after=first)
         self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.unapproved"]})
         self.assertEqual(len(self.calls("issue create")), 1)
+
+
+class FileAccountTest(Base):
+    """R1-F5: `_file` reads the active account again just before the create and files only as
+    the login the screen showed; a token variable refuses, and the child's environment holds
+    none."""
+
+    def test_r1_f5_an_account_switched_after_the_screen_files_nothing(self):
+        def switch(approved):
+            self.fixture("auth_status.out", json.dumps({"hosts": {"github.com": [
+                {"active": False, "login": LOGIN, "state": "success"},
+                {"active": True, "login": "other-example", "state": "success"}]}}))
+        _, result = self.drive(draft(), b"send\n", after=switch)
+        self.assertEqual(result, {"approved": True,
+                                  "refusal": [2, "err.issue.send.switched", {"login": LOGIN}]})
+
+        def unread(approved):
+            self.fixture("auth_status.out", "{}")
+        _, result = self.drive(draft(), b"send\n", after=unread)
+        self.assertEqual(result["refusal"][:2], [2, "err.issue.send.switched"])
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f5_a_token_variable_files_nothing(self):
+        for name in ("GH_TOKEN", "GITHUB_TOKEN"):
+            for value in ("made-up-" + "v" * 8, ""):
+                with self.subTest(name=name, value=value):
+                    _, result = self.drive(draft(), b"send\n", env=self.env(**{name: value}))
+                    self.assertEqual(result, {"approved": True, "refusal": [
+                        2, "err.issue.send.token", {"name": name}]})
+                    road = send.account(self.env(**{name: value}), None)
+                    self.assertEqual(road["road"], "web")
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f5_the_create_holds_no_token_variable(self):
+        name = "GH_" + "ENTERPRISE_TOKEN"
+        _, result = self.drive(draft(), b"send\n", env=self.env(**{name: "made-up"}))
+        self.assertEqual(result, {"approved": True, "url": URL})
+        created = self.calls("issue create")
+        self.assertEqual([c["vars"] for c in created], [[]])
+        self.assertEqual(self.calls("auth status")[-1]["vars"], [])
 
 
 class DoorTest(unittest.TestCase):

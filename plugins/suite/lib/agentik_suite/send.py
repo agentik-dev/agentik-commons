@@ -34,6 +34,8 @@ WORD = b"send\n"
 FALLBACK = (80, 24)
 QUIET = 0.3  # seconds with no input, since a question was drawn, before its answer is read
 BOUND = 3.0  # seconds of input that keeps coming after a question: past them, a refusal
+TOKENS = ("GH_TOKEN", "GITHUB_TOKEN")  # each overrides the account gh stores for github.com
+UNPASSED = TOKENS + ("GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")  # never in the create's env
 MARKER = re.compile(r"^agentik-issue/1 (\S+) (\S+) ([0-9a-f]{12})$")
 # What a terminal does not draw as itself (hq design/22 section 3 item 4(e)): the one list of the
 # package. Each character of these categories but the plain space is refused anywhere in the bytes.
@@ -191,8 +193,8 @@ def account(env, as_login=None):
     """The road a send takes. {"road": "gh", "login"}; {"road": "web", "why", "values"}, the
     browser's, with the message that says why; {"road": "refuse", "why", "values"}, exit 2.
     Nothing here switches an account."""
-    for name in ("GH_TOKEN", "GITHUB_TOKEN"):
-        if env.get(name):
+    for name in TOKENS:
+        if name in env:
             return {"road": "web", "why": "issue.send.web.token", "values": {"name": name}}
     if not shutil.which("gh", path=env.get("PATH", "")):
         return {"road": "web", "why": "issue.send.web.nogh", "values": {}}
@@ -413,11 +415,13 @@ def _file(approved, repo, env):
     """The URL gh prints for the new issue: the approved bytes' first line as the title and the
     bytes after the second line on stdin, to github.com/OWNER/REPO, under a 60 s wall. It takes
     only an approval this process's `approve` made and no call has taken, with the bytes, hash
-    and repo it recorded, and files the recorded bytes."""
+    and repo it recorded, and files the recorded bytes. Just before the create it reads gh's
+    active account again and files only as the login the screen showed, never with a token
+    variable set, and the child's environment holds none."""
     made = _ISSUED.pop(id(approved), None)  # taken at once: an approval is good for one try
     if made is None or made[0] is not approved:
         raise Refusal(2, "err.issue.send.unapproved")
-    data, sha256, shown, _login = made[1]
+    data, sha256, shown, login = made[1]
     if (not isinstance(approved.data, bytes) or approved.data != data
             or hashlib.sha256(approved.data).hexdigest() != sha256 or approved.sha256 != sha256
             or approved.repo != shown or repo != shown):
@@ -425,9 +429,15 @@ def _file(approved, repo, env):
     title, blank, body = (data.split(b"\n", 2) + [b"", b""])[:3]
     if not title or blank:
         raise Refusal(2, "err.issue.send.changed")
+    for name in TOKENS:
+        if name in env:
+            raise Refusal(2, "err.issue.send.token", name=name)
+    child = {k: v for k, v in env.items() if k not in UNPASSED}
+    if not login or [name for name, on in accounts(child) if on] != [login]:
+        raise Refusal(2, "err.issue.send.switched", login=login or "")
     argv = ["gh"] + "issue create".split() + ["-R", "%s/%s" % (HOST, repo),
                                                "-t", title.decode("utf-8"), "-F", "-"]
-    code, out, err, state = _run(argv, env, data=body, wall=FILE_WALL)
+    code, out, err, state = _run(argv, child, data=body, wall=FILE_WALL)
     if state == "unstarted":
         raise Refusal(2, "err.issue.send.nogh")
     if state == "timed out":
