@@ -140,16 +140,18 @@ class WordTest(Copy):
 class LeadTest(Copy):
     page = PAGE
 
-    def test_11_a_tools_own_file_off_path_runs(self):
-        h = self.home("hM")
-        h.file(os.path.join(h.home, ".local", "bin", "agentik-" + T), "#!/bin/sh\n" + LOG + "exit 5\n")
+    def test_11_a_tool_with_a_page_runs_the_file_the_finder_names(self):
+        h = self.home("hL")
+        h.file(os.path.join(h.root(h.own, "0.9.0"), "bin", "agentik-" + T), "#!/bin/sh\n" + LOG + "exit 5\n")
         code, out, err = self.cli(h, T, "doctor", path="/usr/bin:/bin")
         self.assertEqual((code, out, err), (5, "", ""))
         self.assertEqual(h.ran(), ["doctor"])
-        bare = self.home("hL")
-        code, out, err = self.cli(bare, T, "doctor", path="/usr/bin:/bin")
-        self.assertEqual(code, 3, out + err)
-        self.assertIn("has no command here yet: it installs its own", err)
+        for name in ("hL", "hM"):  # no file the finder names: ~/.local/bin is off PATH
+            bare = self.home(name)
+            code, out, err = self.cli(bare, T, "doctor", path="/usr/bin:/bin")
+            self.assertEqual(code, 3, out + err)
+            self.assertIn("has no command here yet: it installs its own", err)
+            self.assertEqual(bare.ran(), [])
 
 
 class NameTest(Copy):
