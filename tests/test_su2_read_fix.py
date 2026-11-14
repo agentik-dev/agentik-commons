@@ -158,5 +158,43 @@ class GoneFolderTest(FixHome):
         self.assertEqual(obj["error"]["remedy"], "agentik-suite status")
 
 
+class OwnProcessTest(FixHome):
+    """R1-F6: a listing that does not hold the verb's own process is `bad_listing`."""
+
+    def run_here(self, *args):
+        here = os.getcwd()
+        os.chdir(self.repo)
+        self.addCleanup(os.chdir, here)
+        out, err = io.StringIO(), io.StringIO()
+        code = cli.main(list(args), env=self.env(TZ="UTC"), out=out, err=err)
+        return code, out.getvalue(), err.getvalue()
+
+    def stand_in(self, body):
+        listing = self.saved("listing.txt", body)
+        ps = self.stub("ps-stand-in", '#!/bin/sh\ncat "%s"\n' % listing)
+        old = status.PS
+        status.PS = ps
+        self.addCleanup(setattr, status, "PS", old)
+        return ps
+
+    def test_f6_a_listing_without_the_verb(self):
+        for body in ("garbage one\ngarbage two\n", text(self.ps)):
+            with self.subTest(body=body[:12]):
+                ps = self.stand_in(body)
+                code, out, err = self.run_here("status", "--json", "--now", NOW)
+                self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "bad_listing"), out)
+                self.assertEqual(json.loads(out)["error"]["remedy"], "agentik-suite status")
+                self.assertIn(ps, json.loads(out)["error"]["message"])
+                code, out, err = self.run_here("status", "--check", "--json", "--now", NOW)
+                self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "bad_listing"), out)
+
+    def test_f6_a_listing_with_the_verb(self):
+        row = "%5d     1 %5d       00:01 /usr/bin/python3 -I agentik-suite status\n" % (os.getpid(), os.getuid())
+        self.stand_in(text(self.ps) + row)
+        code, out, err = self.run_here("status", "--json", "--now", NOW)
+        obj = json.loads(out)
+        self.assertEqual((code, obj["ok"], obj["sessions"]["checked"]), (0, True, True))
+
+
 if __name__ == "__main__":
     unittest.main()

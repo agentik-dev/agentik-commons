@@ -131,6 +131,12 @@ def rows(text):
     return found
 
 
+def holds_self(procs):
+    """A listing this process took holds this process: one that does not is no listing of
+    this machine's processes, never an empty one (packet su2-read, review 1)."""
+    return any(pid == os.getpid() for pid, uid, words in procs)
+
+
 def _wrapper(word):
     base = os.path.basename(word).lower()  # macOS shows /usr/bin/python3 as .../MacOS/Python
     return base.startswith("python") or base in WRAPPERS
@@ -259,6 +265,8 @@ def do_status(cmd, nouns):
     if watchers:
         if text is None:
             text = listing(cmd.env)
+            if text is not None and not holds_self(rows(text)):
+                raise Usage("bad_listing", "err.status.ps", again, path=ps_argv(cmd.env)[0])
         procs = rows(text) if text is not None else None
     found = [check(w, procs, now, cmd.env, os.getuid()) for w in watchers]
     shown = [r for r in found if r["state"] != "running"]

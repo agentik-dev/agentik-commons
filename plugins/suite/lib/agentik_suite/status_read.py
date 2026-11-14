@@ -430,6 +430,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             listing["settled"] = True
         else:
             jobs.append((("ps",), argv))
+            listing["path"] = argv[0]
 
     parts, hand, done = {}, [], []
     walls = {key: keys[key]["wall_s"] if key[0] == "read" else WALL for key, _ in jobs}
@@ -492,7 +493,11 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             code, out, state = result
             listing["settled"] = True
             if state == "ran" and code == 0:
-                listing["procs"] = status.rows(out.decode("utf-8", "replace"))
+                procs = status.rows(out.decode("utf-8", "replace"))
+                if not status.holds_self(procs):  # run_all ends every read on the way out
+                    raise cmd.Usage("bad_listing", "err.status.ps", "%s status" % cmd.tool,
+                                    path=listing["path"])
+                listing["procs"] = procs
         elif key[0] == "describe":
             entry = next(e for e in asked if e["name"] == key[1])
             code, out, state = result
