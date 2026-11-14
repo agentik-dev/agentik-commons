@@ -1,6 +1,7 @@
 """Row fk1-sources: one finder says what stands for a tool and which file runs, and `agentik-suite
 describe sources --json [TOOL]` gives its answer. Each home is fk_homes' in a temp HOME; the read
 starts no process; made-up names."""
+import contextlib
 import json
 import os
 import subprocess
@@ -128,8 +129,14 @@ class FkTest(unittest.TestCase):
 
     def test_r4_the_read_starts_no_process_and_never_imports_tools(self):
         h = self.home("hI")
-        with mock.patch("subprocess.Popen", side_effect=AssertionError("a process")), \
-                mock.patch("os.fork", side_effect=AssertionError("a fork")):
+        # every way to start a process, os.posix_spawn, os.system and os.exec* too (review 1, note 3)
+        names = ["fork", "system", "posix_spawn", "posix_spawnp", "execl", "execle", "execlp",
+                 "execlpe", "execv", "execve", "execvp", "execvpe"]
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch("subprocess.Popen", side_effect=AssertionError("a process")))
+            for name in names:
+                if hasattr(os, name):
+                    stack.enter_context(mock.patch("os." + name, side_effect=AssertionError("os." + name)))
             self.assertEqual(self.row(h)["kind"], "undecided")
         p = subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); "
                             "from agentik_suite import sources; "
