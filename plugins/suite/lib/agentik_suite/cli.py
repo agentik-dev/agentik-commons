@@ -41,7 +41,7 @@ CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_fil
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
-               ("--not-a-duplicate", None, "not_a_duplicate"))
+               ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS

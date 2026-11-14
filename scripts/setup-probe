@@ -22,7 +22,7 @@ place of the published one, a network read; (2) a listing of T/home, then
 Claude Code's own (`.claude.json`, `.claude/`), or bytecode under `.cache/agentik/`;
 (4) the same `setup --yes --json` again: nothing to do, nothing run, no file outside
 `.cache/agentik/` new, gone or changed; (5) with T/home/.local/bin first on PATH,
-`agentik --version`, `agentik setup --dry-run --json` (steps 1 to 6 ok) and
+`agentik --version` (the line `agentik version` prints), `agentik setup --dry-run --json` (steps 1 to 6 ok) and
 `agentik doctor --json` (no `fail` in the suite's group; another tool's `fail` is a
 note). Nothing outside T is written; T is removed unless --keep.
 
@@ -44,7 +44,6 @@ USAGE = "usage: setup-probe [--keep] [--code DIR] [--claude PATH]"
 ROOT = Path(__file__).resolve().parents[1]
 SUITE = "suite"
 MARKET = "agentik"
-VERSION = "0.2.0"  # the door's, which the suite's install-cli places
 NO_IP = "(version 1)(allow default)(deny network-outbound (remote ip))"
 FAILS = []
 
@@ -283,10 +282,12 @@ def probe(t, code, claude):
 
     # 5: the command on the terminal's PATH
     local = p.home / ".local" / "bin"
+    # the door hands --version to the suite (packet sc13-door R2): one line, the suite's
     r = p.run(["agentik", "--version"], local)
-    check(r.returncode == 0 and r.stdout.strip() == "agentik %s" % VERSION,
-          "agentik --version: exit %d, %s (want agentik %s)"
-          % (r.returncode, last(r.stdout + "\n" + r.stderr) or "nothing", VERSION))
+    v = p.run(["agentik", "version"], local)
+    check(r.returncode == 0 and r.stdout.strip() != "" and (v.returncode, v.stdout) == (0, r.stdout),
+          "agentik --version: exit %d, %s (want agentik version's line, %s)"
+          % (r.returncode, last(r.stdout + "\n" + r.stderr) or "nothing", last(v.stdout) or "nothing"))
     r = p.run(["agentik", "setup", "--dry-run", "--json"], local)
     doc = report(r, "agentik setup --dry-run --json")
     if doc is not None:

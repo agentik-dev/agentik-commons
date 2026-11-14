@@ -51,7 +51,9 @@ class FrontDoorTest(unittest.TestCase):
 
     def test_not_installed_exits_three_with_one_line(self):
         # packet ak2 R2: no agentik-<word> and no agentik-suite on PATH
-        line = "agentik: nosuch is not installed here; agentik-commons/setup sets the suite up\n"
+        # packet sc13-door R4: two lines, the second the clone and its setup
+        line = ("agentik: nosuch is not installed, and neither is the agentik suite\n"
+                "next: git clone https://github.com/agentik-dev/agentik-commons && agentik-commons/setup\n")
         for args in (("nosuch",), ("help", "nosuch"), ("nosuch", "--x", "y")):
             self.assertEqual(run(*args), (3, "", line), args)
         # a file that is not executable is not a tool
@@ -74,14 +76,14 @@ class FrontDoorTest(unittest.TestCase):
         fake(self.b, "agentik-Bad")
         for args in ((), ("help",), ("--help",), ("-h",)):
             code, out, err = run(*args, path=self.path())
-            self.assertEqual((code, err), (0, ""), args)
+            self.assertEqual((code, err[:16]), (0, "next: git clone "), args)  # packet sc13-door R4
             rows = [line.split() for line in out.splitlines() if line.startswith("  ")]
             self.assertEqual(rows, [["x", os.path.join(self.a, "agentik-x")],
                                     ["yy", os.path.join(self.b, "agentik-yy")]], args)
 
     def test_list_with_nothing_found_exits_zero(self):
         code, out, err = run()
-        self.assertEqual((code, err), (0, ""))
+        self.assertEqual((code, err[:16]), (0, "next: git clone "))
         self.assertIn("no agentik-* tool on PATH", out)
         self.assertEqual(run(path="")[0], 0)
 
@@ -100,18 +102,20 @@ class FrontDoorTest(unittest.TestCase):
         fake(self.a, "agentik-x")
         self.assertEqual(run("help", "x", path=self.path())[:2], (0, "1[--help]\n"))
         self.assertEqual(run("help", "nosuch")[0], 3)
-        self.assertEqual(run("help", "x", "y", path=self.path())[0], 2)
+        # packet sc13-door R2 (b): the first word after help that is no flag
+        self.assertEqual(run("help", "x", "y", path=self.path())[:2], (0, "1[--help]\n"))
+        self.assertEqual(run("help", "x", "y")[0], 2)
 
     def test_version(self):
         code, out, err = run("--version")
         self.assertEqual((code, err), (0, ""))
-        self.assertRegex(out, r"\Aagentik \d+\.\d+\.\d+\n\Z")
+        self.assertRegex(out, r"\Aagentik \d+\.\d+\.\d+ \(no suite installed\)\n\Z")
         self.assertEqual(run("--version", "x")[0], 2)
 
     def test_shape(self):
         text = SCRIPT.read_text()
         self.assertTrue(text.startswith("#!/bin/sh\n"))
-        self.assertLess(len(text.splitlines()), 100)
+        self.assertLess(len(text.splitlines()), 120)
         self.assertTrue(os.access(SCRIPT, os.X_OK))
         self.assertEqual(subprocess.run(["sh", "-n", str(SCRIPT)]).returncode, 0)
 

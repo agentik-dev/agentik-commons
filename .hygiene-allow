@@ -22,6 +22,9 @@ plugins/suite/lib/fallback.json: sibling
 # the tools an issue may name and the repo each files to, made from the marketplace (packet rp3-gather R2)
 plugins/suite/lib/public.json: sibling
 
+# the narrator plugin whose script `issue new --render` starts, its script and its mode, as data (packet rp8 R1)
+plugins/suite/lib/render.json: sibling
+
 # the issue skill hands the draft's two lines to that sibling's narrator agent (packet rp6-verb R8)
 plugins/suite/skills/issue/SKILL.md: sibling
 
