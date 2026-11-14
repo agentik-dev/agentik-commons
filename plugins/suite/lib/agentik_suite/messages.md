@@ -305,7 +305,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.nothing`: everything is current; nothing was placed.
-- `update.held.relay`: a relay run is live (pid `{pid}`)
+- `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
 - `update.held.ps`: the process list cannot be read
 - `err.update.held`: held install: `{what}`

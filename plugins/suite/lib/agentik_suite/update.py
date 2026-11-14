@@ -1,14 +1,16 @@
 """`update` (row ak4a-update): every installed tool and its command brought current in one call.
 
-The hold comes first, before any other read or write (R3): a relay `run`, `gate` or `plan` in
-the process list, read by the program's name and never by a path's or a value's text, or a session
-tool whose `unattended status --json` answers other than `null` inside SESSION_WALL, holds the
-update, as does a process list that cannot be read; then nothing runs and nothing is written. Then
-the plan of five steps (R4): each marketplace once, `agentik` first; `claude plugin update T@M` for
-each tool the finder gives a standing source of the user's (`own` or `plugin`), the suite last;
-setup's step 4 rows; setup's step 5 rows for the suite's own command and the door, where the suite
-stands, else one note row and nothing written for it (R6); the doctor. Steps 1 and 2 always run,
-through apply.execute; then the finder is read again and steps 3 and 4 are built from that read by
+The hold comes first, before any other read or write (R3). The two tools it asks of are named by
+the suite's table, never here: the runner, the tool whose status reads hold one named `run`, and
+the tool whose status reads hold one named `unattended`. A runner's `run`, `gate` or `plan` in the
+process list, read by the program's name and never by a path's or a value's text, or an
+`unattended` read that answers other than `null` inside SESSION_WALL, holds the update, as does a
+process list that cannot be read; then nothing runs and nothing is written. Then the plan of five
+steps (R4): each marketplace once, `agentik` first; `claude plugin update T@M` for each tool the
+finder gives a standing source of the user's (`own` or `plugin`), the suite last; setup's step 4
+rows; setup's step 5 rows for the suite's own command and the door, where the suite stands, else
+one note row and nothing written for it (R6); the doctor. Steps 1 and 2 always run, through
+apply.execute; then the finder is read again and steps 3 and 4 are built from that read by
 plan.build (R5). A failed command stops the run, exit 1, with no rollback. The doctor's read runs
 once after step 4 and its rows close the screen; the exit is the update's (R7). It writes no gate
 list's settings file itself: a plugin update moves installed_plugins.json alone (R9, hq measured).
@@ -31,16 +33,25 @@ SCHEMA = "agentik.update/1"
 SESSION_WALL = 10
 PS_WALL = 10
 SUITE = "suite"
-SESSION = "session"
-RELAYS = ("relay", "agent" + "-relay", "agentik-relay")  # split: the scan reads the old name as renamed
 HOLDS = ("run", "gate", "plan")
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")  # where `ps -E` starts a process's environment
 
 
-def relay_pid(text):
-    """The pid of the first line whose program is a relay's and whose words hold `run`, `gate` or
-    `plan`, or `agentik relay` with one of them; the words stop at the first environment value, and
-    a path's text is never a word (R3). None when no line holds."""
+def reader(lib, read):
+    """(the tool, the argv) of the suite's table whose status reads hold one named `read`, or None."""
+    for name, row in sorted(tools.fallback(lib).items()):
+        for r in row.get("status") or ():
+            if isinstance(r, dict) and r.get("name") == read and isinstance(r.get("argv"), list):
+                return name, [str(w) for w in r["argv"]]
+    return None
+
+
+def runner_pid(text, runner):
+    """The pid of the first line whose program is the runner's (its name, its old `agent-` name or
+    `agentik-` name) and whose words hold `run`, `gate` or `plan`, or `agentik <runner>` with one of
+    them; the words stop at the first environment value, and a path's text is never a word (R3).
+    None when no line holds."""
+    programs = (runner, "agent-" + runner, "agentik-" + runner)
     for line in text.splitlines():
         parts = line.split()
         if len(parts) < 2 or not parts[0].isdigit():
@@ -51,18 +62,18 @@ def relay_pid(text):
                 break
             words.append(word)
         program = os.path.basename(parts[1])
-        if program in RELAYS and any(w in HOLDS for w in words):
+        if program in programs and any(w in HOLDS for w in words):
             return parts[0]
-        if program == "agentik" and words[:1] == ["relay"] and len(words) > 1 and words[1] in HOLDS:
+        if program == "agentik" and words[:1] == [runner] and len(words) > 1 and words[1] in HOLDS:
             return parts[0]
     return None
 
 
-def _unattended(path, env):
-    """True when the session tool at `path` answers `unattended status --json` with JSON other than
-    null, exit 0, inside SESSION_WALL; absent, slow or unreadable is False."""
+def _unattended(path, argv, env):
+    """True when the tool at `path` answers `argv` with JSON other than null, exit 0, inside
+    SESSION_WALL; absent, slow or unreadable is False."""
     try:
-        p = subprocess.Popen([path, "unattended", "status", "--json"], stdin=subprocess.DEVNULL,
+        p = subprocess.Popen([path] + argv, stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=dict(env),
                              start_new_session=True)
     except (OSError, ValueError):
@@ -84,18 +95,22 @@ def _unattended(path, env):
 
 def hold(cmd):
     """The held text, or None (R3). It starts the process list and, where the finder says a file
-    runs for the session tool, that file; it reads nothing else."""
+    runs for the `unattended` read's tool, that file; it reads nothing else."""
     env = cmd.env
     ps = shutil.which("ps", path=env.get("PATH", ""))  # none on PATH: a list that cannot be read
     text = agentik_install.processes(ps, timeout=PS_WALL)[0] if ps else None
     if text is None:
         return cmd.t.text("update.held.ps")
-    pid = relay_pid(text)
+    runner = reader(cmd.lib, "run")
+    pid = runner and runner_pid(text, runner[0])
     if pid:
-        return cmd.t.text("update.held.relay", pid=pid)
-    row = tools.rows(env, cmd.lib, cmd.cwd, names=[SESSION])[SESSION]
+        return cmd.t.text("update.held.run", tool=runner[0], pid=pid)
+    found = reader(cmd.lib, "unattended")
+    if not found:
+        return None
+    row = tools.rows(env, cmd.lib, cmd.cwd, names=[found[0]])[found[0]]
     path = (row["runs"] or {}).get("path")
-    if path and _unattended(path, env):
+    if path and _unattended(path, found[1], env):
         return cmd.t.text("update.held.unattended")
     return None
 

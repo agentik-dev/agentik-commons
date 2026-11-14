@@ -2,8 +2,8 @@
 
 Verbs: help (-h, --help; bare, a first screen of ten lines: row sc5), version (--version), setup, which plans with --dry-run and
 otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), update, which brings
-every installed tool and its command current in one call, held while a relay or unattended run is
-live (update.py), config, every tool's
+every installed tool and its command current in one call, held while a run is live (update.py),
+config, every tool's
 settings drilled down to one, describe, the suite's own answer to that read, status, five parts
 on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
 status_screen.py draws each as it is read), the object alone with --json, and with --check only
