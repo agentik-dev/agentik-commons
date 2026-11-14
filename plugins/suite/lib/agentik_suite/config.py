@@ -474,7 +474,7 @@ def _describe_sources(cmd, r, nouns):
     try:
         rows = sources.read(cmd.env, cwd, names, more=more)
     except settings.Fault as f:
-        raise cmd.Usage("bad_file", "err.config.file", "%s config suite" % cmd.tool,
-                        fault=r.fault_text(f), tool=cmd.tool, name=r.suite)
+        raise cmd.Usage("bad_file", "err.config.file", cmd.say("config", "suite"),
+                        fault=r.fault_text(f), **cmd.slots(), name=r.suite)
     cmd.t.json({"schema": sources.SCHEMA, "ok": True, "tools": rows})
     return 0
