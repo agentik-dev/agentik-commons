@@ -508,5 +508,22 @@ class R1F2Test(Review1Case):
                 self.assertEqual(scrub.scrub("at %s%s ok" % (cache, kept), m)[0], "at %s%s ok" % (cache, kept))
 
 
+class R1F3Test(Review1Case):
+    """R1-F3: a backslash and a space are part of a path."""
+
+    def test_r1f3_escaped_spaces(self):
+        m = machine()
+        bs = "\\ "
+        cases = [
+            ("cp: %s/Clients/zqvfalcon%szqvsecret%sFolder/plan.md: No such file" % (HOME, bs, bs),
+             "cp: <path-1>: No such file"),
+            ("ls /Volumes/zqvDrive/My%szqvsecret%sStuff/x" % (bs, bs), "ls <path-1>"),
+            ("open %s/zqv%sdir and go" % (HOME, bs), "open <path-1> and go"),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw[:8]):
+                self.assertEqual(self.closes(m, raw), want)
+
+
 if __name__ == "__main__":
     unittest.main()

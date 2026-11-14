@@ -96,7 +96,7 @@ NAMED = re.compile(r"(?:(?<![\w.'-])\"?((?:[^\W\d_][\w.'-]*[ \t]+){0,3}[^\W\d_][
                    r"<[ \t]*(" + EMAIL_CORE + r")[ \t]*>")
 EMAIL = re.compile(r"(?<![\w.%+-])" + EMAIL_CORE + r"(?![\w-])")
 
-RUN = re.compile(r"[^\s\"'`<>()\[\]{},;:|=*?\\%s]+" % STOP)
+RUN = re.compile(r"(?:[^\s\"'`<>()\[\]{},;:|=*?\\%s]|\\ )+" % STOP)
 WORD = re.compile(r"[^ \t\n]+")
 ANCHOR = re.compile(r"(?:~|\.\.?)?/")
 HARD = re.compile(r"[:,;()\[\]{}<>\"'`%s]" % STOP)
@@ -640,8 +640,8 @@ class _Pass:
                     while b < len(s) and LAN_REACH.match(s[b]):
                         b += 1
                 elif group == "home":
-                    while b < len(s) and HOME_REACH.match(s[b]):
-                        b += 1
+                    while b < len(s) and (HOME_REACH.match(s[b]) or s[b:b + 2] == "\\ "):
+                        b += 2 if s[b] == "\\" else 1
                 out.append(s[pos:a])
                 out.append(self.put(kind, s[a:b]))
                 pos = b
