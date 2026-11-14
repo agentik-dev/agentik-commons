@@ -6,6 +6,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n104 | S4 | `plugins/suite` `config.py`, `scripts/voice` | `describe sources T extra` names `describe` alone; a TOOL of `""` or `suite` reads `absent`; voice says `line 0` for an unreadable user file | notes 9, 10 | 2026-11-13, fk1 review 1 |
+| n103 | S4 | `plugins/suite` `sources.py` `entries` | the v1 dict shape of `installed_plugins.json` reads `absent`, as `plan.py` does | note 8 | 2026-11-13, fk1 review 1 |
+| n102 | S4 | `plugins/suite` `sources.py` `read` | an entry whose folder is gone stands `found`, where `plan.py` reads it not installed | note 7, read only | 2026-11-13, fk1 review 1 |
+| n101 | S4 | `plugins/suite` `sources.py` `mirror` | an `agentik` source that is no mapping reads `mirror` false; R8 may mean true | note 6 | 2026-11-13, fk1 review 1 |
+| n100 | S4 | `plugins/suite` `sources.py` `_runs` | an unset or empty PATH reads `.`, so a stray `./agentik-T` runs as `placed`; R6 copies `doctor.first_door` | note 5, p4 S7 | 2026-11-13, fk1 review 1 |
+| n99 | S4 | `plugins/suite` `sources.py` `whose` | a `projectPath` of `.` or `""` is read against the process cwd, so it is the repo's from any folder | note 4, p4 S8 | 2026-11-13, fk1 review 1 |
 | n58 | S4 | `scripts/door-probe` `rules` | a conditional line (`ifeq`, `else`, `endif`) inside a recipe ends the rule, so a `+` line after it in the same recipe is not read and `make -n` would run it; read a conditional inside a reached rule as `unread` | read only, not reproduced | 2026-11-13, ak2 review 3 |
 | n57 | S4 | `plugins/suite` `status.py` `matches` | `env -C DIR prog` and `env -S "..."` are read as plain flags, so `-C`'s folder or `-S`'s string is taken for the program and such a watcher reads missing: a false alarm, never a false running | `status.matches` by hand: `env -C /tmp lampd watch` reads no match, its head the folder | 2026-11-13, su1 review 2 |
 | n56 | S4 | `plugins/suite` `status.py` `beat` | an `at` in milliseconds counts as a beat in the future, so a stale one reads fresh for ever (running) and a missing watcher prints a `since` in year 55840; both follow R6 and R7, and a bound on a beat's future skew would catch it | review 1's L8 | 2026-11-13, su1 review 1 |
