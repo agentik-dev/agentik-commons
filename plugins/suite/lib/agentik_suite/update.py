@@ -35,6 +35,12 @@ PS_WALL = 10
 SUITE = "suite"
 HOLDS = ("run", "gate", "plan")
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")  # where `ps -E` starts a process's environment
+# setup's failure and ran-nothing lines, as update's own, so update's screen names the verb that
+# ran (review 1 lead a); setup's own lines stay as they are
+FAILS = {"err.setup.step": "err.update.step", "err.setup.step.silent": "err.update.step.silent",
+         "err.setup.wall": "err.update.wall", "err.setup.wall.silent": "err.update.wall.silent",
+         "err.setup.start": "err.update.start", "err.setup.todo": "err.update.todo",
+         "err.setup.interrupted.idle": "err.update.interrupted.idle"}
 PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
@@ -53,7 +59,7 @@ def runner_pid(text, runner):
     them; the words stop at the first environment value, and a path's text is never a word (R3).
     The program is each prefix of the words in turn, joined by one space, so a runner under a path
     with a space holds (review 1 F3); where that reads an editor's two file words as a runner and
-    its verb (`vim /x/relay run`), the update is held, the safe side. None when no line holds."""
+    its verb (`vim /x/<runner> run`), the update is held, the safe side. None when no line holds."""
     programs = (runner, "agent-" + runner, "agentik-" + runner)
     for line in text.splitlines():
         parts = line.split()
@@ -211,14 +217,19 @@ class Update:
 
     def tail(self):
         """Steps 3 to 5, from the finder as it reads now: setup's step 4 rows for each tool, its
-        step 5 rows for the suite's own command and the door, and the doctor (R4, R5, R6)."""
+        step 5 rows for the suite's own command and the door, and the doctor (R4, R5, R6). A tool
+        the finder now reads absent is gone and gets no row here (review 1 F4); a step 3 row of
+        setup's that is not ok is shown with its command and left for the person to run (F5)."""
         cmd = self.cmd
-        names = [e["name"] for e in self.tools]
+        read = tools.rows(self.env, cmd.lib, cmd.cwd, names=[e["name"] for e in self.order]) if self.order else {}
+        self.gone = [e for e in self.order if read[e["name"]]["kind"] == "absent"]
+        names = [e["name"] for e in self.tools if e not in self.gone]
         built = plan.build(names, self.env, cmd.lib, cmd.tool, cmd.version)
         self.prereqs = [s for s in built if s["n"] == 1]
-        steps = [dict(s, n=3) for s in built if s["n"] == 4]
-        if self.suite:
-            row = tools.rows(self.env, cmd.lib, cmd.cwd, names=[SUITE])[SUITE]
+        steps = [dict(s, n=3, left=True) for s in built if s["n"] == 3 and s["state"] != "ok"]
+        steps += [dict(s, n=3) for s in built if s["n"] == 4]
+        if self.suite and self.suite not in self.gone:
+            row = read[SUITE]
             root, ver = row["root"], row["version"]
             if isinstance(root, str) and isinstance(ver, str) and ver:
                 own = plan.build([], self.env, os.path.join(root, "lib"), cmd.tool, ver)
@@ -233,11 +244,14 @@ class Update:
 
     def runnable(self, steps):
         return [s for s in steps if s["n"] in (1, 2, 3, 4) and s["state"] == "todo" and s["command"]
-                and s["line"] == "run"]
+                and s["line"] == "run" and not s.get("left")]
 
     def title(self):
         if self.shown:
             self.t.line("update.plan.dry" if self.o["dry_run"] else "update.plan", names=", ".join(self.shown))
+        elif self.absent:  # a name typed that is listed and not installed (review 1 lead b)
+            self.t.line("update.plan.absent" if len(self.absent) == 1 else "update.plan.absent.many",
+                        names=", ".join(self.absent))
         else:
             self.t.line("update.plan.none")
 
@@ -247,9 +261,9 @@ class Update:
         if self.suite is None and SUITE in self.names and SUITE not in self.skips:
             listed = SUITE in tools.descriptions(self.env)
             self.t.hint("hint.update.suite" if listed else "hint.update.suite.pull", **self.slots)
-        if self.absent:
-            self.t.hint("hint.update.setup", command=self.cmd.say("setup", *self.absent),
-                        names=", ".join(self.absent))
+        missing = self.absent + [e["name"] for e in self.gone]
+        if missing:
+            self.t.hint("hint.update.setup", command=self.cmd.say("setup", *missing), names=", ".join(missing))
 
     def launcher(self, name):
         found = agentik_install.read_launcher(os.path.join(self.bindir, "agentik-" + name))
@@ -285,7 +299,7 @@ class Update:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             term.append(path, json.dumps(entry) + "\n")
         except OSError as e:
-            self.t.error("err.setup.journal", path=plan.shown(path, self.home), why=e.strerror or str(e))
+            self.t.error("err.update.journal", path=plan.shown(path, self.home), why=e.strerror or str(e))
             return wrote
         return wrote + [path]
 
@@ -325,7 +339,7 @@ class Update:
         if blocked:
             missing = ", ".join(s["subject"] for s in blocked)
             if o["json"]:
-                raise self.cmd.Usage("blocked", "err.setup.blocked", self.cmd.say("update", "--dry-run"),
+                raise self.cmd.Usage("blocked", "err.update.blocked", self.cmd.say("update", "--dry-run"),
                                      missing=missing, **self.slots)
             self.title()
             apply.show(self.cmd, steps)
@@ -337,7 +351,7 @@ class Update:
         todo = self.runnable(steps)
         if todo and not o["yes"]:
             if not apply._terminal(self.cmd) or o["json"]:
-                raise self.cmd.Usage("needs_yes", "err.setup.yes", self.cmd.say("update", "--yes"), **self.slots)
+                raise self.cmd.Usage("needs_yes", "err.update.yes", self.cmd.say("update", "--yes"), **self.slots)
             self.ask(len(todo))
         return self.run(steps)
 
@@ -353,7 +367,7 @@ class Update:
             answer = None
             t.blank(err=True)
         if (answer or "").strip().lower() not in ("y", "yes"):
-            raise self.cmd.Usage("declined", "err.setup.declined", self.cmd.say("update"), **self.slots)
+            raise self.cmd.Usage("declined", "err.update.declined", self.cmd.say("update"), **self.slots)
 
     def execute(self, row, ran, wrote):
         """One command, as setup runs one; its result."""
@@ -410,35 +424,61 @@ class Update:
             failure = ("err.setup.interrupted.idle", {}, apply.INTERRUPTED)
         apply._ignore()
         code = (failure[2] if len(failure) > 2 else 1) if failure else 0
+        left = [] if failure else [s for s in self.detail(self.tail()) if s.get("left")]  # F4, F5
+        if left or (self.gone and not failure):
+            code = 1
         if ran:
             wrote = self.journal(ran, wrote, code)
         rows = tools.rows(self.env, self.cmd.lib, self.cmd.cwd, names=[e["name"] for e in self.order])
         after = {name: row["version"] for name, row in rows.items()}
         commands = [r["command"] for r in ran]
         if failure:
-            message = t.text(failure[0], **dict(self.slots, **failure[1]))
+            mid = FAILS.get(failure[0], failure[0])
+            message = t.text(mid, **dict(self.slots, **failure[1]))
             if self.o["json"]:
                 self.json(False, steps, after, commands, wrote,
                           error={"code": "step_failed", "message": message, "remedy": self.cmd.say("update")})
             else:
                 t.flush()
-                t.error(failure[0], **dict(self.slots, **failure[1]))
+                t.error(mid, **dict(self.slots, **failure[1]))
             return code
+        short = None
+        if left:
+            short = ("err.update.left" if left[0]["command"] else "err.update.left.none",
+                     dict(self.slots, subject=left[0]["subject"], command=left[0]["command"] or ""))
+        gone = [e["name"] for e in self.gone]
         groups, failed, warned, total, entries = doctor.read(self.cmd)
         if self.o["json"]:
-            self.json(True, steps, after, commands, wrote, checked={"failed": failed, "warned": warned})
-            return 0
-        moved = [e for e in self.order if after.get(e["name"]) != e["from"]]
-        if not moved and not placed:
+            error = None
+            if short:
+                error = {"code": "step_todo", "message": t.text(short[0], **short[1]),
+                         "remedy": left[0]["command"] or self.cmd.say("update")}
+            elif gone:
+                error = {"code": "not_installed", "message": self.gone_text(self.gone[0]),
+                         "remedy": self.cmd.say("setup", *gone)}
+            self.json(code == 0, steps, after, commands, wrote, checked={"failed": failed, "warned": warned},
+                      error=error)
+            return code
+        moved = [e for e in self.order if e not in self.gone and after.get(e["name"]) != e["from"]]
+        if not moved and not placed and not gone and not left:  # no row is left to do (F5)
             t.line("update.nothing")
         else:
-            t.table([("ok", [t.text("update.tool.moved", name=e["name"], old=e["from"], new=after.get(e["name"]))
+            t.table([("fail", [self.gone_text(e)], None) if e in self.gone else
+                     ("ok", [t.text("update.tool.moved", name=e["name"], old=e["from"], new=after.get(e["name"]))
                              if e in moved else
                              t.text("update.tool.same", name=e["name"], version=e["from"])], None)
                      for e in self.order])
+        if left:
+            apply.show(self.cmd, left)
         self.hints()
         doctor.screen(self.cmd, groups, failed, warned, total, entries)
-        return 0
+        if short:
+            t.flush()
+            t.error(short[0], **short[1])
+        return code
+
+    def gone_text(self, e):
+        return self.t.text("update.tool.gone", name=e["name"], version=e["from"] or "?")
 
     def root(self, row):
         name = row["subject"].rpartition("@")[0]
