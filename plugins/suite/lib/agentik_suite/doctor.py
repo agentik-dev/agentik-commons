@@ -4,12 +4,16 @@ The suite's checks, in order: the door (the first `agentik` on PATH that is a re
 file, its VERSION against the door this command ships), a shadow (an `agentik-<word>` on PATH
 whose word the door would hand to it in place of the suite's verb), the user settings file, and
 the setup plan's steps 1 to 6, one check a row. Then each listed tool's own checks: every one
-is asked `doctor --json` at once, and a tool whose answer is not the contract's (§5) is asked
-plain `doctor` in a second round, both under one deadline of DEADLINE seconds (row sc10). A check
+first asked `describe --json` (the cache and the describe wall, row ak9b R5): one whose counted answer
+names a read of kind `doctor` runs that read's words, once; every other is asked `doctor --json`,
+and one whose answer is not the contract's (§5) plain `doctor` in a second round, all under one
+deadline of DEADLINE seconds (row sc10). A counted answer's group shows its fail checks, then its
+warn checks, then one row for the rest (R6); a failing one whose fails name no command the close
+may run closes on the plain line (R7). A check
 is {name, status, detail, remedy}; the status is ok, note, warn or fail; exit 1 when one is fail,
 else 0. The screen is a line a group, a row for each check that fails or warns, and a close that
-names at most one command. It reads no cache, runs no `describe` and no `claude`, and writes
-nothing itself; a tool's own doctor may write its state.
+names at most one command. It runs no `claude` and writes nothing itself but the describe cache;
+a tool's own doctor may write its state.
 
 Each group carries `source`, the finder's row (row fk2b-reads), null for the suite. What a source
 that is not the marketplace's own gives (its id, marketplace, folder, version) stands in no check's
@@ -30,6 +34,8 @@ RESERVED = ("remove", "update", "init", "completion", "inbox")
 STATE = {"ok": "ok", "todo": "warn", "blocked": "fail"}
 STATUSES = ("ok", "note", "warn", "fail")
 SCHEMA = "agentik.doctor/1"
+SCHEMAS = re.compile(r"agentik\.doctor/([0-9]+)\Z")  # an answer of schema 1 or lower counts (R5)
+PLAIN = "\0plain"  # the close that names the doctor alone: no fail's command may close (R7)
 KEYS = ("name", "status", "detail", "remedy")
 FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.plan.path",
         "setup.python.low": "doctor.plan.python", "setup.market.missing": "doctor.plan.market",
@@ -277,15 +283,18 @@ def read_answer(out, failed):
         obj = json.loads(out.decode("utf-8", "replace"))
     except (ValueError, RecursionError):
         return None
-    if not isinstance(obj, dict) or obj.get("schema") != SCHEMA:
+    m = SCHEMAS.match(obj.get("schema")) if isinstance(obj, dict) and isinstance(obj.get("schema"), str) \
+        else None
+    if not m or int(m.group(1)) > 1:
         return None
     if obj.get("ok") is False:
         error = obj.get("error") if isinstance(obj.get("error"), dict) else {}
         message, remedy = error.get("message"), error.get("remedy")
-        return [_check("doctor", "fail", message if isinstance(message, str) and message else failed,
+        message = tools.one_line(message) if isinstance(message, str) else ""
+        return [_check("doctor", "fail", message or failed,
                        remedy if isinstance(remedy, str) and remedy else None)]
     checks = obj.get("checks")
-    if not isinstance(checks, list):
+    if obj.get("ok") is not True or not isinstance(checks, list):
         return None
     found = []
     for c in checks:
@@ -293,8 +302,16 @@ def read_answer(out, failed):
                 and isinstance(c.get("detail"), str)
                 and (c.get("remedy") is None or isinstance(c.get("remedy"), str))):
             return None
-        found.append({k: c.get(k) for k in KEYS})
+        found.append(dict({k: c.get(k) for k in KEYS}, detail=tools.one_line(c["detail"])))
     return found
+
+
+def doctor_read(answer):
+    """The read of kind `doctor` a counted describe answer names, or None (R5)."""
+    for r in (answer or {}).get("reads") or ():
+        if r.get("kind") == "doctor":
+            return r
+    return None
 
 
 def tool_doctor(cmd, name, exe):
@@ -310,17 +327,25 @@ def own_doctors(cmd, entries):
     checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2)."""
     t = cmd.t
     exes = {e["name"]: e["exe"] for e in entries if e["exe"]}
-    jobs = [((name, 1), [exe, "doctor", "--json"]) for name, exe in exes.items()]
+    described = tools.describe_all([{"name": n, "exe": x} for n, x in exes.items()], cmd.env,
+                                   deadline=time.monotonic() + tools.WALL)[0] if exes else {}
+    reads = {}
+    for name in exes:
+        r = doctor_read(described.get(name, (None, None))[1])
+        if r:
+            reads[name] = r["argv"]
+    jobs = [((name, "read"), [exe] + reads[name]) if name in reads else ((name, 1), [exe, "doctor", "--json"])
+            for name, exe in exes.items()]
     answers = {}
 
     def then(key, result):
         name, round_ = key
         code, out, state = result
-        if round_ != 1 or state != "ran":
+        if round_ == 2 or state != "ran":
             return ()
         got = read_answer(out, t.text("doctor.tool.failed"))
-        if got is None:
-            return [((name, 2), [exes[name], "doctor"])]
+        if got is None:  # a doctor read that does not count gets no second round (R8)
+            return [((name, 2), [exes[name], "doctor"])] if round_ == 1 else ()
         answers[name] = got
         return ()
 
@@ -338,12 +363,16 @@ def own_doctors(cmd, entries):
             group.update(nocmd=True, checks=lead + [_check("doctor", "note", t.text("doctor.tool.nocmd"))])
             continue
         if name in answers:
-            group.update(one=False, checks=lead + answers[name])
+            group.update(one=False, checks=lead + answers[name], own=answers[name])
             continue
         again = tool_doctor(cmd, name, e["exe"])
-        code, out, state = results[(name, 1)]
-        if state == "ran":
-            code, out, state = results.get((name, 2), (None, b"", "timed out"))
+        if name in reads:
+            code, out, state = results[(name, "read")]
+            state = "unread" if state == "ran" else state  # it ran and does not count (R8)
+        else:
+            code, out, state = results[(name, 1)]
+            if state == "ran":
+                code, out, state = results.get((name, 2), (None, b"", "timed out"))
         if state == "timed out":
             c = _check("doctor", "warn", t.text("doctor.tool.slow", secs="%g" % DEADLINE), again)
         elif state != "ran":
@@ -402,7 +431,12 @@ def close_command(cmd, groups):
             remedy = fails[0]["remedy"]
             if _closes(remedy):
                 return remedy
-            return tool_doctor(cmd, g["name"], g["exe"])
+            if g.get("own") is None:
+                return tool_doctor(cmd, g["name"], g["exe"])
+            for c in fails:  # a counted answer: its first fail a close may run, else the plain line (R7)
+                if _closes(c["remedy"]):
+                    return c["remedy"]
+            return PLAIN
     for i, g in enumerate(groups):
         for c in g["checks"]:
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
@@ -445,7 +479,10 @@ def _rows(cmd, group, hint, every):
     left = _left(checks, 2, 5)
     door_ok = all(c["status"] == "ok" for c in checks if c["name"] == "door" and not c.get("step"))
     rows, folds, waiting = [], {}, 0
+    own = None if every else group.get("own")
     for c in checks:
+        if own is not None and any(c is o for o in own):
+            continue
         after = _under(cmd, c, hint, left)
         s = c.get("step")
         if every:
@@ -470,6 +507,14 @@ def _rows(cmd, group, hint, every):
         rows.append(row)
     for (sid, fact), (row, subjects) in folds.items():
         row[2] = cmd.t.text("doctor.fold", fact=fact, subjects=", ".join(subjects))
+    if own is not None:  # a counted answer: each fail, then each warn, then the rest (R6)
+        shown = [c for c in own if c["status"] == "fail"] + [c for c in own if c["status"] == "warn"]
+        rows += [[c["status"], c["name"], _home(c["detail"], home), _under(cmd, c, hint, left)]
+                 for c in shown]
+        rest = len(own) - len(shown)
+        if shown and rest:
+            rows.append(["ok", "doctor", cmd.t.text("doctor.tool.check") if rest == 1 else
+                         cmd.t.text("doctor.tool.checks", n=rest), None])
     return rows, waiting
 
 
@@ -519,7 +564,9 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.line("doctor.total", failed=failed, warned=warned, ok=total - failed - warned)
     else:
         t.line("doctor.done")
-    if hint:
+    if hint == PLAIN:
+        t.hint("hint.doctor.fail.plain", doctor=cmd.say("doctor"))
+    elif hint:
         t.hint("hint.doctor.next", command=hint)
 
 
