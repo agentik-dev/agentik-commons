@@ -291,6 +291,17 @@ class Review1Test(Sc4Home):
             self.refusal(argv, cause, "agentik help status", code_word="unknown_flag")
             self.assert_runs("agentik help status", argv)
 
+    def test_f5_with_no_door_a_mended_tool_is_its_own_file(self):
+        os.remove(os.path.join(self.stubs, "agentik"))
+        for argv, nxt in ((("murmr",), "~/stubs/agentik-murmur --help"),
+                          (("murmr", "list"), "~/stubs/agentik-murmur list"),
+                          (("help", "murmr"), "~/stubs/agentik-murmur --help")):
+            self.refusal(argv, "murmr is not a tool", nxt, code_word="unknown_verb")
+            self.assert_runs(nxt, argv)
+
+    def test_f6_a_plugin_with_no_command_is_a_tool_by_its_name(self):
+        self.refusal(("plumm",), "plumm is not a tool", "agentik help plum", code_word="unknown_verb")
+
 
 class CatalogueTest(unittest.TestCase):
     def test_l8_each_cause_is_short_and_holds_no_command(self):

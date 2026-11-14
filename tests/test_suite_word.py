@@ -46,15 +46,16 @@ class PluginWordTest(Home):
         for args in (("paer",), ("help", "paer")):
             code, out, err = self.run_cli(*args)
             self.assertEqual((code, out), (2, ""), args)
-            self.assertIn("paer is not a verb or a tool\n", err)  # a plugin with no command is no tool (sc4 R6)
+            self.assertIn("paer is not a tool\nnext: ", err)  # a known plugin is a near tool (sc4 review 1 F6)
+            self.assertTrue(err.endswith(" help pear\n"), err)
         code, out, _ = self.run_cli("paer", "--json")
         self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "unknown_verb"))
         self.assertEqual(self.run_cli("nosuch")[0], 2)
 
     def test_f3_the_json_remedy_names_a_verb_only(self):
         # review 1 F3: `agentik-suite pear` never succeeds, so a nearest plugin's remedy is --help
-        # sc4 review 1 F2: never a verb that writes
-        for args, remedy in ((("paer",), CMD + " help"), (("stup",), CMD + " help"),
+        # sc4 review 1: a known plugin's help (F6); never a verb that writes (F2)
+        for args, remedy in ((("paer",), CMD + " help pear"), (("stup",), CMD + " help"),
                              (("nosuch",), CMD + " help")):
             code, out, _ = self.run_cli(*args, "--json")
             self.assertEqual((code, json.loads(out)["error"]["remedy"]), (2, remedy), args)

@@ -19,6 +19,7 @@ nothing itself, and starts each listed tool's own doctor.
 import difflib
 import os
 import re
+import shlex
 import sys
 
 import agentik_install
@@ -232,6 +233,19 @@ class Command:
             return self.say("help", verb) if verb and verb != "help" else self.say("help")
         return self.say(*line)
 
+    def _tool_line(self, near, path, rest, asked_help):
+        """The line for the tool `near` the person meant, its file at `path`: through the door
+        where one reaches the suite, else that file through sc2's `prog.shown` (review 1 F5);
+        the words after the typed one, or its help where none follow, since a tool run bare is a
+        usage error (R4). A plugin with no command here gets the suite's help for it (F6)."""
+        if path is None:
+            return self.say("help", near)
+        if prog.form(self.env, self.tool)[0] != "typed":
+            return self.say(*([near] + rest if rest and not asked_help else ["help", near]))
+        shown = prog.shown(path, self.env.get("HOME"), self.opts["json"])
+        words = rest if rest and not asked_help else ["--help"]
+        return " ".join([shown] + [shlex.quote(w) for w in words])
+
     def slots(self):
         """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
         name a title gives."""
@@ -284,7 +298,8 @@ class Command:
                               exit_code=3, word=word)
             raise Refusal("not_installed", "err.verb.missing", self.say("setup", word),
                           exit_code=3, word=word)
-        near = difflib.get_close_matches(word, [w for w in VERBS + tuple(sorted(found)) if w != word],
+        names = sorted(set(found) | set(tools.plugin_names(self.env, self.lib)))
+        near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=NEAR)
         if not near:
             raise Refusal("unknown_verb", "err.verb.none", self.say("help"), word=word)
@@ -292,8 +307,11 @@ class Command:
         if near in VERBS:  # never into a verb that writes from a word that is none (review 1 F2)
             run = self.say("help") if near in NEVER_MENDED and not asked_help else self.mend(at, near)
             raise Refusal("unknown_verb", "err.verb", run, word=word)
-        rest = [w for w in self.argv[at + 1:] if w not in SWITCHES]  # a tool's words are its own
-        run = self.say(*([near] + rest if rest and not asked_help else ["help", near]))
+        rest = [w for w in self.argv[at + 1:] if w not in SWITCHES]
+        if near == own and rest and not asked_help:  # the suite by its name: its own line
+            run = self.offer(rest)
+        else:
+            run = self._tool_line(near, found.get(near), rest, asked_help)
         raise Refusal("unknown_verb", "err.verb.tool", run, word=word)
 
     def _bad_flag(self, flag):
