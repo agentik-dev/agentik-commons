@@ -18,7 +18,7 @@ from test_agentik_suite import LAUNCHER, LIB, MANIFEST, ROOT, SYSTEM, Home, vers
 
 import agentik_install  # noqa: E402  (the suite's copy, on sys.path from test_agentik_suite)
 
-DOOR_VERSION = "0.2.0"
+DOOR_VERSION = "0.3.0"
 MODULE_RUN = "import sys; sys.path.insert(0, sys.argv[1]); import agentik_install as a; " \
              "sys.exit(a.install_cli(sys.argv[2]))"
 
@@ -69,8 +69,9 @@ class InstallCliTest(Reach):
         self.assertEqual(len(naming), 1, out)
         self.assertEqual(out.splitlines()[0], naming[0])
         self.assertEqual(self.call([exe, "--version"])[:2], (0, "agentik-suite %s\n" % version()))
+        # the door finds the suite beside it and hands --version on (packet sc13-door R1, R2)
         self.assertEqual(self.call([self.path("bin", "agentik"), "--version"])[:2],
-                         (0, "agentik %s\n" % DOOR_VERSION))
+                         (0, "agentik-suite %s\n" % version()))
         self.assertEqual(self.snapshot(), before)
 
     def test_a2_json_and_the_dry_run(self):
@@ -176,7 +177,7 @@ class DoorFateTest(Reach):
         ours = str(ROOT / "bin" / "agentik")
         fate = agentik_install.door_fate
         self.assertEqual(fate(self.path("bin", "agentik"), ours), "write")
-        for kind, want in ((b"0.1.0", "write"), (b"0.2.0", "keep"), (b"9.0.0", "keep"),
+        for kind, want in ((b"0.1.0", "write"), (b"0.2.0", "write"), (b"0.3.0", "keep"), (b"9.0.0", "keep"),
                            (b"banana", "unversioned"), ("fifo", "unversioned"), ("link", "link")):
             self.assertEqual(fate(self.door(kind), ours), want, kind)
         os.unlink(self.path("bin", "agentik"))

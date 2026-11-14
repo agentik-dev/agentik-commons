@@ -6,6 +6,8 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n173 | S4 | `bin/agentik` | a folder whose path holds a space is printed as `that folder` in the list the door shows when no suite is installed: safe, and the path is lost | sc13 review 2 N1 | 2026-11-14, sc13-door review 2 |
+| n172 | S4 | `plugins/suite` the refresh at SessionStart | the refresh at SessionStart moves only a launcher whose tree its own plugin froze: not held by fk2-plan, so an enabled copy numerically newer can still replace a fork's launcher | hq design/25 §3 item 16, R1-F2 | 2026-11-14, fk2-plan build 1 |
 | n104 | S4 | `plugins/suite` `config.py`, `scripts/voice` | `describe sources T extra` names `describe` alone; a TOOL of `""` or `suite` reads `absent`; voice says `line 0` for an unreadable user file | notes 9, 10 | 2026-11-13, fk1 review 1 |
 | n103 | S4 | `plugins/suite` `sources.py` `entries` | the v1 dict shape of `installed_plugins.json` reads `absent`, as `plan.py` does | note 8 | 2026-11-13, fk1 review 1 |
 | n102 | S4 | `plugins/suite` `sources.py` `read` | an entry whose folder is gone stands `found`, where `plan.py` reads it not installed | note 7, read only | 2026-11-13, fk1 review 1 |
@@ -19,24 +21,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
 
-## From packet sc2-name (review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n86 | S4 | `plugins/suite` `doctor.py` | `"%s doctor" % exe` still writes another tool's name before a verb outside `prog.start`; it runs, since the exe came from PATH, but in the door form reads `agentik-session doctor`, and R1's source test does not see it | review 1's N3: `doctor.py:111` | 2026-11-13, sc2 review 1 |
-| n87 | S4 | `plugins/suite` `messages.md` | `next: ... config suite.<key>` is a template: pasted, `sh` reads `<key>` as a redirection and exits 2 (before sc2 too) | review 1's N4: the line pasted into `sh -c` exits 2 | 2026-11-13, sc2 review 1 |
-
 ## From packet rp1-shapes (review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n88 | S4 | `scripts/hygiene` `secret` | Slack's app-level token (`xapp-1-...`) and refresh token (`xoxe-1-...`) count 0; the configuration token `xoxe.xoxp-...` counts 1; one more pattern | review 1's N1, probe p1 | 2026-11-13, rp1 review 1 |
-| n89 | S4 | `scripts/hygiene` `secret` | OpenAI's `sk-svcacct-...`, `sk-admin-...` and `sk-None-...` keys count 0; the brief named the key with and without its project part only | review 1's N2, probe p1 and an in-process check | 2026-11-13, rp1 review 1 |
-| n90 | S4 | `scripts/hygiene` `secret` | the AWS key pattern's `\b` misses a key after a JSON `\n` escape, as R1-F1 did for three shapes; `TOKEN_START` is the fix | review 1's N3, in-process at b62ddad and 0af1a76 | 2026-11-13, rp1 review 1 |
-| n91 | S4 | `scripts/hygiene` `secret` | random base64 can go red: 134 MB of it gives 3 hits (`AIza`), 134 MB of base64url 47 (4 at the base, `ghp_`); a repo that commits big blobs may go red after the sync | review 1's N4; nine sibling copies found no new hit | 2026-11-13, rp1 review 1 |
-| n92 | S4 | `scripts/hygiene` `--json` | none found in matching: keys and exit codes unchanged, `--commits` counts a token in a diff line and a message; binary, UTF-16, oversize and path cases count 1 | review 1's N5 | 2026-11-13, rp1 review 1 |
-| n93 | S4 | `scripts/hygiene` | the new shapes may cost 14 to 28 percent of wall time over a 120 MB tree (base 29.9 s and 23.3 s, tip 38.4 s and 26.5 s), noisy under host load; time it on a quiet host | review 1's N6 | 2026-11-13, rp1 review 1 |
-| n94 | S4 | `tests/test_agentik_suite.py` | `WallTest` f1, f2, f4 and `ConfigTest.test_a1_a4_three_levels_piped` fail at 3.09 to 3.41 s against a 3.0 s bound under host load, at base and tip alike | review 1's N7 | 2026-11-13, rp1 review 1 |
 | n95 | S4 | `design/packets/rp1-shapes.md` | the review's acceptance read: 1 held bare only (R1-F1), 2, 3, 5 and 6 hold, 4 holds with the copy at 100644, 7 rests on the build's gate | review 1's N8 | 2026-11-13, rp1 review 1 |
 | n96 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
 | n97 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |

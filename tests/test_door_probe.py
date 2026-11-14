@@ -82,7 +82,7 @@ class DoorProbeRunTest(unittest.TestCase):
         return repo
 
     def old_door(self):
-        return DOOR.read_text().replace("VERSION=0.2.0", "VERSION=0.1.0")
+        return DOOR.read_text().replace("VERSION=0.3.0", "VERSION=0.1.0")
 
     def probe(self):
         env = {"PATH": "/usr/bin:/bin", "HOME": str(self.root), "TMPDIR": str(self.tmp),
@@ -134,7 +134,7 @@ class DoorProbeRunTest(unittest.TestCase):
         self.assertEqual(self.row(lines, "launch-tool", "launcher", "kept")[0], "ok", lines)
         kind, text = self.row(lines, "launch-tool", "launcher", "absent")
         self.assertEqual(kind, "ok", lines)
-        self.assertIn("VERSION 0.2.0", text)
+        self.assertIn("VERSION 0.3.0", text)
         self.assertFalse([line for line in lines if line.split()[:2] == ["launch-tool", "make"]])
         self.assertEqual((code, lines[-1]), (0, "door-probe: go"), lines)
         self.assertTrue(repo.is_dir())

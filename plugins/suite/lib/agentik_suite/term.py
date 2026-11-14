@@ -1,8 +1,8 @@
 """term: the one writer. Every byte a person reads leaves through here, by message id.
 
 Each stream is judged alone, by isatty: on a terminal a status is a glyph, colour may be on, and
-a table's last cell too wide for the terminal moves whole to the dim line under its row, so a
-path or a command is never cut; off one a status is a word (ok, warn, FAIL, note), with no escape
+a table is laid out to the width (`COLUMNS`, else the terminal's own): a long cell wraps inside
+its column and a path or a command that does not fit goes whole under its row, so neither is cut; off one a status is a word (ok, warn, FAIL, note), with no escape
 byte and no redraw. NO_COLOR set to a value,
 TERM=dumb or --no-color turns colour off; the glyphs stay. Columns are left-aligned, two spaces
 apart; a name is bold, a path or a hint dim; nothing is told by colour alone.
@@ -27,6 +27,9 @@ MARK_SGR = {"ok": "32", "warn": "33", "fail": "31", "note": "36"}
 STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 GAP = "  "
 FALLBACK_WIDTH = 80
+LEAST_WIDTH = 40  # a terminal's width under this is taken as this (row sc3-table R1)
+LAST_ROOM = 24  # a last column with less room puts a long last cell under its row (R5)
+ZERO_WIDTH = ("Mn", "Me", "Cf")
 CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
 JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survives, escaped
 
@@ -43,9 +46,24 @@ def clean(value):
 
 
 def columns(text):
-    """The screen columns a text takes: a wide character two, a combining mark none."""
-    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
-               for c in text)
+    """The screen columns a text takes: a wide or fullwidth character two, a combining mark or a
+    zero-width character none (row sc3-table R2), any other one."""
+    return sum(0 if unicodedata.combining(c) or unicodedata.category(c) in ZERO_WIDTH and c != "\xad"
+               else 2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def _wrap(text, room):
+    """The text in lines of at most `room` columns, broken at spaces; a word longer than the room
+    stands whole on a line of its own (row sc3-table R4)."""
+    lines, now = [], ""
+    for word in text.split():
+        if now and columns(now) + 1 + columns(word) <= room:
+            now += " " + word
+        else:
+            if now:
+                lines.append(now)
+            now = word
+    return lines + [now]
 
 
 def fit(text, room, mark):
@@ -86,8 +104,9 @@ def colour_off(env, no_color):
 
 
 class _Stream:
-    def __init__(self, raw, no_colour):
+    def __init__(self, raw, no_colour, env=None):
         self.raw = raw
+        self.env = env if env is not None else {}
         self.gone = raw is None
         try:
             self.tty = raw.isatty()
@@ -102,11 +121,19 @@ class _Stream:
             self.glyphs = False
 
     def width(self):
-        try:
-            cols = os.get_terminal_size(self.raw.fileno()).columns
-        except (AttributeError, ValueError, OSError):
-            cols = 0
-        return cols if cols > 0 else FALLBACK_WIDTH
+        """On a terminal, `COLUMNS` from the command's environment where it is a whole number
+        above 0, else the terminal's own size, else 80, and never under 40; off one, 80, whatever
+        `COLUMNS` holds (row sc3-table R1)."""
+        if not self.tty:
+            return FALLBACK_WIDTH
+        given = str(self.env.get("COLUMNS") or "")
+        cols = int(given) if re.fullmatch("[0-9]+", given) else 0
+        if cols <= 0:
+            try:
+                cols = os.get_terminal_size(self.raw.fileno()).columns
+            except (AttributeError, ValueError, OSError):
+                cols = 0
+        return max(cols if cols > 0 else FALLBACK_WIDTH, LEAST_WIDTH)
 
     def paint(self, text, sgr):
         if not self.colour or not sgr or not text:
@@ -165,8 +192,8 @@ class Term:
     def __init__(self, no_color=False, quiet=False, env=None, out=None, err=None, messages=None):
         env = os.environ if env is None else env
         off = colour_off(env, no_color)
-        self.out = _Stream(out if out is not None else sys.stdout, off)
-        self.err = _Stream(err if err is not None else sys.stderr, off)
+        self.out = _Stream(out if out is not None else sys.stdout, off, env)
+        self.err = _Stream(err if err is not None else sys.stderr, off, env)
         self.quiet = quiet
         self.messages = messages if messages is not None else catalogue.load()
 
@@ -186,8 +213,9 @@ class Term:
     def table(self, rows, err=False, indent=2, mark_at=0):
         """rows: (status or None, [cell...], after or None); a cell is a str or (str, style).
         The status shows as a column at mark_at. `after` is a line under the row, set at the
-        last column's start. Nothing is cut: on a terminal a last cell wider than the room left
-        moves whole to a dim line of its own under the row, above `after`."""
+        last column's start. Columns are measured and padded by `columns`. Off a terminal one row
+        is one line (row sc3-table R9); on one the table is laid out to its width (`_laid`).
+        Nothing is cut."""
         stream = self._stream(err)
         if not rows:
             return
@@ -200,24 +228,77 @@ class Term:
                 cells.insert(mark_at, (shown, painted))
             grid.append((cells, clean(after) if after else after))
         ncols = max(len(cells) for cells, _ in grid)
-        widths = [max((len(cells[i][0]) for cells, _ in grid if i < len(cells)), default=0)
+        widths = [max((columns(cells[i][0]) for cells, _ in grid if i < len(cells)), default=0)
                   for i in range(ncols)]
-        for cells, after in grid:
-            used, shown, under = indent, " " * indent, []
+        if stream.tty:
+            return self._laid(stream, grid, widths, indent, marked, mark_at)
+        for cells, after in grid:  # off a terminal one row is one line (R9)
+            shown = " " * indent
             for i, (text, style) in enumerate(cells):
-                last = i == len(cells) - 1
                 is_mark = marked and i == mark_at  # its style slot holds the painted mark
-                if last and i and stream.tty and not is_mark and len(text) > stream.width() - used:
-                    under.append(text)
-                    break
                 painted = style if is_mark else stream.paint(text, STYLE_SGR.get(style))
-                pad = "" if last else " " * (widths[i] - len(text)) + GAP
-                used += len(text) + len(pad)
+                pad = "" if i == len(cells) - 1 else " " * (widths[i] - columns(text)) + GAP
                 shown += painted + pad
             stream.write(shown.rstrip(" "))
-            start = indent + sum(w + len(GAP) for w in widths[:len(cells) - 1])
-            for line in under + ([after] if after else []):
-                stream.write(" " * start + stream.paint(line, STYLE_SGR["hint"]))
+            if after:
+                start = indent + sum(w + len(GAP) for w in widths[:len(cells) - 1])
+                stream.write(" " * start + stream.paint(after, STYLE_SGR["hint"]))
+
+    def _laid(self, stream, grid, widths, indent, marked, mark_at):
+        """A table on a terminal of width W (row sc3-table R3 to R8): each column but a row's last
+        is as wide as its widest cell and at most a third of W; the last takes what is left. A
+        plain cell or a name too wide for its column wraps at spaces inside it, the other cells
+        staying on the row's first line. A path that does not fit its column and is not the row's
+        last stays whole at its column's start, unpadded, and each cell after it goes under the
+        row at its indent plus 4, dim, wrapped to W (review 1 F1); a last path, or an `after`
+        line, that does not fit goes whole there; a last cell with under 24 columns left, or with
+        a word longer than its room, goes there too and wraps to W. Each line of a cell is
+        painted on its own; nothing is cut."""
+        width = stream.width()
+        widths = [min(w, width // 3) for w in widths]
+        fixed = " " * (indent + 4)
+        starts = [indent]
+        for w in widths:
+            starts.append(starts[-1] + w + len(GAP))
+        dim = STYLE_SGR["hint"]
+        for cells, after in grid:
+            blocks, under, rest = [], [], False
+            for i, (text, style) in enumerate(cells):
+                last = i == len(cells) - 1
+                room = width - starts[i] if last else widths[i]
+                if rest and not (marked and i == mark_at):  # after a path that kept its place
+                    blocks.append([""])
+                    under.extend(_wrap(text, width - len(fixed)) if text.strip() else [])
+                elif marked and i == mark_at or columns(text) <= room:
+                    blocks.append([text])
+                elif style == "path" and not last:  # it keeps the first line (review 1 F1)
+                    blocks.append([text])
+                    rest = True
+                elif style == "path":
+                    blocks.append([""])
+                    under.append(text)
+                elif last and i and (room < LAST_ROOM or max(map(columns, text.split()), default=0) > room):
+                    blocks.append([""])
+                    under.extend(_wrap(text, width - len(fixed)))
+                else:
+                    blocks.append(_wrap(text, room))
+            for k in range(max(len(b) for b in blocks)):
+                shown = " " * indent
+                for i, (text, style) in enumerate(cells):
+                    piece = blocks[i][k] if k < len(blocks[i]) else ""
+                    if marked and i == mark_at:  # the mark keeps its place on the first line (R8)
+                        piece, painted = (text, style) if k == 0 else ("", "")
+                    else:
+                        painted = stream.paint(piece, STYLE_SGR.get(style))
+                    pad = "" if i == len(cells) - 1 else " " * (widths[i] - columns(piece)) + GAP
+                    shown += painted + pad
+                stream.write(shown.rstrip(" "))
+            for line in under:
+                stream.write(fixed + stream.paint(line, dim))
+            if after:
+                start = starts[len(cells) - 1]
+                lead = " " * start if start + columns(after) <= width else fixed
+                stream.write(lead + stream.paint(after, dim))
 
     def grid(self, status, label, rows, err=False):
         """One part of a status screen (packet su2-screen R4): the mark, or its blank when the
