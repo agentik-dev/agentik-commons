@@ -388,7 +388,8 @@ def plain(text):
 def config_error(out):
     """{code, message, remedy} of a config read's counted error (R4), whatever the exit, else None:
     one object of the config schema, `ok` false, an `error` whose code and message are strings and
-    whose remedy is a string or null; a remedy that is not `plain` reads as null (lead 2)."""
+    whose remedy is a string or null; a remedy that is not `plain` reads as null (lead 2), and one
+    is never cut: past `LINE_CAP` with its outer spaces gone, it reads as null (review 2 F3)."""
     try:
         obj = json.loads(out.decode("utf-8", "replace"))
     except (ValueError, RecursionError):
@@ -402,8 +403,9 @@ def config_error(out):
     code, message, remedy = error.get("code"), error.get("message"), error.get("remedy")
     if not (isinstance(code, str) and isinstance(message, str) and (remedy is None or isinstance(remedy, str))):
         return None
+    remedy = plain(remedy).strip() if plain(remedy) is not None else None
     return {"code": one_line(code), "message": one_line(message),
-            "remedy": one_line(remedy) if plain(remedy) is not None else None}
+            "remedy": remedy if remedy is not None and len(remedy) <= LINE_CAP else None}
 
 
 def _described(code, out):
