@@ -421,6 +421,12 @@ class MergedVerbsTest(Sc4Home):
         (("setup", "plum", "--yess"), "--yess is not a flag of setup", "agentik help setup",
          "unknown_flag"),
         (("help", "setp"), "setp is not a verb", "agentik help setup", "unknown_verb"),
+        # rp6's verb: a line that writes or sends is never offered, --dry-run or not
+        (("isue",), "isue is not a verb", "agentik help", "unknown_verb"),
+        (("issue", "snd"), "snd is not a word of issue; the nearest is send", "agentik help issue",
+         "unknown_word"),
+        (("issue", "send", "--yse"), "--yse is not a flag of issue", "agentik help issue", "unknown_flag"),
+        (("issue", "new", "--ran"), "--ran is not a flag of issue", "agentik help issue", "unknown_flag"),
     ]
 
     def test_each_new_flag_and_verb_is_refused_with_a_line_that_runs(self):
@@ -432,6 +438,8 @@ class MergedVerbsTest(Sc4Home):
             self.assertFalse((runs & set(cli.NEVER_MENDED)) - set(argv), (argv, nxt))  # help X runs no X
             self.assert_runs(nxt, argv)  # first: the system python caches its bytecode under HOME
             self.assert_writes_nothing(nxt, argv)
+            if "issue" in argv or "isue" in argv:  # no next: of the verb files (rp6 phase 2)
+                self.assertNotIn("send", nxt.split()[2:], (argv, nxt))
 
     refusal = Review1Test.refusal
 

@@ -287,6 +287,20 @@ class Term:
         if next_:  # a value of the cause's own may be called `command`
             stream.write(_ordered(self.text("err.next", command=next_)))
 
+    def marked(self, text, spans, sgr="7"):
+        """One line on stdout as it is, each (start, end) of `spans` painted on a terminal; off
+        one, or with colour off, the text alone (the issue's draft, packet rp6-verb R4)."""
+        stream = self.out
+        if CONTROL.search(text):
+            text, spans = clean(text), []
+        shown, at = "", 0
+        for a, b in sorted(spans):
+            if a < at:
+                continue
+            shown += text[at:a] + stream.paint(text[a:b], sgr)
+            at = b
+        stream.write(shown + text[at:])
+
     def json(self, obj):
         self.out.write(json.dumps(_cleaned(obj), ensure_ascii=True, sort_keys=False))
 
@@ -299,3 +313,21 @@ def append(path, text):
     """The one file this package appends to, setup's journal (packet ak3-setup R9)."""
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(text)
+
+
+def keep(path, data, mode=0o600):
+    """A file of the issue's drafts written whole, by a rename beside it, so a reader sees the old
+    bytes or the new ones (packet rp6-verb R4, R5); a link at the temporary name is not followed."""
+    folder, name = os.path.split(path)
+    tmp = os.path.join(folder, ".%s.%d.tmp" % (name, os.getpid()))
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, mode)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise

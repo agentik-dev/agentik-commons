@@ -22,6 +22,9 @@ plugins/suite/lib/fallback.json: sibling
 # the tools an issue may name and the repo each files to, made from the marketplace (packet rp3-gather R2)
 plugins/suite/lib/public.json: sibling
 
+# the issue skill hands the draft's two lines to that sibling's narrator agent (packet rp6-verb R8)
+plugins/suite/skills/issue/SKILL.md: sibling
+
 # the voice gate runs that sibling's scanner, found by its plugin's name; its test fakes one
 scripts/voice: sibling
 tests/test_voice.py: sibling

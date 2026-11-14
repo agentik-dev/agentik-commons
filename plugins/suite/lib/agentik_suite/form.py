@@ -490,10 +490,18 @@ def title(verb, line):
 
 
 def _cut(tool, text):
-    line = ("%s %s" % (tool, _one_line(text).strip())).encode("utf-8")
-    if len(line) > TITLE_BYTES:
-        line = line[:TITLE_BYTES]
-    cut = line.decode("utf-8", "ignore")[len(tool) + 1:].strip()
+    """The title in TITLE_BYTES with its tool, cut on a character's edge and, when the cut falls
+    inside a placeholder, before it (rp6 review 1 F1: no cut of the form's lands in one)."""
+    line = "%s %s" % (tool, _one_line(text).strip())
+    data = line.encode("utf-8")
+    if len(data) > TITLE_BYTES:
+        end = len(data[:TITLE_BYTES].decode("utf-8", "ignore"))
+        for mt in PLACEHOLDER.finditer(line):
+            if mt.start() < end < mt.end():
+                end = mt.start()
+                break
+        line = line[:end]
+    cut = line[len(tool) + 1:].strip()
     return cut or EMPTY
 
 
