@@ -294,7 +294,175 @@ class RenderTest(RenderHome):
         self.assertEqual(len(err.splitlines()), 2, err)
 
 
+SLEEPER = r'''#!/usr/bin/python3 -I
+import os, time
+with open(%r, "w") as fh:
+    fh.write("%%d %%s" %% (os.getpid(), os.getcwd()))
+time.sleep(30)
+'''
+# A script with a TERM trap that ends what it moved out of its group by setsid, and a child in its
+# group with a TERM trap of its own; `leave` is the script's exit, or None to sleep to the wall.
+TRAPPER = r'''#!/usr/bin/python3 -I
+import os, signal, subprocess, sys, time
+side, leave = %r, %r
+away = subprocess.Popen(["/bin/sleep", "30"], start_new_session=True)
+kid = os.fork()
+if kid == 0:
+    def kid_term(signum, frame):
+        open(os.path.join(side, "kid-termed"), "w").close()
+        os._exit(0)
+    signal.signal(signal.SIGTERM, kid_term)
+    time.sleep(30)
+    os._exit(0)
+def term(signum, frame):
+    open(os.path.join(side, "termed"), "w").close()
+    away.kill()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, term)
+with open(os.path.join(side, "pids"), "w") as fh:
+    fh.write("%%d %%d %%d\n" %% (os.getpid(), away.pid, kid))
+time.sleep(0.3)  # the child's trap is set before the script goes
+if leave is not None:
+    sys.exit(leave)
+time.sleep(30)
+'''
+# A script that leaves a subfolder it cannot be read from, and with `pin` a file it cannot unlink.
+LEAVER = r'''#!/usr/bin/python3 -I
+import os, stat, sys
+pin = %r
+with open(%r, "w") as fh:
+    fh.write(os.getcwd())
+os.mkdir("d")
+open("d/f", "w").close()
+if pin:
+    open("pinned", "w").close()
+    os.chflags("pinned", stat.UF_IMMUTABLE)
+os.chmod("d", 0)
+sys.exit(1)
+'''
+
+
+def unpin(folder):
+    """The folder a LEAVER with `pin` left, removed by the test itself."""
+    import shutil
+    for top, dirs, _files in os.walk(folder):
+        for d in dirs:
+            os.chmod(os.path.join(top, d), 0o700)
+    if os.path.lexists(os.path.join(folder, "pinned")):
+        os.chflags(os.path.join(folder, "pinned"), 0)
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+class StopTest(RenderHome):
+    """Review 1 F1 to F3 and F5: every way out ends the script's group and removes its folder."""
+
+    def put(self, text):
+        self.install()
+        with open(self.script, "w") as fh:
+            fh.write(text)
+        os.chmod(self.script, 0o755)
+
+    def pids(self):
+        with open(os.path.join(self.side, "pids")) as fh:
+            return [int(n) for n in fh.read().split()]
+
+    def test_f1_f5_a_signal_during_a_render(self):
+        import signal
+        from test_agentik_suite import LAUNCHER
+        for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            rec = os.path.join(self.side, "rec-%d" % sig)
+            self.put(SLEEPER % rec)
+            p = subprocess.Popen([str(LAUNCHER), "issue", "new", TOOL, "--ran", "agentik %s doctor" % TOOL,
+                                  "--exit", "2", "--output", "err.txt", "--expected", EXPECTED,
+                                  "--render"], env=self.env(), cwd=self.work, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, universal_newlines=True,
+                                 start_new_session=True)
+            end = time.monotonic() + 20
+            while not os.path.exists(rec) and time.monotonic() < end:
+                time.sleep(0.05)
+            time.sleep(0.2)
+            with open(rec) as fh:
+                pid, cwd = fh.read().split(" ", 1)
+            try:
+                os.kill(p.pid, sig)
+                out, err = p.communicate(timeout=20)
+                self.assertEqual(p.returncode, 128 + sig, (sig, err))
+                self.assertNotIn("Traceback", err, sig)
+                self.assertTrue(gone(lambda: os.kill(int(pid), 0)), "the script outlived %d" % sig)
+                self.assertFalse(os.path.exists(cwd), sig)
+                lines = [l for l in err.splitlines() if "template stands" in l]
+                self.assertEqual(len(lines), 1, err)
+                self.assertIn(os.path.basename(self.draft_dir()), lines[0])
+                self.assertIn(EXPECTED, self.draft().decode("utf-8"))
+            finally:
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except OSError:
+                    pass
+
+    def test_f2_the_group_gets_sigterm_then_a_grace(self):
+        for leave, code in ((None, "wall"), (1, "exit")):
+            for name in ("termed", "kid-termed"):
+                if os.path.exists(os.path.join(self.side, name)):
+                    os.unlink(os.path.join(self.side, name))
+            self.put(TRAPPER % (self.side, leave))
+            why = {}
+            self.assertIsNone(render.run(self.script, b"d\n", self.env(), wall=1.5, why=why))
+            self.assertEqual(why["code"], code)
+            _head, away, kid = self.pids()
+            try:
+                self.assertTrue(gone(lambda: os.kill(kid, 0)), "the group's child stayed")
+                self.assertTrue(os.path.exists(os.path.join(self.side, "kid-termed")),
+                                "the group's child got no SIGTERM (%s)" % code)
+                if leave is None:  # at the wall the script's own trap ends what it put away
+                    self.assertTrue(os.path.exists(os.path.join(self.side, "termed")))
+                    self.assertTrue(gone(lambda: os.kill(away, 0)), "the away child stayed")
+            finally:
+                for pid in (kid, away):
+                    try:
+                        os.kill(pid, 9)
+                    except OSError:
+                        pass
+
+    def test_f3_a_folder_the_script_shut_is_removed(self):
+        rec = os.path.join(self.side, "cwd")
+        self.put(LEAVER % (False, rec))
+        why = {}
+        self.assertIsNone(render.run(self.script, b"d\n", self.env(), why=why))
+        with open(rec) as fh:
+            cwd = fh.read()
+        exists = os.path.exists(cwd)
+        if exists:
+            unpin(cwd)
+        self.assertFalse(exists, "the mode 000 subfolder kept the folder")
+        self.assertNotIn("left", why)
+
+    @unittest.skipUnless(hasattr(os, "chflags"), "a user flag that holds a file")
+    def test_f3_a_folder_that_stays_is_named(self):
+        rec = os.path.join(self.side, "cwd")
+        self.put(LEAVER % (True, rec))
+        code, out, err = self.new("--render")
+        with open(rec) as fh:
+            cwd = fh.read()
+        try:
+            self.assertEqual(code, 0, err)
+            self.assertTrue(os.path.exists(cwd))
+            lines = [l for l in err.splitlines() if cwd in l]
+            self.assertEqual(len(lines), 1, err)
+            self.assertNotIn(cwd, out)
+        finally:
+            unpin(cwd)
+        self.assertFalse(os.path.exists(cwd))
+
+
 class DataTest(unittest.TestCase):
+    def test_f4_the_page(self):
+        with open(str(ROOT / "docs" / "issue-render.md")) as fh:
+            text = fh.read()
+        self.assertLessEqual(len(text.splitlines()), 10)
+        for fact in ("CLAUDE.md", "environment", "disk"):
+            self.assertIn(fact, text)
+
     def test_r2_the_plugin_is_a_public_tool(self):
         self.assertEqual(sorted(CONF), ["mode", "plugin", "script"])
         self.assertIn(NAME, rp6.PUBLIC["tools"])
