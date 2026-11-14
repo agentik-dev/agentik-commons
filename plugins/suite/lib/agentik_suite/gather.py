@@ -130,10 +130,27 @@ def _on_path(env, command, run=False):
     return None
 
 
-def _launcher(env, command):
+def _launcher(env, command, raw):
+    """The VERSION of the first `command` on PATH, typed; its raw value is added to `raw`."""
     path = _on_path(env, command)
     found = agentik_install.read_launcher(path) if path else None
-    return _typed((found or {}).get("version"), VERSION)
+    value = (found or {}).get("version")
+    raw.append(value)
+    return _typed(value, VERSION)
+
+
+def _unread(raw):
+    """A pattern for each raw launcher version that is no VERSION, as a whole word, as read and as
+    `_free` would give it; None when there is none. A doctor row's detail can carry one (the
+    door check's `have`), so `checks` reads each as `unreadable`."""
+    words = set()
+    for w in raw:
+        if isinstance(w, str) and w and not VERSION.match(w):
+            words |= {w, w.encode("utf-8", "replace").decode("utf-8")}
+    if not words:
+        return None
+    alt = "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))
+    return re.compile(r"(?<![A-Za-z0-9])(?:%s)(?![A-Za-z0-9])" % alt)
 
 
 def _installed(env):
@@ -158,18 +175,18 @@ def _suite():
     return plan.SUITE[len("agentik-"):]
 
 
-def versions(env, public, table):
+def versions(env, public, table, raw):
     suite, market = _suite(), public["marketplace"]
     rows = []
     for name in [suite, DOOR] + sorted(t for t in public["tools"] if t != suite):
         if name == DOOR:
             rows.append({"name": DOOR, "plugin": None, "commit": None,
-                         "launcher": _launcher(env, agentik_install.DOOR)})
+                         "launcher": _launcher(env, agentik_install.DOOR, raw)})
             continue
         entry = _entry(table, "%s@%s" % (name, market))
         rows.append({"name": name, "plugin": _typed(entry.get("version"), VERSION),
                      "commit": _commit(entry.get("gitCommitSha")),
-                     "launcher": _launcher(env, "agentik-" + name)})
+                     "launcher": _launcher(env, "agentik-" + name, raw)})
     return rows
 
 
@@ -193,9 +210,10 @@ def system(env):
             "where": "in Claude Code" if "CLAUDECODE" in env else "at a terminal"}
 
 
-def checks(found, public):
+def checks(found, public, unread=None):
     """The doctor's fail and warn rows of the suite and of each public tool, fail first; every
-    other check counted in `passed`. Only the keys the schema lists are read."""
+    other check counted in `passed`. Only the keys the schema lists are read; a detail's word
+    that `unread` matches reads `unreadable`."""
     rows = {"read": False, "rows": [], "failed": 0, "warned": 0, "passed": 0}
     if not isinstance(found, dict) or found.get("schema") != DOCTOR or \
             not isinstance(found.get("tools"), list):
@@ -214,8 +232,11 @@ def checks(found, public):
             if tool is None or status not in ("fail", "warn"):
                 passed += 1
                 continue
+            detail = c.get("detail")
+            if unread is not None and isinstance(detail, str):
+                detail = unread.sub(UNREADABLE, detail)
             row = {"tool": tool, "status": status, "name": _free(c.get("name")) or "",
-                   "detail": _free(c.get("detail")) or ""}
+                   "detail": _free(detail) or ""}
             (fails if status == "fail" else warns).append(row)
     rows.update(read=True, rows=(fails + warns)[:READ_ROWS], failed=len(fails),
                 warned=len(warns), passed=passed)
@@ -286,16 +307,16 @@ def facts(env, lib, given, read_doctor):
     possibly None; `read_doctor()` gives an `agentik.doctor/1` object or None. Raises ValueError
     when public.json is not of its shape."""
     public = load_public(lib)
-    table = _installed(env)
+    table, raw = _installed(env), []
     try:
         found = read_doctor()
     except Exception:  # a doctor that cannot be read reads as none
         found = None
-    tool = given.get("tool")
+    tool, rows = given.get("tool"), versions(env, public, table, raw)
     return {"schema": SCHEMA, "tool": tool if isinstance(tool, str) and tool in public["tools"] else None,
-            "versions": versions(env, public, table),
+            "versions": rows,
             "system": system(env),
-            "checks": checks(found, public),
+            "checks": checks(found, public, _unread(raw)),
             "plugins": plugins(public, table),
             "output": {"ran": _free(given.get("ran")), "exit": _exit(given.get("exit")),
                        "lines": _tail(given.get("output"))},

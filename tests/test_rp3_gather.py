@@ -246,6 +246,25 @@ class VersionsTest(GatherHome):
                          {"alpha": "unreadable", "beta": "unreadable"})
 
 
+    def test_r1f1_a_launchers_raw_version_in_a_doctor_detail(self):
+        """The real doctor's object, its door launcher's VERSION a branch's word built here: the
+        door row's detail carries it, and the word is in no value of the bound facts (review 1,
+        R1-F1)."""
+        word = "-".join(("wip", "topic", "%d" % random.randrange(10 ** 6)))
+        self.stub("agentik", "#!/bin/sh\nVERSION=%s\nexit 0\n" % word)
+        code, out, err = self.run_cli("doctor", "--json")
+        found = json.loads(out)
+        self.assertEqual(found["schema"], "agentik.doctor/1", err)
+        self.assertIn(word, out)
+        f = self.gather(read=found)
+        door = [r for r in f["checks"]["rows"] if r["tool"] == "suite" and r["name"] == "door"]
+        self.assertEqual(len(door), 1, f["checks"])
+        self.assertIn("unreadable", door[0]["detail"])
+        self.assertEqual({v["name"]: v["launcher"] for v in f["versions"]}["door"], "unreadable")
+        self.assertNotIn(word, json.dumps(f))
+        self.assertNotIn(word, json.dumps(gather.bound(f)))
+
+
 class PluginsTest(GatherHome):
     def test_line5_outside_counted_never_named(self):
         self.installed({"alpha@" + MARKET: ("1.0.0", SHA), "%s@%s" % (OUTSIDE, MARKET): ("2.0.0", SHA)})
