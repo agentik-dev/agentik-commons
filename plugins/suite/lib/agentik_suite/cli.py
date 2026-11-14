@@ -392,7 +392,14 @@ class Command:
             raise Refusal("claimed_twice", "err.verb.claimed", self.say("doctor"), word=word,
                           tools=doctor.joined(counts))
         idle = sorted({c["tool"] for c in mine})
-        return self.say(idle[0], word) if len(idle) == 1 else None
+        if len(idle) != 1:
+            return None
+        entry = [e for e in entries if e["name"] == idle[0]][0]
+        row = entry.get("source") or {}
+        if (row.get("runs") or {}).get("path") and row.get("kind") not in ("absent", "undecided"):
+            return self.say(idle[0], word)  # `agentik T` runs T's file
+        # the finder knows T only as a file on PATH: that file's own line (review 1 F3)
+        return prog.shown(entry["exe"], self.env.get("HOME"), self.opts["json"]) + " " + shlex.quote(word)
 
     def _bad_flag(self, flag):
         if flag == "--version":
