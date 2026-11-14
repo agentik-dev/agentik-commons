@@ -360,6 +360,19 @@ class FingerprintTest(unittest.TestCase):
         self.assertEqual(form.subject("alpha", None, None, [["beta", "fail", "x", "y"], row], ALPHA),
                          "check:alpha:probe:one two three four five six seven eight")
 
+    def test_a_word_holding_a_digit_is_dropped_whole(self):
+        def check(detail):
+            return form.subject("alpha", None, None, [["alpha", "fail", "cache", detail]], ALPHA)
+
+        lock = {check("stale lock 3f9a2c held"), check("stale lock 7be41d held")}
+        temp = {check("cannot open tmpqwk2x9 for write"), check("cannot open tmpzrt0b1 for write")}
+        self.assertEqual(lock, {"check:alpha:cache:stale lock held"})
+        self.assertEqual(temp, {"check:alpha:cache:cannot open for write"})
+        self.assertEqual(sorted(form.fingerprint("alpha", s) for s in lock | temp),
+                         ["40487b9950b9", "ea168b2327fe"])
+        self.assertEqual(check("a1 one two three x9y four five six seven eight nine"),
+                         "check:alpha:cache:one two three four five six seven eight")
+
     def test_twelve_hex(self):
         got = form.fingerprint("alpha", "ran:other:0")
         self.assertRegex(got, r"^[0-9a-f]{12}$")

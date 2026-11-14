@@ -448,7 +448,8 @@ def subject(tool, ran, exit, rows, launchers):
     """What the fingerprint hashes, holding no free word. A command opened by `agentik <tool>` or
     by the tool's own launcher (`launchers`, a map of tool to its launcher's name) gives
     `ran:<tool>:<verb>:<exit>`; any other command `ran:other:<exit>`; no command, the tool's first
-    failing row, else its first row, `check:<tool>:<name>:<eight words of its detail>`."""
+    failing row, else its first row, `check:<tool>:<name>:<eight words of its detail>`, a word a
+    maximal run of letters and digits, lowercased, and one that holds a digit dropped whole."""
     code = "" if exit is None else str(exit)
     words = (ran or "").split()
     if words:
@@ -467,7 +468,7 @@ def subject(tool, ran, exit, rows, launchers):
     if not mine:
         return "check:%s::" % tool
     name = re.sub(r"\d", "", mine[0][2])
-    detail = [w.lower() for w in re.findall(r"[^\W\d_]+", mine[0][3])][:8]
+    detail = [w.lower() for w in re.findall(r"[^\W_]+", mine[0][3]) if not re.search(r"\d", w)][:8]
     return "check:%s:%s:%s" % (tool, name, " ".join(detail))
 
 
