@@ -341,6 +341,28 @@ class OutputTest(GatherHome):
         for line in b["output"]["lines"]:
             self.assertLessEqual(len(line.encode()), 200)
 
+    def test_r1f4_a_window_inside_one_line_keeps_its_tail(self):
+        """A last line longer than the window, as progress joined by CR or a long last line: that
+        line's tail is kept; the window's cut first line is dropped only when another line follows
+        (review 1, R1-F4)."""
+        known = "error: the known last words"
+        cr = os.path.join(self.side, "cr.log")
+        with open(cr, "w") as fh:
+            fh.write("".join("\rprogress %d%%" % (i % 100) for i in range(9000)) + "\r" + known + "\n")
+        long = os.path.join(self.side, "long.log")
+        with open(long, "w") as fh:
+            fh.write("".join("line %d\n" % i for i in range(10)) + "z" * 70000 + known + "\n")
+        for out in (cr, long):
+            self.assertGreater(os.path.getsize(out), gather.TAIL)
+            lines = self.gather(given={"output": out})["output"]["lines"]
+            self.assertEqual(len(lines), 1, out)
+            self.assertTrue(lines[0].endswith(known), out)
+            self.assertLessEqual(len(lines[0].encode()), gather.READ_CAP)
+        then = os.path.join(self.side, "then.log")
+        with open(then, "w") as fh:
+            fh.write("z" * 70000 + known + "\nnext\n")
+        self.assertEqual(self.gather(given={"output": then})["output"]["lines"], ["next"])
+
     def test_line8_a_cut_never_inside_a_placeholder(self):
         f = self.gather(given={"ran": "r" * 195 + "<path-12>" + "tail", "expected": "é" * 400})
         f["output"]["lines"] = ["x" * 195 + "<path-12>" + "tail", "y" * 191 + "<path-12>", "€" * 100]

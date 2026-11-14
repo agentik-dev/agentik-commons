@@ -88,6 +88,17 @@ def _cut(text, limit):
     return text[:cut]
 
 
+def _last(text, limit):
+    """The last `limit` UTF-8 bytes of `text`, cut on a character's edge."""
+    data = text.encode("utf-8", "replace")
+    if len(data) <= limit:
+        return text
+    start = len(data) - limit
+    while start < len(data) and data[start] & 0xC0 == 0x80:
+        start += 1
+    return data[start:].decode("utf-8")
+
+
 def _free(value):
     """A free value as read: text up to READ_CAP bytes, a lone surrogate replaced; else None."""
     if not isinstance(value, str):
@@ -228,7 +239,9 @@ def plugins(public, table):
 
 def _tail(path):
     """The last TAIL_LINES lines of the last TAIL bytes of the regular file at `path`, bad bytes
-    replaced; a first line the window cut into is dropped. [] for no such file."""
+    replaced; a first line the window cut into is dropped when another line follows it, and when
+    none does, the window sits inside one line and that line's last READ_CAP bytes are kept. []
+    for no such file."""
     if not isinstance(path, str) or not path or not os.path.isfile(path):
         return []
     try:
@@ -255,9 +268,12 @@ def _tail(path):
     lines = b"".join(chunks).decode("utf-8", "replace").split("\n")
     if lines and lines[-1] == "":
         lines.pop()
-    if start and lines:
+    lines = [l[:-1] if l.endswith("\r") else l for l in lines]
+    if start and len(lines) > 1:
         lines.pop(0)
-    return [_free(l[:-1] if l.endswith("\r") else l) for l in lines[-TAIL_LINES:]]
+    elif start and lines:  # the window sits inside one line: its tail
+        lines = [_last(lines[0], READ_CAP)]
+    return [_free(l) for l in lines[-TAIL_LINES:]]
 
 
 def _exit(value):
