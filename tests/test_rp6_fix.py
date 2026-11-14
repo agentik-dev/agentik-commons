@@ -407,7 +407,7 @@ class Phase2Test(FixHome):
                 (("drop", "nothing"), "nothing is no part of the draft; one of "
                  + ", ".join(form.SECTIONS), "help issue"),
                 (("send", "--yes"), "send takes no --yes: an issue is filed only when you read it on "
-                 "your terminal and type send there", "help issue"),
+                 "your terminal and type send", "help issue"),
                 (("send", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
                 (("discard", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
                 (("send",), "send needs a terminal to type in, and this process has none; send from "
