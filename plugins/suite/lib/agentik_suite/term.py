@@ -27,6 +27,8 @@ MARK_SGR = {"ok": "32", "warn": "33", "fail": "31", "note": "36"}
 STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 GAP = "  "
 FALLBACK_WIDTH = 80
+LEAST_WIDTH = 40  # a terminal's width under this is taken as this (row sc3-table R1)
+ZERO_WIDTH = ("Mn", "Me", "Cf")
 CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
 JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survives, escaped
 
@@ -43,9 +45,10 @@ def clean(value):
 
 
 def columns(text):
-    """The screen columns a text takes: a wide character two, a combining mark none."""
-    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
-               for c in text)
+    """The screen columns a text takes: a wide or fullwidth character two, a combining mark or a
+    zero-width character none (row sc3-table R2), any other one."""
+    return sum(0 if unicodedata.combining(c) or unicodedata.category(c) in ZERO_WIDTH and c != "\xad"
+               else 2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
 
 
 def fit(text, room, mark):
@@ -86,8 +89,9 @@ def colour_off(env, no_color):
 
 
 class _Stream:
-    def __init__(self, raw, no_colour):
+    def __init__(self, raw, no_colour, env=None):
         self.raw = raw
+        self.env = env if env is not None else {}
         self.gone = raw is None
         try:
             self.tty = raw.isatty()
@@ -102,11 +106,19 @@ class _Stream:
             self.glyphs = False
 
     def width(self):
-        try:
-            cols = os.get_terminal_size(self.raw.fileno()).columns
-        except (AttributeError, ValueError, OSError):
-            cols = 0
-        return cols if cols > 0 else FALLBACK_WIDTH
+        """On a terminal, `COLUMNS` from the command's environment where it is a whole number
+        above 0, else the terminal's own size, else 80, and never under 40; off one, 80, whatever
+        `COLUMNS` holds (row sc3-table R1)."""
+        if not self.tty:
+            return FALLBACK_WIDTH
+        given = str(self.env.get("COLUMNS") or "")
+        cols = int(given) if re.fullmatch("[0-9]+", given) else 0
+        if cols <= 0:
+            try:
+                cols = os.get_terminal_size(self.raw.fileno()).columns
+            except (AttributeError, ValueError, OSError):
+                cols = 0
+        return max(cols if cols > 0 else FALLBACK_WIDTH, LEAST_WIDTH)
 
     def paint(self, text, sgr):
         if not self.colour or not sgr or not text:
@@ -165,8 +177,8 @@ class Term:
     def __init__(self, no_color=False, quiet=False, env=None, out=None, err=None, messages=None):
         env = os.environ if env is None else env
         off = colour_off(env, no_color)
-        self.out = _Stream(out if out is not None else sys.stdout, off)
-        self.err = _Stream(err if err is not None else sys.stderr, off)
+        self.out = _Stream(out if out is not None else sys.stdout, off, env)
+        self.err = _Stream(err if err is not None else sys.stderr, off, env)
         self.quiet = quiet
         self.messages = messages if messages is not None else catalogue.load()
 
