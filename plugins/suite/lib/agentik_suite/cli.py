@@ -36,7 +36,7 @@ import agentik_install
 from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools, update
 
 VERBS = ("help", "version", "setup", "update", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
-KEPT = {"rows": "decisions", "guard": None}  # a word the suite keeps for one tool's claim, or none yet (row ak9c R2)
+KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
 WRITES = ("setup", "update", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))

@@ -103,8 +103,9 @@ def shadow(cmd, on_path):
 
 
 def claims(cmd, entries, described):
-    """tools.claims with the words the suite keeps: its verbs, RESERVED and cmd.KEPT (row ak9c R2)."""
-    return tools.claims(entries, described, set(cmd.VERBS) | set(RESERVED), cmd.KEPT)
+    """tools.claims with the words the suite keeps: its verbs, RESERVED and cmd.KEPT, each kept
+    for the tool kept.json names (row ak9c R2)."""
+    return tools.claims(entries, described, set(cmd.VERBS) | set(RESERVED), tools.kept(cmd.lib, cmd.KEPT))
 
 
 def joined(names):

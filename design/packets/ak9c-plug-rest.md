@@ -5,7 +5,7 @@
 | from | agentik-hq's brief ak9c-plug-rest of 2026-11-14, R1 to R9, acceptance 1 to 10; design/15 P2; level S3 |
 | pin | main at 70dcd97 (suite 0.7.13, ak9b-plug-reader landed at 41c1822); worktree `.claude/worktrees/ak9c-plug-rest`, branch `ak9c-plug-rest`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` started; stubs in a temp HOME; made-up names; `sources.py`, `plan.py`, `term.py`, `fallback.json`, `GUIDE.md` and doctor's reads (ak9b R5 to R7) unchanged |
-| may touch | `plugins/suite/lib/agentik_suite/cli.py` (`KEPT`, `_not_a_verb`, `_claimed`); `tools.py` (`claims`); `config.py` (the survey's claims, `_tool`, `_silent`, the warnings loop, `_card`'s `values` rows); `doctor.py` (`claims`, `twice`, `shadow`, `read`, `own_doctors`'s describes); `messages.md`; `design/voice/checked.sha256`; `tests/test_ak9c_plug_rest.py`; `NICE_TO_HAVE.md`; `history/NICE-overflow.md`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-14.md` |
+| may touch | `plugins/suite/lib/agentik_suite/cli.py` (`KEPT`, `_not_a_verb`, `_claimed`); `tools.py` (`claims`); `config.py` (the survey's claims, `_tool`, `_silent`, the warnings loop, `_card`'s `values` rows); `doctor.py` (`claims`, `twice`, `shadow`, `read`, `own_doctors`'s describes); `messages.md`; `plugins/suite/lib/kept.json`; `design/voice/checked.sha256`; `tests/test_ak9c_plug_rest.py`; `NICE_TO_HAVE.md`; `history/NICE-overflow.md`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-14.md` |
 | verify | `make voice`, then `make check` once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 10 below |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
@@ -32,7 +32,7 @@ The contract's words: a config read's warning is `{key, reason, value, path, lin
 
 ## 3. Interfaces
 
-- `cli.KEPT = {"rows": "decisions", "guard": None}`, also `Command.KEPT`; `Command._claimed(word)` reads the claims and runs one, refuses two, or gives R4's `next:`.
+- `cli.KEPT = ("rows", "guard")`, also `Command.KEPT`; `tools.kept(lib, words)` reads each word's tool from `kept.json` beside the package (`{"rows": <the tool>}`), since no tool's name stands in the package (`test_agentik_suite`'s layout test), as `render.json` does; `Command._claimed(word)` reads the claims and runs one, refuses two, or gives R4's `next:`.
 - `tools.claims(entries, described, kept_out, kept)` gives `[{tool, verb, counts, reason}]`, `reason` null, `suite`, `kept` or `market`; `doctor.claims(cmd, entries, described)` passes it `VERBS`, `RESERVED` and `KEPT`.
 - `doctor.twice(cmd, claims)` gives R3's FAIL rows; `own_doctors(cmd, entries, described=None)` takes the describes `read` made.
 
@@ -57,4 +57,4 @@ Measured at 70dcd97 by `tests/test_ak9c_plug_rest.py`, before the change: see th
 
 ## 6. Choices
 
-Listed in the charter's handover as they are made.
+Listed in the charter's handover as they are made. Two meet the unedited tests: a claim's line is said on `config T` only where the finder knows a source for T (`test_agentik_suite` a1 and `test_sc4_errors` f7 hold a bare file on PATH whose `config T` has no line more on either stream), and the keeper's name is data (above).

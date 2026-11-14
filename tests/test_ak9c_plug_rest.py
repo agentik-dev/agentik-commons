@@ -19,7 +19,7 @@ from test_ak9b_plug_reader import Copy, described  # noqa: E402
 from agentik_suite import tools  # noqa: E402
 
 W = "ink"
-LOG = "for a in \"$@\"; do printf '[%s]' \"$a\"; done >> \"$HOME/ran.log\"; echo >> \"$HOME/ran.log\""
+LOG = 'l=; for a in "$@"; do l="$l[$a]"; done; echo "$l" >> "$HOME/ran.log"'  # one write a start
 REFUSED = "ink is not a verb or a tool"
 
 
@@ -109,9 +109,7 @@ class RunTest(Claims):
         folder.user_file("sources:\n  quill: ~/src/quill\n")
         bare = self.blank()
         bare.file(os.path.join(bare.home, ".local", "bin", "agentik-quill"), body(claiming("quill", W)))
-        for h, why in ((fork, "is not from the agentik marketplace"),
-                       (folder, "is not from the agentik marketplace"),
-                       (bare, "is not from the agentik marketplace")):
+        for h, said in ((fork, True), (folder, True), (bare, False)):
             code, out, err = self.cli(h, W, "a")
             self.assertEqual(code, 2, out + err)
             self.assertIn(REFUSED, err)
@@ -119,9 +117,11 @@ class RunTest(Claims):
             self.assertEqual(ran(h), [])
             code, out, err = self.cli(h, "config", "quill")
             self.assertEqual(code, 0, out + err)
-            said = [l for l in out.splitlines() if "claims ink" in l]
-            self.assertEqual(len(said), 1, out)
-            self.assertIn(why, said[0])
+            lines = [l for l in out.splitlines() if "claims ink" in l]
+            self.assertEqual(len(lines), 1 if said else 0, out)  # a bare file: --json alone
+            self.assertNotIn("claims", err)
+            for l in lines:
+                self.assertIn("quill is not from the agentik marketplace", l)
             code, out, err = self.cli(h, "config", "quill", "--json")
             self.assertEqual(json.loads(out)["claims"],
                              [{"verb": W, "counts": False, "reason": "market"}])
@@ -160,8 +160,9 @@ class RunTest(Claims):
         self.assertIn("the suite keeps that word", said["doctor"][0])
         self.assertIn("the suite keeps that word", said["remove"][0])
         self.assertIn("for another tool", said["rows"][0])
-        d = self.blank()
-        place(d, "decisions", body(claiming("decisions", "rows")))
+        d, keeper = self.blank(), tools.kept(None, ("rows",))["rows"]  # kept.json's tool
+        self.assertTrue(keeper)
+        place(d, keeper, body(claiming(keeper, "rows")))
         code, out, err = self.cli(d, "rows", "--json")
         self.assertEqual((code, out, err), (7, "", ""))
         self.assertEqual(ran(d), ["[rows][--json]"])

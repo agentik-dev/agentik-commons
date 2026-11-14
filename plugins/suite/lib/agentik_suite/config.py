@@ -283,7 +283,7 @@ def do_config(cmd, nouns):
                           state=state, message=(row["error"] or {}).get("message"), **cmd.slots())
         return _silent(cmd, r, row, table)
     if not key:
-        return _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"])
+        return _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"], row["source"])
     found = [s for s in cfg["settings"] if s["key"] == key]
     if not found and name == r.suite and key.startswith("sources."):
         known = tools.rows(cmd.env, cmd.lib)
@@ -415,21 +415,23 @@ def _silent(cmd, r, row, table):
         for need in table.get("needs") or ():
             rows.append(("note", [t.text("config.label.needs"), str(need)], None))
         t.table(rows)
-    _claims(cmd, name, row["claims"])
+    _claims(cmd, name, row["claims"], row["source"])
     if held:
         t.line("config.remedy", remedy=remedy)
     t.hint(close[0], **close[1])
     return 0
 
 
-def _claims(cmd, name, claims):
-    """One line a claim that does not count: the word, and why `agentik W` does not run it (R4)."""
-    for c in claims:
+def _claims(cmd, name, claims, source):
+    """One line a claim that does not count, under the list: the word, and why `agentik W` does
+    not run it (R4). A file on PATH that the finder knows no source for gets none on the screen,
+    only in --json and in `agentik W`'s `next:`, so its list keeps the pin's lines."""
+    for c in claims if source else ():
         if not c["counts"]:
             cmd.t.line(CLAIM[c["reason"]], name=name, verb=c["verb"], run=cmd.say(c["verb"]))
 
 
-def _tool(cmd, r, name, cfg, origin=None, claims=()):
+def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None):
     t, rows = cmd.t, cfg["settings"]
     if cmd.opts["json"]:
         obj = {"schema": "agentik.config/1", "ok": True, "tool": name, "layers": cfg["layers"],
@@ -469,7 +471,7 @@ def _tool(cmd, r, name, cfg, origin=None, claims=()):
         t.table([("warn", [said,
                            term.path("%s:%s" % (plan.shown(str(w.get("path")), r.home), w.get("line")))],
                   None)])
-    _claims(cmd, name, claims)
+    _claims(cmd, name, claims, source)
     t.hint("hint.config.tool", **cmd.slots(), name=name)
     return 0
 

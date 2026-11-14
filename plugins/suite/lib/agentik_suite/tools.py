@@ -566,6 +566,15 @@ def claims(entries, described, kept_out, kept):
     return found
 
 
+def kept(lib, words):
+    """{word: tool or None} for each of `words` (cli.KEPT): the tool `kept.json`, beside the
+    package, names for it, so no tool's name stands in the package; None where it names none or
+    does not read, and no claim of that word counts (row ak9c R2)."""
+    found = plan._read_json(os.path.join(_lib(lib), "kept.json"))
+    found = found if isinstance(found, dict) else {}
+    return {w: found[w] if isinstance(found.get(w), str) and NAME.match(found[w]) else None for w in words}
+
+
 def config_read(answer):
     for read in answer.get("reads") or ():
         if read.get("kind") == "config":
