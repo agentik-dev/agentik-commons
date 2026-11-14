@@ -1,6 +1,6 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
-Verbs: help (bare, -h, --help), version (--version), setup, which plans with --dry-run and
+Verbs: help (-h, --help; bare, a first screen of ten lines: row sc5), version (--version), setup, which plans with --dry-run and
 otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
 settings drilled down to one, describe, the suite's own answer to that read, status, five parts
 on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
@@ -66,6 +66,19 @@ SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
          ("install", ("install-cli",)), ("issue", ("issue",)))
+FIRST = ("setup", "doctor", "config", "status")  # the first screen's rows above help's (row sc5 R2)
+TOOL_ROW = "<tool>"
+# help <verb>'s examples (R5): the words after the suite's name, a tail printed as it is, the gloss;
+# OWN stands for the suite's own name, as config reads it
+OWN = None
+EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run"), "", "help.eg.setup_dry"),
+                      (("setup",), " <plugin>...", "help.eg.setup_names")),
+            "config": ((("config",), "", "help.eg.config"), (("config", OWN), "", "help.eg.config_tool"),
+                       (("config", OWN), ".kind", "help.eg.config_key")),
+            "help": ((("help",), "", "help.eg.help"), (("help", "config"), "", "help.eg.help_verb"),
+                     (("help",), " <tool>", "help.eg.help_tool"))}
+ROWS = {"setup": "help.row.setup", "doctor": "help.row.doctor", "config": "help.row.config",
+        "status": "help.row.status", "help": "help.row.help"}
 
 
 class Usage(Exception):
@@ -212,6 +225,7 @@ class Command:
         self.t = term.Term(no_color=self.opts["no_color"], quiet=self.opts["quiet"] or self.opts["json"],
                            env=env, out=out, err=err)
         self.verb = None
+        self.bare = False  # no word and no --help: the first screen (row sc5 R1)
 
     # ---- the name and the command a line prints (row sc2, hq design/23 §3) -----------------
 
@@ -300,6 +314,7 @@ class Command:
                 self._not_a_verb(words[0], self.at[0])
         else:
             self.verb = "version" if o["version"] and not o["help"] else "help"
+            self.bare = not o["help"] and not o["version"]
         nouns = words[1:]
         if self.bad is not None:
             self._bad_flag(self.bad)
@@ -400,41 +415,125 @@ class Command:
                         self.t.text("flag." + key)], None) for long, short, key in flags]
 
     def do_help(self, nouns):
+        """Bare, the first screen (R2); `help`, `-h`, `--help`, the full list (R4); --json, the
+        pin's object and `tools` for both (R6)."""
         if len(nouns) > 1:
             self._no_nouns(nouns[1:], one=True)
         if nouns:
             if nouns[0] not in VERBS:
                 self._not_a_verb(nouns[0], self.at[1], asked_help=True)
             return self.help_verb(nouns[0])
-        found = self._on_path()
         if self.opts["json"]:
+            found = self._on_path()
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version,
                          "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")),
                                     "usage": self.t.text("usage." + v.replace("-", "_"), **self.slots())}
                                    for v in VERBS],
-                         "flags": [f[0] for f in FLAGS], "on_path": found})
+                         "flags": [f[0] for f in FLAGS], "on_path": found,
+                         "tools": self._tools(survey=True)})
             return 0
+        if self.bare:
+            return self.first_screen()
+        return self.full_list()
+
+    def _tools(self, survey):
+        """[{name, version, summary, command}] for each listed tool but the suite, in the list's
+        order (R4, R6). With `survey`, each `describe --json` read through config.Reader.survey
+        with no config read, under its cache and its wall; without, no process starts (R2)."""
+        r = config.Reader(self)
+        entries = [e for e in r.entries() if e["name"] != r.suite]
+        answers = {}
+        if survey and any(e["exe"] for e in entries):
+            answers = {row["name"]: row["answer"] for row in r.survey(entries, with_config=False)}
+        found = []
+        for e in entries:
+            answer = answers.get(e["name"]) or {}
+            said = [answer.get(k) if isinstance(answer.get(k), str) and answer.get(k).strip() else None
+                    for k in ("version", "summary")]
+            found.append({"name": e["name"], "version": said[0], "summary": said[1],
+                          "command": bool(e["exe"])})
+        return found
+
+    def _close_help(self):
         t = self.t
-        t.line("help.title", **self.slots(), version=self.version)
-        t.line("help.usage", **self.slots())
-        t.blank()
-        t.line("help.verbs", style="name")
-        t.table([(None, [term.name(v), t.text("verb." + v.replace("-", "_"))], None) for v in VERBS])
-        t.blank()
-        t.line("help.flags", style="name")
-        t.table(self._flag_rows(FLAGS))
-        t.blank()
-        t.line("help.path", style="name")
-        if found:
-            t.table([("ok", [term.name(f["name"]), term.path(f["path"])], None) for f in found])
-        else:
-            t.table([("note", [t.text("help.path.none")], None)])
         if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3)
             steps = plan.build(plan.default_set(self.lib), self.env, self.lib, self.tool, self.version)
             t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
                    else "hint.help.done", **self.slots())
         return 0
+
+    def first_screen(self):
+        """R2: the title, then a row a verb a person starts with and one for the tools by name;
+        no path, no mark, no process."""
+        t = self.t
+        t.line("help.title", **self.slots(), version=self.version)
+        t.blank()
+        rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST + ("help",)]
+        names = [x["name"] for x in self._tools(survey=False) if x["command"]]
+        tool = t.text("help.row.tool", names=", ".join(names)) if names else t.text("help.row.tool.none")
+        t.table(rows + [(None, [term.name(TOOL_ROW), tool], None)])
+        return self._close_help()
+
+    def full_list(self):
+        """R4: the title, the usage's two lines, the verbs, the tools and the flags; no path."""
+        t, slots = self.t, self.slots()
+        t.line("help.title", **slots, version=self.version)
+        t.line("help.usage", **slots)
+        if prog.form(self.env, self.tool)[0] != "typed":  # the door runs a tool by its name
+            run = self.say() + " " + TOOL_ROW
+        else:  # the suite by its own name runs none: the tool's own command
+            run = "agentik-" + TOOL_ROW
+        under = " " * t.messages["help.usage"].index("{prog}")
+        t.line("help.usage.tool", run=under + run)
+        t.blank()
+        t.line("help.verbs", style="name")
+        rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST]
+        rows.append((None, [term.name("help"), t.text("help.row.help.all")], None))
+        more = [v for v in VERBS if v not in FIRST + ("help",)]
+        rows.append((None, [term.name(t.text("help.more")), "  ".join(more)], None))
+        t.table(rows)
+        t.blank()
+        t.line("help.tools", style="name")
+        found = self._tools(survey=True)
+        if found:
+            t.table([(None, [term.name(x["name"]), x["version"] or "",
+                             x["summary"] or ("" if x["command"] else t.text("help.tool.bare"))], None)
+                     for x in found])
+        else:
+            t.table([(None, [t.text("help.tools.none")], None)])
+        t.blank()
+        t.table([(None, [term.name(t.text("help.flags")), self._flag_words(FLAGS)], None)], indent=0)
+        return self._close_help()
+
+    @staticmethod
+    def _flag_words(flags):
+        return "  ".join("/".join(f for f in (short, long) if f) for long, short, _ in flags)
+
+    def _examples(self, verb):
+        """R5: (the command to paste, its gloss) for each of the verb's examples."""
+        own = self.tool[len("agentik-"):] if self.tool.startswith("agentik-") else self.tool
+        found = []
+        for words, tail, gloss in EXAMPLES.get(verb, ()):
+            words = [own if w is OWN else w for w in words]
+            found.append((self.say(*words) + tail, self.t.text(gloss)))
+        return found
+
+    def _show_examples(self, examples):
+        """R5's example rows, a command and its words side by side. On a terminal where one row of
+        the block does not fit so, its command wider than the table's column (a third of the
+        width) or the row wider than the width, the whole block stacks: each command whole on
+        its own line, two spaces in, and its words under it, six in, wrapped to the width (review
+        1 F2). A command is never wrapped or cut; it may pass the width."""
+        t, out = self.t, self.t.out
+        wide = max(term.columns(term.clean(command)) for command, _ in examples)
+        row = 2 + wide + len(term.GAP) + max(term.columns(term.clean(gloss)) for _, gloss in examples)
+        if not out.tty or (wide <= out.width() // 3 and row <= out.width()):
+            t.table([(None, [command, gloss], None) for command, gloss in examples])
+            return
+        for command, gloss in examples:
+            t.marked("  " + term.clean(command), [])  # one line as it is: term's own writer
+            t.table([(None, [gloss], None)], indent=6)
 
     def help_verb(self, verb):
         flags = FLAGS + VERB_FLAGS.get(verb, ())
@@ -449,9 +548,14 @@ class Command:
         t.line("usage." + verb.replace("-", "_"), **self.slots())
         t.line("verb." + verb.replace("-", "_"))
         t.blank()
+        examples = self._examples(verb)
+        if examples:
+            self._show_examples(examples)
+            t.blank()
         t.line("help.flags", style="name")
-        t.table(self._flag_rows(flags))
-        t.hint("hint.verb", **self.slots())
+        shared = tuple(f for f in FLAGS if f[0] != "--help")
+        t.table(self._flag_rows(VERB_FLAGS.get(verb, ()))
+                + [(None, [term.name(t.text("help.also")), self._flag_words(shared)], None)])
         return 0
 
     # ---- version --------------------------------------------------------------------------

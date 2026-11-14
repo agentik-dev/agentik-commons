@@ -378,8 +378,18 @@ def _left(checks, low, high):
                and c["step"]["mid"] not in HELD for c in checks)
 
 
+def _closes(remedy):
+    """A tool's remedy the close may name: a shell line with no word that answers a question for
+    the person (cli.SKIPS) and not `remove` (row sc5 R8); a write such as install-cli is the fix."""
+    from . import cli
+    words = remedy.split() if _is_shell(remedy) else []
+    return bool(words) and not any(w.partition("=")[0] in cli.SKIPS or w == "remove" for w in words)
+
+
 def close_command(cmd, groups):
-    """The one command the close names (R8), first match, or None."""
+    """The one command the close names (R8), first match, or None. A tool's remedy that fails
+    `_closes` stands on its check's line, and the close names the tool's own doctor, through the
+    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name)."""
     suite = groups[0]["checks"]
     for c in suite:
         if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
@@ -390,12 +400,16 @@ def close_command(cmd, groups):
         fails = [c for c in g["checks"] if c["status"] == "fail"]
         if fails:
             remedy = fails[0]["remedy"]
-            return remedy if _is_shell(remedy) else tool_doctor(cmd, g["name"], g["exe"])
-    for g in groups:
+            if _closes(remedy):
+                return remedy
+            return tool_doctor(cmd, g["name"], g["exe"])
+    for i, g in enumerate(groups):
         for c in g["checks"]:
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
                     and not (c.get("step") and c["step"]["n"] == 6):
-                return c["remedy"]
+                if i == 0 or _closes(c["remedy"]):
+                    return c["remedy"]
+                return tool_doctor(cmd, g["name"], g["exe"])
     return None
 
 
