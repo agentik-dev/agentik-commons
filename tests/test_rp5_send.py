@@ -170,7 +170,7 @@ class Base(unittest.TestCase):
                             after(approved)
                         result["url"] = send._file(approved, REPO, env)
                 except send.Refusal as e:
-                    result["refusal"] = [e.code, e.mid]
+                    result["refusal"] = [e.code, e.mid] + ([e.values] if e.values else [])
                 except Exception as e:  # noqa: BLE001 - said back to the parent
                     result["error"] = "%s: %s" % (type(e).__name__, e)
                 with open(out, "w") as fh:
@@ -411,6 +411,61 @@ class WebTest(Base):
         _, new = send.web(b"faketool doctor: a title\n\n" + big, REPO, FP)
         self.assertEqual(new, "https://github.com/%s/issues/new" % REPO)
         self.assertEqual(self.calls(), [])
+
+
+def unseen_cases():
+    """(name, characters, kind): each class of design/22 item 4(e), built at run time."""
+    tags = "".join(chr(0xE0000 + ord(c)) for c in "made-up-host.example")
+    return [("tags", tags, "format"), ("zero width space", chr(0x200B), "format"),
+            ("zero width joiner", chr(0x200D), "format"), ("word joiner", chr(0x2060), "format"),
+            ("right to left override", chr(0x202E), "format"), ("isolate", chr(0x2066), "format"),
+            ("byte order mark", chr(0xFEFF), "format"), ("soft hyphen", chr(0xAD), "format"),
+            ("line separator", chr(0x2028), "separator"),
+            ("paragraph separator", chr(0x2029), "separator"),
+            ("private use", chr(0xE000), "private"), ("private plane", chr(0xF0000), "private"),
+            ("unassigned", chr(0x0378), "unassigned"), ("no-break space", chr(0xA0), "space"),
+            ("ideographic space", chr(0x3000), "space"), ("escape", chr(0x1B), "control"),
+            ("carriage return", chr(0x0D), "control"), ("variation selector", chr(0xFE0F), "blank"),
+            ("hangul filler", chr(0x3164), "blank"), ("braille blank", chr(0x2800), "blank"),
+            ("full-width letters", chr(0xFF4D) + chr(0xFF41), "nfkc")]
+
+
+class UnseenTest(Base):
+    """R1-F1: a character a terminal does not draw as itself is refused anywhere in the bytes:
+    the title, a fixed line of the form and a free value, by `check` and by the screen."""
+
+    def place(self, where, chars):
+        data = draft()
+        lines = data.decode("utf-8").split("\n")
+        n = {"title": 1, "fixed": 6, "free": 4}[where]
+        lines[n - 1] += chars
+        return "\n".join(lines).encode("utf-8"), n
+
+    def test_r1_f1_check_refuses_each_class_on_any_line(self):
+        for name, chars, kind in unseen_cases():
+            for where in ("title", "fixed", "free"):
+                with self.subTest(name=name, where=where):
+                    data, n = self.place(where, chars)
+                    self.assertEqual(send.check(data, None, PUBLIC, FakeForm(), fake_scrub(None)),
+                                     [(n, kind)])
+                    with self.assertRaises(send.Refusal) as cm:
+                        send._shown_lines(data)
+                    self.assertEqual((cm.exception.code, cm.exception.mid, cm.exception.values),
+                                     (1, "err.issue.send.line", {"line": n, "kind": kind}))
+        self.assertEqual(send.check(draft(happened="caf\u00e9 \u20ac 12"), None, PUBLIC, FakeForm(),
+                                    fake_scrub(None)), [])
+
+    def test_r1_f1_send_refuses_and_files_nothing(self):
+        for name, chars, kind in unseen_cases():
+            if kind in ("control", "nfkc"):
+                continue
+            with self.subTest(name=name):
+                data, n = self.place("free", chars)
+                screen, result = self.drive(data, b"send\n")
+                self.assertEqual(result, {"refusal": [1, "err.issue.send.line",
+                                                      {"line": n, "kind": kind}]})
+                self.assertNotIn(HEAD, screen)
+        self.assertEqual(self.calls("issue create"), [])
 
 
 class DoorTest(unittest.TestCase):

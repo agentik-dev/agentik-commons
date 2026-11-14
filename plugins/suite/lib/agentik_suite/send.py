@@ -31,7 +31,15 @@ FILE_WALL = 60  # seconds for the one writing call
 WORD = b"send\n"
 FALLBACK = (80, 24)
 MARKER = re.compile(r"^agentik-issue/1 (\S+) (\S+) ([0-9a-f]{12})$")
-CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # what term.clean removes, less the break
+# What a terminal does not draw as itself (hq design/22 section 3 item 4(e)): the one list of the
+# package. Each character of these categories but the plain space is refused anywhere in the bytes.
+UNSEEN = {"Cc": "control", "Cf": "format", "Cs": "surrogate", "Co": "private", "Cn": "unassigned",
+          "Zl": "separator", "Zp": "separator", "Zs": "space"}
+# The blank letters: the variation selectors, the Mongolian ones, the combining grapheme joiner,
+# the Hangul and Khmer fillers and the braille blank.
+BLANK = frozenset(chr(c) for c in [0x034F, 0x115F, 0x1160, 0x17B4, 0x17B5, 0x180B, 0x180C, 0x180D,
+                                   0x180F, 0x2800, 0x3164, 0xFFA0]
+                  + list(range(0xFE00, 0xFE10)) + list(range(0xE0100, 0xE01F0)))
 KIND = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 SAFE = frozenset(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 
@@ -93,14 +101,27 @@ def repo_of(data, public):
     return tools.get(mark[0]) if mark and isinstance(tools, dict) else None
 
 
+def unseen(line):
+    """The kind of the first character of one line that a terminal does not draw as itself, or
+    `nfkc` when NFKC would change the line; None when every character is drawn as itself."""
+    for c in line:
+        if c in BLANK:
+            return "blank"
+        kind = UNSEEN.get(unicodedata.category(c))
+        if kind and c != " ":
+            return kind
+    return "nfkc" if unicodedata.normalize("NFKC", line) != line else None
+
+
 def _line_at(data, offset):
     return data[:offset].count(b"\n") + 1
 
 
 def check(data, m, public, form, scrub, ceiling=CEILING):
     """[(line, kind)] for the exact bytes, empty when they may be shown. The kinds: `form` (the
-    bytes do not read back, or do not write again to the same bytes), `size`, `control`, `tool`,
-    and each kind `scrub.detect` gives for a free value. A refusal never holds a match."""
+    bytes do not read back, or do not write again to the same bytes), `size`, `tool`, a kind of
+    `unseen` for a character anywhere in the bytes that a terminal does not draw as itself, and
+    each kind `scrub.detect` gives for a free value. A refusal never holds a match."""
     found = []
     if len(data) > ceiling:
         found.append((_line_at(data, ceiling), "size"))
@@ -109,8 +130,9 @@ def check(data, m, public, form, scrub, ceiling=CEILING):
     except UnicodeDecodeError as e:
         return sorted(set(found + [(_line_at(data, e.start), "form")]))
     for n, line in enumerate(text.split("\n"), 1):
-        if CONTROL.search(line):
-            found.append((n, "control"))
+        kind = unseen(line)
+        if kind:
+            found.append((n, kind))
     tools = public.get("tools") or {}
     try:
         fields = form.parse(data, tools)
@@ -202,7 +224,7 @@ def notes(state, found):
 
 def _shown_lines(data):
     """The draft's lines as the screen writes them, or a Refusal for bytes it cannot show as
-    themselves: not UTF-8, a control character, or no title over a blank line."""
+    themselves: not UTF-8, a character of `unseen` on any line, or no title over a blank line."""
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -211,8 +233,9 @@ def _shown_lines(data):
     if lines and lines[-1] == "":
         lines.pop()
     for n, line in enumerate(lines, 1):
-        if CONTROL.search(line):
-            raise Refusal(1, "err.issue.send.line", line=n, kind="control")
+        kind = unseen(line)
+        if kind:
+            raise Refusal(1, "err.issue.send.line", line=n, kind=kind)
     if len(lines) < 3 or not lines[0] or lines[1]:
         raise Refusal(1, "err.issue.send.line", line=1 if not lines or not lines[0] else 2, kind="form")
     return lines
