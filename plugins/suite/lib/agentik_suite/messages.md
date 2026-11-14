@@ -58,14 +58,19 @@ Each item below is one message the command prints, by its id; the writer in `ter
 ## Errors
 
 - `err.next`: next: `{command}`
-- `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{prog}` --help for the list.
-- `err.verb`: `{word}` is not a verb. Run `{prog}` --help for the list.
-- `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{setup}` --dry-run `{word}` for the steps.
-- `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
-- `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
-- `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
-- `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{setup}` --dry-run for the default set.
+- `err.verb`: `{word}` is not a verb
+- `err.verb.tool`: `{word}` is not a tool
+- `err.verb.none`: `{word}` is not a verb or a tool
+- `err.verb.own`: `{word}` is a tool, not a verb
+- `err.verb.plugin`: `{word}` is a plugin with no command
+- `err.verb.missing`: `{word}` is not installed
+- `err.flag`: `{flag}` is not a flag
+- `err.flag.of`: `{flag}` is not a flag of `{verb}`
+- `err.flag.version`: --version takes no verb and no --help
+- `err.extra`: `{verb}` takes no name; `{word}` is one more
+- `err.extra.one`: `{verb}` takes one name; `{word}` is one more
+- `err.version`: `{tool}` has no version: `{path}` cannot be read
+- `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
 
 - `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{config}` for the list.
 - `err.config.tool`: `{name}` is not a tool here. Run `{config}` for the list.

@@ -39,6 +39,8 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
                "--prefix": ("prefix", "install-cli")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
+SWITCHES = ("--json", "--quiet", "-q", "--no-color")
+NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
@@ -77,23 +79,29 @@ def _tool(lib):
 
 
 def parse(argv):
+    return _parse(argv)[:3]
+
+
+def _parse(argv):
+    """(opts, words, the first bad flag, each word's index in argv, the bad flag's index)."""
     opts = {key: False for key in ALL_FLAGS.values()}
     opts["version"] = False
     opts.update({key: None for key, _ in VALUE_FLAGS.values()})
-    words, bad, rest = [], None, False
-    args = iter(argv)
-    for arg in args:
+    words, bad, rest, at, bad_at = [], None, False, [], None
+    args = iter(enumerate(argv))
+    for i, arg in args:
         flag, eq, value = arg.partition("=")
         if rest or not arg.startswith("-") or arg == "-":
             words.append(arg)
+            at.append(i)
         elif arg == "--":
             rest = True
         elif flag in VALUE_FLAGS:
-            value = value if eq else next(args, None)
+            value = value if eq else next(args, (None, None))[1]
             if flag == "--prefix" and (value is None or value.startswith("-")):
                 value = ""  # a flag, or nothing, is no folder: install-cli refuses it (ak2b review 1)
             if value is None and bad is None:
-                bad = flag
+                bad, bad_at = flag, i
             elif value is not None:
                 opts[VALUE_FLAGS[flag][0]] = value
         elif arg == "--version":
@@ -101,15 +109,16 @@ def parse(argv):
         elif arg in ALL_FLAGS:
             opts[ALL_FLAGS[arg]] = True
         elif bad is None:
-            bad = arg
-    return opts, words, bad
+            bad, bad_at = arg, i
+    return opts, words, bad, at, bad_at
 
 
 class Command:
     Usage, Refusal, VERBS = Usage, Refusal, VERBS
 
     def __init__(self, argv, env, out, err):
-        self.opts, self.words, self.bad = parse(argv)
+        self.argv = list(argv)
+        self.opts, self.words, self.bad, self.at, self.bad_at = _parse(self.argv)
         self.env = env
         self.lib = _lib()
         self.tool = _tool(self.lib)
@@ -130,6 +139,21 @@ class Command:
         with the full path where the screen shows `~`."""
         return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
                           full=self.opts["json"])
+
+    def again(self, swap, tail=()):
+        """The line as typed, each argv index in `swap` replaced by its words, then `tail`; the
+        switches of the answer's form (--json, -q, --no-color) left out, so a screen and its
+        --json name one command (row sc4 R4)."""
+        line = []
+        for i, word in enumerate(self.argv):
+            if i in swap:
+                line.extend(swap[i])
+            elif word not in SWITCHES:
+                line.append(word)
+        return self.say(*(line + list(tail)))
+
+    def mend(self, at, *words):
+        return self.again({at: list(words)})
 
     def slots(self):
         """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
@@ -154,7 +178,7 @@ class Command:
             self.verb = words[0]
             if self.verb not in VERBS:
                 self.verb = None
-                self._not_a_verb(words[0])
+                self._not_a_verb(words[0], self.at[0])
         else:
             self.verb = "version" if o["version"] and not o["help"] else "help"
         nouns = words[1:]
@@ -172,33 +196,45 @@ class Command:
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb.replace("-", "_"))(nouns)
 
-    def _not_a_verb(self, word, asked_help=False):
-        """Packet ak2 R3: a plugin's name with no agentik-<word> on PATH exits 3; any other word
-        exits 2, naming the nearest of the verbs and the plugins' names."""
-        names = tools.plugin_names(self.env, self.lib)
+    def _not_a_verb(self, word, at, asked_help=False):
+        """Packet ak2 R3, row sc4 R6: a plugin's name with no agentik-<word> on PATH exits 3; a
+        tool's name is a tool, not a verb; any other word exits 2, the near verb or tool mended
+        into the line as typed."""
         own = self.tool[len("agentik-"):]
-        if word in names and word != own and not any(
-                f["name"] == "agentik-" + word for f in self._on_path()):
-            raise Usage("not_installed", "err.verb.plugin", self.say("setup", "--dry-run", word),
-                        exit_code=3, word=word, **self.slots())
-        near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
-                                         n=1, cutoff=0.6)
-        if near:
-            # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
-            verb = near[0] in VERBS and not asked_help
-            remedy = self.say(near[0]) if verb else self.say("--help")
-            raise Usage("unknown_verb", "err.verb.near", remedy,
-                        word=word, near=near[0], **self.slots())
-        raise Usage("unknown_verb", "err.verb", self.say("--help"), word=word, **self.slots())
+        found = {f["name"][len("agentik-"):]: f["path"] for f in self._on_path()}
+        found[own] = os.path.abspath(prog.files(self.lib, self.tool)[0])
+        if word in found:
+            run = prog.shown(found[word], self.env.get("HOME"), self.opts["json"]) + " --help"
+            raise Refusal("unknown_verb", "err.verb.own", run, word=word)
+        if word in tools.plugin_names(self.env, self.lib):
+            if word in tools.installed(self.env):
+                raise Refusal("not_installed", "err.verb.plugin", self.say("config", word),
+                              exit_code=3, word=word)
+            raise Refusal("not_installed", "err.verb.missing", self.say("setup", word),
+                          exit_code=3, word=word)
+        near = difflib.get_close_matches(word, [w for w in VERBS + tuple(sorted(found)) if w != word],
+                                         n=1, cutoff=NEAR)
+        if not near:
+            raise Refusal("unknown_verb", "err.verb.none", self.say("help"), word=word)
+        if near[0] in VERBS:
+            raise Refusal("unknown_verb", "err.verb", self.mend(at, near[0]), word=word)
+        alone = asked_help or len(self.words) == 1  # a tool run bare is a usage error (R4)
+        run = self.mend(at, near[0]) if asked_help or not alone else self.mend(at, "help", near[0])
+        raise Refusal("unknown_verb", "err.verb.tool", run, word=word)
 
     def _bad_flag(self, flag):
-        known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
-        near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
-        where = self.say(self.verb) if self.verb and self.verb != "help" else self.say()
-        if near and near[0] != flag:
-            raise Usage("unknown_flag", "err.flag.near", "%s --help" % where,
-                        flag=flag, near=near[0], where=where)
-        raise Usage("unknown_flag", "err.flag", "%s --help" % where, flag=flag, where=where)
+        if flag == "--version":
+            raise Refusal("unknown_flag", "err.flag.version", self.say("--version"))
+        verb = self.verb if self.verb and self.verb != "help" else None
+        known = [f for long, short, _ in FLAGS + VERB_FLAGS.get(verb, ()) for f in (long, short) if f]
+        known += [f for f, (_, owner) in VALUE_FLAGS.items() if owner == verb]
+        known += [] if verb else ["--version"]
+        near = difflib.get_close_matches(flag, [f for f in known if f != flag], n=1, cutoff=NEAR)
+        mid = "err.flag.of" if verb else "err.flag"
+        if near and flag == self.bad:
+            raise Refusal("unknown_flag", mid, self.mend(self.bad_at, near[0]), flag=flag, verb=verb)
+        raise Refusal("unknown_flag", mid, self.say("help", *([verb] if verb else [])),
+                      flag=flag, verb=verb)
 
     def fail(self, u):
         if self.opts["json"]:
@@ -209,11 +245,10 @@ class Command:
             self.t.error(u.mid, command=u.remedy if u.paste else None, **u.values)
         return u.status
 
-    def _no_nouns(self, nouns):
+    def _no_nouns(self, nouns, one=False):
         if nouns:
-            where = self.say(self.verb)
-            raise Usage("extra_word", "err.extra", "%s --help" % where,
-                        word=nouns[0], where=where)
+            raise Refusal("extra_word", "err.extra.one" if one else "err.extra",
+                          self.say("help", self.verb), verb=self.verb, word=nouns[0])
 
     # ---- help -----------------------------------------------------------------------------
 
@@ -240,10 +275,10 @@ class Command:
 
     def do_help(self, nouns):
         if len(nouns) > 1:
-            self._no_nouns(nouns[1:])
+            self._no_nouns(nouns[1:], one=True)
         if nouns:
             if nouns[0] not in VERBS:
-                self._not_a_verb(nouns[0], asked_help=True)
+                self._not_a_verb(nouns[0], self.at[1], asked_help=True)
             return self.help_verb(nouns[0])
         found = self._on_path()
         if self.opts["json"]:
@@ -296,8 +331,8 @@ class Command:
         self._no_nouns(nouns)
         if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
             path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
-            raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
-                        **self.slots(), path=path)
+            raise Refusal("no_version", "err.version", "claude plugin install suite@agentik",
+                          tool=self.slots()["tool"], path=path)
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
                          "version": self.version})
@@ -313,8 +348,7 @@ class Command:
     def do_setup(self, nouns):
         for noun in nouns:
             if not NOUN.match(noun):
-                raise Usage("bad_name", "err.setup.name", self.say("setup", "--dry-run"),
-                            name=noun, **self.slots())
+                raise Refusal("bad_name", "err.setup.name", self.say("setup", "--dry-run"), name=noun)
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)
