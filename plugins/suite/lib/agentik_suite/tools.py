@@ -18,6 +18,7 @@ import signal
 import subprocess
 import tempfile
 import time
+import unicodedata
 
 from . import plan, settings, sources
 
@@ -33,6 +34,7 @@ CONFIG = re.compile(r"agentik\.config/([0-9]+)\Z")
 DESCRIBE_KEYS = ("tool", "version", "summary", "repo", "plugin", "needs", "verbs", "reads")
 READ_KINDS = ("config", "doctor", "status")
 NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+LINE_CAP = 300  # a tool's message or detail, cut (row ak9b R4)
 
 
 def _config_dir(env):
@@ -355,7 +357,63 @@ def _object(code, out, pattern):
     return obj
 
 
-def counted_describe(code, out):
+def counted_describe(code, out, name):
+    """The answer when it counts, asked under `name`: one whose `tool` is that name (row ak9b R3)."""
+    obj = _described(code, out)
+    return obj if obj is not None and obj.get("tool") == name else None
+
+
+def describe_reason(code, out, name):
+    """None for an answer that counts; `other` for one that would count under another tool's
+    name; `unread` for one that does not read, or whose `tool` is no string (R3, review 1)."""
+    obj = _described(code, out)
+    if obj is None or not isinstance(obj.get("tool"), str):
+        return "unread"
+    return None if obj.get("tool") == name else "other"
+
+
+def one_line(text, cap=LINE_CAP):
+    """A tool's text as one line (R4): term.clean's cleaning, a summary's, then cut at `cap`."""
+    from . import term
+    return term.clean(text).strip()[:cap]
+
+
+def plain(text):
+    """The text where it is a string that holds no control character, a newline, a tab or a
+    direction control among them, and no character of Unicode category Cf (format: a direction
+    mark, a zero-width character, a soft hyphen) or Cs (a lone surrogate), else None: a remedy
+    that would join a second line of the tool's to a line a person pastes, or hold a mark the
+    person cannot see, is no remedy (row ak9b review 1 lead 2, review 2 F2)."""
+    from . import term
+    if not isinstance(text, str) or term.clean(text) != text:
+        return None
+    return None if any(unicodedata.category(c) in ("Cf", "Cs") for c in text) else text
+
+
+def config_error(out):
+    """{code, message, remedy} of a config read's counted error (R4), whatever the exit, else None:
+    one object of the config schema, `ok` false, an `error` whose code and message are strings and
+    whose remedy is a string or null; a remedy that is not `plain` reads as null (lead 2), and one
+    is never cut: past `LINE_CAP` with its outer spaces gone, it reads as null (review 2 F3)."""
+    try:
+        obj = json.loads(out.decode("utf-8", "replace"))
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(obj, dict) or obj.get("ok") is not False:
+        return None
+    m = CONFIG.match(obj.get("schema") if isinstance(obj.get("schema"), str) else "")
+    error = obj.get("error")
+    if not m or int(m.group(1)) > 1 or not isinstance(error, dict):
+        return None
+    code, message, remedy = error.get("code"), error.get("message"), error.get("remedy")
+    if not (isinstance(code, str) and isinstance(message, str) and (remedy is None or isinstance(remedy, str))):
+        return None
+    remedy = plain(remedy).strip() if plain(remedy) is not None else None
+    return {"code": one_line(code), "message": one_line(message),
+            "remedy": remedy if remedy is not None and len(remedy) <= LINE_CAP else None}
+
+
+def _described(code, out):
     obj = _object(code, out, DESCRIBE)
     if obj is None or any(k not in obj for k in DESCRIBE_KEYS):
         return None
@@ -412,7 +470,7 @@ def _stamp(exe):
 def _cached(folder, name, stamp):
     found = plan._read_json(os.path.join(folder, name + ".json"))
     if isinstance(found, dict) and found.get("stamp") == stamp:
-        return counted_describe(0, json.dumps(found.get("answer")).encode())
+        return counted_describe(0, json.dumps(found.get("answer")).encode(), name)
     return None
 
 
@@ -431,10 +489,12 @@ def _keep(folder, name, stamp, answer):
         pass
 
 
-def describe_all(entries, env, read=False, key=None, deadline=None):
+def describe_all(entries, env, read=False, key=None, deadline=None, reasons=None):
     """({name: (state, answer or None)}, {name: (exit, stdout, state)}) for each entry with an
     executable. With `read`, each answer's config read, `key` appended when given, starts as soon
-    as the answer is known, from the cache or its describe, under the describes' own deadline."""
+    as the answer is known, from the cache or its describe, under the describes' own deadline.
+    `reasons`, when given, gets {name: describe_reason} for each describe that ran and did not
+    count (row ak9b R3)."""
     folder, found, jobs, stamps = cache_dir(env), {}, [], {}
     exes = {e["name"]: e["exe"] for e in entries}
 
@@ -461,7 +521,9 @@ def describe_all(entries, env, read=False, key=None, deadline=None):
         if kind != "describe":
             return []
         code, out, state = result
-        answer = counted_describe(code, out) if state == "ran" else None
+        answer = counted_describe(code, out, name) if state == "ran" else None
+        if answer is None and state == "ran" and reasons is not None:
+            reasons[name] = describe_reason(code, out, name)
         if answer is None:
             found[name] = ("timed out" if state == "timed out" else "unreadable", None)
             return []

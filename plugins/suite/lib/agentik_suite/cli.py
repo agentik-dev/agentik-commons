@@ -339,8 +339,12 @@ class Command:
             run = prog.shown(found[word], self.env.get("HOME"), self.opts["json"]) + " --help"
             raise Refusal("unknown_verb", "err.verb.own", run, word=word)
         if word in tools.plugin_names(self.env, self.lib):
+            row = tools.rows(self.env, self.lib, names=[word])[word]
+            runs = (row["runs"] or {}).get("path")
+            if runs and at == 0 and row["kind"] not in ("absent", "undecided"):
+                self._run_tool(runs, self.argv[at + 1:])  # the word runs (row ak9b R1)
             page = tools.page(tools.fallback(self.lib), word)  # it installs its own (row fh13 R8)
-            if page and (tools.rows(self.env, self.lib, names=[word])[word]["runs"] or {}).get("path"):
+            if page and runs:
                 page = None  # a file runs: the pin's refusal
             more = {"page": page} if page else {}
             if word in tools.installed(self.env):
@@ -395,6 +399,18 @@ class Command:
                           self.say("help", self.verb), verb=self.verb, word=nouns[0])
 
     # ---- help -----------------------------------------------------------------------------
+
+    def _run_tool(self, exe, rest):
+        """Row ak9b R1: the suite replaced by the file the finder says runs, `rest` unchanged, the
+        same streams and the environment the launcher restored; it returns only where that file
+        cannot run, and the pin's refusal follows (R2)."""
+        if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
+            return
+        self.t.flush()
+        try:
+            os.execve(exe, [exe] + list(rest), dict(self.env))
+        except OSError:
+            return
 
     def _on_path(self):
         seen, found = set(), []

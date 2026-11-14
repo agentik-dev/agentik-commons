@@ -19,7 +19,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import ESC, LAUNCHER, LIB, PLUGIN, ROOT, SYSTEM  # noqa: E402
 from test_ak3d_doctor import DoctorHome  # noqa: E402
-from agentik_suite import catalogue, cli, doctor, plan  # noqa: E402
+from agentik_suite import catalogue, cli, doctor, plan, tools  # noqa: E402
 import agentik_install  # noqa: E402
 
 MARK = re.compile(r"^(ok|warn|FAIL|note)  +(\S+)  +(.*)$")
@@ -130,7 +130,7 @@ class ReadyTest(Checks):
         self.assertEqual(code, 1)
         root = [c for g in obj["tools"] if g["name"] == "murmur" for c in g["checks"]]
         self.assertEqual([c["detail"] for c in root if c["name"] == "root"], [detail])
-        self.assertEqual(self.starts("murmur"), ["doctor --json"] * 2)
+        self.assertEqual(self.starts("murmur"), ["describe --json", "doctor --json"] * 2)  # ak9b R5
 
     def test_a4_exit_2_with_no_fail_check(self):
         path = self.ready()
@@ -167,8 +167,8 @@ class ReadyTest(Checks):
         self.assertEqual(got["rune"], [("doctor", "fail", "its doctor failed")])
         self.assertEqual(got["sable"], [("doctor", "fail", "its doctor failed, and printed nothing")])
         for n in ("paint", "quill", "rune", "sable"):
-            self.assertEqual(self.starts(n), ["doctor --json", "doctor"], n)
-        self.assertEqual(self.starts("murmur"), ["doctor --json"])
+            self.assertEqual(self.starts(n), ["describe --json", "doctor --json", "doctor"], n)
+        self.assertEqual(self.starts("murmur"), ["describe --json", "doctor --json"])
         code, out, err = self.screen(PATH=path)
         self.assertNotIn("rune: one failed", out + err)
         group = {MARK.match(l).group(2): MARK.match(l).groups() for l in out.splitlines() if MARK.match(l)}
@@ -322,6 +322,8 @@ class BoundTest(Checks):
         saved = doctor.DEADLINE
         doctor.DEADLINE = 1.0
         self.addCleanup(setattr, doctor, "DEADLINE", saved)
+        self.addCleanup(setattr, tools, "WALL", tools.WALL)
+        tools.WALL = 0.5  # the describe wall before the doctor's deadline (row ak9b R5)
         out, err = io.StringIO(), io.StringIO()
         start = time.monotonic()
         code = cli.Command(["doctor", "--json"], self.env(), out, err).run()
@@ -331,11 +333,11 @@ class BoundTest(Checks):
         slow = doctor.DEADLINE
         self.assertEqual(got["slow"], [("warn", "its doctor ran past %g s, so it was stopped" % slow)])
         self.assertEqual(got["late"], [("warn", "its doctor ran past %g s, so it was stopped" % slow)])
-        self.assertEqual(self.starts("late"), ["doctor --json", "doctor"])
+        self.assertEqual(self.starts("late"), ["describe --json", "doctor --json", "doctor"])
         self.assertEqual(code, 0)
         self.assertFalse(os.path.exists(self.calls))
-        for n in ("slow", "late", "murmur"):
-            self.assertFalse(any("describe" in s for s in self.starts(n)), n)
+        for n in ("slow", "late", "murmur"):  # describe first, once (row ak9b R5)
+            self.assertEqual([s for s in self.starts(n) if "describe" in s], ["describe --json"], n)
 
 
 if __name__ == "__main__":

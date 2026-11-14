@@ -16,7 +16,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import ESC, LAUNCHER, SYSTEM, Home  # noqa: E402
-from agentik_suite import cli, doctor  # noqa: E402
+from agentik_suite import cli, doctor, tools  # noqa: E402
 
 TOOL = "agentik-suite"
 CMD = str(LAUNCHER)  # a printed command with no door: the launcher's path, as typed (row sc2)
@@ -187,6 +187,8 @@ class ToolTest(DoctorHome):
         saved = doctor.DEADLINE
         doctor.DEADLINE = 1.0
         self.addCleanup(setattr, doctor, "DEADLINE", saved)
+        self.addCleanup(setattr, tools, "WALL", tools.WALL)
+        tools.WALL = 0.5  # the describe wall before the doctor's deadline (row ak9b R5)
         out, err = io.StringIO(), io.StringIO()
         start = time.monotonic()
         code = cli.Command(["doctor", "--json"], self.env(), out, err).run()

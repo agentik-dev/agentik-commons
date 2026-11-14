@@ -29,12 +29,14 @@ STATUS = {"answers": "ok", "timed out": "warn", "unreadable": "warn", "no comman
 STATE_LINE = {"timed out": "config.state.timed_out", "unreadable": "config.state.unreadable",
               "no command": "config.state.no_command", "noread": "config.state.noread",
               "read timed out": "config.state.read_timed_out",
-              "read unreadable": "config.state.read_unreadable"}
+              "read unreadable": "config.state.read_unreadable", "read error": "config.state.read_error"}
 KEY_LINE = {"timed out": "err.config.silent", "unreadable": "err.config.silent",
             "no command": "err.config.silent.command", "noread": "err.config.silent.noread",
             "read timed out": "err.config.read.timed_out",
-            "read unreadable": "err.config.read.unreadable"}
-READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable"}
+            "read unreadable": "err.config.read.unreadable", "read error": "err.config.read.error"}
+REASON = {"other": "config.reason.other", "unread": "config.reason.unread"}  # row ak9b R3
+READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable",
+             "error": "config.read.error"}
 SUITE_SUMMARIES = ("checkouts", "kind", "watcher.match", "watcher.start", "watcher.beat",
                    "watcher.writer", "sources")
 
@@ -54,6 +56,18 @@ def why(row):
     if row["read_state"]:
         return "read " + row["read_state"]
     return "noread" if row["state"] == "answers" else row["state"]
+
+
+def reason(t, row):
+    """The words beside a state whose describe did not count (row ak9b R3), or None."""
+    return t.text(REASON[row["reason"]]) if row.get("reason") else None
+
+
+def asks(remedy):
+    """A remedy that answers a question for the person (`--yes`, `-y`) or removes: it stands on
+    its own line, never behind `next:` (row sc5 R8, ruled for config by ak9b review 1 lead 1)."""
+    from . import cli
+    return any(w.partition("=")[0] in cli.SKIPS or w == "remove" for w in remedy.split())
 
 
 def silent(rows):
@@ -115,12 +129,15 @@ class Reader:
         """[{name, state, answer, config, read_state, fault, ...}]: every describe and config read
         at once, each read started as soon as its tool's answer is known, under one wall."""
         runnable = [e for e in entries if e["name"] != self.suite and e["exe"]]
+        reasons = {}
         described, reads = tools.describe_all(runnable, self.env, read=with_config, key=key,
-                                              deadline=self.wall()) if runnable else ({}, {})
+                                              deadline=self.wall(), reasons=reasons) \
+            if runnable else ({}, {})
         rows = []
         for e in entries:
             row = {"name": e["name"], "exe": e["exe"], "answer": None, "config": None,
-                   "fault": None, "read": None, "read_state": None, "source": e.get("source")}
+                   "fault": None, "read": None, "read_state": None, "source": e.get("source"),
+                   "reason": reasons.get(e["name"]), "error": None}
             if e["name"] == self.suite:
                 row["state"] = "answers"
                 row["answer"] = self.suite_describe()
@@ -136,7 +153,10 @@ class Reader:
                 if e["name"] in reads:
                     code, out, state = reads[e["name"]]
                     row["config"] = tools.counted_config(code, out) if state == "ran" else None
-                    if row["config"] is None:
+                    row["error"] = tools.config_error(out) if state == "ran" and row["config"] is None else None
+                    if row["error"]:  # a counted error, whatever the exit (row ak9b R4)
+                        row["read_state"] = "error"
+                    elif row["config"] is None:
                         row["read_state"] = "timed out" if state == "timed out" else "unreadable"
             rows.append(row)
         return rows
@@ -254,8 +274,9 @@ def do_config(cmd, nouns):
     cfg = row["config"]
     if cfg is None:
         if key:
-            raise Refusal("no_answer", KEY_LINE[why(row)], _again(cmd, name),
-                          name=name, key=key, state=row["state"])
+            state = row["state"] + (": " + reason(t, row) if row.get("reason") else "")
+            raise Refusal("no_answer", KEY_LINE[why(row)], _again(cmd, name), name=name, key=key,
+                          state=state, message=(row["error"] or {}).get("message"), **cmd.slots())
         return _silent(cmd, r, row, table)
     if not key:
         return _tool(cmd, r, name, cfg, _from(row["source"], r.home))
@@ -297,6 +318,10 @@ def _list(cmd, r, rows):
                 item["fault"] = row["fault"]
             if row["read_state"]:
                 item["read"] = row["read_state"]
+            if row["error"]:
+                item["error"] = row["error"]
+            if row["reason"]:
+                item["reason"] = row["reason"]
             if row["state"] != "answers" and row["name"] in table:
                 words = words if words is not None else tools.descriptions(cmd.env)
                 item["table"] = table[row["name"]]
@@ -326,6 +351,8 @@ def _list(cmd, r, rows):
             after = words.get(row["name"])
         else:
             cells = [term.name(row["name"]), row["state"]]
+        if row["reason"]:  # beside the state (R3)
+            cells.insert(2, reason(t, row))
         status = "warn" if row["read_state"] else STATUS.get(row["state"], "warn")
         source, extra = row["source"], None
         if source and source["kind"] == "undecided":
@@ -349,12 +376,25 @@ def _silent(cmd, r, row, table):
                "layers": [], "settings": []}
         if row["read_state"]:
             obj["read"] = row["read_state"]
+        if row["error"]:
+            obj["error"] = row["error"]
+        if row["reason"]:
+            obj["reason"] = row["reason"]
         if table:
             obj["table"] = table
             obj["description"] = tools.descriptions(cmd.env).get(name)
         cmd.t.json(obj)
         return 0
-    _titled(cmd, STATE_LINE[why(row)], _from(row["source"], r.home), name=name)
+    _titled(cmd, STATE_LINE[why(row)], _from(row["source"], r.home), name=name,
+            message=(row["error"] or {}).get("message"))
+    if row["reason"]:
+        t.line(REASON[row["reason"]], style="hint")
+    remedy = (row["error"] or {}).get("remedy")
+    held = bool(remedy) and asks(remedy)
+    if held:  # the close names the read again (lead 1)
+        close = ("hint.config.again", {"command": cmd.say("config", name)})
+    else:
+        close = ("hint.config.remedy", {"remedy": remedy}) if remedy else ("hint.config.back", cmd.slots())
     if table:
         desc = tools.descriptions(cmd.env).get(name)
         t.line("config.table.title", name=name)
@@ -369,9 +409,9 @@ def _silent(cmd, r, row, table):
         for need in table.get("needs") or ():
             rows.append(("note", [t.text("config.label.needs"), str(need)], None))
         t.table(rows)
-        t.hint("hint.config.back", **cmd.slots())
-        return 0
-    t.hint("hint.config.back", **cmd.slots())
+    if held:
+        t.line("config.remedy", remedy=remedy)
+    t.hint(close[0], **close[1])
     return 0
 
 

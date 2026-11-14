@@ -115,6 +115,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
 - `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
 - `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.read.error`: `{name}`.`{key}` cannot be read: `{message}`
 - `err.config.file`: `{fault}`
 - `err.status.now`: `{value}` is not an ISO 8601 time, such as 2026-11-13T12:00:00Z
 - `err.status.ps`: `{path}` cannot be read as a listing that ps wrote
@@ -174,8 +175,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.state.noread`: `{name}` answers, but names no way to read its settings.
 - `config.state.read_timed_out`: `{name}` answers, but reading its settings ran past 2 s, so it was stopped.
 - `config.state.read_unreadable`: `{name}` answers, but its settings answer cannot be read.
+- `config.state.read_error`: `{name}` answers, but its settings read failed: `{message}`
 - `config.read.timed_out`: reading its settings ran past 2 s
 - `config.read.unreadable`: its settings answer cannot be read
+- `config.read.error`: its settings read failed
+- `config.reason.other`: its command answers under another tool's name
+- `config.reason.unread`: its command gave no answer that reads
+- `config.remedy`: `{remedy}`
 - `config.changed.title`: Settings that differ from their defaults: `{count}`.
 - `config.changed.none`: Every setting that was read holds its default.
 - `config.changed.silent`: These tools gave no settings, so their changes are not here: `{names}`.
@@ -190,6 +196,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
 - `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
+- `hint.config.remedy`: next: `{remedy}`
+- `hint.config.again`: next: `{command}` reads its settings again, once the line above has run.
 
 ## The suite's settings
 
@@ -475,6 +483,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
+- `doctor.tool.checks`: `{n}` checks read ok
+- `doctor.tool.check`: 1 check read ok
 - `doctor.plan.source`: installed from the source that stands for it
 - `doctor.plan.launcher`: placed, at the version of the source that stands
 - `doctor.plan.declared`: declared, and not installed
@@ -502,6 +512,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.sources.gate`: `{path}` names a source and is on no gate list
 - `doctor.sources.add`: add this line to `{list}`: `{path}`
 - `hint.doctor.next`: next: `{command}`
+- `hint.doctor.fail.plain`: next: the FAIL rows above say what failed: mend each, then `{doctor}`
 
 ## Inbox
 
