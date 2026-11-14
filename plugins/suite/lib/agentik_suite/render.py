@@ -12,7 +12,6 @@ import json
 import os
 import shutil
 import signal
-import stat
 import subprocess
 import tempfile
 import time
@@ -256,7 +255,7 @@ def _open(path):
     """The folder at `path` made 0700, never a link or what it points at."""
     nofollow = {"follow_symlinks": False} if os.chmod in os.supports_follow_symlinks else {}
     try:
-        if stat.S_ISDIR(os.lstat(path).st_mode):
+        if os.lstat(path).st_mode & 0o170000 == 0o040000:  # S_IFMT, S_IFDIR: a folder alone
             os.chmod(path, 0o700, **nofollow)
     except (OSError, NotImplementedError):
         pass
