@@ -1,7 +1,9 @@
 """The tools the suite lists, and their own answers about themselves.
 
-A tool is listed when it is the suite itself, an `agentik-<name>` on PATH, or `<name>@agentik`
-in Claude Code's installed_plugins.json. Each executable but the suite's runs as `agentik-<name>
+A tool is listed when it is the suite itself, an `agentik-<name>` on PATH, or a name the suite
+knows whose source the finder (`sources`, row fk1-sources) finds installed. Its executable is the
+file the finder says runs, never one under the root of a plugin that does not stand (row fk2-plan).
+Each executable but the suite's runs as `agentik-<name>
 describe --json`, every one at once, under one wall of WALL seconds; one still running then is
 killed with its process group. A counted answer is cached, one file a tool, under
 `${XDG_CACHE_HOME:-~/.cache}/agentik/suite/`, while the executable's resolved path, size and
@@ -17,7 +19,7 @@ import subprocess
 import tempfile
 import time
 
-from . import plan
+from . import plan, settings, sources
 
 WALL = 2.0
 # A describe or config answer is a few kilobytes; a tool with a thousand settings stays under a
@@ -37,36 +39,105 @@ def _config_dir(env):
     return env.get("CLAUDE_CONFIG_DIR") or os.path.join(env.get("HOME") or "", ".claude")
 
 
-def listed(suite, on_path, env):
-    """[{name, exe, plugin}]: the suite first, then the rest by name."""
-    found = {suite: {"name": suite, "exe": None, "plugin": False}}
-    for entry in on_path:
-        name = entry["name"][len("agentik-"):]
-        if name != suite and NAME.match(name):
-            found.setdefault(name, {"name": name, "exe": entry["path"], "plugin": False})
-    for name in installed(env):
-        found.setdefault(name, {"name": name, "exe": None, "plugin": True})["plugin"] = True
-    rest = sorted(n for n in found if n != suite)
-    return [found[suite]] + [found[n] for n in rest]
+def _cwd(cwd):
+    if cwd is not None:
+        return cwd
+    try:
+        return os.getcwd()
+    except OSError:  # a removed folder: no repo's entries
+        return None
 
 
-def installed(env):
+def _lib(lib):
+    """The folder of fallback.json: `lib`, else the one this package sits in."""
+    return lib or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _lines(env):
+    """The user file's `sources` lines; none when the file is outside the subset, a fault each
+    read that owns the file reports as it does today."""
+    try:
+        return settings.declared(env)[0]
+    except settings.Fault:
+        return {}
+
+
+def _own(env):
     """Each name of a `<name>@agentik` in Claude Code's installed_plugins.json, in its order."""
     found = plan._read_json(os.path.join(_config_dir(env), "plugins", "installed_plugins.json"))
     table = found.get("plugins") if isinstance(found, dict) else None
     names = []
     for key in table if isinstance(table, dict) else ():
         name, at, market = key.partition("@")
-        if at and market == plan.MARKETPLACE and NAME.match(name):
+        if at and market == plan.MARKETPLACE and NAME.match(name) and name not in names:
             names.append(name)
     return names
 
 
-def plugin_names(env, lib):
-    """Every plugin's name the suite knows (packet ak2 R3): the marketplace file's, the fallback
-    table's and each installed `<name>@agentik`."""
-    names = set(descriptions(env)) | set(fallback(lib)) | set(installed(env))
+def known(env, lib=None, lines=None):
+    """The names the suite knows (row fk2-plan R1): the marketplace file's, the fallback table's,
+    each installed `<name>@agentik` and each `sources` line's, sorted."""
+    lines = _lines(env) if lines is None else lines
+    names = set(descriptions(env)) | set(fallback(_lib(lib))) | set(_own(env)) | set(lines)
     return sorted(n for n in names if NAME.match(n))
+
+
+def rows(env, lib=None, cwd=None, names=None):
+    """{name: the finder's row} for each name the suite knows, or for `names`."""
+    lines, cwd = _lines(env), _cwd(cwd)
+    names = known(env, lib, lines) if names is None else names
+    return {name: sources.find(name, env, cwd, lines) for name in names}
+
+
+def listed(suite, on_path, env, lib=None, cwd=None):
+    """[{name, exe, plugin, source}]: the suite first, then the rest by name. `exe` is the file
+    the finder says runs, or None; `source` its row for a name the suite knows that is found or
+    held, else None (R2). A name on PATH alone is listed as it is found there, unless its file
+    lies under the root of a plugin that does not stand (R3)."""
+    found = {suite: {"name": suite, "exe": None, "plugin": False, "source": None}}
+    for entry in on_path:
+        name = entry["name"][len("agentik-"):]
+        if name != suite and NAME.match(name):
+            found.setdefault(name, {"name": name, "exe": entry["path"], "plugin": False, "source": None})
+    lines, cwd = _lines(env), _cwd(cwd)
+    names = known(env, lib, lines)
+    for name in sorted(set(names) | set(found)):
+        row = sources.find(name, env, cwd, lines)
+        if name == suite:
+            if row["kind"] != "absent":
+                found[suite]["plugin"] = True
+            continue
+        exe = (row["runs"] or {}).get("path")
+        if name in names and row["kind"] != "absent":
+            found[name] = {"name": name, "exe": exe, "plugin": True, "source": row}
+        elif name in found and row["passed_over"] is not None:
+            found[name]["exe"] = exe
+    rest = sorted(n for n in found if n != suite)
+    return [found[suite]] + [found[n] for n in rest]
+
+
+def installed(env, lib=None, cwd=None):
+    """Each name the suite knows whose kind, as the finder reads it, is not `absent` (R1)."""
+    return [name for name, row in rows(env, lib, cwd).items() if row["kind"] != "absent"]
+
+
+def runs(env, on_path, cwd=None):
+    """{name: path} of `on_path` ({name: path}), each file the finder passes over replaced by the
+    one it says runs, or left out when none does (R3)."""
+    lines, cwd = _lines(env), _cwd(cwd)
+    found = {}
+    for name, path in on_path.items():
+        row = sources.find(name, env, cwd, lines)
+        if row["passed_over"] is None:
+            found[name] = path
+        elif row["runs"]:
+            found[name] = row["runs"]["path"]
+    return found
+
+
+def plugin_names(env, lib):
+    """Every plugin's name the suite knows (packet ak2 R3, row fk2-plan R1)."""
+    return known(env, lib)
 
 
 def _end(job):

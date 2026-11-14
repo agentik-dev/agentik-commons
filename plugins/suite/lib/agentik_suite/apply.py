@@ -22,7 +22,7 @@ import signal
 import subprocess
 import sys
 
-from . import plan, term
+from . import plan, term, tools
 
 CLAUDE_WALL = 600
 WALL = 120
@@ -41,8 +41,10 @@ def runnable(steps):
 def planned(steps):
     """The commands a yes would run, as the question counts them: the runnable rows, and one
     install-cli for each step 4 row that waits on step 3 (row sm1-setup-ask R3). A plugin that
-    turns out to ship no command, or a door older than this one's, moves the true count by one."""
-    waiting = [s for s in steps if s["n"] == 4 and s["state"] == "todo" and not s["command"]]
+    turns out to ship no command, or a door older than this one's, moves the true count by one.
+    Another row with no command is nothing to do (row fk2-plan R7)."""
+    waiting = [s for s in steps if s["n"] == 4 and s["state"] == "todo" and not s["command"]
+               and s["mid"] == "setup.launcher.wait"]
     return len(runnable(steps)) + len(waiting)
 
 
@@ -168,13 +170,11 @@ def look(home, config):
     return seen
 
 
-def install_root(config, key):
-    """The installPath Claude Code lists for `<name>@<marketplace>`, and whether it is there."""
-    found = plan._read_json(os.path.join(config, "plugins", "installed_plugins.json"))
-    table = found.get("plugins") if isinstance(found, dict) else None
-    entry = table.get(key) if isinstance(table, dict) else None
-    entry = entry[0] if isinstance(entry, list) and entry and isinstance(entry[0], dict) else {}
-    root = entry.get("installPath")
+def install_root(env, key, cwd=None):
+    """The root of the source that stands for `<name>@<marketplace>`'s name, as the finder says
+    (row fk2-plan R7), and whether it is there."""
+    name = key.rpartition("@")[0] or key
+    root = tools.rows(env, None, cwd, names=[name])[name]["root"]
     return (root, os.path.isdir(root)) if isinstance(root, str) and root else (None, False)
 
 
@@ -268,10 +268,12 @@ def _run(cmd, names):
     home = env.get("HOME") or ""
     config = env.get("CLAUDE_CONFIG_DIR") or os.path.join(home, ".claude")
 
+    slots = cmd.slots()  # a held row names the config line (row fk2-plan R4)
+
     def build():
         steps = plan.build(names, env, cmd.lib, tool, cmd.version)
         for s in steps:
-            s["detail"] = t.text(s["mid"], **s["values"])
+            s["detail"] = t.text(s["mid"], **dict(slots, **s["values"]))
         return steps
 
     def the_plan(steps):
@@ -293,7 +295,7 @@ def _run(cmd, names):
         after = look(home, config)
         new = [p for p in sorted(after) if after[p] != before.get(p)]
         if old is not None:
-            root, there = install_root(config, row["subject"])
+            root, there = install_root(env, row["subject"], getattr(cmd, "cwd", None))
             if there and (root != old[0] or not old[1]):
                 new.append(root)
         wrote.extend(p for p in new if p not in wrote)
@@ -315,7 +317,7 @@ def _run(cmd, names):
                 t.line("setup.running", err=True, command=command)
                 t.flush()
             before = look(home, config)
-            old = install_root(config, row["subject"]) if row["n"] == 3 else None
+            old = install_root(env, row["subject"], getattr(cmd, "cwd", None)) if row["n"] == 3 else None
             current = (row, before, old)
             result = execute(command, env)
             current = None

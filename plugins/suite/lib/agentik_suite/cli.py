@@ -478,9 +478,9 @@ class Command:
         if not self.opts["dry_run"]:
             return apply.run(self, names)
         steps = plan.build(names, self.env, self.lib, self.tool, self.version)
-        t = self.t
+        t, slots = self.t, self.slots()  # a held row names the config line (row fk2-plan R4)
         for s in steps:
-            s["detail"] = t.text(s["mid"], **s["values"])
+            s["detail"] = t.text(s["mid"], **dict(slots, **s["values"]))
         if self.opts["json"]:
             t.json({"schema": SCHEMA % "setup", "ok": True, "dry_run": True, "plugins": names,
                     "steps": [{k: s[k] for k in ("n", "id", "state", "subject", "detail", "command")}

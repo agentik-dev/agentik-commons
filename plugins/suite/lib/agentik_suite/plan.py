@@ -5,8 +5,9 @@ included, but one: a plugin that ships its command and has no launcher on PATH i
 `describe --json` through the suite's own reader (tools.describe_all, its cache and its wall), and
 one whose counted answer lists no `install-cli` verb runs from its own folder (row
 sp1-launcher-step). A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
-known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, whose
-plugins["<name>@<marketplace>"][0] holds version and installPath. An absent or unreadable file
+known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, read
+through the finder (`sources`, row fk1-sources): steps 3, 4 and 7 plan by the source that stands
+for each name (row fk2-plan), and setup installs no id outside its own marketplace. An absent or unreadable file
 reads as nothing known, as does one that fails to parse. A step is a dict: n, id, state (ok, todo or blocked), subject, the
 message id and values of its detail, the command (None when there is none) and its line: `run`, one
 a yes runs (steps 2 to 5), `add` for the shell profile (step 6), or `later`, the reader's own to
@@ -106,7 +107,82 @@ def in_place(sources, env):
     return names
 
 
-def build(names, env, lib, tool, version):
+def _real(path):
+    try:
+        return os.path.realpath(path)
+    except (OSError, ValueError):
+        return path
+
+
+def _under(path, root):
+    """True when `path`, resolved, is `root`, resolved, or lies inside it."""
+    if not path or not root:
+        return False
+    path, root = _real(path), _real(root)
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def _same(a, b):
+    """True when `a` and `b` are one file; never raises (review 1 F2)."""
+    try:
+        return os.path.samefile(a, b)
+    except (OSError, ValueError):
+        return False
+
+
+def _earlier(path, bindir, search):
+    """True when `path`'s folder comes before `bindir` on PATH, and `bindir` is on it; each folder
+    resolved, so a folder linked to `bindir` is `bindir` (review 1 F2)."""
+    entries = [_real(os.path.normpath(p or ".")) for p in search.split(os.pathsep)]
+    here, there = _real(os.path.dirname(path)), _real(bindir)
+    if there not in entries or here not in entries:
+        return False
+    return entries.index(here) < entries.index(there)
+
+
+def _cwd(cwd):
+    if cwd is not None:
+        return cwd
+    try:
+        return os.getcwd()
+    except OSError:
+        return None
+
+
+def _command(root, name):
+    """The source's own `bin/agentik-<name>`, or None: a file that is not a regular file, or that
+    resolves out of the root, is no command, as the finder holds it (review 1 F1)."""
+    path = os.path.join(root, "bin", "agentik-" + name)
+    return path if os.path.isfile(path) and _under(path, root) else None
+
+
+def _plugin_row(n, name, row, home):
+    """Step 3 for a source that is not the marketplace's own: (step, (version, command) or None)."""
+    root, ver = row["root"], row["version"]
+    if row["kind"] == "undecided":
+        seen = row["seen"]
+        ids = list(dict.fromkeys(s["plugin"] for s in seen))  # plugins, not entries (review 1 F3)
+        if len(seen) == 1 and seen[0]["scope"] in ("project", "local"):
+            return _step(n, "plugin", "todo", name, "setup.plugin.held.repo", name=name), None
+        if len(ids) == 1:
+            return _step(n, "plugin", "todo", name, "setup.plugin.held.twice", name=name, id=ids[0]), None
+        return _step(n, "plugin", "todo", name, "setup.plugin.held", name=name, count=len(ids)), None
+    subject = row["plugin"] or (shown(root, home) if isinstance(root, str) else name)
+    if row["found"] and isinstance(root, str) and os.path.isdir(root):
+        if isinstance(ver, str) and ver:
+            step = _step(n, "plugin", "ok", subject, "setup.plugin.source", name=name, version=ver)
+        else:
+            step = _step(n, "plugin", "ok", subject, "setup.plugin.source.none", name=name)
+        return step, (ver, _command(root, name))
+    at = row["declared"]
+    if at and not row["found"]:
+        return _step(n, "plugin", "todo", subject, "setup.plugin.declared",
+                     at="%s:%s" % (shown(at["path"], home), at["line"])), None
+    return _step(n, "plugin", "todo", subject, "setup.plugin.gone"), None
+
+
+def build(names, env, lib, tool, version, cwd=None):
+    from . import tools  # tools imports this module at its top
     home = env.get("HOME") or ""
     search = env.get("PATH", "")
     config = env.get("CLAUDE_CONFIG_DIR") or os.path.join(home, ".claude")
@@ -137,31 +213,41 @@ def build(names, env, lib, tool, version):
         steps.append(_step(2, "marketplace", "todo", MARKETPLACE, "setup.market.missing",
                            "claude plugin marketplace add %s" % SOURCE))
 
-    # 3: each plugin, installed when its installPath folder is there; one may ship no launcher
-    installed = _read_json(os.path.join(config, "plugins", "installed_plugins.json"))
-    table = installed.get("plugins") if isinstance(installed, dict) else None
+    # 3: each plugin by the source that stands for it (row fk2-plan R4): the marketplace's own,
+    # installed when its installPath folder is there, else installed from it; another source ok
+    # when found, else a row with no command; two or a repo's lone one, one held row in place of
+    # steps 3, 4 and 7. One may ship no launcher.
+    rows = tools.rows(env, lib, _cwd(cwd), names=names)
     have = {}
     for name in names:
+        row = rows[name]
+        if row["kind"] not in ("own", "absent"):
+            step, got = _plugin_row(3, name, row, home)
+            steps.append(step)
+            if got:
+                have[name] = got
+            continue
         key = "%s@%s" % (name, MARKETPLACE)
         install = "claude plugin install %s" % shlex.quote(key)
-        entry = table.get(key) if isinstance(table, dict) else None
-        entry = entry[0] if isinstance(entry, list) and entry and isinstance(entry[0], dict) else None
-        ver = entry.get("version") if entry else None
-        root = entry.get("installPath") if entry else None
+        ver, root = (row["version"], row["root"]) if row["kind"] == "own" else (None, None)
         if not (isinstance(ver, str) and ver):
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.missing", install))
         elif isinstance(root, str) and os.path.isdir(root):
-            have[name] = (ver, os.path.join(root, "bin", "agentik-" + name))
+            have[name] = (ver, _command(root, name))
             steps.append(_step(3, "plugin", "ok", key, "setup.plugin.ok", version=ver))
         else:
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.broken", install, version=ver))
 
     # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli
     placed = []
-    inplace = in_place({n: have[n][1] for n in names if n in have and os.path.isfile(have[n][1])
+    inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1]
                         and agentik_install.read_launcher(os.path.join(bindir, "agentik-" + n)) is None},
                        env)
+    direct = set()  # step 4 places nothing, since the file that runs is not the one it would place
     for name in names:
+        row = rows[name]
+        if name not in have and row["kind"] not in ("own", "absent"):
+            continue  # not found or held: step 3's row is the only one (R4)
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
         read = agentik_install.read_launcher(where)
@@ -171,21 +257,33 @@ def build(names, env, lib, tool, version):
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.wait"))
             continue
         want, source = have[name]
-        command = "%s install-cli" % shlex.quote(source)
-        if not os.path.isfile(source):
+        command = "%s install-cli" % shlex.quote(source) if source else None
+        runs = (row["runs"] or {}).get("path")
+        if not source:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.none"))
             placed = [p for p in placed if p != where]
+        elif runs and not _same(runs, where) and not _under(runs, row["root"]) \
+                and _earlier(runs, bindir, search):
+            steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.earlier",
+                               path=shown(runs, home)))
+            direct.add(name)
+        elif os.path.islink(where) and os.path.isfile(where) and _under(where, row["root"]):
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.link"))
+            direct.add(name)
         elif read is None and name in inplace:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.inplace"))
         elif read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
+        elif not (isinstance(want, str) and want):  # nothing to compare (review 1 F4)
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.noversion"))
         elif read.get("version") == want:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.ok",
                                version=want))
             placed.insert(0, placed.pop())  # a launcher at its version is the first to name
-        elif read.get("version"):
-            steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.behind",
+        elif read.get("version"):  # another source's version is never called behind (R5)
+            mid = "setup.launcher.behind" if row["kind"] == "own" else "setup.launcher.other"
+            steps.append(_step(4, "launcher", "todo", shown(where, home), mid,
                                command, have=read["version"], want=want))
         else:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.unread",
@@ -222,7 +320,8 @@ def build(names, env, lib, tool, version):
         steps.append(_step(5, "door", "ok", shown(door, home), mid))
     elif steps[-1]["command"]:
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.above"))
-    elif any(s["n"] == 4 and s["state"] == "todo" for s in steps):  # a plugin's install-cli places it
+    elif any(s["n"] == 4 and s["state"] == "todo" and (s["command"] or s["mid"] == "setup.launcher.wait")
+             for s in steps):  # a plugin's install-cli places it
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.plugin"))
     else:
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place", place))
@@ -237,16 +336,19 @@ def build(names, env, lib, tool, version):
 
     # 7: the doctors, last, each named once its launcher is placed
     for name in names:
+        if name not in have and rows[name]["kind"] not in ("own", "absent"):
+            continue
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
-        if name in have and not os.path.isfile(have[name][1]):
+        runs = (rows[name]["runs"] or {}).get("path")  # the file that runs names the line (R6)
+        if name in have and not have[name][1]:
             steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
         elif name in inplace:  # its command runs from the plugin's folder, as a placed one would
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
-                               "%s doctor" % shlex.quote(have[name][1]), line="later"))
-        elif where in placed:
+                               "%s doctor" % shlex.quote(runs or have[name][1]), line="later"))
+        elif where in placed or name in direct:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",
-                               "%s doctor" % shlex.quote(where), line="later"))
+                               "%s doctor" % shlex.quote(runs or where), line="later"))
         else:
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.wait"))
     if not names:

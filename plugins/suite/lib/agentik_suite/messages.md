@@ -184,6 +184,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.plugin.ok`: installed at version `{version}`
 - `setup.plugin.missing`: not installed; setup would install it
 - `setup.plugin.broken`: listed at version `{version}`, but its folder is gone; setup would install it again
+- `setup.plugin.source`: the source of `{name}`, at version `{version}`
+- `setup.plugin.source.none`: the source of `{name}`; it gives no version
+- `setup.plugin.declared`: declared at `{at}`, and not installed; install it from its own marketplace
+- `setup.plugin.gone`: listed, but its folder is gone; install it again from its own marketplace
+- `setup.plugin.held`: held, since `{count}` plugins named `{name}` are installed; `{config}` suite.sources.`{name}` shows how to choose one
+- `setup.plugin.held.twice`: held, since `{id}` is installed both for you and for this repo; `{config}` suite.sources.`{name}` shows how to choose one
+- `setup.plugin.held.repo`: held, since the only plugin named `{name}` came from this repo's settings; `{config}` suite.sources.`{name}` shows how to choose it
 - `setup.launcher.wait`: not placed; step 3 installs the plugin first
 - `setup.launcher.missing`: not placed; setup would place it from the plugin
 - `setup.launcher.none`: the plugin ships no command, so there is nothing to place
@@ -191,6 +198,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
+- `setup.launcher.earlier`: `{path}` comes first on PATH, so it runs in place of this one; setup leaves both as they are
+- `setup.launcher.link`: a link to the source's own command, so there is nothing to place
+- `setup.launcher.noversion`: placed, and the source gives no version to compare, so setup leaves it as it is
+- `setup.launcher.other`: at version `{have}`, and the source is at `{want}`; setup would place it again
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
