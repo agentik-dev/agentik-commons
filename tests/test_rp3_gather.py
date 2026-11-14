@@ -370,7 +370,8 @@ class OutputTest(GatherHome):
             fh.write("".join("\rprogress %d%%" % (i % 100) for i in range(9000)) + "\r" + known + "\n")
         long = os.path.join(self.side, "long.log")
         with open(long, "w") as fh:
-            fh.write("".join("line %d\n" % i for i in range(10)) + "z" * 70000 + known + "\n")
+            # a space before the known words: the window's edge drops the word it lands in (rp6 F1)
+            fh.write("".join("line %d\n" % i for i in range(10)) + "z" * 70000 + " " + known + "\n")
         for out in (cr, long):
             self.assertGreater(os.path.getsize(out), gather.TAIL)
             lines = self.gather(given={"output": out})["output"]["lines"]

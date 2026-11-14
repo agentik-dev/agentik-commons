@@ -18,8 +18,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
-| n80 | S4 | `plugins/suite` `doctor.py` | a tool's doctor killed by a signal reads `its doctor exits -9 and prints nothing`; a line for a negative code | ak3d review 1's R1-F6 | 2026-11-13, ak3d review 1 |
-| n81 | S4 | `plugins/suite` `doctor.py` `_last_line` | a tool's last line has no length bound: a 900,000-character line is the detail in the text and in `--json`; cut it near 200 characters | ak3d review 1's R1-F7: 902,737 bytes out | 2026-11-13, ak3d review 1 |
 | n82 | S4 | `plugins/suite` `messages.md` | `err.verb.plugin`'s remedy still names `setup --dry-run <word>`, now that `setup <word>` applies | ak3-setup build 1's lead | 2026-11-13, ak3-setup build 1 |
 | n83 | S4 | `plugins/suite` `apply.py` failed step | a failed step's line quotes the command's last output line, for a wrapped message a fragment, and adds a period after one: `said and the repository exists.. Mend that`; quote a full line and add no second period | `setup --yes` in a temp HOME behind a network wall, step 2's `marketplace add` | 2026-11-13, ak3p phase 2 |
 
@@ -144,10 +142,20 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n160 | S4 | `plugins/suite` `status_screen.py` `capped`, `wall` | past five sessions with no `sessions` source the cap row reads `and 5 more: ?`, no command; `%g` prints a wall of 1234567 as `1.23457e+06 s` | `capped` and `wall` | 2026-11-13, su2-screen review 1's R1-F8 |
 | n161 | S4 | `plugins/suite` `status_read.py` `_remedy`, `status_screen.py` `command` | a tool's command is printed `agentik TOOL ...` where no door reaches the suite too, so pasted it is not found; sc4's `_tool_line` gives the tool's file there | read, not run | 2026-11-14, su2-read phase 2 |
 
-## From packet in4-inbox (review 1)
+## From packet rp6-verb (review 1 and build 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n162 | S4 | `plugins/suite` `tools.py` `run_all` | a read runs in the person's cwd, so a tool that writes to its cwd writes in a checkout: `run_all` starts each job with no `cwd`, and `status` shares it; give the reads a neutral cwd | in4 review 1 F6: from cwd `T/pear-hq` a stub's `./WRITTEN-BY-TOOL` lands in the checkout | 2026-11-14, in4-inbox review 1 |
-| n163 | S4 | `plugins/suite` `tools.py` `run_all` | SIGTERM or SIGHUP leaves a hung read running past the wall: `run_all` cleans up on BaseException alone; `status` shares it, and with in4's fix `status` and `inbox` map both signals to `status.Signalled`, `config` and `doctor` not | in4 review 1 F7: exit -15, the stub at ppid 1 | 2026-11-14, in4-inbox review 1 |
-| n164 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |
+| n162 | S4 | `plugins/suite` `issue.py` `_read`, `_new`, `_send` | the drafts path is printed raw: `new --json`'s and the bare read's `path`, and `--web`'s `The draft:` line, so `XDG_STATE_HOME`, and under the real home the login, reach stdout; print `plan.shown` or the id alone, and let the skill take the id | review 1's F7, probe D | 2026-11-14, rp6-verb review 1 |
+| n163 | S4 | `plugins/suite` `scrub.py` (a) | a login inside a longer word is left in the draft, though design/22 §8 item 2 names the case; whole-word matching spares a plain-word login inside a common word, so which rule holds is the coordinator's call | review 1's F9, a lead against rp2's rule | 2026-11-14, rp6-verb review 1 |
+| n164 | S4 | `plugins/suite` `scrub.py` (b) | `</details>` in the person's words is scrubbed as a one-segment path and drawn `<<path-1>>`; nothing leaks or goes live, an over-scrub of rp2's one-segment rule | review 1's F10 | 2026-11-14, rp6-verb review 1 |
+| n165 | S4 | `tests/test_rp6_issue.py` | three files are opened and never closed (lines 213, 288, 348), a ResourceWarning each under `-W` | review 1's observations | 2026-11-14, rp6-verb review 1 |
+| n167 | S4 | `plugins/suite` `gather.py` `_past_edge` | a one-line window over 64 KiB drops its first 1,024 bytes and the word there; a secret with spaces in it longer than that, straddling the window's start, would keep its tail | read in build 2 | 2026-11-14, rp6-verb build 2 |
+
+## From packet in4-inbox (review 1 and phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n168 | S4 | `plugins/suite` `tools.py` `run_all` | a read runs in the person's cwd, so a tool that writes to its cwd writes in a checkout: `run_all` starts each job with no `cwd`, and `status` shares it; give the reads a neutral cwd | in4 review 1 F6: from cwd `T/pear-hq` a stub's `./WRITTEN-BY-TOOL` lands in the checkout | 2026-11-14, in4-inbox review 1 |
+| n169 | S4 | `plugins/suite` `tools.py` `run_all` | SIGTERM or SIGHUP leaves a hung read running past the wall: `run_all` cleans up on BaseException alone; `status` shares it, and with in4's fix `status` and `inbox` map both signals to `status.Signalled`, `config` and `doctor` not | in4 review 1 F7: exit -15, the stub at ppid 1 | 2026-11-14, in4-inbox review 1 |
+| n170 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |

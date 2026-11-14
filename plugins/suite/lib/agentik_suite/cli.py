@@ -10,14 +10,17 @@ under a prefix's bin (install.py), and doctor, the machine checked in one read (
 Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and install-cli, the verbs
 that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
 --all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
-install-cli takes --prefix DIR. Those three are the only flags with a value. stdout carries the
-answer alone; stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage
-or a failed precondition, 3 not installed (a plugin's name with no command here). Nothing here
-loops; setup asks once on a terminal before its first command. config writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache and starts each tool's status
-reads and ps, each under its wall, and --check starts ps at most; setup starts the plan's commands
-and writes what they write and its journal; install-cli writes under its prefix; doctor writes
-nothing itself, and starts each listed tool's own doctor.
+install-cli takes --prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit,
+--output, --expected, --as and --draft, each with a value. Those nine are the only flags with a
+value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said
+no or a step failed, 2 usage or a failed precondition, 3 not installed (a plugin's name with no
+command here). Nothing here loops; setup asks once on a terminal before its first command. config
+writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache
+and starts each tool's status reads and ps, each under its wall, and --check starts ps at most;
+setup starts the plan's commands and writes what they write and its journal; install-cli writes
+under its prefix; doctor writes nothing itself, and starts each listed tool's own doctor; issue
+drafts a report of a problem under ${XDG_STATE_HOME:-~/.local/state}/agentik-suite/issues/ and
+files it only when a person types send on the terminal device (issue.py).
 """
 import difflib
 import os
@@ -27,24 +30,31 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, inbox, install, plan, prog, status, term, tools
+from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools
 
-VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor", "inbox")
-WRITES = ("setup", "install-cli")
+VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
+WRITES = ("setup", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
+ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
+               ("--not-a-duplicate", None, "not_a_duplicate"))
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
 VERB_FLAGS["inbox"] = STATUS_FLAGS
 VERB_FLAGS["doctor"] = DOCTOR_FLAGS
+VERB_FLAGS["issue"] = WRITE_FLAGS + ISSUE_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
-               "--prefix": ("prefix", "install-cli")}
+               "--prefix": ("prefix", "install-cli"),
+               "--ran": ("ran", "issue"), "--exit": ("exit", "issue"), "--output": ("output", "issue"),
+               "--expected": ("expected", "issue"), "--as": ("as_login", "issue"),
+               "--draft": ("draft", "issue")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
+             + ISSUE_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
 SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
@@ -55,7 +65,7 @@ STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
-         ("install", ("install-cli",)))
+         ("install", ("install-cli",)), ("issue", ("issue",)))
 
 
 class Usage(Exception):
@@ -127,7 +137,7 @@ def _flag_fault(opts, words, verb):
     """The first flag `_dispatch` refuses for `verb`, past the parse, or None."""
     if opts["version"] and (words or opts["help"]):
         return "--version"
-    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS:
+    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + ISSUE_FLAGS:
         if opts[key] and (long, short, key) not in VERB_FLAGS.get(verb, ()):
             return long
     for flag, (key, owner) in VALUE_FLAGS.items():
@@ -138,7 +148,7 @@ def _flag_fault(opts, words, verb):
 
 def _takes(verb, o, nouns):
     """True where `verb` takes these flags and words: each verb's refusals that read no file, in
-    the order the verb raises them (cli.py, config.py, install.py, status.py)."""
+    the order the verb raises them (cli.py, config.py, install.py, status.py, issue.py)."""
     if verb == "help":
         return len(nouns) <= 1 and all(n in VERBS for n in nouns)
     if verb in ("version", "doctor"):
@@ -151,6 +161,8 @@ def _takes(verb, o, nouns):
         return not (nouns and o["check"])
     if verb == "inbox":  # a number and --check are two answers (row in4-inbox R2)
         return not (o["check"] and any(inbox.number(n) for n in nouns))
+    if verb == "issue":
+        return issue.takes(o, nouns)
     if verb == "describe":
         return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
                               not nouns or (nouns[0] == "config" and len(nouns) <= 2))
@@ -229,13 +241,16 @@ class Command:
         and it does no more than the typed line asked; else the help line of its verb. A line
         is not offered that the suite refuses, that holds a flag answering a question for the
         person, that holds more flags than the person typed, that would write (a verb that
-        writes is offered with --dry-run alone), or that the door it starts with refuses (sc4
-        review 1)."""
+        writes is offered with --dry-run alone; of `issue`, only a word that reads, since none
+        but `send` keeps --dry-run and `send` is never offered: rp6 phase 2), or that the door
+        it starts with refuses (sc4 review 1)."""
         opts, words = _parse(line)[:2]
         verb = words[0] if words and words[0] in VERBS else self.verb
         flags = sum(1 for w in line if w.startswith("-") and w != "-")
         typed = sum(1 for w in self.argv if w.startswith("-") and w not in SWITCHES + ("-",))
         writes = verb in WRITES and not opts["dry_run"] and not opts["help"]
+        if verb == "issue" and not opts["help"]:
+            writes = not issue.reads(words[1:])
         door = prog.form(self.env, self.tool)[0] != "typed"
         if refused(line) or set(line) & set(SKIPS) or flags > typed or writes or \
                 door and not _door_takes(line):
@@ -528,6 +543,11 @@ class Command:
 
     def do_inbox(self, nouns):
         return inbox.do_inbox(self, nouns)
+
+    # ---- issue ----------------------------------------------------------------------------
+
+    def do_issue(self, nouns):
+        return issue.do_issue(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):
