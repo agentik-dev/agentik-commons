@@ -59,3 +59,17 @@ The drafts folder, `sent.json`, the refusal of a second send, `--not-a-duplicate
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, the private hygiene list, a relay ledger. The report: head sha, the gate's ids and exits, acceptance 1 to 12 at the pin and now.
+
+## 7. The fix of review 2
+
+The coordinator's ruling of 2026-11-13 on review 2, at `3bbcce2`: a small fix, each part behind a test seen red there. R1-F1, R1-F4 and R1-F5 held and stay as they are.
+
+- R2-F1, review 1's R1-F2 not yet met. A line written every 0.35 s or slower never reached the 3 s bound, so a blind stream answered each question. Now the answer to a question is refused, exit 2, nothing filed, whenever the wait after that question is drawn drops any byte: `err.issue.send.early`, one line that says input came before the question could be read and to run it again. The bound goes; a byte right after the word stays `err.issue.send.flood`.
+- What this cannot tell apart: a writer that waits for each question to show and then answers is a person to this verb, since the screen is all it can watch. Refusing a session's own call is the guard's, another row (rp7).
+- R2-F2, R1-F3's ruling unmet on a narrow or short screen. The page's question counts its own rows against the page, and the cursor's row too: a page holds `rows - 1 - h` rows of the draft, `h` the tallest of the three questions at that width. The size is read again at each page. A terminal with no room for one row of the draft beside the question, or for a fixed line of the screen, is refused, exit 2, before anything of the draft is drawn: `err.issue.send.small`.
+- To `NICE_TO_HAVE.md` as rows, not built: review 2's R2-F3 (the line-11 walk misses an alias of `subprocess.Popen` and a bytes argv), the blank characters outside item 4(e)'s list that still pass, the `nfkc` kind against a form's own fixed lines, and an approval made by a direct call in the same process.
+
+| # | line |
+|---|---|
+| 13 | a `send` line every 0.35, 0.5 and 1.0 s from before the screen, on a short draft and on one paged across several screens, and a 5 ms flood that stops at 2.6 s followed by one `send` at 3.3 s: each `err.issue.send.early`, exit 2, no create; a person's `send` written well after the question shows and the input is quiet: approved, one create |
+| 14 | at 20x10, and after a resize from 80x24 to 80x10 at the first question, no page writes more rows than the screen has before a key is asked; at 80x1, 80x2, 1x12 and 2x12 `err.issue.send.small`, exit 2, before the head line is drawn |
