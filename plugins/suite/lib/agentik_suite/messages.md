@@ -10,7 +10,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.flags`: flags
 - `help.path`: agentik commands on PATH
 - `help.path.none`: No agentik command is on PATH yet.
-- `hint.help`: next: `{setup}` --dry-run shows what setup would do on this machine.
+- `hint.help`: next: `{setup}`
+- `hint.help.done`: next: `{doctor}`
 - `hint.verb`: next: `{help}` lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
@@ -36,6 +37,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.yes`: Run setup's lines without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
+- `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Check each watcher the user file declares, and print a line for each one not running.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
@@ -168,6 +170,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.add`: add to your shell profile: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
+- `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
 - `setup.market.ok`: known to Claude Code
@@ -200,7 +203,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
-- `hint.setup.todo`: next: run each line marked would run above, in order, then `{setup}` --dry-run again.
+- `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
@@ -243,25 +246,73 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Doctor
 
-- `doctor.title`: `{tool}` doctor: each check of this machine, by tool.
-- `doctor.group`: `{name}`
-- `doctor.run`: run: `{command}`
+- `doctor.group.ok`: `{count}` checks
+- `doctor.group.one`: 1 check
+- `doctor.part.failed`: `{n}` failed
+- `doctor.part.warned`: `{n}` to look at
+- `doctor.part.ok`: `{n}` ok
+- `doctor.part.waiting`: (`{n}` waiting on the rest)
+- `doctor.fold`: `{fact}`: `{subjects}`
+- `doctor.total`: `{failed}` failed, `{warned}` to look at, `{ok}` ok.
+- `doctor.done`: This machine is set up.
+- `doctor.fix`: fix: `{command}`
+- `doctor.slash`: in Claude Code: `{command}`
 - `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
-- `doctor.door.behind`: `{path}` is at version `{have}`, older than `{want}`, so it hands this command no verb
+- `doctor.door.behind`: `{path}` is at `{have}`, too old to pass a verb to the suite
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
-- `doctor.door.none`: no agentik door is on PATH
+- `doctor.door.none`: no agentik command on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.settings.ok`: `{path}` reads
 - `doctor.settings.none`: no user file at `{path}`, so the defaults hold
 - `doctor.settings.unchecked`: watcher `{name}` in `{path}` needs both match and start, so status --check skips it
-- `doctor.tool.ok`: its doctor exits 0
-- `doctor.tool.silent`: its doctor exits `{code}` and prints nothing
+- `doctor.plan.path`: not on PATH
+- `doctor.plan.market`: not known to Claude Code
+- `doctor.plan.plugin`: not installed
+- `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
+- `doctor.plan.broken`: installed at `{version}`, with its folder gone
+- `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.unread`: holds no version line
+- `doctor.plan.placed`: not placed
+- `doctor.tool.passed`: its doctor passed
+- `doctor.tool.failed`: its doctor failed
+- `doctor.tool.silent`: its doctor failed, and printed nothing
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
-- `doctor.tool.nocmd`: the plugin ships no command on PATH, so it has no doctor to run
-- `hint.doctor.done`: next: nothing to do, since this machine is set up.
-- `hint.doctor.setup`: next: run `{setup}`, then `{doctor}` again.
-- `hint.doctor.fail`: next: run each line marked run above, then `{doctor}` again.
-- `hint.doctor.warn`: next: nothing failed. The warn rows above say what to look at.
+- `doctor.tool.nocmd`: no command on PATH, so no doctor
+- `hint.doctor.next`: next: `{command}`
+
+## Issue
+
+- `issue.screen.head`: The issue as it would be filed, byte for byte; its first line is the title.
+- `issue.screen.text`: `{text}`
+- `issue.screen.end`: The issue ends above this line.
+- `issue.screen.repo`: It goes to github.com/`{repo}` as a new issue.
+- `issue.screen.login`: It is filed as `{login}`, and that login shows on the issue as its author.
+- `issue.screen.closed`: A closed issue already holds this failure: `{url}`
+- `issue.screen.failed`: The search for an earlier issue failed, so none is known.
+- `issue.screen.more`: Press Enter for the next lines of the issue.
+- `issue.screen.within`: Press Enter for the rest of this line of the issue.
+- `issue.send.ask`: Type send and press Enter to file it; any other answer keeps the draft.
+- `issue.send.kept`: Nothing was filed, and the draft is kept as it was.
+- `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
+- `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
+- `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
+- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run it from your own terminal.
+- `err.issue.send.inside`: send files nothing from inside Claude Code. Run it from your own terminal.
+- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run it from your own terminal.
+- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run it from your own terminal.
+- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then name that login.
+- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
+- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
+- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run send again to see it.
+- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and send again, or file the issue by the browser.
+- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
+- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run send again and type the word once.
+- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run send again and answer once the question shows.
+- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then send again.
+- `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.

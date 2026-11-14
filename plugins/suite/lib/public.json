@@ -1,0 +1,11 @@
+{
+  "marketplace": "agentik",
+  "tools": {
+    "session": "agentik-dev/agentik-session",
+    "decisions": "agentik-dev/agentik-decisions",
+    "respeak": "agentik-dev/agentik-respeak",
+    "relay": "agentik-dev/agentik-relay",
+    "agents": "agentik-dev/agentik-agents",
+    "suite": "agentik-dev/agentik-commons"
+  }
+}

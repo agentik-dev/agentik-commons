@@ -6,73 +6,17 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n109 | S4 | `plugins/suite` `cli.py` `do_version` | with no manifest, `version`'s `next:` is `claude plugin install suite@agentik`, the suite's one remedy that starts `claude` and installs; sc11 may weigh it against `agentik setup suite` | review 2's F5, a copy with `plugin.json` removed | 2026-11-13, sc4 review 2 |
-| n108 | S4 | `plugins/suite` `term.py` `_ordered` | U+061C, U+200E, U+200F and the Cf characters (U+200B, U+2060, U+FEFF, U+00AD, U+180E, U+206A) reach the cause and `next:` lines; settled where this row's `_ordered` and su2-screen's `clean` meet | review 2's F3 | 2026-11-13, sc4 review 2 |
-| n107 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
-| n106 | S4 | `plugins/suite` `cli.py` `_bad_flag` | a value flag typed with no value (`status --ps`) reads `--ps is not a flag of status`, which is false; a cause of its own, `--ps needs a value`, would say it | read in `_parse`, not run | 2026-11-13, sc4 build 1 |
-| n105 | S4 | `plugins/suite` `term.py` `error` | a typed word in a cause is cleaned of control bytes but not quoted, so `agentik 'a b'` reads `a b is not a verb or a tool`; the `next:` line is quoted by `shlex` | read, not run | 2026-11-13, sc4 build 1 |
 | n104 | S4 | `plugins/suite` `config.py`, `scripts/voice` | `describe sources T extra` names `describe` alone; a TOOL of `""` or `suite` reads `absent`; voice says `line 0` for an unreadable user file | notes 9, 10 | 2026-11-13, fk1 review 1 |
 | n103 | S4 | `plugins/suite` `sources.py` `entries` | the v1 dict shape of `installed_plugins.json` reads `absent`, as `plan.py` does | note 8 | 2026-11-13, fk1 review 1 |
 | n102 | S4 | `plugins/suite` `sources.py` `read` | an entry whose folder is gone stands `found`, where `plan.py` reads it not installed | note 7, read only | 2026-11-13, fk1 review 1 |
 | n101 | S4 | `plugins/suite` `sources.py` `mirror` | an `agentik` source that is no mapping reads `mirror` false; R8 may mean true | note 6 | 2026-11-13, fk1 review 1 |
 | n100 | S4 | `plugins/suite` `sources.py` `_runs` | an unset or empty PATH reads `.`, so a stray `./agentik-T` runs as `placed`; R6 copies `doctor.first_door` | note 5, p4 S7 | 2026-11-13, fk1 review 1 |
 | n99 | S4 | `plugins/suite` `sources.py` `whose` | a `projectPath` of `.` or `""` is read against the process cwd, so it is the repo's from any folder | note 4, p4 S8 | 2026-11-13, fk1 review 1 |
-| n58 | S4 | `scripts/door-probe` `rules` | a conditional line (`ifeq`, `else`, `endif`) inside a recipe ends the rule, so a `+` line after it in the same recipe is not read and `make -n` would run it; read a conditional inside a reached rule as `unread` | read only, not reproduced | 2026-11-13, ak2 review 3 |
-| n57 | S4 | `plugins/suite` `status.py` `matches` | `env -C DIR prog` and `env -S "..."` are read as plain flags, so `-C`'s folder or `-S`'s string is taken for the program and such a watcher reads missing: a false alarm, never a false running | `status.matches` by hand: `env -C /tmp lampd watch` reads no match, its head the folder | 2026-11-13, su1 review 2 |
-| n56 | S4 | `plugins/suite` `status.py` `beat` | an `at` in milliseconds counts as a beat in the future, so a stale one reads fresh for ever (running) and a missing watcher prints a `since` in year 55840; both follow R6 and R7, and a bound on a beat's future skew would catch it | review 1's L8 | 2026-11-13, su1 review 1 |
-| n55 | S4 | `plugins/suite` `cli.py` | `status --check --ps` with no value prints `--ps is not a flag here`, which misleads; `--ps --json` takes `--json` as the file's name (the next word is always the value) | review 1's L7 | 2026-11-13, su1 review 1 |
-| n54 | S4 | `plugins/suite` `status.py` `_names` | a head that is a link is resolved only when it is absolute; ps shows argv[0] as given, so a bare `oldlamp` linked to `lampd` reads missing | review 1's L4 | 2026-11-13, su1 review 1 |
-| n53 | S4 | `plugins/suite` `status.py` `matches` | the program is compared by basename, so `match: /opt/bin/lampd watch` finds another folder's `lampd watch`; a `match` whose program is itself a wrapper (`python3 -m lampd`) never matches and always reads missing | review 1's L3 | 2026-11-13, su1 review 1 |
-| n45 | S4 | `plugins/suite` `tools.py` `run_all` | `os.pipe()` sits outside the `try`, so more tools than the process has file descriptors for ends `config` in a traceback; give that tool the `unreadable` row | review 2's lead | 2026-11-13, ak1b review 2 |
-| n44 | S4 | `plugins/suite` `tools.py` `run_all` | the group is killed after `proc.poll()` has reaped the process, so where the group is empty its number is free for a moment before the kill; read the exit with `os.waitid(..., WNOWAIT)` and reap after the kill | review 2's lead | 2026-11-13, ak1b review 2 |
-| n43 | S4 | `plugins/suite` `messages.md` | the rest of ak1b review 1's words table, for the voice pass: `config.later` as `at the next session`; the `ok` mark on a changed row reads as fine, `note` would read truer; the list's read cell widens the settings column | review 1's words table; build 2's list | 2026-11-13, ak1b review 1 |
-| n42 | S4 | `plugins/suite` `fallback.json` | the table's lines (R7, word for word) name `agentik <tool> ...`, which runs only once the door lands; until then `config <tool>` hints at a command that does not exist yet. Ordered after ak2 | review 1's leads | 2026-11-13, ak1b review 1 |
-| n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
-| n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
-
-## From packet ak1a (the suite's command, review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n25 | S4 | `plugins/suite` `cli.py` | `--json` errors: a bad flag with no verb answers `schema: agentik.help/1`, an unknown verb `agentik.usage/1`; `stup --json` gives the remedy `agentik-suite setup`, which itself exits 2 | review 1's L4 | 2026-11-13, ak1a review r1 |
-| n26 | S4 | `plugins/suite` `cli.py` | argument edges: `version --version` and `--version --help` are refused as "not a flag here"; `-qh` is refused; an empty argument prints `FAIL   is not a verb`; a 5000-character word is echoed whole | review 1's L5 | 2026-11-13, ak1a review r1 |
-| n27 | S4 | `plugins/suite` `cli.py`, `plan.py` | paths: an empty PATH lists the cwd's `agentik-*` as `./agentik-x`; step 6 compares by `normpath`, so a symlinked `~/.local/bin` on PATH reads "not on PATH"; HOME unset reads each path from the cwd; a folder at a launcher's place reads "not placed" | review 1's L6 | 2026-11-13, ak1a review r1 |
-| n28 | S4 | `plugins/suite` `plan.py` | corrupt installs, what fix round 1 left: an unreadable manifest plans "no plugin, since the manifest lists none"; a manifest's dependency names are not held to the name rule (`a b`, `x;y` reach a command, quoted); with no dependencies the plan shows five step numbers, not seven | review 1's L7 | 2026-11-13, ak1a review r1 |
-| n29 | S4 | `plugins/suite` `cli.py`, `plan.py` | small truths: `help` marks each PATH row `ok` though nothing was checked; step 1's `python3` row is the running interpreter, not a PATH lookup; step 4's waiting row names no command | review 1's L8 | 2026-11-13, ak1a review r1 |
-| n30 | S4 | `plugins/suite` `term.py` | a row with something to do shows as `note` (`·`), which reads as information, not as a thing to do; the four state words are the design's, so a change is the design's to make | review 1's note under L9 | 2026-11-13, ak1a review r1 |
-| n32 | S4 | `plugins/suite` `plan.py` | a launcher left by an uninstalled plugin: step 4 says `not placed; step 3 installs the plugin first`, while steps 5 and 7 print `run:` lines on that same file | the review's states; untrue at 3b7cc56 too | 2026-11-13, ak1a review 2 L3 |
-| n33 | S4 | `plugins/suite` `term.py` | a control character in an `installPath`: R6 strips a tab, so its `run:` line names no file (`sh -c` exits 127); U+202E passes, being neither C0 nor C1 | the review's stream probe | 2026-11-13, ak1a review 2 L5 |
-| n34 | S4 | `plugins/suite` `catalogue.py`, `term.py` | a capital in a catalogue id stops every verb with `cannot read .../messages.md`, exit 2, though the file is readable and malformed; under `--json` the line is on stderr and stdout is empty; an empty catalogue is a `KeyError` traceback | the review's catalogue probe | 2026-11-13, ak1a review 2 L6 |
-| n35 | S4 | `plugins/suite` `cli.py` | an unparseable manifest: `--version` is one line, exit 2, but `help` prints `0.0.0-unknown` and `setup --dry-run` plans no plugin; R9 covers the version verb only | the review's manifest probe | 2026-11-13, ak1a review 2 L7 |
-| n36 | S4 | `plugins/suite` `term.py` | at 40 columns each moved detail starts at column 40 of 40, so every row is followed by a line that looks blank; nothing is cut | a pty 40 columns wide, fresh home | 2026-11-13, ak1a review 2 L8 |
-| n37 | S4 | `plugins/suite` `plan.py` | a placed launcher with mode 0644 reads `ok` at step 4, and its doctor line cannot run; read the same at 3b7cc56 | the review's states | 2026-11-13, ak1a review 2 L9 |
-| n38 | S4 | `plugins/suite` `messages.md` | the table of words' rest: `hint.setup.done` as `setup is done`, `hint.setup.todo` and `hint.setup.blocked` with `run` before the command, `err.setup.plan_only` result first, and term's missing-catalogue line naming the reinstall command | review 2's table of words; its two step 5 and rest lines are built (M3) | 2026-11-13, ak1a review 2 |
-
-## From packet ak2 (the door's writers)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n48 | S4 | `scripts/door-probe` `main` | `--code ""` is taken as no flag and falls back to `AGENTIK_CODE` or the folder above the main checkout, where exit 2 for usage was expected | read only, not run | 2026-11-13, ak2 review 1 L1 |
-| n49 | S4 | `scripts/door-probe` `make_lines` | a `$(shell ...)` in a clone's makefile runs when `make -n` reads it, and GNU make remakes an included makefile even under `-n`; the brief's `make -n` design allows both, so a writer's makefile can still run a command during the scan | read only; neither reproduced alone | 2026-11-13, ak2 review 1 L2 |
-| n50 | S4 | `plugins/suite` `tools.py` | `agentik-suite <typo>` now reads `known_marketplaces.json`, the marketplace file and `installed_plugins.json` before it answers; a FIFO at one of those paths would hang the answer for an unknown word | read only, not reproduced | 2026-11-13, ak2 review 1 L4 |
-| n51 | S4 | `scripts/door-probe` `cases` | for a careful writer that never overwrites an existing door, `race` reads `1 of 1 rounds ended below 0.9.0`, the expected note, which a reader could take for a fault | the probe's run over made-up checkouts | 2026-11-13, ak2 review 1 L7 |
-| n52 | S4 | `tests/test_agentik_suite.py` `WallTest` | `test_f2_twenty_slow_tools_add_nothing_past_the_wall` holds a 3.0 s bound that a loaded machine misses by a few ms: it read 3.005 s with three other gate jobs running, and the same commit passed on the next run | gate job `20261113-045824-1435` exit 2, then `20261113-050930-1439` exit 0, both on one commit | 2026-11-13, ak2 build 2 |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n59 | S4 | `scripts/agentik_install.py` `_ascii` | control bytes below 0x20 and 0x7f pass as ASCII, so a VERSION holding an escape sequence reaches the terminal raw through the vendored `install_cli`; the suite verb strips it in `term`; escape them too | ak2b review 1's R1-F3 | 2026-11-13, ak2b review 1 |
-| n60 | S4 | `scripts/agentik_install.py` `install` | `install-cli --dry-run --prefix P` says it would place the command where the real run fails (`P` a file: Not a directory); check that the nearest folder above `P/bin` is one it can write to | ak2b review 1's R1-F7 | 2026-11-13, ak2b review 1 |
-| n61 | S4 | `plugins/suite` `plan.py` step 5 | in a frozen tree the step's command runs the tree's runner bare, without `-I` or the bytecode prefix, so it writes `~/Library/Caches/com.apple.python` and reads PYTHONPATH; name `<prefix>/bin/<tool>` when that launcher's tree is this lib | ak2b review 1's R1-F9 | 2026-11-13, ak2b review 1 |
-| n62 | S4 | `scripts/agentik_install.py` `on_path` | a PATH entry that reaches the prefix's `bin` through a link reads off PATH, so the `export PATH` hint shows when it is not needed; compare `realpath` too | ak2b review 1's R1-F10 | 2026-11-13, ak2b review 1 |
-| n63 | S4 | `scripts/agentik_install.py` `install` | a second run replaces the launcher with the same bytes, a new inode and mtime; skip the replace when the bytes are equal | ak2b review 1's R1-F11: a snapshot diff of two runs | 2026-11-13, ak2b review 1 |
-| n64 | S4 | `plugins/suite` `cli.py` help | `help install-cli` has no `--prefix` row and `flag.prefix` sits unused in the catalogue; a `VERB_FLAGS` row for it, or help that lists the value flags | ak2b review 1's R1-F13 | 2026-11-13, ak2b review 1 |
-| n65 | S4 | `plugins/suite` `install.py` | the prune's line is the module's raw English, not a catalogue line, and `--json` has no `pruned` key, so a failed prune is lost there | ak2b review 1's R1-F14 | 2026-11-13, ak2b review 1 |
-| n66 | S4 | `plugins/suite` `cli.py` `parse` | `install-cli --prefix=-x` is refused as no folder though the `=` form gives the value plainly; test the leading `-` only when the value came from the next word | ak2b review 2's N1; `--prefix ./-x` works | 2026-11-13, ak2b review 2 |
-| n67 | S4 | `plugins/suite` `cli.py` | `setup --dry-run --prefix` answers `--prefix is not a flag here`, true and unhelpful beside install-cli's own line; rides the `help install-cli` row above | ak2b review 2's N2 | 2026-11-13, ak2b review 2 |
-| n68 | S4 | `plugins/suite` `apply.py` gate list | a gate line with an inline ` # comment`, another case (`Settings.json`), a folder (`~/.claude/`) or `$HOME/...` does not name the settings file, so setup goes ahead; strip a trailing comment and compare case-insensitively on darwin | ak3-setup review 1's R1-F5; follows R6's wording | 2026-11-13, ak3-setup review 1 |
-| n69 | S4 | `plugins/suite` `apply.py` | a command killed by a signal reads as a negative exit (`exit -9`) in the text and in `--json`; give the signal's name or `128+n` | ak3-setup review 1's R1-F6 | 2026-11-13, ak3-setup review 1 |
 | n70 | S4 | `plugins/suite` `apply.py` `execute` | a command that exits 0 but leaves a child holding stdout is held to the wall (600 s for `claude`) and then reads failed; a daemon that leaves the group lives on; whether the real `claude` does this is not known | ak3-setup review 1's R1-F7, not seen with the real `claude` | 2026-11-13, ak3-setup review 1 |
 | n71 | S4 | `plugins/suite` `apply.py` | no lock: two setups at once each run every command and each claims the other's writes; an exclusive `flock` beside the journal for the run | ak3-setup review 1's R1-F8: two runs, every call twice | 2026-11-13, ak3-setup review 1 |
 | n72 | S4 | `plugins/suite` `apply.py` `--json` | a refusal (`needs_yes`, `gated`, `blocked`, `declined`) prints the error object alone, without `steps`, `ran`, `wrote`, `nothing`, `journal`, which a failed step keeps | ak3-setup review 1's R1-F9; the builder's choice | 2026-11-13, ak3-setup review 1 |
@@ -112,3 +56,90 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n96 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
 | n97 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |
 | n98 | S4 | `scripts/hygiene` `secret` | a lead for rp2: GitLab's `glpat-<body>.01.<suffix>` form counts 1 but the match ends at the first `.`, so a scrub of the match alone leaves the suffix | review 1's N11 | 2026-11-13, rp1 review 1 |
+
+## From packet sc10-doctor-checks (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n105 | S4 | `plugins/suite` `doctor.py` `read_answer` | one malformed field voids a tool's whole answer, so a `fail` check with no `detail` leads to the second round, and a plain `doctor` that exits 0 reads `its doctor passed`: the fail is hidden (as R1 and R2 rule) | review 1's note: probe p2 `eee` | 2026-11-13, sc10 review 1 |
+| n106 | S4 | `plugins/suite` `doctor.py` `read_answer` | the reader is lenient: a check with no `remedy` key is accepted though the contract lists it, and an empty name and detail draw a bare `    FAIL` row | review 1's note: probe p2 `kkk` | 2026-11-13, sc10 review 1 |
+| n107 | S4 | `plugins/suite` `doctor.py` | an answer with an empty `checks` list reads `ok  <tool>  0 checks` | review 1's note: probe p2 `jjj` | 2026-11-13, sc10 review 1 |
+| n108 | S4 | `plugins/suite` `doctor.py` | more than 1 MiB of stdout in round 1 is one start and the pin's `could not start, or printed more than 1 MiB` warn, with no second round (R2 rules this) | review 1's note | 2026-11-13, sc10 review 1 |
+| n109 | S4 | `plugins/suite` `term.py` `clean` | `clean` strips C0, DEL and C1 only: U+202E (right-to-left override) is drawn raw, and the text left by a stripped escape still shows (`ti]0;PWNEDtle`); `--json` escapes U+202E | review 1's note, on a pipe and a pty | 2026-11-13, sc10 review 1 |
+| n110 | S4 | `plugins/suite` `doctor.py` | a tool's remedy that holds a newline is flattened into one line and printed as given, so `next:` can show a joined command | review 1's note | 2026-11-13, sc10 review 1 |
+| n111 | S4 | `plugins/suite` `term.py` `_cleaned` | `--json` is not a tool's bytes verbatim when they hold control characters: all but `\n` are removed (before sc10) | review 1's note | 2026-11-13, sc10 review 1 |
+| n112 | S4 | `plugins/suite` `doctor.py` `close_command` | a settings fault or a shadow `fail` with no other problem closes on `2 failed, 0 to look at, 18 ok.` and no `next:` line (R8's "else none"); the pin ended on a hint | review 1's note: probe p7 | 2026-11-13, sc10 review 1 |
+| n113 | S4 | `plugins/suite` `doctor.py` `_rows` | failing step-1 rows fold into one row, `FAIL  prereqs  not on PATH: claude, git` (R6 rules this; each subject is still named) | review 1's note | 2026-11-13, sc10 review 1 |
+| n114 | S4 | `plugins/suite` `doctor.py` | when the close is setup (R8 b), a failing tool's own doctor command shows nowhere on the screen; the tool shows only its group line or rows | review 1's note: probe p3 `nodoor` | 2026-11-13, sc10 review 1 |
+| n115 | S4 | `plugins/suite` `doctor.py` `_under` | build 1's lead that `fix: <setup>` can show up to three times under a plan's rows (a failing door's install-cli the close) was not reproduced: in an old-door HOME the plan rows were counted as waiting | review 1's note; build 1's charter | 2026-11-13, sc10 review 1 |
+| n116 | S4 | `plugins/suite` `doctor` | not run by review 1: a real terminal emulator (bytes on a pty only), a HOME or tool path with spaces, a colour pty run at the pin, a door placed by a real `setup` | review 1's note | 2026-11-13, sc10 review 1 |
+| n117 | S4 | `plugins/suite` `messages.md` | `doctor.settings.unchecked` is 79 characters with its slots in, over the 76 of the row's acceptance 9, kept by R9; shorten it when that message is next turned | build 2's charter; acceptance 9's test | 2026-11-13, sc10 phase 2 |
+
+## From packet rp3-gather (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n118 | S4 | `plugins/suite` `doctor.py` details | the doctor's `doctor.tool.*` detail takes the last line of a tool's own doctor output whole, and the `shadow` and `plan` details hold paths; free by R4 and kept by `gather`, so rp2's scrub is their only guard: a line for rp2's or rp6's review | review 1's first note, read | 2026-11-13, rp3 review 1 |
+| n119 | S4 | `gather.py` `_entry` | takes the first install of a key's list, so with several scopes (a project-scoped install first) the version shown may be another folder's; it does not change with the working folder | review 1's note; read, not verified on a real file | 2026-11-13, rp3 review 1 |
+| n120 | S4 | `gather.py` `_launcher` | an unreadable launcher (mode 000) reads None, as an absent one does, not `unreadable`: `read_regular` gives None for both | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
+| n121 | S4 | `gather.py` `_installed` | reads `installed_plugins.json` with no size limit (`read_regular`, limit -1), so a huge file costs memory | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
+| n122 | S4 | `gather.py` `bound` | assumes `map_free`'s `fn` gives text: a None in a row's name, detail or a line raises in `_cut`, and a lone surrogate raises `UnicodeEncodeError`; the join's contract | review 1's note; read, not run | 2026-11-13, rp3 review 1 |
+| n123 | S4 | `gather.py` `facts` | catches `Exception` from `read_doctor`, so a `SystemExit` raised by an in-process doctor passes through; the join's concern | review 1's note; read | 2026-11-13, rp3 review 1 |
+| n124 | S4 | `gather.py` `system` | a release of dots alone (`...`) is kept as it is; only one with no leading digit or dot reads `unreadable`; cosmetic | review 1's note; read | 2026-11-13, rp3 review 1 |
+| n125 | S4 | `gather.py` version patterns | `VERSION` and `CLAUDE` admit up to 36 freely chosen digits (`[0-9]{1,9}` three times and an rc number), a side channel in theory only | review 1's note; read | 2026-11-13, rp3 review 1 |
+| n126 | S4 | commits | each commit's author line carries the account's git identity; the repo's practice, not one slice's | review 1's note | 2026-11-13, rp3 review 1 |
+
+## From packet rp4-form (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n127 | S4 | `plugins/suite` `form.py` `nothing_new` | the known words come from `build`'s bytes, where a cell's pipe is written escaped, so a render quoting a check's detail that holds a pipe misses on a word the draft holds and falls back to the template; read the escape back first | review 1's R1-F4, probe p5 | 2026-11-13, rp4 review 1 |
+| n128 | S4 | `plugins/suite` `form.py` | GitHub's own drawing of the form is not verified: pandoc's GFM stands in; a placeholder inside a code span, a title's `#12` or backticks on GitHub are the look the row owes | review 1's note 1, probe p2 | 2026-11-13, rp4 review 1 |
+| n129 | S4 | `plugins/suite` `form.py` | a bidi control (U+202E) in a value is accepted and drawn inside `<code>`, its reordering of the labels after it in a browser unverified; NUL, ESC and other C0 controls read back, NUL drawn as U+FFFD; their removal is rp2's and rp5's | review 1's note 2 | 2026-11-13, rp4 review 1 |
+| n130 | S4 | `plugins/suite` `form.py` `title` | the title is cut on a code point, not a grapheme: a flag pair is split, a ZWJ sequence left ending in ZWJ, a combining accent dropped from its letter; R5's character edge is met | review 1's note 3, probe p7 | 2026-11-13, rp4 review 1 |
+| n131 | S4 | `plugins/suite` `form.py` `title` | the verb is compared case-sensitively: `title("doctor", "Doctor: failing")` gives `doctor: Doctor: failing` | review 1's note 4 | 2026-11-13, rp4 review 1 |
+| n132 | S4 | `plugins/suite` `form.py` `subject` | digits leave a check's name too, so `py39` and `py312` give one fingerprint (design item 11); no command and no row of the tool gives `check:<tool>::`; a `ran` of spaces gets a check subject while the form writes `(empty)` | review 1's note 5, probe p4 | 2026-11-13, rp4 review 1 |
+| n133 | S4 | `plugins/suite` `form.py` `nothing_new` | by the rule's letter a new sentence's opener (`The`, `It`) misses unless the form holds the word, `e.g.` misses, a possessive of a hyphened word misses; a lowercase name, a ZWJ-joined one or a backslash path passes and `added` lists it | review 1's note 6, probe p5 | 2026-11-13, rp4 review 1 |
+| n134 | S4 | `plugins/suite` `form.py` `fit` | a fit that drops every row (all `warn`) leaves an empty table under a summary that still counts them; a form of exactly 4,096 bytes stays, as `send`'s ceiling reads it | review 1's note 7, probe p6 | 2026-11-13, rp4 review 1 |
+| n135 | S4 | `plugins/suite` `form.py` `draft` | a plugin's version is not normalised: `1.2` gives fields that `build` refuses (`field plugins`); gather does not say it normalises plugin versions, so the join should check | review 1's note 8 | 2026-11-13, rp4 review 1 |
+| n136 | S4 | `plugins/suite` `form.py` `parse` | every name of the Versions line, the Plugins line and the rows is checked against `tools`, so `send` passes the public tools with `suite` and `door`; the first build's decide line | review 1's note 9 | 2026-11-13, rp4 review 1 |
+| n137 | S4 | `plugins/suite` `form.py` `put` | `put` takes `rows.01.name` as row 1, a key `free` never lists | review 1's note 10 | 2026-11-13, rp4 review 1 |
+
+## From packet rp2-scrub (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n138 | S4 | `scripts/hygiene` `lan`, `email` | quadratic on a long dashed run with a `.`: 0.55 s at 10 KB, 13.1 s at 40 KB; nearly every text holds a `.`, so the scrub's gate rarely skips `lan` | review 1's notes; 0.60 s at 10 KB on the fix | 2026-11-13, rp2 review 1 |
+| n139 | S4 | `plugins/suite` `scrub.py` `_reach` | counts quotes from the line's start for each path: one line of 10,000 paths takes 9.3 s, 66,000 paths on their own lines 1.9 s | review 1's notes | 2026-11-13, rp2 review 1 |
+| n140 | S4 | `plugins/suite` `scrub.py` `_assign` | a password glued to its flag (`-p<value>`, as mysql takes it) is no flag, so its value stays | review 1's T3 | 2026-11-13, rp2 review 1 |
+| n141 | S4 | `plugins/suite` `scrub.py` `_emails` | an email whose domain runs on into more text holding a digit keeps its local part; found only in a fuzz of glued pieces | review 1's notes, its fuzz | 2026-11-13, rp2 review 1 |
+| n142 | S4 | `plugins/suite` `scrub.py` `strike` | `strike` and `spans` assume a text with no plane-15 private-use character: `scrub` cleans first, but `strike` on a hand-edited draft holding one indexes past its seals | review 1's notes, not run | 2026-11-13, rp2 review 1 |
+| n143 | S4 | rp4 the form | GitHub renders an unfenced `<path-1>` as an unknown HTML tag, so a placeholder may vanish on the page | review 1's notes, not verified | 2026-11-13, rp2 review 1 |
+
+## From packet rp2-scrub (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n144 | S4 | `plugins/suite` `scrub.py` `MAC` | six parts of one or two hex digits joined by colons are a MAC now: `a:b:c:d:e:f flags` and `ratio 1:2:3:4:5:6` give `<address-1>` | review 2's own10 M10 | 2026-11-13, rp2 review 2 |
+| n145 | S4 | `plugins/suite` `scrub.py` `MAC` | a dotted date or build number of three groups of four hex digits, `build 2024.1113.1230`, is the dotted MAC and gives `<address-1>` | review 2's own10 M11 | 2026-11-13, rp2 review 2 |
+| n146 | S4 | `plugins/suite` `scrub.py` `_emails` | the walk back to a colon takes prose and half a time: `12:30:45 INFO mail sent to <x>` gives `12:30:<name-1> <email-1>` | review 2's own10 N4, N5 | 2026-11-13, rp2 review 2 |
+| n147 | S4 | `plugins/suite` `scrub.py` `_auth` | a plain word after an `authorization:` name is taken: `authorization: denied` gives `authorization: <secret>`, and the rest of the line goes with it | review 2's own10 Z4 | 2026-11-13, rp2 review 2 |
+
+## From packet rp5-send (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n148 | S4 | `tests/test_rp5_send.py` `DoorTest` | the line-11 walk matches a starter by its name and reads `str` constants alone, so a second create through an alias (`_P = subprocess.Popen`) or a bytes argv passes; flag a name bound to a starter, read `bytes` as words | review 2's R2-F3, two mutants `OK` | 2026-11-13, rp5 review 2 |
+| n149 | S4 | `plugins/suite` `send.py` `BLANK` | outside item 4(e)'s list, these pass `check` and the screen and are filed: U+16FE4, U+1D159, U+FFFC, a combining flood, U+0488, a lone U+1F3FB, trailing spaces; a run of U+16FE4 could carry a count unseen | review 2's notes, `probes/p1.py` | 2026-11-13, rp5 review 2 |
+| n150 | S4 | `plugins/suite` `send.py` `unseen` | the `nfkc` kind refuses every line NFKC changes, `…`, `™`, `µ` and `½` among them; if the form puts one in a fixed line or a title, every draft is refused. Measured at phase 2: the form's fixed lines hold none, and a clean draft of each public tool checks clean | review 2's notes | 2026-11-13, rp5 review 2 |
+| n151 | S4 | `plugins/suite` `send.py` `_issue` | an approval can still be made by a direct call in the same process, `send._issue(data, repo, login)`, with no screen; Python has no private names | review 2's notes | 2026-11-13, rp5 review 2 |
+
+## From packet sc4-errors (build 1 and review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n152 | S4 | `plugins/suite` `term.py` `error` | a typed word in a cause is cleaned of control bytes but not quoted, so `agentik 'a b'` reads `a b is not a verb or a tool`; the `next:` line is quoted by `shlex` | read, not run | 2026-11-13, sc4 build 1 |
+| n153 | S4 | `plugins/suite` `cli.py` `_bad_flag` | a value flag typed with no value (`status --ps`) reads `--ps is not a flag of status`, which is false; a cause of its own, `--ps needs a value`, would say it | read in `_parse`, not run | 2026-11-13, sc4 build 1 |
+| n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
+| n155 | S4 | `plugins/suite` `term.py` `_ordered` | U+061C, U+200E, U+200F and the Cf characters (U+200B, U+2060, U+FEFF, U+00AD, U+180E, U+206A) reach the cause and `next:` lines; settled where this row's `_ordered` and su2-screen's `clean` meet | review 2's F3 | 2026-11-13, sc4 review 2 |
+| n156 | S4 | `plugins/suite` `cli.py` `do_version` | with no manifest, `version`'s `next:` is `claude plugin install suite@agentik`, the suite's one remedy that starts `claude` and installs; sc11 may weigh it against `agentik setup suite` | review 2's F5, a copy with `plugin.json` removed | 2026-11-13, sc4 review 2 |

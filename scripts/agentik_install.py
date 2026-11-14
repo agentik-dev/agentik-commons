@@ -4,8 +4,8 @@ Canonical in agentik-commons; scripts/sync places it at a plugin's lib/agentik_i
 byte-identical in every tool, under vendored.sha256. What differs by tool is read from
 lib/agentik-tool.conf beside it, the one per-tool place; see names(). It freezes the code this
 module runs from, whichever plugin or frozen tree that is, under
-<prefix>/share/<tool>/<content hash>/, writes <prefix>/bin/<tool>, its old name's link when the
-tool has one and the `agentik` door, each by a temp file and a rename, and prunes. Stdlib, 3.9, and
+<prefix>/share/<tool>/<content hash>/, writes <prefix>/bin/<tool>, its old name's link only where
+one stands and the `agentik` door, each by a temp file and a rename, and prunes. Stdlib, 3.9, and
 light at import: a hook imports it for `restore_parent_env`, and no import here reads a file.
 
 The prune: a launcher already running keeps its tree for its whole life, which for a respawn chain
@@ -422,6 +422,11 @@ def _lock(share, wait=True):
     return fh
 
 
+def _old_link(bin_dir, old):
+    """<bin>/<old> where a link of that name stands already, to refresh; else None, and nothing there moves."""
+    return os.path.join(bin_dir, old) if old and os.path.islink(os.path.join(bin_dir, old)) else None
+
+
 def _locked_install(prefix, share, env, conf, ps_timeout=60):
     name, old = conf["tool_name"], conf["old_name"]
     bin_dir = os.path.join(prefix, "bin")
@@ -433,7 +438,7 @@ def _locked_install(prefix, share, env, conf, ps_timeout=60):
     code = os.path.join(share, tree)
     launcher = os.path.join(bin_dir, name)
     note = _door(os.path.join(bin_dir, DOOR), door)
-    link = os.path.join(bin_dir, old) if old else None
+    link = _old_link(bin_dir, old)
     if link:
         _replace(link, lambda temp: os.symlink(name, temp))
     _write_launcher(launcher, launcher_text(code, ver, conf))    # last: what a retry reads
@@ -470,7 +475,7 @@ def install(prefix=None, env=None, dry_run=False):
     if dry_run:
         old = conf["old_name"]
         done = {"launcher": os.path.join(bin_dir, conf["tool_name"]), "tree": None, "version": version(),
-                "door": door, "link": os.path.join(bin_dir, old) if old else None, "pruned": []}
+                "door": door, "link": _old_link(bin_dir, old), "pruned": []}
     else:
         lock = _lock(share)
         try:
