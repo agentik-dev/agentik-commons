@@ -819,12 +819,50 @@ class DoorTest(unittest.TestCase):
         for module, func, callee, argv in self.starts():  # the package's other starters
             if module != "send.py":
                 self.assertNotIn("gh", argv, (module, func))
-        for path in sorted(PACKAGE.rglob("*.py")):  # gh's name is spelled in send.py alone
-            if path.name == "send.py":
+        for path in sorted(PACKAGE.rglob("*.py")):  # gh's name is spelled in send.py alone,
+            if path.name == "send.py":  # and as a word scrub keeps (`scrub.PROGRAMS`), never run
                 continue
-            for node in ast.walk(ast.parse(path.read_text())):
-                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            tree = ast.parse(path.read_text())
+            kept = set()
+            if path.name == "scrub.py":
+                kept = self.kept_words(tree)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str) and (
+                        id(node) not in kept):
                     self.assertNotIn("gh", re.findall(r"[\w-]+", node.value), path.name)
+
+    def kept_words(self, tree):
+        """The string elements of scrub's `PROGRAMS = (...)`, a list of words a scrub leaves as
+        they are; held to never reach a process starter's arguments in that module."""
+        kept = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and [getattr(t, "id", None) for t in node.targets] == [
+                    "PROGRAMS"] and isinstance(node.value, ast.Tuple):
+                kept |= {id(e) for e in node.value.elts if isinstance(e, ast.Constant)}
+            if isinstance(node, ast.Call):
+                callee = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(
+                    node.func, "id", "?")
+                if callee in self.STARTERS:
+                    names = {n.id for a in node.args + [k.value for k in node.keywords]
+                             for n in ast.walk(a) if isinstance(n, ast.Name)}
+                    self.assertNotIn("PROGRAMS", names, "scrub.py starts a process with PROGRAMS")
+        return kept
+
+    def test_join_gh_is_a_word_scrub_keeps_and_starts_nothing(self):
+        """The join with rp2's scrub: `gh` is in `scrub.PROGRAMS`, a word left as it is, and that
+        list reaches no starter; a `gh` anywhere else in scrub.py is still refused by line 11."""
+        tree = ast.parse((PACKAGE / "scrub.py").read_text())
+        kept = self.kept_words(tree)
+        words = [n.value for n in ast.walk(tree) if id(n) in kept]
+        self.assertIn("gh", words)
+        bad = ast.parse('PROGRAMS = ("gh",)\nsubprocess.run(list(PROGRAMS))\n')
+        with self.assertRaises(AssertionError):
+            self.kept_words(bad)
+        loose = ast.parse('PROGRAMS = ("git",)\nCMD = "gh issue create"\n')
+        kept = self.kept_words(loose)
+        loose_gh = [n for n in ast.walk(loose) if isinstance(n, ast.Constant) and n.value ==
+                    "gh issue create"]
+        self.assertTrue(loose_gh and id(loose_gh[0]) not in kept)
 
     def test_r1_r6_imports_and_no_way_round(self):
         self.assertTrue(SEND.exists())
@@ -856,6 +894,85 @@ class DoorTest(unittest.TestCase):
         self.assertFalse(re.search(r"`(?:err\.)?issue\.", head))
         self.assertTrue(all(i.startswith(("issue.screen.", "issue.send.", "err.issue.send."))
                             for i in ids), ids)
+
+
+class JoinTest(unittest.TestCase):
+    """Phase 2: the real scrub, gather and form, as landed, into `check`, `marker` and `repo_of`.
+    The machine is made by hand; no process is started and no home is read."""
+
+    @classmethod
+    def setUpClass(cls):
+        from agentik_suite import form, gather, scrub
+        cls.form, cls.gather, cls.scrub = form, gather, scrub
+        cls.public = json.loads((LIB / "public.json").read_text())
+        cls.m = scrub.build(cls.public, home="/home/zqvuser", logins=("zqvlogin",),
+                            hosts=("zqvhost",))
+
+    def facts(self, tool, free, rows=1):
+        return {
+            "schema": "agentik.issue-facts/1", "tool": tool,
+            "versions": [{"name": tool, "plugin": "1.2.3", "commit": None, "launcher": None}],
+            "system": {"os": "Darwin", "release": "27.0.0", "arch": "arm64", "python": "3.9.6",
+                       "claude": "2.1.3", "where": "at a terminal"},
+            "checks": {"read": True, "rows": [{"tool": tool, "status": "fail", "name": free,
+                                                "detail": free}] * rows,
+                       "failed": rows, "warned": 0, "passed": 2},
+            "plugins": {"named": [{"name": tool, "version": "1.2.3"}], "others": 0},
+            "output": {"ran": free, "exit": 2, "lines": [free, free]},
+            "words": {"expected": free}}
+
+    def made(self, tool, free, bound=True):
+        """The bytes a verb would make: scrub each free value, bound, draft, fit, build."""
+        g, f = self.gather, self.form
+        facts = g.map_free(self.facts(tool, free), lambda v: self.scrub.scrub(v, self.m)[0])
+        fp = f.fingerprint(tool, "doctor fails")
+        fields, went = f.fit(f.draft(g.bound(facts) if bound else facts, tool, "doctor fails",
+                                     "doctor fails", fp))
+        return f.build(fields), fp, went
+
+    def check(self, data):
+        return send.check(data, self.m, self.public, self.form, self.scrub)
+
+    def test_join_every_public_tool_reads_back_to_its_repo(self):
+        self.assertEqual(send.CEILING, self.form.CEILING)
+        for tool, repo in sorted(self.public["tools"].items()):
+            with self.subTest(tool=tool):
+                data, fp, went = self.made(tool, "the doctor said no")
+                self.assertEqual((went, self.check(data)), ([], []))
+                self.assertEqual(send.marker(data)[:3], (tool, "1.2.3", fp))
+                self.assertEqual(send.repo_of(data, self.public), repo)
+
+    def test_join_detect_kinds_reach_the_line_message_as_named(self):
+        tool = sorted(self.public["tools"])[0]
+        named = set(self.scrub.KINDS) | {"control", "encoded"}
+        self.assertTrue(all(send.KIND.match(k) for k in named), named)
+        raw = self.form.build(self.form.draft(
+            self.facts(tool, "token=ghp_" + "a" * 36), tool, "doctor fails", "doctor fails",
+            self.form.fingerprint(tool, "doctor fails")))
+        kinds = {k for _, k in self.check(raw)}
+        self.assertIn("secret", kinds)
+        self.assertLessEqual(kinds, named)
+
+    def test_join_a_secret_bound_away_leaves_a_line_refused_as_secret(self):
+        """rp2's phase 2: a bound that drops a whole <secret> can leave `Authorization: Bearer`
+        bare, which reads as a secret again. The refusal fails safe and stays."""
+        tool = sorted(self.public["tools"])[0]
+        lead = " Authorization: Bearer "
+        whole, _, _ = self.made(tool, lead.strip() + " " + "Z" * 24)
+        self.assertEqual(self.check(whole), [])
+        cut, _, _ = self.made(tool, "x" * (self.gather.RAN - len(lead) - 3) + lead + "Z" * 24)
+        found = self.check(cut)
+        self.assertTrue(found and {k for _, k in found} == {"secret"}, found)
+
+    def test_join_a_form_still_over_its_ceiling_is_refused_by_size(self):
+        tool = sorted(self.public["tools"])[0]
+        f = self.form
+        fields, went = f.fit(f.draft(self.facts(tool, "w" * 300, rows=20), tool, "doctor fails",
+                                     "doctor fails", f.fingerprint(tool, "doctor fails")))
+        self.assertEqual(went[-1][0], "over")
+        data = f.build(fields)
+        self.assertEqual(len(data), went[-1][1])
+        self.assertIn("size", {k for _, k in self.check(data)})
 
 
 if __name__ == "__main__":
