@@ -31,11 +31,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.help`: every verb, tool and flag
 - `help.eg.help_verb`: one verb, with examples
 - `help.eg.help_tool`: that tool's own help
+- `help.eg.update`: every installed tool and its command, after one question
+- `help.eg.update_dry`: the plan; nothing is written
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
+- `verb.update`: Bring every installed tool and its command current.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
@@ -46,6 +49,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
+- `usage.update`: usage: `{update}` [<name>...] [flags]
 - `usage.config`: usage: `{config}` [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{describe}` [config [<key>]] --json
 - `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
@@ -287,6 +291,28 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{setup}` again to go on.
 - `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{setup}` again to go on.
 - `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{setup}` from a terminal.
+
+## Update
+
+- `update.plan`: Update plan for `{names}`.
+- `update.plan.dry`: Update plan for `{names}`. Nothing is written.
+- `update.plan.none`: Update plan for no tool, since none is installed.
+- `update.market`: a marketplace of the tools below; update brings its list current
+- `update.plugin`: at version `{version}`; update brings it to its marketplace's newest
+- `update.doctor`: the doctor reads every tool once the steps above have run
+- `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
+- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so this command leaves it as it is.
+- `update.tool.moved`: `{name}` `{old}` to `{new}`
+- `update.tool.same`: `{name}` `{version}`, already current
+- `update.nothing`: everything is current; nothing was placed.
+- `update.held.relay`: a relay run is live (pid `{pid}`)
+- `update.held.unattended`: an unattended run is live
+- `update.held.ps`: the process list cannot be read
+- `err.update.held`: held install: `{what}`
+- `hint.update.held`: next: `{command}` once it has ended
+- `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
+- `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
+- `hint.update.suite.pull`: to move it: pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite
 
 ## Status
 

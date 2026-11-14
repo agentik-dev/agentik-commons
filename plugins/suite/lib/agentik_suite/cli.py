@@ -1,14 +1,16 @@
 """The suite's command: `<tool> <verb> [<noun>...] [flags]`, its name read from agentik-tool.conf.
 
 Verbs: help (-h, --help; bare, a first screen of ten lines: row sc5), version (--version), setup, which plans with --dry-run and
-otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
+otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), update, which brings
+every installed tool and its command current in one call, held while a relay or unattended run is
+live (update.py), config, every tool's
 settings drilled down to one, describe, the suite's own answer to that read, status, five parts
 on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
 status_screen.py draws each as it is read), the object alone with --json, and with --check only
 the declared watchers (status.py), install-cli, which places this command and the agentik door
 under a prefix's bin (install.py), and doctor, the machine checked in one read (doctor.py).
-Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and install-cli, the verbs
-that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
+Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup, update and install-cli, the
+verbs that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
 --all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
 install-cli takes --prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit,
 --output, --expected, --as and --draft, each with a value. Those nine are the only flags with a
@@ -30,10 +32,10 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools
+from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools, update
 
-VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
-WRITES = ("setup", "install-cli", "issue")
+VERBS = ("help", "version", "setup", "update", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
+WRITES = ("setup", "update", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
@@ -65,7 +67,7 @@ STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
-         ("install", ("install-cli",)), ("issue", ("issue",)))
+         ("install", ("install-cli",)), ("issue", ("issue",)), ("update", ("update",)))
 FIRST = ("setup", "doctor", "config", "status")  # the first screen's rows above help's (row sc5 R2)
 TOOL_ROW = "<tool>"
 # help <verb>'s examples (R5): the words after the suite's name, a tail printed as it is, the gloss;
@@ -76,7 +78,8 @@ EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run")
             "config": ((("config",), "", "help.eg.config"), (("config", OWN), "", "help.eg.config_tool"),
                        (("config", OWN), ".kind", "help.eg.config_key")),
             "help": ((("help",), "", "help.eg.help"), (("help", "config"), "", "help.eg.help_verb"),
-                     (("help",), " <tool>", "help.eg.help_tool"))}
+                     (("help",), " <tool>", "help.eg.help_tool")),
+            "update": ((("update",), "", "help.eg.update"), (("update", "--dry-run"), "", "help.eg.update_dry"))}
 ROWS = {"setup": "help.row.setup", "doctor": "help.row.doctor", "config": "help.row.config",
         "status": "help.row.status", "help": "help.row.help"}
 
@@ -168,7 +171,7 @@ def _takes(verb, o, nouns):
         return not nouns
     if verb == "install-cli":
         return not nouns and o["prefix"] != ""
-    if verb == "setup":
+    if verb in ("setup", "update"):
         return all(NOUN.match(n) for n in nouns)
     if verb == "status":
         return not (nouns and o["check"])
@@ -630,6 +633,11 @@ class Command:
             return "hint.setup.path", {}
         return "hint.setup.rest", {}
 
+
+    # ---- update ---------------------------------------------------------------------------
+
+    def do_update(self, nouns):
+        return update.do_update(self, nouns)
 
     # ---- config and describe ----------------------------------------------------------------
 

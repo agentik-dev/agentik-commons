@@ -86,9 +86,9 @@ class Home:
         self.home = path
         self.plugins = os.path.join(path, ".claude", "plugins")
         self.bin = os.path.join(path, "bin")
-        self.local = os.path.join(path, ".local", "bin")
+        self.bindir = os.path.join(path, ".local", "bin")
         os.makedirs(self.plugins)
-        os.makedirs(self.local)
+        os.makedirs(self.bindir)
         self.table, self.latest = {}, {}
         self.file(os.path.join(path, "seed.py"), SEED)
         self.file(os.path.join(self.bin, "claude"), CLAUDE)
@@ -144,14 +144,14 @@ class Home:
         self.latest[pid] = latest or ver
         name = pid.partition("@")[0]
         if launcher:
-            self.file(os.path.join(self.local, "agentik-" + name), "#!/bin/sh\nVERSION=%s\nTREE=%s\nexit 0\n"
+            self.file(os.path.join(self.bindir, "agentik-" + name), "#!/bin/sh\nVERSION=%s\nTREE=%s\nexit 0\n"
                       % (ver, os.path.join(self.home, ".local", "share", "agentik-" + name, ver)))
         self.write(markets=("acme-tools",) if any("@acme-tools" in p for p in self.table) else ())
         return root
 
     def env(self, **more):
-        env = {"HOME": self.home, "PATH": os.pathsep.join([self.bin, self.local, "/usr/bin", "/bin"]),
-               "XDG_CACHE_HOME": os.path.join(self.home, "cache"), "NO_COLOR": "1"}
+        env = {"HOME": self.home, "PATH": os.pathsep.join([self.bin, self.bindir, "/usr/bin", "/bin"]),
+               "XDG_CACHE_HOME": self.home + "-cache", "NO_COLOR": "1"}  # the launcher's pycache: outside
         env.update(more)
         return env
 
@@ -171,7 +171,7 @@ class Home:
         return [l for l in self.ran() if l.startswith("claude ")]
 
     def version_of(self, name):
-        with open(os.path.join(self.local, "agentik-" + name)) as fh:
+        with open(os.path.join(self.bindir, "agentik-" + name)) as fh:
             return re.search(r"^VERSION=(.*)$", fh.read(), re.M).group(1)
 
     def snapshot(self):
@@ -195,6 +195,11 @@ class Base(unittest.TestCase):
 
     def home(self, listed=("murmur", "paint"), name="h"):
         return Home(os.path.join(self.tmp, name), listed)
+
+    @staticmethod
+    def read(h, name):
+        with open(os.path.join(h.bindir, "agentik-" + name), "rb") as fh:
+            return fh.read()
 
     def two_behind(self):
         h = self.home()
@@ -225,12 +230,11 @@ class UpdateTest(Base):
         h = self.two_behind()
         self.assertEqual(h.run("update", "--yes")[0], 0)
         before = len(h.ran())
-        bytes_ = {n: open(os.path.join(h.local, "agentik-" + n), "rb").read() for n in ("murmur", "paint")}
+        bytes_ = {n: self.read(h, n) for n in ("murmur", "paint")}
         code, out, err = h.run("update", "--yes")
         self.assertEqual(code, 0, out + err)
         self.assertFalse([l for l in h.ran()[before:] if "install-cli" in l], h.ran())
-        self.assertEqual(bytes_, {n: open(os.path.join(h.local, "agentik-" + n), "rb").read()
-                                  for n in ("murmur", "paint")})
+        self.assertEqual(bytes_, {n: self.read(h, n) for n in ("murmur", "paint")})
         self.assertIn("everything is current; nothing was placed.", out)
         self.assertNotIn(" to ", out.split("nothing was placed.")[1].split("\n")[0])
         self.assertIsNotNone(DOCTOR_CLOSE.search(out), out)
@@ -251,7 +255,7 @@ class UpdateTest(Base):
                 self.assertTrue(lines[1].startswith("next: ") and lines[1].endswith(" once it has ended"), err)
                 self.assertEqual(h.ran(), [])
                 self.assertEqual(h.snapshot(), before)
-        os.chmod(os.path.join(h.bin, "ps"), 0o644)  # a list that cannot be read holds
+        h.file(os.path.join(h.bin, "ps"), "#!/bin/sh\nexit 1\n")  # a list that cannot be read holds
         code, out, err = h.run("update", "--dry-run")
         self.assertEqual(code, 2, err)
         self.assertIn("held install: the process list cannot be read", err)
@@ -297,7 +301,7 @@ class UpdateTest(Base):
 
     def test_7_the_suite_from_a_checkout_is_left_as_it_is(self):
         for listed, hint in ((("murmur", "suite"), "claude plugin install suite@agentik"),
-                             (("murmur",), "pull that checkout, then run its plugins/suite/bin/agentik-suite install-cli")):
+                             (("murmur",), "pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite")):
             h = self.home(listed, name="h-" + str(len(listed[1:])))
             h.install("murmur@agentik", "1.0.0", "1.1.0")
             code, out, err = h.run("update", "--yes")
