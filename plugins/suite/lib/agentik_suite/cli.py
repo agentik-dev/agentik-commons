@@ -71,12 +71,14 @@ TOOL_ROW = "<tool>"
 # help <verb>'s examples (R5): the words after the suite's name, a tail printed as it is, the gloss;
 # OWN stands for the suite's own name, as config reads it
 OWN = None
-EXAMPLES = {"setup": ((("setup",), "", "setup"), (("setup", "--dry-run"), "", "setup_dry"),
-                      (("setup",), " <plugin>...", "setup_names")),
-            "config": ((("config",), "", "config"), (("config", OWN), "", "config_tool"),
-                       (("config", OWN), ".kind", "config_key")),
-            "help": ((("help",), "", "help"), (("help", "config"), "", "help_verb"),
-                     (("help",), " <tool>", "help_tool"))}
+EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run"), "", "help.eg.setup_dry"),
+                      (("setup",), " <plugin>...", "help.eg.setup_names")),
+            "config": ((("config",), "", "help.eg.config"), (("config", OWN), "", "help.eg.config_tool"),
+                       (("config", OWN), ".kind", "help.eg.config_key")),
+            "help": ((("help",), "", "help.eg.help"), (("help", "config"), "", "help.eg.help_verb"),
+                     (("help",), " <tool>", "help.eg.help_tool"))}
+ROWS = {"setup": "help.row.setup", "doctor": "help.row.doctor", "config": "help.row.config",
+        "status": "help.row.status", "help": "help.row.help"}
 
 
 class Usage(Exception):
@@ -463,7 +465,7 @@ class Command:
         t = self.t
         t.line("help.title", **self.slots(), version=self.version)
         t.blank()
-        rows = [(None, [term.name(v), t.text("help.row." + v)], None) for v in FIRST + ("help",)]
+        rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST + ("help",)]
         names = [x["name"] for x in self._tools(survey=False) if x["command"]]
         tool = t.text("help.row.tool", names=", ".join(names)) if names else t.text("help.row.tool.none")
         t.table(rows + [(None, [term.name(TOOL_ROW), tool], None)])
@@ -482,7 +484,7 @@ class Command:
         t.line("help.usage.tool", run=under + run)
         t.blank()
         t.line("help.verbs", style="name")
-        rows = [(None, [term.name(v), t.text("help.row." + v)], None) for v in FIRST]
+        rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST]
         rows.append((None, [term.name("help"), t.text("help.row.help.all")], None))
         more = [v for v in VERBS if v not in FIRST + ("help",)]
         rows.append((None, [term.name(t.text("help.more")), "  ".join(more)], None))
@@ -510,7 +512,7 @@ class Command:
         found = []
         for words, tail, gloss in EXAMPLES.get(verb, ()):
             words = [own if w is OWN else w for w in words]
-            found.append((self.say(*words) + tail, self.t.text("help.eg." + gloss)))
+            found.append((self.say(*words) + tail, self.t.text(gloss)))
         return found
 
     def help_verb(self, verb):

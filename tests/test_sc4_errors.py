@@ -270,7 +270,12 @@ class Review1Test(Sc4Home):
     def test_f2_a_word_that_is_no_verb_is_never_mended_into_a_verb_that_writes(self):
         for word in ("uninstall", "stop", "stup"):
             self.refusal((word,), "%s is not a verb" % word, "agentik help", code_word="unknown_verb")
-            self.assert_writes_nothing("agentik help", word)
+            # the full list reads each tool's describe under its cache (row sc5 R4): no other write
+            before, kept = self.tree(), lambda t: {k: v for k, v in t.items()
+                                                   if not k.startswith(("cache", "Library"))}
+            self.pasted("agentik help")
+            self.assertEqual(kept(self.tree()), kept(before), word)
+            self.assertFalse(os.path.exists(self.calls), word)
         self.refusal(("set", "suite.kind"), "set is not a verb", "agentik help")
 
     def test_f3_a_mended_line_that_would_be_refused_is_the_verbs_help(self):
@@ -326,7 +331,8 @@ class Review1Test(Sc4Home):
             self.assertTrue(err.getvalue().startswith("next: agentik setup"), err.getvalue())
 
     def test_f7_each_hint_in_a_pipe_starts_next(self):
-        for argv in (("help",), ("help", "config"), ("config",), ("config", "murmur"),
+        self.assertEqual(self.run_cli("help", "config")[2], "")  # help <verb> has no hint (row sc5 R5)
+        for argv in (("help",), ("config",), ("config", "murmur"),
                      ("config", "murmur.width"), ("setup", "--dry-run")):
             code, out, err = self.run_cli(*argv)
             self.assertEqual(code, 0, (argv, err))

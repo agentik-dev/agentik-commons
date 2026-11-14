@@ -344,11 +344,13 @@ class VerbTest(Home):
             self.assertEqual(code, 0)
             text = out + err
             self.assertNotIn(ESC, text, args)
-            self.assertRegex(text, r"(?m)^ *(\d  )?ok  ", args)
+            if args != ("help",):  # the full list holds no mark (row sc5 R4)
+                self.assertRegex(text, r"(?m)^ *(\d  )?ok  ", args)
             self.assertRegex(text, r"(?m)^(?: *(\d  )?note  |next: )", args)  # a hint has no mark (sc4)
-        # the help lists the stub by name and path, first in PATH order winning
-        self.assertIn("agentik-zeta  %s" % os.path.join(self.stubs, "agentik-zeta"),
-                      self.run_cli("help")[1])
+        # the help lists the stub by name and no path (row sc5 R4)
+        out = self.run_cli("help")[1]
+        self.assertRegex(out, r"(?m)^  zeta$")
+        self.assertNotIn(self.stubs, out)
 
     def test_a4_on_a_pty_colour_and_glyph(self):
         code, text = self.run_pty("setup", "--dry-run")
@@ -395,8 +397,10 @@ class VerbTest(Home):
         for args in ((), ("help",), ("-h",), ("--help",)):
             code, out, err = self.run_cli(*args)
             self.assertEqual(code, 0, args)
-            for verb in ("help", "version", "setup"):
-                self.assertRegex(out, r"(?m)^  %s  " % verb)
+            for verb in ("help", "setup") + (("<tool>",) if not args else ("more",)):
+                self.assertRegex(out, r"(?m)^  %s  " % verb)  # the first screen, the full list (row sc5)
+            if args:
+                self.assertRegex(out, r"(?m)^  more  .*  version  ")
             self.assertIn("next:", err)
         self.assertEqual(self.run_cli("-q")[2], "")
         code, out, err = self.run_cli("setup", "--help")

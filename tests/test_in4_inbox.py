@@ -547,7 +547,7 @@ class HelpTest(InboxHome):
 
     def test_18_help(self):
         code, out, err = self.run_cli("help")
-        self.assertRegex(out, r"(?m)^  inbox +List what waits on you in each checkout")
+        self.assertRegex(out, r"(?m)^  more  .*  inbox\b")  # the full list's more row (row sc5 R4)
         code, out, err = self.run_cli("help", "inbox")
         self.assertEqual(code, 0)
         self.assertRegex(out, r"(?m)^  --check +%s$" % re.escape(self.WORDS))
