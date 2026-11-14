@@ -20,6 +20,36 @@ HELPER_ORDER = ("busy", "quiet", "done")
 DIM = "hint"
 
 
+class Wrong(ValueError):
+    """A value of the wrong kind; the part that reads it is drawn as not read."""
+
+
+WRONG = (Wrong, TypeError, ValueError, AttributeError, KeyError, IndexError, OverflowError, OSError)
+
+
+def seq(value):
+    """The list the object gives, [] for null; a value of another kind is wrong."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise Wrong(value)
+    return value
+
+
+def mapping(value):
+    """The object the object gives, {} for null; a value of another kind is wrong."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise Wrong(value)
+    return value
+
+
+def entries(obj, key):
+    """`hand` or `sources`: an entry that is not an object belongs to no part and is left out."""
+    return [e for e in seq(obj.get(key)) if isinstance(e, dict)]
+
+
 def shown(value):
     return "?" if value is None else str(value)
 
@@ -74,7 +104,7 @@ def command(source):
     if not source:
         return "?"
     return " ".join(["agentik", shown(source.get("tool"))]
-                    + [str(a) for a in source.get("argv") or () if a != "--json"])
+                    + [str(a) for a in seq(source.get("argv")) if a != "--json"])
 
 
 def row(text, style=None, whole=False):
@@ -94,7 +124,7 @@ def _watchers(t, obj, hand, tool):
     """The rows and the mark: `warn` for a hand, or for a watcher the object does not say runs."""
     if "watchers" not in obj:
         return [row(t.text("status.part.absent", part=t.text("status.label.watchers")))], "warn"
-    watchers = obj.get("watchers") or []
+    watchers = seq(obj.get("watchers"))
     if not watchers:
         return [row(t.text("status.watcher.none"))], "warn" if hand else "note"
     rows = []
@@ -127,7 +157,7 @@ def _watchers(t, obj, hand, tool):
 
 
 def _helpers(t, helpers, skip_busy):
-    counts = dict(helpers or {})
+    counts = dict(mapping(helpers))
     words = [w for w in HELPER_ORDER if w in counts] + [w for w in counts if w not in HELPER_ORDER]
     parts = []
     for word in words:
@@ -142,12 +172,12 @@ def _helpers(t, helpers, skip_busy):
 
 
 def _sessions(t, obj, part, hand, sources, tool):
-    live = sorted(part.get("live") or [], key=lambda s: (str(s.get("name") or ""), str(s.get("id") or "")))
-    past = part.get("past_window") or []
+    live = sorted(seq(part.get("live")), key=lambda s: (str(s.get("name") or ""), str(s.get("id") or "")))
+    past = seq(part.get("past_window"))
     window = shown(part.get("window_min"))
     n = len(live) + len(past)
-    busy = sum((s.get("helpers") or {}).get("busy") or 0 for s in live)
-    quiet = sum((s.get("helpers") or {}).get("quiet") or 0 for s in live)
+    busy = sum(mapping(s.get("helpers")).get("busy") or 0 for s in live)
+    quiet = sum(mapping(s.get("helpers")).get("quiet") or 0 for s in live)
     head = [t.text("status.sessions.live", n=n) if n else t.text("status.sessions.none")]
     if busy:
         head.append(one(t, "status.helpers", busy, word="busy"))
@@ -162,7 +192,7 @@ def _sessions(t, obj, part, hand, sources, tool):
         ctx = context(s.get("context"))
         if s.get("window") is not None:
             ctx += "/" + context(s["window"])
-        helpers = s.get("helpers") or {}
+        helpers = mapping(s.get("helpers"))
         waits = s.get("state") == "idle" and helpers.get("busy")
         state = one(t, "status.waits", helpers["busy"]) if waits else shown(s.get("state"))
         rest = _helpers(t, helpers, bool(waits))
@@ -189,7 +219,7 @@ def _failed(t, job):
 
 
 def _gate(t, obj, part, hand, sources, tool):
-    running, queued, red = (part.get(k) or [] for k in ("running", "queued", "red"))
+    running, queued, red = (seq(part.get(k)) for k in ("running", "queued", "red"))
     alone = [h for h in hand if h.get("kind") == "no_runner"]
     head = []
     if running:
@@ -198,7 +228,7 @@ def _gate(t, obj, part, hand, sources, tool):
     if queued:
         head.append(t.text("status.gate.queued.alone" if alone else "status.gate.queued", n=len(queued)))
     first = ", ".join(head) or t.text("status.gate.idle")
-    last = part.get("last")
+    last = mapping(part.get("last"))
     if last:
         code = last.get("exit")
         mid = "unknown" if code is None else "passed" if code == 0 else "failed"
@@ -227,10 +257,10 @@ def _gate(t, obj, part, hand, sources, tool):
 
 
 def _covers(t, obj, part):
-    covers = obj.get("covers") or {}
+    covers = mapping(obj.get("covers"))
     rule, n = covers.get("rule"), part.get("checkouts")
     if rule == "cwd":
-        return t.text("status.covers.cwd", name=last_name((covers.get("checkouts") or [None])[0]))
+        return t.text("status.covers.cwd", name=last_name((seq(covers.get("checkouts")) or [None])[0]))
     if rule == "hq":
         return one(t, "status.covers.hq", n, hq=last_name(covers.get("hq")))
     if rule in ("checkouts", "args"):
@@ -246,24 +276,24 @@ def _level(key):
 
 def _backlog(t, obj, part, hand, sources, tool):
     rows = [row(one(t, "status.backlog.open", part.get("open"), covers=_covers(t, obj, part)))]
-    first = part.get("first")
+    first = mapping(part.get("first"))
     if first:
         rows.append(row(t.text("status.backlog.first", n=shown(first.get("n")), title=shown(first.get("title")))))
-    items = dict(part.get("items") or {})
+    items = dict(mapping(part.get("items")))
     unplaced = items.pop("unplaced", None)
     said = ["%s %s" % (k, shown(items[k])) for k in sorted(items, key=_level)]
     if unplaced:
         said.append(t.text("status.backlog.unplaced", n=unplaced))
     if said:
         rows.append(row(t.text("status.backlog.items", items=", ".join(said))))
-    if part.get("skipped"):
+    if seq(part.get("skipped")):
         names = ", ".join(last_name(p) for p in part["skipped"])
         rows.append(row(t.text("status.backlog.skipped", names=names)))
     return rows
 
 
 def _runs(t, obj, part, hand, sources, tool):
-    shown_runs = part.get("shown") or []
+    shown_runs = seq(part.get("shown"))
     if not shown_runs:
         return [row(t.text("status.runs.none"))]
     gone = [h for h in hand if h.get("kind") == "run_gone"]
@@ -281,7 +311,7 @@ def _runs(t, obj, part, hand, sources, tool):
             text = t.text("status.run.row", text=text, row=r["row"])
         if r.get("age_s") is not None:
             text = t.text("status.run.age", text=text, age=age(t, r["age_s"]))
-        counts = [t.text("status.count", n=n, word=w) for w, n in (r.get("rows") or {}).items() if n]
+        counts = [t.text("status.count", n=n, word=w) for w, n in mapping(r.get("rows")).items() if n]
         if counts:
             text += "; " + ", ".join(counts)
         rows.append(row(text))
@@ -312,7 +342,7 @@ def _gave_nothing(t, sources, whole):
         elif state == "timed out":
             rows.append(row(t.text("status.source.slow", tool=tool, wall=wall(s.get("wall_s")))))
         elif state == "unreadable":
-            cmd = " ".join(["agentik-" + tool] + [str(a) for a in s.get("argv") or () if a != "--json"])
+            cmd = " ".join(["agentik-" + tool] + [str(a) for a in seq(s.get("argv")) if a != "--json"])
             failed = s.get("exit") not in (0, None)
             rows.append(row(t.text("status.source.failed" if failed else "status.source.nojson", command=cmd)))
             if s.get("stderr"):
@@ -328,18 +358,26 @@ BUILD = {"sessions": _sessions, "gate": _gate, "backlog": _backlog, "runs": _run
 
 
 def part(t, obj, name, tool):
-    """One of the five parts: its mark, its label and its rows."""
-    hand = [h for h in obj.get("hand") or [] if h.get("part") == name]
-    sources = [s for s in obj.get("sources") or [] if s.get("name") in SOURCES[name]]
+    """One of the five parts: its mark, its label and its rows, behind one guard, so a value of
+    the wrong kind or a time out of range makes this part read not read and the others draw."""
     label = t.text("status.label." + name)
+    try:
+        mark, rows = _part(t, obj, name, tool, label)
+    except WRONG:
+        mark, rows = "warn", [row(t.text("status.wrong", part=label))]
+    t.grid(mark, label, rows)
+
+
+def _part(t, obj, name, tool, label):
+    hand = [h for h in entries(obj, "hand") if h.get("part") == name]
+    sources = [s for s in entries(obj, "sources") if s.get("name") in SOURCES[name]]
     if name == "watchers":
         rows, mark = _watchers(t, obj, hand, tool)
-        t.grid(mark, label, rows)
-        return
-    p = obj.get(name) or {}
+        return mark, rows
+    p = mapping(obj.get(name))
     state = p.get("state")
     note = state in ("partial", "not read")
-    if name == "backlog" and (obj.get("covers") or {}).get("rule") == "none":
+    if name == "backlog" and mapping(obj.get("covers")).get("rule") == "none":
         rows, note = [row(t.text("status.backlog.nowhere", tool=tool))], True
     elif name not in obj:
         rows = [row(t.text("status.part.absent", part=label))]
@@ -352,13 +390,34 @@ def part(t, obj, name, tool):
     else:
         rows = BUILD[name](t, obj, p, hand, sources, tool) + _gave_nothing(t, sources, False)
     said = state == "ok" or note  # read whole, or said to be read in part or not at all
-    mark = "warn" if hand or not said else "note" if note else "ok"
-    t.grid(mark, label, rows)
+    return "warn" if hand or not said else "note" if note else "ok", rows
 
 
 def foot(t, obj, tool):
-    """The two last labels, with no mark, and the hint."""
-    sources = obj.get("sources") or []
+    """The two last labels, with no mark, each behind its guard, and the hint."""
+    label = t.text("status.label.sources")
+    try:
+        rows = _sources(t, obj)
+    except WRONG:
+        rows = [row(t.text("status.wrong", part=label), DIM)]
+    t.grid(None, label, rows)
+    label = t.text("status.label.not_read")
+    try:
+        rows = _not_read(t, obj)
+    except WRONG:
+        rows = [row(t.text("status.wrong", part=label), DIM)]
+    if rows:
+        t.grid(None, label, rows)
+    try:
+        hint = _hint(obj, tool)
+    except WRONG:
+        hint = None
+    if hint:
+        t.hint(*hint)
+
+
+def _sources(t, obj):
+    sources = entries(obj, "sources")
     read = [s for s in sources if s.get("state") in READ]
     if read:
         slow = max(read, key=lambda s: s.get("ms") if s.get("ms") is not None else -1)
@@ -373,21 +432,28 @@ def foot(t, obj, tool):
         if s.get("state") == "not drawn":
             rows.append(row(t.text("status.sources.undrawn", tool=shown(s.get("tool")), name=shown(s.get("name"))),
                             DIM))
-    t.grid(None, t.text("status.label.sources"), rows)
-    if obj.get("not_read"):
-        words = [t.messages.get("status.not_read." + w) or w for w in obj["not_read"]]
-        t.grid(None, t.text("status.label.not_read"), [row(", ".join(words), DIM)])
-    _hint(t, obj, tool)
+    return rows
 
 
-def _hint(t, obj, tool):
-    hand = obj.get("hand") or []
+def _not_read(t, obj):
+    words = []
+    for w in seq(obj.get("not_read")):
+        if not isinstance(w, str):
+            raise Wrong(w)
+        words.append(t.messages.get("status.not_read." + w) or w)
+    return [row(", ".join(words), DIM)] if words else []
+
+
+def _hint(obj, tool):
+    """The hint's id and its values, or None."""
+    hand = entries(obj, "hand")
     if hand:
         remedy = next((h["remedy"] for h in hand if h.get("remedy")), None)
         mid = "hint.status.hand" + (".one" if len(hand) == 1 else "") + ("" if remedy else ".bare")
-        t.hint(mid, n=len(hand), remedy=remedy)
-    elif any(s.get("state") in GAVE_NOTHING for s in obj.get("sources") or []):
-        t.hint("hint.status.doctor", tool=tool)
+        return mid, {"n": len(hand), "remedy": remedy}
+    if any(s.get("state") in GAVE_NOTHING for s in entries(obj, "sources")):
+        return "hint.status.doctor", {"tool": tool}
+    return None
 
 
 def draw(t, obj, tool):

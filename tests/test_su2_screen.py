@@ -415,5 +415,55 @@ class MarkTest(unittest.TestCase):
         self.assertEqual(rows(obj)[0], "warn  watchers  not read: the status object holds no watchers")
 
 
+def malformed():
+    """The review's malformed objects: each a name, the part it breaks, and the object."""
+    cases = []
+
+    def case(name, part, base, change):
+        obj = load(base)
+        change(obj)
+        cases.append((name, part, obj))
+
+    case("since 1e20", "watchers", "broken", lambda o: o["watchers"][0].update(since=1e20))
+    case("since a date", "watchers", "broken", lambda o: o["watchers"][0].update(since="2026-11-04"))
+    case("at now", "watchers", "broken", lambda o: o.update(at="now"))
+    case("context 326k", "sessions", "busy", lambda o: o["sessions"]["live"][0].update(context="326k"))
+    case("helpers busy 3", "sessions", "busy", lambda o: o["sessions"]["live"][0].update(helpers={"busy": "3"}))
+    case("not_read null", "not read", "broken", lambda o: o.update(not_read=[None]))
+    case("not_read a word", "not read", "broken", lambda o: o.update(not_read="owner"))
+    case("gate a word", "gate", "broken", lambda o: o.update(gate="ok"))
+    case("skipped a word", "backlog", "busy", lambda o: o["backlog"].update(skipped="acme-notes"))
+    case("runs shown a word", "runs", "broken", lambda o: o["runs"].update(shown="x"))
+    case("live a dict", "sessions", "busy", lambda o: o["sessions"].update(live={"a": 1}))
+    case("items a list", "backlog", "busy", lambda o: o["backlog"].update(items=["S3"]))
+    case("sources a word", "sources", "quiet", lambda o: o.update(sources="crew"))
+    return cases
+
+
+class GuardTest(unittest.TestCase):
+    """R1-F3: each part behind one guard; no traceback on any object."""
+
+    def test_r1f3_a_value_of_the_wrong_kind(self):
+        labels = PARTS + ("sources",)
+        for name, part, obj in malformed():
+            for tty_ in (True, False):
+                lead = 13 if tty_ else 16
+                out, err = draw(obj, tty_, width=200)
+                lines = out.splitlines()
+                self.assertEqual([r[lead - 10:lead].strip() for r in lines if r[:lead].strip()
+                                  and r[lead - 10:lead].strip() != "not read"], list(labels), (name, out))
+                self.assertIn("not read: %s has a value of the wrong kind" % part,
+                              [r[lead:] for r in part_rows(lines, part, lead)], (name, out))
+                self.assertLessEqual(err.count("\n"), 1, name)
+        obj = load("broken")
+        obj["hand"].append(None)
+        out, _ = piped(obj)
+        self.assertIn("warn  runs      baton 2026-11-13-2: reads running, and its process (pid 4242) is gone",
+                      out.splitlines())
+        for obj in ([], "x", None, {"hand": "x"}, {"sources": [None]}, {"watchers": [None]}):
+            out, _ = piped(obj)
+            self.assertIn("runs", out)
+
+
 if __name__ == "__main__":
     unittest.main()

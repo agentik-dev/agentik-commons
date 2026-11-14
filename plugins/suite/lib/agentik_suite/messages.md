@@ -312,6 +312,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.part.absent`: not read: the status object holds no `{part}`
 - `status.part.stateless`: not read: `{part}` holds no state
 - `status.part.unknown`: unknown: `{part}` reads a state not known here, `{state}`
+- `status.wrong`: not read: `{part}` has a value of the wrong kind
 - `status.source.slow`: not read: agentik-`{tool}` gave no answer in `{wall}` s
 - `status.source.failed`: not read: `{command}` failed
 - `status.source.nojson`: not read: `{command}` printed no JSON object
