@@ -566,7 +566,8 @@ class PlanTruthTest(Home):
         os.remove(os.path.join(self.stubs, "claude"))
         code, out, err = self.run_cli("setup", "--dry-run", "alpha")
         self.assertEqual(code, 0, err)
-        self.assertIn("install claude", err)
+        self.assertEqual(err.splitlines()[-1], "note  next: %s setup alpha" % LAUNCHER)  # row sm2 R2
+        self.assertIn("get it: https://claude.com/claude-code", out)
         self.assertNotIn("run:", out)
         self.assertNotIn("claude plugin", out + err)
 
@@ -646,7 +647,7 @@ class PlanTruthTest(Home):
         path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
         code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
         self.assertIn("run: %s install-cli" % LAUNCHER, out)
-        self.assertIn("run each", err)
+        self.assertEqual(err.splitlines()[-1], "note  next: %s setup alpha" % LAUNCHER)  # row sm2 R1
         self.assertNotIn("a later version", out)
 
     def test_m3_l4_step_fives_path_is_one_shell_word(self):
