@@ -38,8 +38,9 @@ ARCHES = ("arm64", "x86_64", "aarch64")
 RELEASE = 20
 CLAUDE_WALL = 5.0
 CLAUDE_READ = 4096
-# A placeholder the scrub writes, `<path-12>`: `bound` never cuts inside one.
-PLACEHOLDER = re.compile(r"<[a-z][a-z-]*-[0-9]+>")
+# A placeholder the scrub writes, numbered as `<path-12>` or single as `<secret>`: `bound`
+# never cuts inside one.
+PLACEHOLDER = re.compile(r"<[a-z][a-z-]*(?:-[0-9]+)?>")
 # What `facts` keeps: a free value up to READ_CAP bytes, READ_ROWS rows, the last TAIL_LINES
 # lines of the output's last TAIL bytes, PLUGINS public plugins by name.
 READ_CAP = 16384

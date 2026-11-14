@@ -12,12 +12,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n101 | S4 | `plugins/suite` `sources.py` `mirror` | an `agentik` source that is no mapping reads `mirror` false; R8 may mean true | note 6 | 2026-11-13, fk1 review 1 |
 | n100 | S4 | `plugins/suite` `sources.py` `_runs` | an unset or empty PATH reads `.`, so a stray `./agentik-T` runs as `placed`; R6 copies `doctor.first_door` | note 5, p4 S7 | 2026-11-13, fk1 review 1 |
 | n99 | S4 | `plugins/suite` `sources.py` `whose` | a `projectPath` of `.` or `""` is read against the process cwd, so it is the repo's from any folder | note 4, p4 S8 | 2026-11-13, fk1 review 1 |
-| n58 | S4 | `scripts/door-probe` `rules` | a conditional line (`ifeq`, `else`, `endif`) inside a recipe ends the rule, so a `+` line after it in the same recipe is not read and `make -n` would run it; read a conditional inside a reached rule as `unread` | read only, not reproduced | 2026-11-13, ak2 review 3 |
-| n57 | S4 | `plugins/suite` `status.py` `matches` | `env -C DIR prog` and `env -S "..."` are read as plain flags, so `-C`'s folder or `-S`'s string is taken for the program and such a watcher reads missing: a false alarm, never a false running | `status.matches` by hand: `env -C /tmp lampd watch` reads no match, its head the folder | 2026-11-13, su1 review 2 |
-| n56 | S4 | `plugins/suite` `status.py` `beat` | an `at` in milliseconds counts as a beat in the future, so a stale one reads fresh for ever (running) and a missing watcher prints a `since` in year 55840; both follow R6 and R7, and a bound on a beat's future skew would catch it | review 1's L8 | 2026-11-13, su1 review 1 |
-| n55 | S4 | `plugins/suite` `cli.py` | `status --check --ps` with no value prints `--ps is not a flag here`, which misleads; `--ps --json` takes `--json` as the file's name (the next word is always the value) | review 1's L7 | 2026-11-13, su1 review 1 |
-| n54 | S4 | `plugins/suite` `status.py` `_names` | a head that is a link is resolved only when it is absolute; ps shows argv[0] as given, so a bare `oldlamp` linked to `lampd` reads missing | review 1's L4 | 2026-11-13, su1 review 1 |
-| n53 | S4 | `plugins/suite` `status.py` `matches` | the program is compared by basename, so `match: /opt/bin/lampd watch` finds another folder's `lampd watch`; a `match` whose program is itself a wrapper (`python3 -m lampd`) never matches and always reads missing | review 1's L3 | 2026-11-13, su1 review 1 |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
 
@@ -121,3 +115,23 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n135 | S4 | `plugins/suite` `form.py` `draft` | a plugin's version is not normalised: `1.2` gives fields that `build` refuses (`field plugins`); gather does not say it normalises plugin versions, so the join should check | review 1's note 8 | 2026-11-13, rp4 review 1 |
 | n136 | S4 | `plugins/suite` `form.py` `parse` | every name of the Versions line, the Plugins line and the rows is checked against `tools`, so `send` passes the public tools with `suite` and `door`; the first build's decide line | review 1's note 9 | 2026-11-13, rp4 review 1 |
 | n137 | S4 | `plugins/suite` `form.py` `put` | `put` takes `rows.01.name` as row 1, a key `free` never lists | review 1's note 10 | 2026-11-13, rp4 review 1 |
+
+## From packet rp2-scrub (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n138 | S4 | `scripts/hygiene` `lan`, `email` | quadratic on a long dashed run with a `.`: 0.55 s at 10 KB, 13.1 s at 40 KB; nearly every text holds a `.`, so the scrub's gate rarely skips `lan` | review 1's notes; 0.60 s at 10 KB on the fix | 2026-11-13, rp2 review 1 |
+| n139 | S4 | `plugins/suite` `scrub.py` `_reach` | counts quotes from the line's start for each path: one line of 10,000 paths takes 9.3 s, 66,000 paths on their own lines 1.9 s | review 1's notes | 2026-11-13, rp2 review 1 |
+| n140 | S4 | `plugins/suite` `scrub.py` `_assign` | a password glued to its flag (`-p<value>`, as mysql takes it) is no flag, so its value stays | review 1's T3 | 2026-11-13, rp2 review 1 |
+| n141 | S4 | `plugins/suite` `scrub.py` `_emails` | an email whose domain runs on into more text holding a digit keeps its local part; found only in a fuzz of glued pieces | review 1's notes, its fuzz | 2026-11-13, rp2 review 1 |
+| n142 | S4 | `plugins/suite` `scrub.py` `strike` | `strike` and `spans` assume a text with no plane-15 private-use character: `scrub` cleans first, but `strike` on a hand-edited draft holding one indexes past its seals | review 1's notes, not run | 2026-11-13, rp2 review 1 |
+| n143 | S4 | rp4 the form | GitHub renders an unfenced `<path-1>` as an unknown HTML tag, so a placeholder may vanish on the page | review 1's notes, not verified | 2026-11-13, rp2 review 1 |
+
+## From packet rp2-scrub (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n144 | S4 | `plugins/suite` `scrub.py` `MAC` | six parts of one or two hex digits joined by colons are a MAC now: `a:b:c:d:e:f flags` and `ratio 1:2:3:4:5:6` give `<address-1>` | review 2's own10 M10 | 2026-11-13, rp2 review 2 |
+| n145 | S4 | `plugins/suite` `scrub.py` `MAC` | a dotted date or build number of three groups of four hex digits, `build 2024.1113.1230`, is the dotted MAC and gives `<address-1>` | review 2's own10 M11 | 2026-11-13, rp2 review 2 |
+| n146 | S4 | `plugins/suite` `scrub.py` `_emails` | the walk back to a colon takes prose and half a time: `12:30:45 INFO mail sent to <x>` gives `12:30:<name-1> <email-1>` | review 2's own10 N4, N5 | 2026-11-13, rp2 review 2 |
+| n147 | S4 | `plugins/suite` `scrub.py` `_auth` | a plain word after an `authorization:` name is taken: `authorization: denied` gives `authorization: <secret>`, and the rest of the line goes with it | review 2's own10 Z4 | 2026-11-13, rp2 review 2 |
