@@ -454,14 +454,14 @@ class DoctorTest(Checks):
         character of category Cf or Cs has no `fix:` line, and the close names no command of it."""
         path = self.ready()
         for mark in MARKS:
-            bad = "mend %sx" % mark
+            bad = "murmur-mend %sx" % mark  # PLAIN holds "mend each"
             for answer in (doctor_answer([check("c0", "ok"), check("f1", "fail", remedy=bad)]),
                            {"schema": "agentik.doctor/1", "ok": False,
                             "error": {"code": "c", "message": "it broke", "remedy": bad}}):
                 self.murmur(stub(describe=described(reads=("doctor",)), checks=answer))
                 code, out, err = self.screen(PATH=path)
                 self.assertEqual(code, 1, out + err)
-                self.assertNotIn("mend", out + err, ascii(mark))
+                self.assertNotIn("murmur-mend", out + err, ascii(mark))
                 self.assertNotIn("fix:", "\n".join(self.group(out)))
                 self.assertTrue(err.splitlines()[-1].startswith(PLAIN), err)
                 _, _, obj = self.json_of(PATH=path)

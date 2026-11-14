@@ -18,6 +18,7 @@ import signal
 import subprocess
 import tempfile
 import time
+import unicodedata
 
 from . import plan, settings, sources
 
@@ -379,10 +380,14 @@ def one_line(text, cap=LINE_CAP):
 
 def plain(text):
     """The text where it is a string that holds no control character, a newline, a tab or a
-    direction control among them, else None: a remedy that would join a second line of the
-    tool's to a line a person pastes is no remedy (row ak9b review 1 lead 2)."""
+    direction control among them, and no character of Unicode category Cf (format: a direction
+    mark, a zero-width character, a soft hyphen) or Cs (a lone surrogate), else None: a remedy
+    that would join a second line of the tool's to a line a person pastes, or hold a mark the
+    person cannot see, is no remedy (row ak9b review 1 lead 2, review 2 F2)."""
     from . import term
-    return text if isinstance(text, str) and term.clean(text) == text else None
+    if not isinstance(text, str) or term.clean(text) != text:
+        return None
+    return None if any(unicodedata.category(c) in ("Cf", "Cs") for c in text) else text
 
 
 def config_error(out):
