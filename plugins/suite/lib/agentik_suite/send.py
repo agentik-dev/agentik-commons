@@ -265,11 +265,17 @@ def _claude_above(env):
     return False
 
 
-def _height(text, cols):
-    """Rows a line takes: its width over the columns, a wide character counting two."""
-    width = sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF"
-                else 1 for c in text)
-    return max(1, -(-width // cols))
+def _rows(text, cols):
+    """The screen rows one line takes, as the terminal wraps it: a wide character counts two and
+    goes to the next row when it does not fit, a combining one counts none."""
+    rows, row, width = [], "", 0
+    for c in text:
+        w = 0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
+        if row and width + w > cols:
+            rows.append(row)
+            row, width = "", 0
+        row, width = row + c, width + w
+    return rows + [row]
 
 
 def _settle(fd):
@@ -320,21 +326,43 @@ def _screen(fd, data, lines, repo, login, notes_, env, t):
     except OSError:
         cols, rows = FALLBACK
     cols, rows = cols or FALLBACK[0], rows or FALLBACK[1]
-    heights = [_height(dev.text(mid, **values), cols) for mid, values in items]
+    heights = [len(_rows(dev.text(mid, **values), cols)) for mid, values in items]
     room = max(rows - 2, 1)  # a page leaves a row for its question and one for the cursor
     paged = sum(heights) + 1 > rows
-    used, answer = 0, None
+    state = {"used": 0}
+
+    def page(mid):
+        """At a page's end, the question for the next; False when it gets no answer."""
+        if _ask(fd, dev, mid) is None:
+            return False
+        state["used"] = 0
+        return True
+
+    answer = None
     try:
         for (mid, values), height in zip(items, heights):
-            if paged and used and used + height > room:
-                if _ask(fd, dev, "issue.screen.more") is None:
+            if paged and mid == "issue.screen.text" and height > room:
+                # a line taller than a page is paged inside itself, by its screen rows
+                parts, within = _rows(dev.text(mid, **values), cols), False
+                while parts:
+                    if state["used"] >= room and not page(
+                            "issue.screen.within" if within else "issue.screen.more"):
+                        break
+                    take = room - state["used"]
+                    dev.line(mid, text="".join(parts[:take]))
+                    state["used"] += len(parts[:take])
+                    parts, within = parts[take:], True
+                if parts:
                     break
-                used = 0
+                continue
+            if paged and state["used"] and state["used"] + height > room:
+                if not page("issue.screen.more"):
+                    break
             if mid == "issue.send.ask":
                 answer = _ask(fd, dev, mid, word=True)
                 break
             dev.line(mid, **values)
-            used += height
+            state["used"] += height
     except KeyboardInterrupt:
         answer = None
     if answer == WORD:

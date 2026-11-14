@@ -270,6 +270,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.screen.closed`: A closed issue already holds this failure: `{url}`
 - `issue.screen.failed`: The search for an earlier issue failed, so none is known.
 - `issue.screen.more`: Press Enter for the next lines of the issue.
+- `issue.screen.within`: Press Enter for the rest of this line of the issue.
 - `issue.send.ask`: Type send and press Enter to file it; any other answer keeps the draft.
 - `issue.send.kept`: Nothing was filed, and the draft is kept as it was.
 - `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.

@@ -230,17 +230,31 @@ class Base(unittest.TestCase):
         lines = screen.split("\n")
         start = lines.index(HEAD) + 1
         end = lines.index(END, start)
-        kept, skip = [], False
+        kept, skip, join = [], False, False
         for line in lines[start:end]:
-            if line == MORE:
-                skip = True
+            if line in (MORE, WITHIN):
+                skip, join = True, line == WITHIN
                 continue
             if skip and line == "":
                 skip = False
                 continue
             skip = False
-            kept.append(line)
+            if join:
+                kept[-1] += line
+            else:
+                kept.append(line)
+            join = False
         return "\n".join(kept) + "\n"
+
+    def pages(self, screen, cols):
+        """The rows each page writes before its prompt, the echo of the Enter that opened it
+        left out; the last page, which ends at the word's question, as well."""
+        found = []
+        for n, part in enumerate(re.split("(?:%s|%s|%s)\n" % (
+                re.escape(MORE), re.escape(WITHIN), re.escape(ASK)), screen)[:-1]):
+            lines = part.split("\n")[(1 if n else 0):-1]
+            found.append(sum(max(1, -(-len(line) // cols)) for line in lines))
+        return found
 
 
 class TypedWordTest(Base):
@@ -315,6 +329,22 @@ class TypedWordTest(Base):
         screen, result = self.drive(data, b"no\n", rows=60, cols=200)
         self.assertEqual(screen.count(MORE), 0)
         self.assertEqual(self.shown(screen).encode("utf-8"), data)
+
+    def test_r1_f3_a_line_taller_than_a_page_is_paged_by_its_rows(self):
+        data = draft(happened=" ".join("w%03d" % n for n in range(500)))
+        self.assertGreater(max(map(len, data.split(b"\n"))), 22 * 80)
+        screen, result = self.drive(data, b"no\n", rows=24, cols=80)
+        self.assertEqual(result, {"approved": False})
+        self.assertTrue(all(0 < n <= 22 for n in self.pages(screen, 80)), self.pages(screen, 80))
+        self.assertGreaterEqual(screen.count(WITHIN), 1)
+        self.assertEqual(self.shown(screen).encode("utf-8"), data)
+        wide = draft(happened="\u4e2d" * 1500)  # a wide character takes two columns
+        screen, result = self.drive(wide, b"no\n", rows=24, cols=80)
+        self.assertEqual(self.shown(screen).encode("utf-8"), wide)
+        for part in re.split("(?:%s|%s)\n" % (re.escape(MORE), re.escape(WITHIN)), screen)[1:-1]:
+            rows = sum(max(1, -(-sum(2 if ord(c) > 0x2e80 else 1 for c in line) // 80))
+                       for line in part.split("\n")[1:-1])
+            self.assertLessEqual(rows, 22)
 
     def test_8_the_approved_bytes_are_what_is_filed(self):
         data = draft()
