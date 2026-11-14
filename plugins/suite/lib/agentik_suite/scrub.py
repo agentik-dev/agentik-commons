@@ -258,11 +258,11 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
 
 def _git(env, key):
     try:
-        p = subprocess.run(["git", "config", "--global", key], env=env, stdin=subprocess.DEVNULL,
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
+        out = subprocess.check_output(["git", "config", "--global", key], env=env,
+                                      stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return ""
-    return p.stdout.decode("utf-8", "replace").strip() if p.returncode == 0 else ""
+    return out.decode("utf-8", "replace").strip()
 
 
 def _root(cwd):
