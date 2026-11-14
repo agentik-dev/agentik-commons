@@ -45,7 +45,9 @@ MESSAGES = catalogue.load()
 HEAD, END = MESSAGES.get("issue.screen.head", "\0head"), MESSAGES.get("issue.screen.end", "\0end")
 MORE, ASK = MESSAGES.get("issue.screen.more", "\0more"), MESSAGES.get("issue.send.ask", "\0ask")
 WITHIN = MESSAGES.get("issue.screen.within", "\0within")
-PAUSE = getattr(send, "QUIET", 0) + 0.2  # a person reads the question before answering it
+PAUSE = getattr(send, "QUIET", 0) + 0.5  # a person reads the question before answering it
+EARLY = [2, "err.issue.send.early"]
+SMALL = [2, "err.issue.send.small"]
 
 GH = r'''#!/usr/bin/python3 -I
 import json, os, sys
@@ -157,12 +159,15 @@ class Base(unittest.TestCase):
         return [c for c in found if verb is None or c["argv"][:2] == verb.split()]
 
     def drive(self, data, word, rows=24, cols=200, env=None, notes=(), after=None, ahead=None,
-              flood=None, file_repo=None, stdin=None):
+              blind=None, resize=None, file_repo=None, stdin=None):
         """approve, then _file when approved, in a child of pty.fork; this side reads the screen,
         presses Enter at each page's prompt and types `word` at the last, each after a person's
-        pause; `word` may be [(pause, bytes)]. `ahead` is typed before any screen; `flood` is
-        typed every 5 ms whatever the screen shows; `stdin`, when given, is the child's fd 0, a
-        pipe, while the terminal stays its device. (screen, result)."""
+        pause; `word` may be [(pause, bytes)]. `ahead` is typed before any screen. `blind` is a
+        writer that never reads the screen: [(seconds, bytes)] on its own clock, and the child
+        starts `approve` only once its first line waits on the terminal, so the stream begins
+        before the screen whatever the machine's load. `resize` is (rows, cols), set at the
+        first question before it is answered. `stdin`, when given, is the child's fd 0, a pipe,
+        while the terminal stays its device. (screen, result)."""
         env = env or self.env()
         out = os.path.join(self.home, "result.json")
         pid, fd = pty.fork()
@@ -175,6 +180,8 @@ class Base(unittest.TestCase):
                     os.close(w)
                     os.dup2(r, 0)
                     os.close(r)
+                if blind:  # the blind stream's first line waits before anything is drawn
+                    select.select([0], [], [], 20)
                 result = {}
                 t = term.Term(env=env, out=io.StringIO(), err=io.StringIO())
                 try:
@@ -196,21 +203,22 @@ class Base(unittest.TestCase):
         replies = {MORE.encode(): [(PAUSE, b"\n")], WITHIN.encode(): [(PAUSE, b"\n")],
                    ASK.encode(): words}
         buf, pos, deadline = b"", 0, time.monotonic() + 30
+        began, sched, asked = time.monotonic(), list(blind or []), 0
         if ahead:
             os.write(fd, ahead)
-        if flood:
+        if blind:
             os.set_blocking(fd, False)
         try:
             while True:
                 if time.monotonic() > deadline:
                     os.kill(pid, signal.SIGKILL)
                     self.fail("the child ran past 30 s; the screen: %r" % buf[-400:])
-                if flood:
+                while sched and time.monotonic() - began >= sched[0][0]:
                     try:
-                        os.write(fd, flood)
+                        os.write(fd, sched.pop(0)[1])
                     except (BlockingIOError, OSError):
                         pass
-                if select.select([fd], [], [], 0.005 if flood else 1)[0]:
+                if select.select([fd], [], [], 0.005 if blind else 1)[0]:
                     try:
                         chunk = os.read(fd, 65536)
                     except BlockingIOError:
@@ -220,14 +228,21 @@ class Base(unittest.TestCase):
                     if not chunk:
                         break
                     buf += chunk
-                while not flood:
+                while not blind:
                     hits = sorted((buf.find(k, pos), k) for k in replies if buf.find(k, pos) >= 0)
                     if not hits:
                         break
                     pos = hits[0][0] + len(hits[0][1])
+                    asked += 1
+                    if resize and asked == 1:
+                        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", resize[0],
+                                                                         resize[1], 0, 0))
                     for pause, typed in replies[hits[0][1]]:
                         time.sleep(pause)
-                        os.write(fd, typed)
+                        try:
+                            os.write(fd, typed)
+                        except OSError:  # the child refused and is gone
+                            break
         finally:
             os.close(fd)
             os.waitpid(pid, 0)
@@ -255,6 +270,19 @@ class Base(unittest.TestCase):
                 kept.append(line)
             join = False
         return "\n".join(kept) + "\n"
+
+    def tops(self, screen, cols):
+        """For each question, the screen rows written since the last answer through the
+        question and the cursor's row under it, from the head line on; the blank row an Enter's
+        echo leaves above a page is not the page's. A wide character counts two columns."""
+        found, used = [], 0
+        lines = screen.split("\n")
+        for line in lines[lines.index(HEAD) if HEAD in lines else len(lines):]:
+            used += max(1, -(-sum(2 if ord(c) > 0x2e80 else 1 for c in line) // cols))
+            if line in (MORE, WITHIN, ASK):
+                found.append(used + 1)
+                used = -1
+        return found
 
     def pages(self, screen, cols):
         """The rows each page writes before its prompt, the echo of the Enter that opened it
@@ -541,31 +569,70 @@ class UnseenTest(Base):
 
 
 class QuietTest(Base):
-    """R1-F2: the word is read only after the input has been quiet since the question was drawn;
-    input that keeps coming through the bound is a refusal, exit 2, and nothing is filed."""
+    """R1-F2 and R2-F1: the answer to a question is refused, exit 2, whenever the wait after the
+    question is drawn drops any byte, so no stream that began before a question answers it; a
+    line right after the word is a refusal too. A person who answers once the question shows,
+    on quiet input, sends."""
 
-    def test_r1_f2_a_flood_of_typed_lines_never_answers(self):
-        began = time.monotonic()
-        _, result = self.drive(draft(), b"", flood=b"send\n")
-        self.assertEqual(result, {"refusal": [2, "err.issue.send.flood", {"secs": 3}]})
-        self.assertGreaterEqual(time.monotonic() - began, 3)
+    def trickle(self, every, secs=12.0):
+        return [(i * every, b"send\n") for i in range(int(secs / every))]
+
+    def test_r2_f1_a_blind_trickle_never_answers(self):
+        for every in (0.35, 0.5, 1.0):
+            for name, data in (("short", draft()), ("paged", draft(lines=44, pad_to=4107))):
+                with self.subTest(every=every, draft=name):
+                    screen, result = self.drive(data, b"", rows=24, cols=80,
+                                                blind=self.trickle(every))
+                    self.assertEqual(result, {"refusal": EARLY}, screen[-300:])
         self.assertEqual(self.calls("issue create"), [])
 
-    def test_r1_f2_a_word_typed_ahead_is_dropped(self):
-        _, result = self.drive(draft(), [(0, b"send\n"), (PAUSE, b"\x04")])
-        self.assertEqual(result, {"approved": False})
-        _, result = self.drive(draft(), b"\x04", ahead=b"send\n")
-        self.assertEqual(result, {"approved": False})
+    def test_r2_f1_a_flood_that_stops_then_one_line_never_answers(self):
+        flood = [(i * 0.005, b"send\n") for i in range(520)] + [(3.3, b"send\n")]
+        _, result = self.drive(draft(), b"", blind=flood)
+        self.assertEqual(result, {"refusal": EARLY})
+        _, result = self.drive(draft(), b"", blind=[(i * 0.005, b"send\n") for i in range(720)])
+        self.assertEqual(result, {"refusal": EARLY})
         self.assertEqual(self.calls("issue create"), [])
 
-    def test_r1_f2_a_word_typed_after_quiet_input_sends(self):
-        _, result = self.drive(draft(), [(0, b"send\n"), (PAUSE, b"send\n")], ahead=b"send\n")
+    def test_r2_f1_a_byte_in_the_wait_refuses_whatever_the_clock(self):
+        """`_settle` on a pipe, no clock to race: a byte waiting when the question is drawn
+        refuses; no byte is quiet; an end of input keeps the draft."""
+        for pending in (b"send\n", b"\n", b"x"):
+            with self.subTest(pending=pending):
+                r, w = os.pipe()
+                self.addCleanup(os.close, r)
+                self.addCleanup(os.close, w)
+                os.write(w, pending)
+                with self.assertRaises(send.Refusal) as cm:
+                    send._settle(r)
+                self.assertEqual([cm.exception.code, cm.exception.mid], EARLY)
+        r, w = os.pipe()
+        self.addCleanup(os.close, r)
+        self.assertTrue(send._settle(r))
+        os.close(w)
+        self.assertFalse(send._settle(r))
+        text = MESSAGES.get("err.issue.send.early", "")
+        self.assertEqual(len(text.splitlines()), 1)
+        self.assertIn("again", text)
+
+    def test_r1_f2_a_word_typed_ahead_is_refused(self):
+        _, result = self.drive(draft(), [(0, b"send\n")])
+        self.assertEqual(result, {"refusal": EARLY})
+        _, result = self.drive(draft(), b"send\n", ahead=b"send\n")
+        self.assertEqual(result, {"refusal": EARLY})
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r2_f1_a_person_who_answers_once_it_shows_sends_once(self):
+        _, result = self.drive(draft(), [(send.QUIET + 1.0, b"send\n")])
         self.assertEqual(result, {"approved": True, "url": URL})
-        self.assertEqual(len(self.calls("issue create")), 1)
+        _, result = self.drive(draft(lines=44, pad_to=4107), [(send.QUIET + 1.0, b"send\n")],
+                               rows=24, cols=80)
+        self.assertEqual(result, {"approved": True, "url": URL})
+        self.assertEqual(len(self.calls("issue create")), 2)
 
     def test_r1_f2_a_line_on_after_the_word_is_a_flood(self):
         _, result = self.drive(draft(), [(PAUSE, b"send\n"), (0.05, b"send\n")])
-        self.assertEqual(result, {"refusal": [2, "err.issue.send.flood", {"secs": 3}]})
+        self.assertEqual(result, {"refusal": [2, "err.issue.send.flood"]})
         self.assertEqual(self.calls("issue create"), [])
 
 

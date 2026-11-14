@@ -11,6 +11,12 @@ for that word: no flag, no environment variable, no config key and no test hook.
 `send` is the stated exception to three of the command's own rules: it takes no `-y`, it prompts
 on the terminal device whatever stdin is, and it starts `gh`. `gh` and `ps` come from the PATH of
 the `env` each function is given. Every line it adds to the screen is a catalogue message.
+
+A question is answered only by input that comes after it is drawn and after QUIET seconds in
+which no byte came: any byte in that wait refuses, so no stream that began before a question
+answers it. What this cannot tell apart: a writer that waits for each question to show and then
+answers is a person to this verb, since the screen is all it can watch. Refusing a call that an
+agent makes of its own accord is the guard's, another row.
 """
 import hashlib
 import json
@@ -33,7 +39,6 @@ FILE_WALL = 60  # seconds for the one writing call
 WORD = b"send\n"
 FALLBACK = (80, 24)
 QUIET = 0.3  # seconds with no input, since a question was drawn, before its answer is read
-BOUND = 3.0  # seconds of input that keeps coming after a question: past them, a refusal
 TOKENS = ("GH_TOKEN", "GITHUB_TOKEN")  # each overrides the account gh stores for github.com
 UNPASSED = TOKENS + ("GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")  # never in the create's env
 MARKER = re.compile(r"^agentik-issue/1 (\S+) (\S+) ([0-9a-f]{12})$")
@@ -293,29 +298,30 @@ def _rows(text, cols):
 
 
 def _settle(fd):
-    """Drop what is typed until no input has come for QUIET seconds since the question was drawn,
-    so only an answer to it counts. False for an end of input or a device gone; a Refusal, exit
-    2, when input still comes BOUND seconds after the question, as a flood of typed lines does."""
-    start = last = time.monotonic()
+    """Wait QUIET seconds from the moment the question was drawn: True when no input came in
+    them, so the next line can be an answer to it. A byte that was waiting or came in the wait
+    is the Refusal, exit 2, since it was typed before the question could be read. False for an
+    end of input or a device gone."""
+    end = time.monotonic() + QUIET
     while True:
-        now = time.monotonic()
-        if now - last >= QUIET:
+        left = end - time.monotonic()
+        if left <= 0:
             return True
-        if now - start >= BOUND:
-            raise Refusal(2, "err.issue.send.flood", secs=int(BOUND))
-        if select.select([fd], [], [], min(QUIET - (now - last), BOUND - (now - start)))[0]:
+        if select.select([fd], [], [], left)[0]:
             try:
-                if not os.read(fd, 4096):
-                    return False
+                got = os.read(fd, 4096)
             except OSError:
                 return False
-            last = time.monotonic()
+            if not got:
+                return False
+            raise Refusal(2, "err.issue.send.early")
 
 
 def _ask(fd, dev, mid, word=False):
-    """Write the question on the device, wait for quiet input and read one line from it: the
-    bytes, or None for an end of input or a device gone. For the word, a byte that comes on
-    within QUIET seconds after the line is the flood's Refusal, exit 2."""
+    """Write the question on the device, wait QUIET seconds in which no byte may come (`_settle`)
+    and read one line from it: the bytes, or None for an end of input or a device gone. For the
+    word, a byte that comes on within QUIET seconds after the line is the flood's Refusal, exit
+    2."""
     dev.line(mid)
     dev.flush()
     if not _settle(fd):
@@ -325,7 +331,7 @@ def _ask(fd, dev, mid, word=False):
     except OSError:
         return None
     if answer and word and select.select([fd], [], [], QUIET)[0]:
-        raise Refusal(2, "err.issue.send.flood", secs=int(BOUND))
+        raise Refusal(2, "err.issue.send.flood")
     return answer or None
 
 
