@@ -31,7 +31,7 @@ ROW = {"lines": ["agentik murmur doctor"], "user_file": None, "needs": [], "stat
 PAGE_LINE = "its page has the line: %s" % PAGE
 LAUNCHER_PAGE = "not placed, and not setup's to place: murmur installs its own command"
 DOCTOR_PAGE = "not checked: its command is not installed yet"
-CLOSE = "next: step 4 names the page with the install line for murmur; setup has done the rest."
+CLOSE = "next: step 4 names the page with the install line for murmur. Setup has done the rest."
 # the pin's words for a tool with no page, measured at 82d634b with the relay in its place
 PIN = {"h0": ("setup.launcher.wait", "setup.doctor.wait"),
        "hL": ("setup.launcher.none", "setup.doctor.nocmd"),

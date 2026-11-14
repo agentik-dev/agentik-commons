@@ -50,7 +50,7 @@ def planned(steps):
 
 def page_close(steps):
     """The close where a page row is left and no step holds a command setup would run, or None
-    (row fh13-relay-plan R7): each such tool in the plan's order."""
+    (row fh13 R7): each such tool in the plan's order."""
     names = [s["values"]["name"] for s in steps if s["n"] == 4 and s["line"] == "page"]
     if not names or runnable(steps):
         return None
@@ -58,7 +58,7 @@ def page_close(steps):
 
 
 def step_json(s):
-    """A step as setup's JSON gives it; a page row adds its page (row fh13-relay-plan R2)."""
+    """A step as setup's JSON gives it; a page row adds its page (row fh13 R2)."""
     obj = {k: s[k] for k in JSON_KEYS}
     if s.get("page"):
         obj["page"] = s["page"]

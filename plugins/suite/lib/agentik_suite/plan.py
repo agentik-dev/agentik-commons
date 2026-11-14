@@ -13,7 +13,7 @@ message id and values of its detail, the command (None when there is none) and i
 a yes runs (steps 2 to 5), `add` for the shell profile (step 6), or `later`, the reader's own to
 run after setup (step 7's doctors), or `page`, a tool's page, which nothing opens: a tool whose
 table row holds a `page` installs its own command, so steps 4 and 7 place, describe and run
-nothing of it but the finder's file (row fh13-relay-plan), and its step 4 row then holds `page`. A
+nothing of it but the finder's file (row fh13), and its step 4 row then holds `page`. A
 plugin's install-cli places the door, so while step 4 has a row to do the door's row names no line
 (row sm1-setup-ask R2).
 """
