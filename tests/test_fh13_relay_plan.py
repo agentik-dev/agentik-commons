@@ -297,7 +297,9 @@ class PageTest(Base):
             body = fh.read()
         code, out, err = self.cli(h, "setup", "--yes", T, path=self.off(h))
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(err.splitlines()[-1], path_close)
+        self.assertNotIn(PAGE, out + err)  # the report's add line and the pin's close, no page's
+        self.assertIn("add to your shell profile:", out + err)
+        self.assertEqual(err.splitlines()[-1], "next: ~/.local/bin/agentik doctor checks each plugin.")
         with open(where) as fh:
             self.assertEqual(fh.read(), body)  # setup writes nothing at W
         self.assertFalse([line for line in h.ran() if T in line], h.ran())

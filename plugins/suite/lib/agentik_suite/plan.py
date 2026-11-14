@@ -159,6 +159,14 @@ def _command(root, name):
     return path if os.path.isfile(path) and _under(path, root) else None
 
 
+def _page_runs(row, where):
+    """The file that runs for a tool with a page: the one the finder names, else W when the
+    finder's own test calls it executable, on PATH or not (row fh13 review 1 F2)."""
+    from . import sources  # sources imports this module at its top
+    runs = (row["runs"] or {}).get("path")
+    return runs or (where if sources._executable(where) else None)
+
+
 def _plugin_row(n, name, row, home):
     """Step 3 for a source that is not the marketplace's own: (step, (version, command) or None)."""
     root, ver = row["root"], row["version"]
@@ -257,7 +265,7 @@ def build(names, env, lib, tool, version, cwd=None):
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
         if name in pages:
-            runs = (row["runs"] or {}).get("path")
+            runs = _page_runs(row, where)
             if runs:  # R3
                 steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.theirs",
                                    name=name, path=shown(runs, home)))
@@ -357,6 +365,8 @@ def build(names, env, lib, tool, version, cwd=None):
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
         runs = (rows[name]["runs"] or {}).get("path")  # the file that runs names the line (R6)
+        if name in pages:
+            runs = _page_runs(rows[name], where)
         if name in pages and not runs:  # fh13 R4
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.page"))
         elif name in pages:

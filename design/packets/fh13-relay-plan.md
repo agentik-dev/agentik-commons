@@ -58,6 +58,6 @@ The coordinator's ruling on review 1 (adversary, slice `82d634b..12677ea`), buil
 |---|---|---|
 | 12 | settled `hL`, `setup T` with stdin closed and `setup --yes T`: `Setup has nothing to do`, then step 4's row with the page under it, then `hint.setup.page`; nothing ran | red: no page on the screen |
 | 13 | `hL`, `setup --yes T`: the report's step 4 row has the page under it; the last line `hint.setup.page` | red: no page under step 4 |
-| 14 | settled `hM`, PATH without `~/.local/bin`: step 4 ok `setup.launcher.theirs` at W, step 7 `W doctor`, no page; the close `hint.setup.path`; `--yes` leaves W as it was and runs nothing of T | red: `setup.launcher.page` |
+| 14 | settled `hM`, PATH without `~/.local/bin`: step 4 ok `setup.launcher.theirs` at W, step 7 `W doctor`, no page; the dry run's close `hint.setup.path`; `--yes` prints the add line, closes as the pin's report (`hint.setup.doctor`), leaves W as it was and runs nothing of T | red: `setup.launcher.page` |
 | 15 | a dangling link, a plain file or a folder at W, on PATH or off: steps 4 and 7 the page's | green |
 | 16 | a `page` with a space, a newline, a tab, ESC, NUL, BEL, U+202E or U+00A0 reads as absent | red: read as a page |
