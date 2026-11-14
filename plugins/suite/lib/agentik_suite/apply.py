@@ -378,7 +378,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     if ran:
         wrote = wrote + ([journal] if journal not in wrote else [])
         entry = {"at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                 "version": cmd.version, "plugins": names,
+                 "verb": "setup", "version": cmd.version, "plugins": names,
                  "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                  "wrote": wrote, "exit": code}
         try:

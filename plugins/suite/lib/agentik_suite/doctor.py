@@ -523,8 +523,8 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.hint("hint.doctor.next", command=hint)
 
 
-def do_doctor(cmd, nouns):
-    cmd._no_nouns(nouns)
+def read(cmd):
+    """(groups, failed, warned, total, entries): the one read `doctor` prints and `update` closes on."""
     on_path = cmd._on_path()
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     entries = tools.listed(suite, on_path, cmd.env)
@@ -536,10 +536,16 @@ def do_doctor(cmd, nouns):
     checks = [c for g in groups for c in g["checks"]]
     failed = sum(c["status"] == "fail" for c in checks)
     warned = sum(c["status"] == "warn" for c in checks)
+    return groups, failed, warned, len(checks), entries
+
+
+def do_doctor(cmd, nouns):
+    cmd._no_nouns(nouns)
+    groups, failed, warned, total, entries = read(cmd)
     if cmd.opts["json"]:
         cmd.t.json({"schema": SCHEMA, "ok": True, "failed": failed, "warned": warned,
                     "tools": [{"name": g["name"], "checks": [{k: c[k] for k in KEYS} for c in g["checks"]],
                                "source": g["source"]} for g in groups]})
     else:
-        screen(cmd, groups, failed, warned, len(checks), entries)
+        screen(cmd, groups, failed, warned, total, entries)
     return 1 if failed else 0

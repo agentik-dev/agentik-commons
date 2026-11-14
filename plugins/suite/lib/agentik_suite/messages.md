@@ -31,11 +31,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.help`: every verb, tool and flag
 - `help.eg.help_verb`: one verb, with examples
 - `help.eg.help_tool`: that tool's own help
+- `help.eg.update`: every installed tool and its command, after one question
+- `help.eg.update_dry`: the plan; nothing is written
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
+- `verb.update`: Bring every installed tool and its command current.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
@@ -46,6 +49,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
+- `usage.update`: usage: `{update}` [<name>...] [flags]
 - `usage.config`: usage: `{config}` [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{describe}` [config [<key>]] --json
 - `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
@@ -287,6 +291,45 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{setup}` again to go on.
 - `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{setup}` again to go on.
 - `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{setup}` from a terminal.
+
+## Update
+
+- `update.plan`: Update plan for `{names}`.
+- `update.plan.dry`: Update plan for `{names}`. Nothing is written.
+- `update.plan.none`: Update plan for no tool, since none is installed.
+- `update.plan.absent`: Update plan for no tool, since `{names}` is not installed.
+- `update.plan.absent.many`: Update plan for no tool, since `{names}` are not installed.
+- `update.market`: a marketplace of the tools below; update brings its list current
+- `update.plugin`: at version `{version}`; update brings it to its marketplace's newest
+- `update.doctor`: the doctor reads every tool once the steps above have run
+- `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
+- `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
+- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so this command leaves it as it is.
+- `update.tool.moved`: `{name}` `{old}` to `{new}`
+- `update.tool.same`: `{name}` `{version}`, already current
+- `update.tool.gone`: `{name}` `{version}` is no longer installed
+- `update.nothing`: everything is current; nothing was placed.
+- `update.held.run`: a `{tool}` run is live (pid `{pid}`)
+- `update.held.unattended`: an unattended run is live
+- `update.held.ps`: the process list cannot be read
+- `err.update.held`: held install: `{what}`
+- `hint.update.held`: next: `{command}` once it has ended
+- `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
+- `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
+- `err.update.yes`: Update ran nothing, since it cannot ask you here. Run `{update}` --yes to run the lines above.
+- `err.update.declined`: Update ran nothing, since the answer was not yes. Run `{update}` again when you are ready.
+- `err.update.blocked`: Update ran nothing, since step 1 needs `{missing}`. Install it, then run `{update}` again.
+- `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{update}` again.
+- `err.update.step.silent`: Update stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{update}` again.
+- `err.update.wall`: Update stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{update}` again to retry it.
+- `err.update.wall.silent`: Update stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{update}` again to retry it.
+- `err.update.start`: Update stopped: `{command}` could not start, since `{last}`. Mend that, then run `{update}` again.
+- `err.update.todo`: Update stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{update}` --dry-run to see why.
+- `err.update.journal`: Update could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
+- `err.update.interrupted.idle`: Update was interrupted between steps, with no command running. Run `{update}` again to go on.
+- `err.update.left`: Update left `{subject}` undone at step 3, as its row above says. Run `{command}`, then run `{update}` again.
+- `err.update.left.none`: Update left `{subject}` undone at step 3, as its row above says. Mend that, then run `{update}` again.
+- `hint.update.suite.pull`: to move it: pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite
 
 ## Status
 

@@ -157,7 +157,8 @@ class ApplyTest(SetupHome):
         self.assertEqual(err.count("running "), 5, err)
         self.assertIn("doctor", err.splitlines()[-1])
         entry = self.journal()[0]
-        self.assertEqual(set(entry), {"at", "version", "plugins", "ran", "wrote", "exit"})
+        self.assertEqual(set(entry), {"at", "verb", "version", "plugins", "ran", "wrote", "exit"})  # ak4a R7
+        self.assertEqual(entry["verb"], "setup")
         self.assertEqual((entry["version"], entry["plugins"], entry["exit"]), (version(), ["alpha", "beta"], 0))
         self.assertTrue(entry["at"].endswith("Z"))
         self.assertEqual([r["command"].split()[-1] for r in entry["ran"]],
