@@ -284,5 +284,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
 - `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
-- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so the issue may or may not exist. Search the repo before you send again.
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
 - `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.
