@@ -243,6 +243,46 @@ class EmptyTest(Checks):
                            env=self.env(), cwd=str(ROOT), timeout=60)
         self.assertNotEqual(p.returncode, 127)
 
+    def test_r1f1_quiet_names_the_setup_command(self):
+        """Review 1's R1-F1: -q prints no close, so no row's remedy is dropped as the close's;
+        an empty HOME's `doctor -q` names the setup command, as at the pin."""
+        code, out, err = self.screen("-q")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("next:", out + err)
+        fixes = [l.strip() for l in out.splitlines() if l.strip().startswith("fix: ")]
+        self.assertIn("fix: %s setup" % LAUNCHER, fixes, out)
+
+
+class QuietTest(Checks):
+    def test_r1f1_quiet_names_a_tool_remedy(self):
+        path = self.ready()
+        checks = self.ok_checks(1) + [{"name": "store", "status": "fail",
+                                       "detail": "the store is locked", "remedy": "agentik zed repair"}]
+        self.tool("zed", self.answer_of("zed", checks), code=1)
+        code, out, err = self.screen(PATH=path)
+        self.assertEqual(err.splitlines()[-1], "note  next: agentik zed repair")
+        self.assertNotIn("fix: agentik zed repair", out)
+        code, out, err = self.screen("-q", PATH=path)
+        self.assertEqual(code, 1, out + err)
+        self.assertNotIn("next:", out + err)
+        lines = out.splitlines()
+        at = [i for i, l in enumerate(lines) if ROW.match(l) and ROW.match(l).group(2) == "store"][0]
+        self.assertEqual(lines[at + 1].strip(), "fix: agentik zed repair", out)
+
+    def test_r1f2_a_blank_remedy_is_no_command(self):
+        """Review 1's R1-F2: a remedy blank after strip() is no shell line: never the close's
+        command, and no empty `fix:` line."""
+        path = self.ready()
+        checks = [{"name": "store", "status": "fail", "detail": "the store is locked", "remedy": "  "}]
+        self.tool("zed", self.answer_of("zed", checks), code=1)
+        code, out, err = self.screen(PATH=path)
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(err.splitlines()[-1:], ["note  next: agentik zed doctor"], err)
+        for args in ((), ("-q",)):
+            code, out, err = self.screen(*args, PATH=path)
+            for l in out.splitlines():
+                self.assertNotIn(l.strip(), ("fix:", "in Claude Code:"), out)
+
 
 class VoiceTest(unittest.TestCase):
     def test_a9_the_doctor_section(self):
