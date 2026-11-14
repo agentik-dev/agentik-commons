@@ -30,7 +30,7 @@ A clone and its `setup` set a machine up, the steps above included: `git clone h
 
 | path | what |
 |---|---|
-| `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>` from PATH, else hands the word to `agentik-suite`; bare `agentik` is the suite's help, or the list of tools when the suite is not on PATH; exit 3, one line, when neither is there |
+| `bin/agentik` | the front door, POSIX `sh`: `agentik <tool> args…` execs `agentik-<tool>`, found on PATH or beside the door, and hands every other line to `agentik-suite` as typed, bare and `--version` included; with no suite it lists the tools, and a word with no tool exits 3 with the clone and its setup as the `next:` line |
 | `.claude-plugin/marketplace.json` | the `agentik` marketplace as published: six `git-subdir` entries on `github.com/agentik-dev`, public repos only, the five tools' at `plugin` and `suite`'s on this repo's own url at `plugins/suite`, checked by `scripts/marketplace-check`; a plugin whose repo is not public reaches the owner's machine through the local file's overlay only |
 | `plugins/suite` | the `suite` plugin: `plugin.json` and its `dependencies`, and the `agentik-suite` command, its launcher in `bin/` beside a copy of the front door, held byte-equal by a test, and its stdlib package in `lib/agentik_suite/`, whose every message is in `messages.md` |
 | `GUIDE.md` | the conventions every tool repo follows: layout, naming, verbs, exit codes, README shape, install and hygiene |
