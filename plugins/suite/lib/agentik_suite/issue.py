@@ -420,6 +420,13 @@ def _new(cmd, nouns):
     if o["render"]:
         said = _render(cmd, {"id": meta["id"], "path": path, "meta": meta}, fields, public, data)
         data = said.pop("data")
+        if "stopped" in said:  # review 1 F1, F5: the draft stands as made, and the verb ends
+            try:
+                t.line("issue.render.stopped", err=True, id=meta["id"])
+                t.flush()
+            except OSError:  # a closed terminal: the exit says it
+                pass
+            return 128 + said["stopped"]
     unsure = meta["unsure"]
     if o["json"]:
         t.json(dict({"schema": SCHEMA, "ok": True, "id": meta["id"], "path": path, "tool": tool,
@@ -448,7 +455,10 @@ def _render(cmd, d, fields, public, data):
         mode = render.load(cmd.lib)["mode"]
     except ValueError:
         return {"rendered": False, "why": "none", "data": data}
-    got = render.run(script, data, cmd.env, mode=mode, why=why)
+    try:
+        got = render.run(script, data, cmd.env, mode=mode, why=why)
+    except render.Stopped as s:  # the script's group is ended and its folder gone by now
+        return {"rendered": False, "stopped": s.signum, "data": data}
     if got is None:
         return dict({"rendered": False, "data": data}, why=why.get("code", "shape"),
                     **({"exit": why["exit"]} if "exit" in why else {}))

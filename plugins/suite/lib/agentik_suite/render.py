@@ -24,6 +24,7 @@ SOURCE, CONTRACT, OUT = "issue.md", "contract.md", "render.md"
 READ_CAP = 1 << 16  # bytes of an answer read back; two lines of a draft are far under it
 LABELS = ("Happened", "Expected")
 LIB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STOPS = (signal.SIGTERM, signal.SIGHUP)  # the signals that end a render and then the verb
 
 
 def load(lib):
@@ -71,6 +72,43 @@ def run(script, data, env, wall=WALL, mode=None, why=None):
     folder removed on every way out. `mode` defaults to render.json's beside the package."""
     why = {} if why is None else why
     mode = load(LIB)["mode"] if mode is None else mode
+    state = {"armed": True, "got": None}
+    saved = _trap(state)
+    try:
+        return _run(script, data, env, wall, mode, why, state)
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+class Stopped(BaseException):
+    """A signal of STOPS during a render, raised once the script's group is ended and its folder
+    removed, so the verb exits 128 plus `signum` (review 1 F1, F5)."""
+
+    def __init__(self, signum):
+        BaseException.__init__(self, signum)
+        self.signum = signum
+
+
+def _trap(state):
+    """The handlers of STOPS while a render runs, the ones they replace returned. The first
+    signal is kept in `state`; the others are ignored from then on, so the stop ends."""
+    def stop(signum, frame):
+        for sig in STOPS:
+            signal.signal(sig, signal.SIG_IGN)
+        state["got"] = signum
+        if state["armed"]:
+            raise Stopped(signum)
+    saved = {}
+    try:
+        for sig in STOPS:
+            saved[sig] = signal.signal(sig, stop)
+    except ValueError:  # not the main thread: the default actions stay
+        pass
+    return saved
+
+
+def _run(script, data, env, wall, mode, why, state):
     folder = os.path.realpath(tempfile.mkdtemp(prefix="agentik-render-"))
     try:
         paths = [os.path.join(folder, n) for n in (SOURCE, CONTRACT, OUT)]
@@ -78,7 +116,7 @@ def run(script, data, env, wall=WALL, mode=None, why=None):
         term.keep(paths[1], contract().encode("utf-8"))
         argv = [script, "--mode", mode, "--source", paths[0], "--out", paths[2],
                 "--contract", paths[1]]
-        code = _start(argv, folder, env, wall, why)
+        code = _start(argv, folder, env, wall, why, state)
         if code is None:
             return None
         if code != 0:
@@ -93,11 +131,16 @@ def run(script, data, env, wall=WALL, mode=None, why=None):
             why["code"] = "shape"
         return got
     finally:
+        state["armed"] = False
         _remove(folder)
+        if state["got"] is not None:
+            raise Stopped(state["got"])
 
 
-def _start(argv, folder, env, wall, why):
-    """The script's exit, or None with `why` filled; its group killed on every way out."""
+def _start(argv, folder, env, wall, why, state):
+    """The script's exit, or None with `why` filled; its group killed on every way out, a
+    signal of STOPS held off from then on."""
+    state["armed"] = False  # a signal while the child is made is held: no script is left unseen
     try:
         proc = subprocess.Popen(argv, cwd=folder, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -106,11 +149,15 @@ def _start(argv, folder, env, wall, why):
         why["code"] = "start"
         return None
     try:
+        state["armed"] = True
+        if state["got"] is not None:
+            raise Stopped(state["got"])
         return proc.wait(timeout=wall)
     except subprocess.TimeoutExpired:
         why["code"] = "wall"
         return None
     finally:
+        state["armed"] = False
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except OSError:
