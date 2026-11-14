@@ -558,5 +558,28 @@ class R1F4Test(Review1Case):
         self.assertEqual(out, "error: no route\nAuthor: <name-1> <email-1>\nDate: Mon 3 Nov")
 
 
+class R1F5Test(Review1Case):
+    """R1-F5: a MAC address with octets of one or two digits, and the dotted form of three
+    groups of four, are replaced."""
+
+    def test_r1f5_short_and_dotted_mac(self):
+        m = machine()
+        quad = ".".join(["192", "168", "1", "1"])
+        short = ":".join(["4", "a1", "2", "bb", "c", "d"])
+        dotted = ".".join(["a483", "e712", "3456"])
+        cases = [
+            ("? (%s) at %s on en0 ifscope [ethernet]" % (quad, short),
+             "? (<address-1>) at <address-2> on en0 ifscope [ethernet]", short),
+            ("mac %s" % dotted, "mac <address-1>", dotted),
+            ("mac %s." % dotted.upper(), "mac <address-1>.", dotted),
+        ]
+        for raw, want, value in cases:
+            with self.subTest(raw=raw[:8]):
+                self.assertEqual(self.closes(m, raw, [value]), want)
+        for line in ("at 12:34:56", "version 1.2.3", "range 1-2-3-4-5-6"):
+            with self.subTest(line=line):
+                self.assertEqual(scrub.scrub(line, m)[0], line)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -113,7 +113,8 @@ NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
 BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 
 V6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
-MAC = re.compile(r"(?<![\w:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![\w:-])")
+MAC = re.compile(r"(?<![\w:-])(?:[0-9A-Fa-f]{1,2}(?::[0-9A-Fa-f]{1,2}){5}|[0-9A-Fa-f]{2}(?:-[0-9A-Fa-f]{2}){5})"
+                 r"(?![\w:-])|(?<![\w.])[0-9A-Fa-f]{4}(?:\.[0-9A-Fa-f]{4}){2}(?![\w-]|\.\w)")
 OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 QUAD = re.compile(r"(?<![\w.])(?:%s\.){3}%s(?!\w|\.\d)" % (OCTET, OCTET))
 SITE = re.compile(r"(?<![\w.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:%s)"
