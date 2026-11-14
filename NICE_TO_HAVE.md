@@ -19,15 +19,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
 | n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
 
-## From packet c3
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n2 | S4 | `scripts/recordlint` | a near-miss header is skipped in HANDOFF as in NICE (`status` for `state`, a NICE of four cells), rule 1 as written, so a botched conversion passes; a header opening `#` or `id` could be held instead | design/05 §4 rule 1; `tests/test_recordlint.py`, the skip test's NICE | 2026-11-01, c3's builder; HANDOFF named by c3's refuter round 1 |
-| n3 | S4 | `scripts/recordlint` | `item` over 80 characters, which the reader trims (`backlog.py:275`), and `id` not `n<k>` (design/05 §2) pass unchecked | design/05 §2 | 2026-11-01, c3's builder |
-| n5 | S4 | `scripts/recordlint` | a `<br>` or a list inside a cell passes unchecked, though GUIDE §9's Cells rule is one line, no list, no `<br>` | `GUIDE.md:75` | 2026-11-01, c3's refuter round 1 |
-| n6 | S4 | `scripts/recordlint` | bullets above the first `##` pass, rule 2 holding only the lines under a `##`, though design/05 §2's shape is a title and one head paragraph | `GUIDE.md:75`; `scripts/recordlint:171` | 2026-11-01, c3's refuter round 1 |
-
 ## From packet h1 (commit range)
 
 | id | level | area | finding | evidence | from |
@@ -111,3 +102,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n81 | S4 | `plugins/suite` `doctor.py` `_last_line` | a tool's last line has no length bound: a 900,000-character line is the detail in the text and in `--json`; cut it near 200 characters | ak3d review 1's R1-F7: 902,737 bytes out | 2026-11-13, ak3d review 1 |
 | n82 | S4 | `plugins/suite` `messages.md` | `err.verb.plugin`'s remedy still names `setup --dry-run <word>`, now that `setup <word>` applies | ak3-setup build 1's lead | 2026-11-13, ak3-setup build 1 |
 | n83 | S4 | `plugins/suite` `apply.py` failed step | a failed step's line quotes the command's last output line, for a wrapped message a fragment, and adds a period after one: `said and the repository exists.. Mend that`; quote a full line and add no second period | `setup --yes` in a temp HOME behind a network wall, step 2's `marketplace add` | 2026-11-13, ak3p phase 2 |
+
+## From packet sc2-name (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n84 | S4 | `scripts/plugin-launcher` | the launcher exports `AGENTIK_ARGV0` in every tool and only the suite drops it, so other tools' children inherit it, harmless only by the suite's `samefile` check. Closed: GUIDE §10's `AGENTIK_ARGV0` paragraph says so | review 1's N1 | 2026-11-13, sc2 review 1 |
+| n85 | S4 | `plugins/suite` `prog.py` `form` | the door form says `agentik` whenever a door at 0.2.0 or newer and any `agentik-suite` are on PATH, so from a newer clone `next: agentik doctor` runs the older suite; per design/23 §3, but may surprise | review 1's N2 | 2026-11-13, sc2 review 1 |
+| n86 | S4 | `plugins/suite` `doctor.py` | `"%s doctor" % exe` still writes another tool's name before a verb outside `prog.start`; it runs, since the exe came from PATH, but in the door form reads `agentik-session doctor`, and R1's source test does not see it | review 1's N3: `doctor.py:111` | 2026-11-13, sc2 review 1 |
+| n87 | S4 | `plugins/suite` `messages.md` | `next: ... config suite.<key>` is a template: pasted, `sh` reads `<key>` as a redirection and exits 2 (before sc2 too) | review 1's N4: the line pasted into `sh -c` exits 2 | 2026-11-13, sc2 review 1 |
