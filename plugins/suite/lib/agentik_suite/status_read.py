@@ -352,7 +352,9 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             "covers": cov}
 
     own = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
-    on_path = {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}
+    # the finder's file where it passes PATH's first over, so no file under the root of a plugin
+    # that does not stand is started (row fk2-plan R3)
+    on_path = tools.runs(env, {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}, cwd)
     table = tools.fallback(cmd.lib)
     srcs, absent, given = [], [], set()
     jobs, keys = [], {}

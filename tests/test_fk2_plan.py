@@ -178,7 +178,7 @@ class Fk2Test(Base):
             self.assertNotIn("zap", tools.plugin_names(env, str(LIB)))
             h = self.home("hJ")
             self.assertIn("paint", tools.plugin_names(self.env(h), str(LIB)))
-            self.assertNotIn("paint", tools.installed(self.env(h)))
+            self.assertIn("paint", tools.installed(self.env(h)))  # declared, not found: not absent
 
     def test_r2_listed_gives_the_finders_file_and_row(self):
         h = self.home("hD")
