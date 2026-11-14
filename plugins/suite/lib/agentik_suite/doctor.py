@@ -13,7 +13,7 @@ import time
 
 import agentik_install
 
-from . import plan, settings, status, term, tools
+from . import plan, prog, settings, status, term, tools
 
 DEADLINE = 30.0
 RESERVED = ("remove", "update", "init", "completion", "inbox")
@@ -24,19 +24,12 @@ def _check(name, state, detail, remedy=None):
     return {"name": name, "status": state, "detail": detail, "remedy": remedy}
 
 
-def first_door(env):
-    """The first `agentik` on PATH that is a regular executable file; a FIFO, a folder or
-    anything else of that name is passed over and never opened."""
-    for entry in env.get("PATH", "").split(os.pathsep):
-        path = os.path.join(entry or ".", agentik_install.DOOR)
-        if os.path.isfile(path) and os.access(path, os.X_OK):  # a stat, never an open
-            return path
-    return None
+first_door = prog.first_door  # moved to prog, where the command's form reads it (row sc2)
 
 
 def door(cmd, on_path):
     t, home = cmd.t, cmd.env.get("HOME")
-    setup = "%s setup" % cmd.tool
+    setup = cmd.say("setup")
     path = first_door(cmd.env)
     if path is None:
         return _check("door", "warn", t.text("doctor.door.none"), setup)
@@ -51,7 +44,7 @@ def door(cmd, on_path):
         return _check("door", "ok", t.text("doctor.door.ok", path=shown, have=have, want=want))
     if any(f["name"] == cmd.tool for f in on_path):
         return _check("door", "fail", t.text("doctor.door.behind", path=shown, have=have, want=want),
-                      "%s install-cli" % cmd.tool)
+                      cmd.say("install-cli"))
     return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want), setup)
 
 
@@ -92,7 +85,7 @@ def plan_rows(cmd):
         state = STATE[s["state"]]
         remedy = None
         if state == "warn":
-            remedy = s["command"] if s["n"] == 6 and s["command"] else "%s setup" % cmd.tool
+            remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup")
         found.append(_check("%s %s" % (s["id"], s["subject"]), state,
                             cmd.t.text(s["mid"], **s["values"]), remedy))
     return found
@@ -133,7 +126,7 @@ def own_doctors(cmd, entries):
 
 def _hint(cmd, checks):
     states = [c["status"] for c in checks]
-    setup = "%s setup" % cmd.tool
+    setup = cmd.say("setup")
     if "fail" in states:
         return "hint.doctor.fail"
     if any(c["status"] == "warn" and c["remedy"] == setup for c in checks):
@@ -158,12 +151,12 @@ def do_doctor(cmd, nouns):
         t.json({"schema": "agentik.doctor/1", "ok": True, "failed": failed, "warned": warned,
                 "tools": [{"name": name, "checks": found} for name, found in groups]})
     else:
-        t.line("doctor.title", tool=cmd.tool)
+        t.line("doctor.title", **cmd.slots())
         for name, found in groups:
             t.blank()
             t.line("doctor.group", style="name", name=name)
             t.table([(c["status"], [term.name(c["name"]), c["detail"]],
                       t.text("doctor.run", command=c["remedy"]) if c["remedy"] else None)
                      for c in found])
-        t.hint(_hint(cmd, checks), tool=cmd.tool)
+        t.hint(_hint(cmd, checks), **cmd.slots())
     return 1 if failed else 0

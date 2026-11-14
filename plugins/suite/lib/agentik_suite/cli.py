@@ -23,7 +23,7 @@ import sys
 
 import agentik_install
 
-from . import apply, config, doctor, install, plan, status, term, tools
+from . import apply, config, doctor, install, plan, prog, status, term, tools
 
 VERBS = ("help", "version", "setup", "config", "describe", "status", "install-cli", "doctor")
 WRITES = ("setup", "install-cli")
@@ -42,14 +42,17 @@ ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS +
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
+SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
+         ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
+         ("install", ("install-cli",)))
 
 
 class Usage(Exception):
     """A refusal: its JSON code, message id, remedy and exit (2, or 3 for a plugin not installed)."""
 
-    def __init__(self, code, mid, remedy, status=2, **values):
+    def __init__(self, code, mid, remedy, exit_code=2, **values):  # `status` is a command's slot
         Exception.__init__(self, code)
-        self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, status, values
+        self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, exit_code, values
 
 
 def _lib():
@@ -100,10 +103,30 @@ class Command:
         self.env = env
         self.lib = _lib()
         self.tool = _tool(self.lib)
+        self.typed = env.pop(prog.ARGV0, None)  # the word typed, kept from what this spawns (R3)
+        try:
+            self.cwd = os.getcwd()
+        except OSError:
+            self.cwd = "/"
         self.version = agentik_install.version(self.lib)
         self.t = term.Term(no_color=self.opts["no_color"], quiet=self.opts["quiet"] or self.opts["json"],
                            env=env, out=out, err=err)
         self.verb = None
+
+    # ---- the name and the command a line prints (row sc2, hq design/23 §3) -----------------
+
+    def say(self, *words):
+        """The one way a line names a command: the words that start it, then `words`; in --json
+        with the full path where the screen shows `~`."""
+        return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
+                          full=self.opts["json"])
+
+    def slots(self):
+        """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
+        name a title gives."""
+        found = {slot: self.say(*verb) for slot, verb in SLOTS}
+        found["tool"] = prog.name(self.env, self.tool)
+        return found
 
     # ---- the frame ------------------------------------------------------------------------
 
@@ -146,22 +169,22 @@ class Command:
         own = self.tool[len("agentik-"):]
         if word in names and word != own and not any(
                 f["name"] == "agentik-" + word for f in self._on_path()):
-            raise Usage("not_installed", "err.verb.plugin", "%s setup --dry-run %s" % (self.tool, word),
-                        status=3, word=word, tool=self.tool)
+            raise Usage("not_installed", "err.verb.plugin", self.say("setup", "--dry-run", word),
+                        exit_code=3, word=word, **self.slots())
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=0.6)
         if near:
             # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
             verb = near[0] in VERBS and not asked_help
-            remedy = "%s %s" % (self.tool, near[0]) if verb else "%s --help" % self.tool
+            remedy = self.say(near[0]) if verb else self.say("--help")
             raise Usage("unknown_verb", "err.verb.near", remedy,
-                        word=word, near=near[0], tool=self.tool)
-        raise Usage("unknown_verb", "err.verb", "%s --help" % self.tool, word=word, tool=self.tool)
+                        word=word, near=near[0], **self.slots())
+        raise Usage("unknown_verb", "err.verb", self.say("--help"), word=word, **self.slots())
 
     def _bad_flag(self, flag):
         known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
         near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
-        where = "%s %s" % (self.tool, self.verb) if self.verb and self.verb != "help" else self.tool
+        where = self.say(self.verb) if self.verb and self.verb != "help" else self.say()
         if near and near[0] != flag:
             raise Usage("unknown_flag", "err.flag.near", "%s --help" % where,
                         flag=flag, near=near[0], where=where)
@@ -178,7 +201,7 @@ class Command:
 
     def _no_nouns(self, nouns):
         if nouns:
-            where = "%s %s" % (self.tool, self.verb)
+            where = self.say(self.verb)
             raise Usage("extra_word", "err.extra", "%s --help" % where,
                         word=nouns[0], where=where)
 
@@ -217,13 +240,13 @@ class Command:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version,
                          "verbs": [{"name": v, "summary": self.t.text("verb." + v.replace("-", "_")),
-                                    "usage": self.t.text("usage." + v.replace("-", "_"), tool=self.tool)}
+                                    "usage": self.t.text("usage." + v.replace("-", "_"), **self.slots())}
                                    for v in VERBS],
                          "flags": [f[0] for f in FLAGS], "on_path": found})
             return 0
         t = self.t
-        t.line("help.title", tool=self.tool, version=self.version)
-        t.line("help.usage", tool=self.tool)
+        t.line("help.title", **self.slots(), version=self.version)
+        t.line("help.usage", **self.slots())
         t.blank()
         t.line("help.verbs", style="name")
         t.table([(None, [term.name(v), t.text("verb." + v.replace("-", "_"))], None) for v in VERBS])
@@ -236,7 +259,7 @@ class Command:
             t.table([("ok", [term.name(f["name"]), term.path(f["path"])], None) for f in found])
         else:
             t.table([("note", [t.text("help.path.none")], None)])
-        t.hint("hint.help", tool=self.tool)
+        t.hint("hint.help", **self.slots())
         return 0
 
     def help_verb(self, verb):
@@ -245,16 +268,16 @@ class Command:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
                          "summary": self.t.text("verb." + verb.replace("-", "_")),
-                         "usage": self.t.text("usage." + verb.replace("-", "_"), tool=self.tool),
+                         "usage": self.t.text("usage." + verb.replace("-", "_"), **self.slots()),
                          "flags": [f[0] for f in flags]})
             return 0
         t = self.t
-        t.line("usage." + verb.replace("-", "_"), tool=self.tool)
+        t.line("usage." + verb.replace("-", "_"), **self.slots())
         t.line("verb." + verb.replace("-", "_"))
         t.blank()
         t.line("help.flags", style="name")
         t.table(self._flag_rows(flags))
-        t.hint("hint.verb", tool=self.tool)
+        t.hint("hint.verb", **self.slots())
         return 0
 
     # ---- version --------------------------------------------------------------------------
@@ -264,12 +287,12 @@ class Command:
         if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
             path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
             raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
-                        tool=self.tool, path=path)
+                        **self.slots(), path=path)
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
                          "version": self.version})
         else:
-            self.t.line("version.line", tool=self.tool, version=self.version)
+            self.t.line("version.line", **self.slots(), version=self.version)
         return 0
 
     def do_install_cli(self, nouns):
@@ -280,8 +303,8 @@ class Command:
     def do_setup(self, nouns):
         for noun in nouns:
             if not NOUN.match(noun):
-                raise Usage("bad_name", "err.setup.name", "%s setup --dry-run" % self.tool,
-                            name=noun, tool=self.tool)
+                raise Usage("bad_name", "err.setup.name", self.say("setup", "--dry-run"),
+                            name=noun, **self.slots())
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)
@@ -306,7 +329,7 @@ class Command:
             subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
             rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
         t.table(rows, mark_at=1)
-        t.hint(*self._closing(steps), tool=self.tool)
+        t.hint(*self._closing(steps), **self.slots())
         return 0
 
     @staticmethod
