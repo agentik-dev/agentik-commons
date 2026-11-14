@@ -43,7 +43,7 @@ DESCRIBE = {"schema": "agentik.describe/1", "ok": True, "tool": "murmur", "versi
 SHARED = "--json  -q/--quiet  --no-color"
 # The pin's (2fd5a80) ids a ruling keeps byte for byte (R7): sc1-voice-sweep owns them.
 KEPT = re.compile(r"^(verb|flag|usage)\.")
-PIN_KEPT = (33, "6bdf3fd25ecfc090c92561e5c9dcbf78e097c442448e2a60ada3e96bd9ab96f3")  # at 2fd5a80
+PIN_KEPT = (34, "7242b895fecc12bb20ddf377e1d01d3c8815c136f012593a5be6ebe85566abc4")  # at 3a1a2ed: 2fd5a80's 33 and rp8's flag.render
 NEW = ("help.row.setup", "help.row.doctor", "help.row.config", "help.row.status", "help.row.help",
        "help.row.tool", "help.row.tool.none", "help.row.help.all", "help.more", "help.usage.tool",
        "help.tools", "help.tools.none", "help.tool.bare", "help.eg.setup", "help.eg.setup_dry",
