@@ -259,14 +259,15 @@ def _runs(t, obj, part, hand, sources, tool):
     shown_runs = part.get("shown") or []
     if not shown_runs:
         return [row(t.text("status.runs.none"))]
-    gone = {h.get("name"): h for h in hand if h.get("kind") == "run_gone"}
+    gone = [h for h in hand if h.get("kind") == "run_gone"]
     rows = []
     for r in shown_runs:
         by, run = shown(r.get("by")), shown(r.get("run"))
-        if r.get("run") in gone:
+        entry = _gone(gone, r)
+        if entry:
             rows.append(row(t.text("status.run.gone", by=by, run=run, pid=shown(r.get("pid"))), whole=True))
-            if gone[r["run"]].get("remedy"):
-                rows.append(row(t.text("status.see", remedy=gone[r["run"]]["remedy"]), DIM, True))
+            if entry.get("remedy"):
+                rows.append(row(t.text("status.see", remedy=entry["remedy"]), DIM, True))
             continue
         text = t.text("status.run", by=by, run=run, state=shown(r.get("state")))
         if r.get("row"):
@@ -278,6 +279,16 @@ def _runs(t, obj, part, hand, sources, tool):
             text += "; " + ", ".join(counts)
         rows.append(row(text))
     return rows
+
+
+def _gone(gone, r):
+    """The `run_gone` entry of `hand` for this run: its id and its tool together, the tool read
+    from the entry's `tool` and matched to the run's `by` where the entry gives one. A run the
+    object says is alive is never gone."""
+    if r.get("alive") is True:
+        return None
+    return next((h for h in gone if h.get("name") == r.get("run")
+                 and h.get("tool", r.get("by")) == r.get("by")), None)
 
 
 def _source(sources, name):

@@ -357,5 +357,31 @@ class ThirdTest(unittest.TestCase):
         self.assertIn("s" * 70, piped(obj)[0])
 
 
+class GoneTest(unittest.TestCase):
+    """R1-F1: a gone run by its tool and its id; a run the object says is alive is never gone."""
+
+    def test_r1f1_an_alive_run_with_a_gone_id(self):
+        obj = load("broken")
+        gone = obj["runs"]["shown"][0]
+        obj["runs"]["shown"] = [dict(gone, by="unattended", source="unattended", pid=5151, alive=True,
+                                     row="importer-fix", age_s=40, rows={"landed": 2}), gone]
+        self.assertEqual([r[16:] for r in part_rows(rows(obj), "runs")], [
+            "unattended 2026-11-13-2: running row importer-fix, its last line 40 s ago; 2 landed",
+            "baton 2026-11-13-2: reads running, and its process (pid 4242) is gone",
+            "see: agentik baton status",
+            "not read: agentik-bench gave no answer in 1 s"])
+
+    def test_r1f1_the_hand_names_the_tool(self):
+        obj = load("broken")
+        gone = obj["runs"]["shown"][0]
+        obj["runs"]["shown"] = [dict(gone, by="unattended", source="unattended", pid=5151), gone]
+        obj["hand"][-1]["tool"] = "unattended"
+        got = [r[16:] for r in part_rows(rows(obj), "runs")]
+        self.assertEqual(got[:3], [
+            "unattended 2026-11-13-2: reads running, and its process (pid 5151) is gone",
+            "see: agentik baton status",
+            "baton 2026-11-13-2: running; 1 green, 1 running"])
+
+
 if __name__ == "__main__":
     unittest.main()
