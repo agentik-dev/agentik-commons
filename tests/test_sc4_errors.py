@@ -441,6 +441,44 @@ class MergedVerbsTest(Sc4Home):
             if "issue" in argv or "isue" in argv:  # no next: of the verb files (rp6 phase 2)
                 self.assertNotIn("send", nxt.split()[2:], (argv, nxt))
 
+    INBOX = [  # the lines a person would mistype for inbox (row in4-inbox)
+        (("inbox", "--chek"), "--chek is not a flag of inbox", "agentik inbox --check", "unknown_flag"),
+        (("inbx",), "inbx is not a verb", "agentik inbox", "unknown_verb"),
+        (("inbxo", "--check"), "inbxo is not a verb", "agentik inbox --check", "unknown_verb"),
+        (("inbox", "--check", "1"), "--check and a question's number are two answers", "agentik inbox --check",
+         "two_answers"),
+        (("inbox", "--all"), "--all is not a flag of inbox", "agentik help inbox", "unknown_flag"),
+        (("inbox", "--yes"), "--yes is not a flag of inbox", "agentik help inbox", "unknown_flag"),
+        (("inbox", "--dry-run"), "--dry-run is not a flag of inbox", "agentik help inbox", "unknown_flag"),
+        (("inbox", "--check", "--jsno"), "--jsno is not a flag of inbox", "agentik inbox --check --json",
+         "unknown_flag"),
+        (("inbox", "7"), "no checkout read here holds a question 7", "agentik inbox", "unknown_number"),
+    ]
+    LEDGER = """#!/bin/sh
+case "$1" in
+describe) echo '{"schema": "agentik.describe/1", "ok": true, "tool": "ledger", "version": "1.0.0",
+  "summary": "A made-up tool.", "repo": "example/ledger", "plugin": "ledger@agentik", "needs": [],
+  "verbs": [], "reads": [{"kind": "status", "name": "questions", "argv": ["questions", "--json"]}]}' ;;
+questions) echo '{"schema": "agentik.questions/1", "ok": true, "repos": [], "skipped": []}' ;;
+*) exit 2 ;;
+esac
+"""
+
+    def test_inbox_is_refused_with_a_line_that_runs(self):
+        """The user file lists one made-up checkout and a made-up tool gives one read, so each pasted
+        line reads it: exit 0, or 1 under --check, and no FAIL."""
+        self.stub("agentik-ledger", self.LEDGER)
+        os.mkdir(os.path.join(self.home, "apple"))
+        user = os.path.join(self.home, ".config", "agentik", "suite", "config.yaml")
+        os.makedirs(os.path.dirname(user))
+        with open(user, "w") as fh:
+            fh.write("checkouts: [~/apple]\n")
+        for argv, cause, nxt, code_word in self.INBOX:
+            self.refusal(argv, cause, nxt, code_word=code_word)
+            self.assertFalse(set(nxt.split()) & set(cli.SKIPS), (argv, nxt))
+            self.assert_runs(nxt, argv)
+            self.assert_writes_nothing(nxt, argv)
+
     refusal = Review1Test.refusal
 
 
