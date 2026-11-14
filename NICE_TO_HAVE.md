@@ -25,24 +25,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
 | n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
 
-## From packet ak1a (the suite's command, review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n25 | S4 | `plugins/suite` `cli.py` | `--json` errors: a bad flag with no verb answers `schema: agentik.help/1`, an unknown verb `agentik.usage/1`; `stup --json` gives the remedy `agentik-suite setup`, which itself exits 2 | review 1's L4 | 2026-11-13, ak1a review r1 |
-| n26 | S4 | `plugins/suite` `cli.py` | argument edges: `version --version` and `--version --help` are refused as "not a flag here"; `-qh` is refused; an empty argument prints `FAIL   is not a verb`; a 5000-character word is echoed whole | review 1's L5 | 2026-11-13, ak1a review r1 |
-| n27 | S4 | `plugins/suite` `cli.py`, `plan.py` | paths: an empty PATH lists the cwd's `agentik-*` as `./agentik-x`; step 6 compares by `normpath`, so a symlinked `~/.local/bin` on PATH reads "not on PATH"; HOME unset reads each path from the cwd; a folder at a launcher's place reads "not placed" | review 1's L6 | 2026-11-13, ak1a review r1 |
-| n28 | S4 | `plugins/suite` `plan.py` | corrupt installs, what fix round 1 left: an unreadable manifest plans "no plugin, since the manifest lists none"; a manifest's dependency names are not held to the name rule (`a b`, `x;y` reach a command, quoted); with no dependencies the plan shows five step numbers, not seven | review 1's L7 | 2026-11-13, ak1a review r1 |
-| n29 | S4 | `plugins/suite` `cli.py`, `plan.py` | small truths: `help` marks each PATH row `ok` though nothing was checked; step 1's `python3` row is the running interpreter, not a PATH lookup; step 4's waiting row names no command | review 1's L8 | 2026-11-13, ak1a review r1 |
-| n30 | S4 | `plugins/suite` `term.py` | a row with something to do shows as `note` (`·`), which reads as information, not as a thing to do; the four state words are the design's, so a change is the design's to make | review 1's note under L9 | 2026-11-13, ak1a review r1 |
-| n32 | S4 | `plugins/suite` `plan.py` | a launcher left by an uninstalled plugin: step 4 says `not placed; step 3 installs the plugin first`, while steps 5 and 7 print `run:` lines on that same file | the review's states; untrue at 3b7cc56 too | 2026-11-13, ak1a review 2 L3 |
-| n33 | S4 | `plugins/suite` `term.py` | a control character in an `installPath`: R6 strips a tab, so its `run:` line names no file (`sh -c` exits 127); U+202E passes, being neither C0 nor C1 | the review's stream probe | 2026-11-13, ak1a review 2 L5 |
-| n34 | S4 | `plugins/suite` `catalogue.py`, `term.py` | a capital in a catalogue id stops every verb with `cannot read .../messages.md`, exit 2, though the file is readable and malformed; under `--json` the line is on stderr and stdout is empty; an empty catalogue is a `KeyError` traceback | the review's catalogue probe | 2026-11-13, ak1a review 2 L6 |
-| n35 | S4 | `plugins/suite` `cli.py` | an unparseable manifest: `--version` is one line, exit 2, but `help` prints `0.0.0-unknown` and `setup --dry-run` plans no plugin; R9 covers the version verb only | the review's manifest probe | 2026-11-13, ak1a review 2 L7 |
-| n36 | S4 | `plugins/suite` `term.py` | at 40 columns each moved detail starts at column 40 of 40, so every row is followed by a line that looks blank; nothing is cut | a pty 40 columns wide, fresh home | 2026-11-13, ak1a review 2 L8 |
-| n37 | S4 | `plugins/suite` `plan.py` | a placed launcher with mode 0644 reads `ok` at step 4, and its doctor line cannot run; read the same at 3b7cc56 | the review's states | 2026-11-13, ak1a review 2 L9 |
-| n38 | S4 | `plugins/suite` `messages.md` | the table of words' rest: `hint.setup.done` as `setup is done`, `hint.setup.todo` and `hint.setup.blocked` with `run` before the command, `err.setup.plan_only` result first, and term's missing-catalogue line naming the reinstall command | review 2's table of words; its two step 5 and rest lines are built (M3) | 2026-11-13, ak1a review 2 |
-
 ## From packet ak2 (the door's writers)
 
 | id | level | area | finding | evidence | from |
@@ -107,3 +89,21 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n96 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
 | n97 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |
 | n98 | S4 | `scripts/hygiene` `secret` | a lead for rp2: GitLab's `glpat-<body>.01.<suffix>` form counts 1 but the match ends at the first `.`, so a scrub of the match alone leaves the suffix | review 1's N11 | 2026-11-13, rp1 review 1 |
+
+## From packet sc10-doctor-checks (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n105 | S4 | `plugins/suite` `doctor.py` `read_answer` | one malformed field voids a tool's whole answer, so a `fail` check with no `detail` leads to the second round, and a plain `doctor` that exits 0 reads `its doctor passed`: the fail is hidden (as R1 and R2 rule) | review 1's note: probe p2 `eee` | 2026-11-13, sc10 review 1 |
+| n106 | S4 | `plugins/suite` `doctor.py` `read_answer` | the reader is lenient: a check with no `remedy` key is accepted though the contract lists it, and an empty name and detail draw a bare `    FAIL` row | review 1's note: probe p2 `kkk` | 2026-11-13, sc10 review 1 |
+| n107 | S4 | `plugins/suite` `doctor.py` | an answer with an empty `checks` list reads `ok  <tool>  0 checks` | review 1's note: probe p2 `jjj` | 2026-11-13, sc10 review 1 |
+| n108 | S4 | `plugins/suite` `doctor.py` | more than 1 MiB of stdout in round 1 is one start and the pin's `could not start, or printed more than 1 MiB` warn, with no second round (R2 rules this) | review 1's note | 2026-11-13, sc10 review 1 |
+| n109 | S4 | `plugins/suite` `term.py` `clean` | `clean` strips C0, DEL and C1 only: U+202E (right-to-left override) is drawn raw, and the text left by a stripped escape still shows (`ti]0;PWNEDtle`); `--json` escapes U+202E | review 1's note, on a pipe and a pty | 2026-11-13, sc10 review 1 |
+| n110 | S4 | `plugins/suite` `doctor.py` | a tool's remedy that holds a newline is flattened into one line and printed as given, so `next:` can show a joined command | review 1's note | 2026-11-13, sc10 review 1 |
+| n111 | S4 | `plugins/suite` `term.py` `_cleaned` | `--json` is not a tool's bytes verbatim when they hold control characters: all but `\n` are removed (before sc10) | review 1's note | 2026-11-13, sc10 review 1 |
+| n112 | S4 | `plugins/suite` `doctor.py` `close_command` | a settings fault or a shadow `fail` with no other problem closes on `2 failed, 0 to look at, 18 ok.` and no `next:` line (R8's "else none"); the pin ended on a hint | review 1's note: probe p7 | 2026-11-13, sc10 review 1 |
+| n113 | S4 | `plugins/suite` `doctor.py` `_rows` | failing step-1 rows fold into one row, `FAIL  prereqs  not on PATH: claude, git` (R6 rules this; each subject is still named) | review 1's note | 2026-11-13, sc10 review 1 |
+| n114 | S4 | `plugins/suite` `doctor.py` | when the close is setup (R8 b), a failing tool's own doctor command shows nowhere on the screen; the tool shows only its group line or rows | review 1's note: probe p3 `nodoor` | 2026-11-13, sc10 review 1 |
+| n115 | S4 | `plugins/suite` `doctor.py` `_under` | build 1's lead that `fix: <setup>` can show up to three times under a plan's rows (a failing door's install-cli the close) was not reproduced: in an old-door HOME the plan rows were counted as waiting | review 1's note; build 1's charter | 2026-11-13, sc10 review 1 |
+| n116 | S4 | `plugins/suite` `doctor` | not run by review 1: a real terminal emulator (bytes on a pty only), a HOME or tool path with spaces, a colour pty run at the pin, a door placed by a real `setup` | review 1's note | 2026-11-13, sc10 review 1 |
+| n117 | S4 | `plugins/suite` `messages.md` | `doctor.settings.unchecked` is 79 characters with its slots in, over the 76 of the row's acceptance 9, kept by R9; shorten it when that message is next turned | build 2's charter; acceptance 9's test | 2026-11-13, sc10 phase 2 |

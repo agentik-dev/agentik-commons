@@ -158,7 +158,7 @@ class PasteTest(Home):
             for c in found:
                 self.assertNotEqual(self.paste(c, env), 127, (argv, c))
         hint = self.screen(["./setup", "--dry-run"], env).splitlines()[-1]
-        self.assertIn(" ./setup --dry-run again.", hint)
+        self.assertTrue(hint.endswith(" next: ./setup"), hint)  # row sm2 R1
         self.assertIn(TOOL + " ", self.screen(["plugins/suite/bin/agentik-suite"], env).splitlines()[0])
 
     def placed(self):
@@ -208,14 +208,20 @@ class FrozenTest(PasteTest):
         return env
 
     def check(self, launcher, env, start):
+        later = []  # sc10: doctor may name install-cli alone; it is pasted once the screens are read
         for words in self.SCREENS:
             text = self.screen([launcher] + words, env)
             self.assertIsNone(self.RUNNER.search(text), (words, text))
-            found = self.commands(text)
+            found, safe = self.commands(text, every=True), self.commands(text)
             self.assertTrue(found, (words, text))
             for c in found:
                 self.assertTrue(c.startswith(start + " "), (words, c))
-                self.assertNotEqual(self.paste(c, env), 127, (words, c))
+                if c in safe:
+                    self.assertNotEqual(self.paste(c, env), 127, (words, c))
+                elif c.split()[-1] == "install-cli" and c not in later:
+                    later.append(c)
+        for c in later:
+            self.assertNotEqual(self.paste(c, env), 127, c)
 
     def test_f1_no_door_on_path(self):
         env = self.frozen()
