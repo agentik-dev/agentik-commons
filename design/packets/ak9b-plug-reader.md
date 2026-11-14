@@ -56,3 +56,23 @@ Measured at b99f677 by `tests/test_ak9b_plug_reader.py`, before the change: line
 ## 6. Choices
 
 Listed in the charter's handover as they are made.
+
+## 7. The fix of review 1
+
+The coordinator's ruling of 2026-11-14 on review 1's finding F1 and its leads, built in one round, each line with a test red at 40df089:
+
+- F1 (S2, a regression of sc10's screen): R6's rows and order, R7's plain close and the 300-character cut reach only the answer of R5's doctor read. A tool whose describe names no doctor read, or that answers no describe, keeps the pin's rows, order, close and `--json`, byte for byte: round 1's `doctor --json` is read by the pin's `read_answer`, and R5's read by `read_own`. sc10's a3 and r1f2 end on the pin's close again.
+- Lead 1, ruled as sc5's R8: R4's config remedy goes behind `next:` only where it holds neither `--yes`, `-y` nor the word `remove`. One that does is printed on its own line as the tool wrote it, cleaned (`config.remedy`), and the close names the read (`hint.config.again`, `cmd.say("config", T)`).
+- Lead 2: a remedy that holds a control byte or a newline is no remedy (`tools.plain`), for R4's close and `--json`, and for a check of R5's read, its `fix:` line and the close it feeds.
+- R3 (lead 4): a `tool` that is no string takes the reason `unread`. R5 (lead 7): a doctor read whose `argv` is empty does not count, so the tool gets the pin's two rounds.
+- The wall (lead 3): R5 reads describe first, so the worst case is the describe wall and the doctor's deadline; the module's docstring says so.
+- Stand as built: an `ok` false answer of R5's read in sc10's form (lead 6); R1; R9; suite 0.7.13.
+- To NICE at S4 (leads 3, 5, 8, 9, 11): the config table's settings column where a reason shows; the two timing tests' patched wall; `help T` against `T --help`; a describe summary's size in `config --json`; R3's reason on the doctor's screen.
+
+| # | line | at 40df089 |
+|---|---|---|
+| 9 | `-k test_9_` (F1: the pin's screen and `--json` of sc10's path, as bytes taken at b99f677) | red |
+| 13 | `-k test_13_` (lead 1) | red, `next:` and the remedy |
+| 14 | `-k test_14_` (lead 2: config and doctor) | red, the second line joins |
+| 15 | `-k test_15_` (R3) | red, `other` |
+| 16 | `-k test_16_` (R5) | red, the tool run bare |
