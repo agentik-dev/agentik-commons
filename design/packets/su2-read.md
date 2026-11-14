@@ -63,3 +63,23 @@ No version here: the join takes it (0.7.0 expected) in its last commit under `pl
 ## 6. Forbidden reads and report
 
 `~/.local/state`, transcripts, a relay ledger, the private hygiene list. The report: head sha, gate ids and exits, acceptance 1 to 12 at the pin and now.
+
+## 7. The join (on the coordinator's word, 2026-11-13)
+
+`su2-screen` merged into this branch; no merge of main and no version here (phase 2 takes 0.7.0). Rulings beyond J1 to J4:
+
+- `status` with no `--json` composes with an `on_part` that draws the part through `status_screen.part` and flushes, then `status_screen.foot`. A stdout closed while it draws raises inside `run_all`, so every read ends; exit 141 (128 plus SIGPIPE), no traceback. An interrupt: 130, as before.
+- Each `run_gone` entry of `hand` carries the run's `tool`; the screen matches a gone run by tool and id.
+- The screen words the top-level `fault` once, in the watchers part, with a warn mark: `status.fault.listing` and `.parts` for `bad_listing`, `status.fault.unknown` for any other; under it a watcher reads `status.watcher.unchecked` and the sessions part drops `status.unchecked`.
+- A source's `fields` is left to `--json`: the screen's sample has no place for it.
+- `err.status.check` leaves with its test; `verb.status` and `usage.status` as J3.
+
+| # | line, the join |
+|---|---|
+| J-2 | `status` piped in the base case equals `e2e.piped.txt` but for its `sources` row's numbers |
+| J-3 | `gate-no-runner.json`: the gate's row and one hint naming `agentik demo gate status`; `-q`, none |
+| J-4 | `help status` prints the new usage; the catalogue holds J3's `verb.status` and no `err.status.check` |
+| J-5 | a `run` read sleeping 0.8 s: the backlog's first row at least 0.5 s before the runs' |
+| J-7 | a terminal at 40, 80, 120 columns: no row past the width but a command's; at 120 the piped rows |
+| J-8 | `bad_listing`: its two rows once, `warn` on watchers, `note` on sessions, gate and runs |
+| J-9 | a closed pipe or an interrupt while it draws: back inside 2 s, the slow read and its child gone |
