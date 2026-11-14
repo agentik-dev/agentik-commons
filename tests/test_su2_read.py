@@ -203,7 +203,7 @@ class RunsTest(ReadHome):
         obj = self.read()
         shown = obj["runs"]["shown"]
         self.assertEqual((len(shown), shown[0]["alive"], shown[0]["rows"]), (1, False, {"green": 1, "running": 1}))
-        self.assertEqual(obj["hand"], [{"part": "runs", "kind": "run_gone", "name": "2026-11-13-2",
+        self.assertEqual(obj["hand"], [{"part": "runs", "kind": "run_gone", "name": "2026-11-13-2", "tool": "demo",
                                         "remedy": "agentik demo run status"}])
         self.assertEqual(obj["runs"]["state"], "hand")
         self.ps_rows(more=[(4242, "/opt/bin/worker")])

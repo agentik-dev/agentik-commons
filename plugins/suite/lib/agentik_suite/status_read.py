@@ -290,7 +290,8 @@ def _runs(srcs, procs, uid, now, hand):
             run = {"source": "run", "by": src["tool"], "run": night, "state": state, "row": None,
                    "age_s": None, "pid": pid, "alive": alive, "rows": _counts(rows)}
             if state == "running" and alive is False:
-                hand.append({"part": "runs", "kind": "run_gone", "name": night, "remedy": _remedy(src)})
+                hand.append({"part": "runs", "kind": "run_gone", "name": night, "tool": src["tool"],
+                             "remedy": _remedy(src)})
         else:
             if answer is None:
                 continue
