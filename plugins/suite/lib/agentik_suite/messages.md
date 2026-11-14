@@ -464,6 +464,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.discard.done`: Discarded the draft `{id}`.
 - `err.issue.word.near`: `{word}` is not a word of issue; the nearest is `{near}`
 - `err.issue.word`: `{word}` is not a word of issue
+- `err.issue.dry`: --dry-run is send's alone: `{word}` would write, so nothing was done
 - `err.issue.check`: --check reads the drafts and takes no word
 - `err.issue.draft`: no draft is named `{id}`
 - `err.issue.none`: no draft waits

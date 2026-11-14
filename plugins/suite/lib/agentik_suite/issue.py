@@ -30,6 +30,7 @@ import time
 from . import form, gather, plan, scrub, send, term
 
 WORDS = ("new", "show", "strike", "drop", "edit", "reword", "send", "discard")
+WRITERS = ("new", "strike", "drop", "edit", "reword", "discard")  # each refuses --dry-run (review 2)
 SCHEMA = "agentik.issue/1"
 ID = re.compile(r"[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4}\Z")
 READ_CAP = 1 << 20  # bytes of a draft or a render read back
@@ -50,7 +51,7 @@ def takes(o, nouns):
     if not nouns:
         return True
     word, rest = nouns[0], nouns[1:]
-    if word not in WORDS or o["check"]:
+    if word not in WORDS or o["check"] or o["dry_run"] and word in WRITERS:
         return False
     if word == "new":
         return len(rest) <= 1 and (o["exit"] is None or _exit(o["exit"]) is not None)
@@ -154,6 +155,8 @@ def _word(cmd, nouns):
         raise _usage(cmd, "unknown_word", "err.issue.word", word=word)
     if word is None:
         return _read(cmd)
+    if o["dry_run"] and word in WRITERS:  # send alone keeps it: nothing is read, made or removed
+        raise _usage(cmd, "dry_run", "err.issue.dry", word=word)
     if o["check"]:
         raise _usage(cmd, "check_alone", "err.issue.check", cmd.again({i: [] for i in cmd.at[1:]}))
     return globals()["_" + word](cmd, nouns[1:])
