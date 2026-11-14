@@ -282,8 +282,8 @@ class OwnBytesTest(Base):
         for verb in ("config", "doctor", "status"):
             code, out, err = self.cli(h, verb, "--json")
             self.assertEqual(code, 0, err)
-        self.assertEqual(h.ran(), [w + " describe --json", w + " doctor --json", w + " doctor",
-                                   w + " describe --json"])
+        self.assertEqual(h.ran(), [w + " describe --json", w + " describe --json", w + " doctor --json",
+                                   w + " doctor", w + " describe --json"])  # doctor: describe first (ak9b R5)
 
 
 def relink(path, target):

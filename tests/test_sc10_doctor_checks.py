@@ -204,7 +204,7 @@ class ReadyTest(Checks):
         at = [i for i, l in enumerate(lines) if ROW.match(l) and ROW.match(l).group(2) == "launcher"][0]
         self.assertEqual(lines[at + 1].strip(), "in Claude Code: /murmur:install-cli")
         self.assertNotIn("/murmur", err)
-        self.assertEqual(err.splitlines()[-1], PLAIN)
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")  # a fix line stands (ak9b R7)
         self.assertNotIn("run:", out + err)
         code, out, err = self.screen()  # an empty HOME
         self.assertNotIn("run:", out + err)

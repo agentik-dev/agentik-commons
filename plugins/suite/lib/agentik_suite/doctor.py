@@ -433,10 +433,13 @@ def close_command(cmd, groups):
                 return remedy
             if g.get("own") is None:
                 return tool_doctor(cmd, g["name"], g["exe"])
-            for c in fails:  # a counted answer: its first fail a close may run, else the plain line (R7)
+            for c in fails:  # a counted answer: its first fail a close may run (R7)
                 if _closes(c["remedy"]):
                     return c["remedy"]
-            return PLAIN
+            if any(c["status"] in ("fail", "warn") and c["remedy"] and c["remedy"].strip()
+                   for c in g["checks"]):  # a line under a row says what to run: the pin's close
+                return tool_doctor(cmd, g["name"], g["exe"])
+            return PLAIN  # no row names a command: the plain line
     for i, g in enumerate(groups):
         for c in g["checks"]:
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
