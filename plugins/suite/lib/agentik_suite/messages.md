@@ -104,6 +104,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.count.one`: 1 setting
 - `config.differ`: `{n}` changed
 - `config.from_table`: from the suite's table
+- `config.from`: from `{source}`
+- `config.titled`: `{title}`, from `{source}`
+- `config.undecided`: `{count}` plugins of this name; no source is declared
+- `config.source.title`: `{name}`: `{words}`.
+- `config.source.undecided`: `{count}` plugins of this name are installed, and no source is declared
+- `config.source.count`: `{count}` plugins of this name are installed
+- `config.source.one`: 1 plugin of this name is installed
+- `config.source.none`: no plugin of this name is installed
 - `config.fault`: `{path}` cannot be read at line `{line}`: `{why}`
 - `config.fault.noline`: `{path}` cannot be read: `{why}`
 - `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed from the default.
@@ -127,6 +135,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.label.run`: run
 - `config.label.file`: user file
 - `config.label.needs`: needs
+- `config.label.seen`: seen
 - `config.fixed`: no verb changes it
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
