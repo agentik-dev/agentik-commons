@@ -3,8 +3,10 @@ holding Claude Code's `installed_plugins.json` and `known_marketplaces.json`, ea
 `.claude/plugins/cache/<marketplace>/<tool>/<version>`. A command is an executable stub,
 `bin/agentik-<tool>` under a root; a launcher holds `VERSION=` and `TREE=` lines. Rows fk2 and
 fk2b import this one set; fk2 adds `ready` (a stub `claude` and the `agentik` marketplace's own
-file) and `commands` (a command under each root that logs to `$HOME/ran.log`). Nothing here writes
-outside the HOME it is given."""
+file) and `commands` (a command under each root that logs to `$HOME/ran.log`). Row fh13 adds `h0`
+(nothing), `hL` (the `@agentik` plugin alone, no `bin/`) and `hM` (`hL` with an executable stub at
+`~/.local/bin/agentik-<tool>`), none of them in HOMES. Nothing here writes outside the HOME it is
+given."""
 import json
 import os
 
@@ -13,6 +15,16 @@ SOURCE = "agentik-dev/agentik-commons"
 HOMES = ("hA", "hB", "hC", "hD", "hE", "hF", "hG", "hH", "hI", "hJ", "hK", "pA", "pB", "pC")
 STUB = "#!/bin/sh\nexit 0\n"
 RAN = '#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\nexit 0\n'  # row fk2: what ran, and with which words
+
+
+def describing(tool, plugin, version):
+    """Row fk2b-reads review 1 F1: a command's body that answers `describe --json` as a fork of a
+    suite tool would, with its own id and version, and logs what ran as RAN does."""
+    answer = json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": tool, "version": version,
+                         "summary": "A made-up tool.", "repo": "acme/" + tool, "plugin": plugin,
+                         "needs": [], "verbs": [], "reads": []})
+    return ('#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\n'
+            "if [ \"$1\" = describe ]; then echo '%s'; fi\nexit 0\n" % answer)
 
 
 class FkHome:
@@ -160,6 +172,10 @@ def build(name, home, tool=T):
         h.folder(F, "0.12.6")
     elif name == "hK":
         h.launcher("bin", "0.12.6", tree=False)
+    elif name in ("hL", "hM"):  # row fh13
+        h.install(U, "0.9.0")
+        if name == "hM":
+            h.file(os.path.join(home, ".local", "bin", "agentik-" + tool), STUB)
     if name == "hJ":
         h.user_file("sources:\n  %s: %s\n  paint: ~/src/paint-fork/plugin\n" % (tool, F))
         h.repo = os.path.join(home, "repo")

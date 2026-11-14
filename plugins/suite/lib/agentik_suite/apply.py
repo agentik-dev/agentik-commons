@@ -48,6 +48,23 @@ def planned(steps):
     return len(runnable(steps)) + len(waiting)
 
 
+def page_close(steps):
+    """The close where a page row is left and no step holds a command setup would run, or None
+    (row fh13 R7): each such tool in the plan's order."""
+    names = [s["values"]["name"] for s in steps if s["n"] == 4 and s["line"] == "page"]
+    if not names or runnable(steps):
+        return None
+    return "hint.setup.page", {"names": ", ".join(names)}
+
+
+def step_json(s):
+    """A step as setup's JSON gives it; a page row adds its page (row fh13 R2)."""
+    obj = {k: s[k] for k in JSON_KEYS}
+    if s.get("page"):
+        obj["page"] = s["page"]
+    return obj
+
+
 def _kill(group, sig=signal.SIGKILL):
     try:
         os.killpg(group, sig)
@@ -117,11 +134,12 @@ def execute(command, env):
             "why": why, "wall": wall}
 
 
-def gated(config, home, t):
-    """(path, why): the settings file when the user's gate list names it; the list itself, and
-    why, when it is there but cannot be read, which refuses too (review 1 F4); else (None, None).
-    A byte that is not UTF-8 is replaced, so it hides no line (F2)."""
-    target = os.path.join(config, "settings.json")
+def gated(config, home, t, target=None):
+    """(path, why): `target` (Claude Code's settings file when None) when the user's gate list
+    names it; the list itself, and why, when it is there but cannot be read, which refuses too
+    (review 1 F4); else (None, None). A byte that is not UTF-8 is replaced, so it hides no line
+    (F2). The doctor asks it of the suite's user file (row fk2b-reads R5): one reader of the list."""
+    target = target or os.path.join(config, "settings.json")
     listing = os.path.join(config, "edit-gates")
     if not os.path.lexists(listing):
         return None, None
@@ -194,11 +212,15 @@ def _terminal(cmd):
 
 
 def show(cmd, steps, upto=7, lines=True):
+    """The plan's table; with `lines` false a page row still holds its page, which the close
+    points to (row fh13 review 1 F1)."""
     t, rows, last = cmd.t, [], None
     for s in steps:
         if s["n"] > upto:
             continue
-        after = t.text("setup." + s["line"], command=s["command"]) if lines and s["command"] else None
+        shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
+        keep = lines or s["line"] == "page"
+        after = t.text("setup." + s["line"], command=shown) if keep and shown else None
         n = str(s["n"]) if s["n"] != last else ""
         last = s["n"]
         subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
@@ -371,7 +393,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     add = [s for s in steps if s["n"] == 6 and s["state"] == "todo" and s["command"]]
     if cmd.opts["json"]:
         obj = {"schema": "agentik.setup/1", "ok": not failure, "dry_run": False, "plugins": names,
-               "steps": [{k: s[k] for k in JSON_KEYS} for s in steps],
+               "steps": [step_json(s) for s in steps],
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
@@ -381,6 +403,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
         return code
     if not ran:
         t.line("setup.nothing")
+        if not failure and page_close(steps):  # the close's page stands above it (fh13 review 1 F1)
+            show(cmd, [s for s in steps if s["line"] == "page"], lines=False)
     else:
         t.line("setup.after")
         show(cmd, steps, upto=6, lines=False)
@@ -403,6 +427,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     if failure:
         t.flush()
         t.error(failure[0], **cmd.slots(), **failure[1])
+    elif page_close(steps):  # fh13 R7
+        t.hint(*page_close(steps))
     else:
         t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
     return code

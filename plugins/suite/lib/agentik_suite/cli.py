@@ -41,7 +41,7 @@ CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_fil
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
-               ("--not-a-duplicate", None, "not_a_duplicate"))
+               ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
@@ -336,11 +336,15 @@ class Command:
             run = prog.shown(found[word], self.env.get("HOME"), self.opts["json"]) + " --help"
             raise Refusal("unknown_verb", "err.verb.own", run, word=word)
         if word in tools.plugin_names(self.env, self.lib):
+            page = tools.page(tools.fallback(self.lib), word)  # it installs its own (row fh13 R8)
+            if page and (tools.rows(self.env, self.lib, names=[word])[word]["runs"] or {}).get("path"):
+                page = None  # a file runs: the pin's refusal
+            more = {"page": page} if page else {}
             if word in tools.installed(self.env):
-                raise Refusal("not_installed", "err.verb.plugin", self.say("config", word),
-                              exit_code=3, word=word)
-            raise Refusal("not_installed", "err.verb.missing", self.say("setup", word),
-                          exit_code=3, word=word)
+                raise Refusal("not_installed", "err.verb.page" if page else "err.verb.plugin",
+                              self.say("config", word), exit_code=3, word=word, **more)
+            raise Refusal("not_installed", "err.verb.page" if page else "err.verb.missing",
+                          self.say("setup", word), exit_code=3, word=word, **more)
         names = sorted(set(found) | set(tools.plugin_names(self.env, self.lib)))
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=NEAR)
@@ -587,8 +591,7 @@ class Command:
             s["detail"] = t.text(s["mid"], **dict(slots, **s["values"]))
         if self.opts["json"]:
             t.json({"schema": SCHEMA % "setup", "ok": True, "dry_run": True, "plugins": names,
-                    "steps": [{k: s[k] for k in ("n", "id", "state", "subject", "detail", "command")}
-                              for s in steps]})
+                    "steps": [apply.step_json(s) for s in steps]})
             return 0
         if names:
             t.line("setup.title", plugins=", ".join(names))
@@ -596,7 +599,8 @@ class Command:
             t.line("setup.title.none")
         rows, last = [], None
         for s in steps:
-            after = t.text("setup." + s["line"], command=s["command"]) if s["command"] else None
+            shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
+            after = t.text("setup." + s["line"], command=shown) if shown else None
             if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
                 after = t.text("setup.cmd.get")  # where Claude Code comes from (row sm2 R2)
             n = str(s["n"]) if s["n"] != last else ""
@@ -620,6 +624,8 @@ class Command:
             return "hint.setup.done", {}
         if any(s["command"] and s["line"] == "run" for s in early):
             return again
+        if apply.page_close(steps):  # before the PATH line's close (row fh13 R7)
+            return apply.page_close(steps)
         if any(s["command"] for s in early):
             return "hint.setup.path", {}
         return "hint.setup.rest", {}
