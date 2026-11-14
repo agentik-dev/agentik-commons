@@ -5,7 +5,7 @@
 | from | agentik-hq's brief rp5 of 2026-11-13, R1 to R10; hq design/22 §3 items 7, 8, 9, 11, 12 and 16, §9 (R1-F1, F5, F9, F10, F14, F16); level S3; the fifth row of the suite's issue reporter |
 | pin | branch `rp1-shapes` at 23330e2 (reviewed, not yet on main); worktree `.claude/worktrees/rp5-send`, branch `rp5-send`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` process, no agent; no test sends to a real service, opens a browser, runs the real `gh` or reads the real home; made-up names; no version set |
-| may touch | `plugins/suite/lib/agentik_suite/send.py`; `tests/test_rp5_send.py`; `plugins/suite/lib/agentik_suite/messages.md` (a new last section `## Issue` alone); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-13-22.md` |
+| may touch | `plugins/suite/lib/agentik_suite/send.py`; `tests/test_rp5_send.py`; `plugins/suite/lib/agentik_suite/messages.md` (a new last section `## Issue` alone); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-13-22.md` (the first build) and `history/sittings/2026-11-13-28.md` (the fixes of reviews 1 and 2, and phase 2) |
 | verify | `make voice`, then `make check`, each once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 12 below; `python3 -m unittest tests.test_rp5_send` OK; verify green |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls. `claude-opus-5-5` |
