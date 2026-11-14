@@ -7,7 +7,7 @@ this version only checks the declared watchers (`status --check`), install-cli, 
 command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
 in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
 install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
---user-files; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
+--user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
 --prefix DIR. Those three are the only flags with a value. stdout carries the answer alone;
 stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
 precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
@@ -32,12 +32,14 @@ FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", No
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
+DOCTOR_FLAGS = (("--all", None, "all"),)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
+VERB_FLAGS["doctor"] = DOCTOR_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
                "--prefix": ("prefix", "install-cli")}
-ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
+ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              for f in (long, short) if f}
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
@@ -152,7 +154,7 @@ class Command:
             self._bad_flag(self.bad)
         if o["version"] and (words or o["help"]):
             self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
+        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS:
             if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
                 self._bad_flag(long)
         for flag, (key, verb) in VALUE_FLAGS.items():
