@@ -638,5 +638,22 @@ class R1F7Test(Review1Case):
         self.assertTrue(scrub.detect("at /zqvroot", broken))
 
 
+class AuthorizationTest(Review1Case):
+    """Review 1's note: an `Authorization:` header's value is replaced whatever its scheme."""
+
+    def test_authorization_any_scheme(self):
+        m = machine()
+        word = rand(24)
+        for raw in ("Authorization: token " + word, "Authorization: " + word,
+                    'curl -H "Authorization: Digest username=zqv, response=%s" x' % word,
+                    "proxy-authorization: Negotiate " + word, '{"Authorization": "token %s", "x": 1}' % word):
+            with self.subTest(raw=raw[:16]):
+                out = self.closes(m, raw, [word])
+                self.assertIn("<secret>", out)
+        self.assertEqual(scrub.scrub("Authorization: Bearer <secret>", m)[0], "Authorization: Bearer <secret>")
+        self.assertEqual(scrub.scrub("Authorization: token " + word, m)[0], "Authorization: token <secret>")
+        self.assertEqual(scrub.scrub("missing Authorization header", m)[0], "missing Authorization header")
+
+
 if __name__ == "__main__":
     unittest.main()

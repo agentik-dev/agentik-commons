@@ -110,6 +110,8 @@ VALUE = r"(?:\"([^\"\n%s]*)\"|'([^'\n%s]*)'|([^\s\"',;%s]+))" % (STOP, STOP, STO
 ASSIGN = re.compile(r"(?<![A-Za-z0-9_.-])%s[\"']?[ \t]*[:=][ \t]*%s" % (SECRET_NAME, VALUE), re.I)
 FLAG = re.compile(r"(?<!\S)--?%s[ \t]+%s" % (SECRET_NAME, VALUE), re.I)
 NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
+AUTH = re.compile(r"(?<![\w-])(?:proxy-)?authorization[\"']?[ \t]*[:=][ \t]*([\"'`]?)", re.I)
+SCHEME = re.compile(r"[A-Za-z]+(?:[0-9]?-[A-Za-z0-9]+)*[ \t]+")
 BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 
 V6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
@@ -613,7 +615,36 @@ class _Pass:
             k += 1
         return words[k - 1].end() if k else end
 
+    def _auth(self, s):
+        """An `Authorization:` header's value, whatever its scheme: its scheme word stays, the
+        rest of its line, or of its quoted string, is the secret."""
+        out, pos = [], 0
+        for mt in AUTH.finditer(s):
+            if mt.start() < pos:
+                continue
+            a = mt.end()
+            stop = s.find("\n", a)
+            stop = len(s) if stop < 0 else stop
+            quote = mt.group(1) or (s[mt.start() - 1] if mt.start() and s[mt.start() - 1] in "\"'`" else "")
+            if quote:
+                q = s.find(quote, a, stop)
+                stop = q if q >= 0 else stop
+            value = s[a:stop].rstrip(" \t")
+            scheme = SCHEME.match(value)
+            b = a + (scheme.end() if scheme else 0)
+            cred = s[b:a + len(value)]
+            out.append(s[pos:b])
+            if any(ord(c) < BASE and not c.isspace() for c in cred):
+                out.append(self.put("secret", cred))
+            else:
+                out.append(cred)
+            pos = a + len(value)
+        out.append(s[pos:])
+        return "".join(out)
+
     def _assign(self, s):
+        s = self._auth(s)
+
         def value(mt):
             for g in (1, 2, 3):
                 v = mt.group(g)
