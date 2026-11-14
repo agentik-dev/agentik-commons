@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -275,6 +276,45 @@ class HintTest(unittest.TestCase):
         self.assertEqual(piped(obj)[1], "note  next: agentik doctor\n")
         self.assertEqual(piped(load("quiet"))[1], "")
         self.assertEqual(piped(load("busy"))[1], "")
+
+
+
+def columns(text):
+    """Screen columns, counted apart from term: a wide character two, a combining mark none."""
+    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
+               for c in text)
+
+
+def tty(obj, width=80):
+    return draw(obj, True, width=width)[0].splitlines()
+
+
+def part_rows(lines, label, lead=16):
+    """The rows of one part: its first row, found by its label, and the rows under it."""
+    i = next(k for k, r in enumerate(lines) if r[lead - 10:lead].rstrip() == label)
+    j = next((k for k in range(i + 1, len(lines)) if lines[k][:lead].strip()), len(lines))
+    return lines[i:j]
+
+
+class CleanTest(unittest.TestCase):
+    """R1-F5 and R1-F7: the cleaner drops line and direction controls; a tab or a break is a space."""
+
+    def test_r1f5_line_and_direction_controls(self):
+        self.assertEqual(term.clean("a\u2028b\u2029c\u202ad\u202ee\u2066f\u2069g\x1bh"), "abcdefgh")
+        obj = load("quiet")
+        obj["watchers"][0]["beat_line"] = "lamp ok\u2028ok    gate      spoofed row\u202eRLO"
+        for tty_ in (True, False):
+            out = draw(obj, tty_, width=200)[0]
+            self.assertEqual(len(out.splitlines()), len(draw(load("quiet"), tty_, width=200)[0].splitlines()))
+            self.assertNotIn("\u202e", out)
+            self.assertNotIn("\u2028", out)
+
+    def test_r1f7_a_tab_or_a_break_is_one_space(self):
+        self.assertEqual(term.clean("first line\nsecond line\tcol"), "first line second line col")
+        self.assertEqual(term.clean("a\r\nb\rc\x0bd\x0ce\x85f"), "a b c d e f")
+        obj = load("broken")
+        obj["sources"][0]["stderr"] = "first line\nsecond line\tcol"
+        self.assertIn("first line second line col", text(obj))
 
 
 if __name__ == "__main__":

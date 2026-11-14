@@ -9,7 +9,9 @@ apart; a name is bold, a path or a hint dim; nothing is told by colour alone.
 
 A stream that is closed, or whose reader has gone, takes nothing more and raises nothing, at a
 write or at the interpreter's exit; a character a stream cannot encode is replaced; a value has
-its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out.
+its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out; a
+tab or a line break in it is one space, and the line and direction controls (U+2028, U+2029,
+U+202A to U+202E, U+2066 to U+2069) are removed.
 """
 import json
 import os
@@ -28,9 +30,15 @@ CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
 JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survives, escaped
 
 
+LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
+BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
+
+
 def clean(value):
-    """The value as text, with its control characters removed."""
-    return CONTROL.sub("", str(value))
+    """The value as text, with its control characters removed: a tab or a line break becomes one
+    space, so no value splits a row or glues two words, and the line and direction controls go,
+    so no value reorders a row or starts another."""
+    return LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value))))
 
 
 def _cleaned(obj):
