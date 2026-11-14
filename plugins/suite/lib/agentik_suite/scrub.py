@@ -362,6 +362,8 @@ class _Pass:
         self.m, self.st, self.seals, self.kinds = m, state, [], set()
 
     def seal(self, text):
+        if len(self.seals) >= 0xFFFE:
+            raise OverflowError("more placeholders than one pass can seal")
         self.seals.append(text)
         return chr(BASE + len(self.seals) - 1)
 
@@ -734,7 +736,16 @@ class _Pass:
 
 def scrub(text, m):
     """(text, counts, spans): `clean`, then a pass applied to its own output until a pass changes
-    nothing. `counts` is {kind: n} of what was replaced, and `unsure`; `spans` is over the text."""
+    nothing. `counts` is {kind: n} of what was replaced, and `unsure`; `spans` is over the text.
+    A text that does not settle, or that no pass can read, is the secret mark whole: this never
+    raises on its input."""
+    try:
+        return _settle(text, m)
+    except Exception:
+        return "<secret>", {"secret": 1}, [(0, len("<secret>"), "secret")]
+
+
+def _settle(text, m):
     st = _State()
     t = clean(text)
     for _ in range(LIMIT):
@@ -745,7 +756,7 @@ def scrub(text, m):
             break
         t = new
     else:
-        raise RuntimeError("the scrub did not settle")
+        raise ValueError("the scrub did not settle")
     spans = p.spans(s)
     counts = dict(st.counts)
     unsure = sum(1 for _, _, k in spans if k == "unsure")
@@ -758,8 +769,11 @@ def detect(text, m):
     """The kinds one pass would replace in `text`, and `control` for a character `clean` would
     change: empty exactly when `scrub` leaves the text as it is. Kinds, never a match."""
     p = _Pass(m, _State())
-    if p.unseal(p.run(text)) == text:
-        return []
+    try:
+        if p.unseal(p.run(text)) == text:
+            return []
+    except Exception:
+        return ["secret"]
     return sorted(p.kinds or {"control"})
 
 

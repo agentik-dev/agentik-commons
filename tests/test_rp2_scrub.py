@@ -617,5 +617,26 @@ class R1F6Test(Review1Case):
         self.assertEqual(scrub.scrub("Zqvlast" + AT + "box", m)[0], "<name-1>" + AT + "box")
 
 
+class R1F7Test(Review1Case):
+    """R1-F7: a text that does not settle is replaced whole by the secret mark; `scrub` never
+    raises on input."""
+
+    def test_r1f7_unsettled_is_secret(self):
+        m = machine()
+        deep = "x=%" + "25" * 1100 + "41"
+        out, counts, spans = scrub.scrub(deep, m)
+        self.assertEqual((out, counts, spans), ("<secret>", {"secret": 1}, [(0, 8, "secret")]))
+        self.assertTrue(scrub.detect(deep, m))
+        self.assertEqual(scrub.scrub(out, m)[0], out)
+        self.assertEqual(scrub.scrub("x=%" + "25" * 900 + "41", m)[0], "x=A")
+
+    def test_r1f7_never_raises(self):
+        m = machine()
+        broken = dict(m, _groups=None)
+        out, counts, spans = scrub.scrub("at /zqvroot", broken)
+        self.assertEqual(out, "<secret>")
+        self.assertTrue(scrub.detect("at /zqvroot", broken))
+
+
 if __name__ == "__main__":
     unittest.main()
