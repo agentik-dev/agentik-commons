@@ -11,6 +11,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,7 +20,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import LAUNCHER  # noqa: E402
+from test_agentik_suite import LAUNCHER, PLUGIN  # noqa: E402
 from agentik_suite import cli, update  # noqa: E402
 
 CLAUDE = r'''#!/usr/bin/python3
@@ -44,6 +45,14 @@ if a[:2] == ["plugin", "update"] and len(a) == 3:
     path = os.path.join(d, "installed_plugins.json")
     table = json.load(open(path))
     table["plugins"][pid] = [{"scope": "user", "version": ver, "installPath": root}]
+    for flag in ("drop", "gone"):  # review 1 F4: the entry dropped; F5: its folder removed
+        at = os.path.join(home, flag)
+        if os.path.exists(at) and open(at).read().strip() == pid:
+            if flag == "drop":
+                table["plugins"].pop(pid)
+            else:
+                import shutil
+                shutil.rmtree(root)
     json.dump(table, open(path, "w"))
     sys.exit(0)
 sys.exit(2)
@@ -155,8 +164,8 @@ class Home:
         env.update(more)
         return env
 
-    def run(self, *args):
-        p = subprocess.run([str(LAUNCHER)] + list(args), capture_output=True, text=True,
+    def run(self, *args, exe=LAUNCHER):
+        p = subprocess.run([str(exe)] + list(args), capture_output=True, text=True,
                            env=self.env(), cwd=self.home, stdin=subprocess.DEVNULL, timeout=120)
         return p.returncode, p.stdout, p.stderr
 
@@ -174,9 +183,9 @@ class Home:
         with open(os.path.join(self.bindir, "agentik-" + name)) as fh:
             return re.search(r"^VERSION=(.*)$", fh.read(), re.M).group(1)
 
-    def snapshot(self):
+    def snapshot(self, under=None):
         seen = {}
-        for top, dirs, files in os.walk(self.home):
+        for top, dirs, files in os.walk(under or self.home):
             for f in dirs + files:
                 p = os.path.join(top, f)
                 st = os.lstat(p)
@@ -304,11 +313,18 @@ class UpdateTest(Base):
                              (("murmur",), "pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite")):
             h = self.home(listed, name="h-" + str(len(listed[1:])))
             h.install("murmur@agentik", "1.0.0", "1.1.0")
-            code, out, err = h.run("update", "--yes")
+            checkout = os.path.join(self.tmp, "checkout-" + str(len(listed)))  # review 1 lead d
+            os.makedirs(os.path.join(checkout, ".git"))
+            shutil.copytree(str(PLUGIN), os.path.join(checkout, "plugins", "suite"),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            before = h.snapshot(checkout)
+            code, out, err = h.run("update", "--yes",
+                                   exe=os.path.join(checkout, "plugins", "suite", "bin", "agentik-suite"))
             self.assertEqual(code, 0, out + err)
             self.assertRegex(out, r"agentik-suite \S+ was placed from a checkout, so this command leaves it as it is")
             self.assertIn(hint, err)
             self.assertEqual(h.ran("git.log"), [])
+            self.assertEqual(h.snapshot(checkout), before)
 
     def test_8_the_suites_own_plugin_is_updated_last(self):
         h = self.home(("murmur", "suite"))
@@ -381,6 +397,108 @@ class UpdateTest(Base):
         h = self.home()
         code, out, err = h.run()
         self.assertEqual((code, len((out + err).splitlines())), (0, 9), out + err)
+
+
+class ReviewOneTest(Base):
+    """Review 1's fix: F1 to F5 and its leads, each red at eaec186."""
+
+    def test_13_a_held_run_with_json_prints_one_object(self):
+        h = self.two_behind()
+        h.ps("4242 /opt/tools/relay run --row r1\n")
+        for args, dry in ((("update", "--json"), False), (("update", "--dry-run", "--json"), True)):
+            code, out, err = h.run(*args)
+            self.assertEqual(code, 2, out + err)
+            self.assertNotIn("Traceback", err)
+            got = json.loads(out)
+            self.assertEqual((got["schema"], got["ok"], got["held"], got["dry_run"]),
+                             ("agentik.update/1", False, "a relay run is live (pid 4242)", dry))
+            self.assertEqual((got["ran"], got["wrote"]), ([], []))
+        self.assertEqual(h.ran(), [])
+
+    def test_14_an_id_that_is_no_plugin_id_runs_nothing(self):
+        h = self.home()
+        h.install("murmur@--help", "1.0.0", "1.1.0")
+        h.install("paint@acme\x1btools", "2.0.0", "2.1.0")
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("\x1b", out + err)
+        self.assertEqual(out.count("as the file has it is no plugin id"), 2, out)
+        self.assertFalse([l for l in out.splitlines() if "would run: claude" in l], out)
+        code, out, err = h.run("update", "--dry-run", "--json")
+        got = json.loads(out)
+        self.assertEqual(sorted(s["name"] for s in got["skipped"]), ["murmur", "paint"])
+        self.assertFalse([s for s in got["steps"] if (s["command"] or "").startswith("claude")], got["steps"])
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(h.claude(), [])
+
+    def test_15_a_runner_under_a_path_with_a_space_holds(self):
+        held = ("10 /Users/a b/bin/relay run", "11 /opt/x y/agentik-relay gate --row r", "12 /usr/local/bin/relay run",
+                "13 /usr/bin/vim /tmp/relay run")  # the last: a false hold, the safe side
+        free = ("77 /usr/bin/vim /tmp/relay run/notes.md", "78 /bin/sleep 9 NOTE=relay run", "18 vim relay-run.md",
+                "80 /usr/local/bin/relay status", "19 /bin/cat /x/relay/run", "79 /opt/relay run/bin/watch",
+                "81 agentik session gate run x")
+        for line in held:
+            self.assertEqual(update.runner_pid(line + "\n", "relay"), line.split()[0], line)
+        for line in free:
+            self.assertIsNone(update.runner_pid(line + "\n", "relay"), line)
+        h = self.two_behind()
+        h.ps("4243 /Users/a b/bin/relay run --row r1\n")
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("held install: a relay run is live (pid 4243)", err)
+
+    def test_16_a_tool_the_second_read_finds_absent_fails(self):
+        h = self.two_behind()
+        h.file(os.path.join(h.home, "drop"), "murmur@agentik")
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertNotIn("None", out + err)
+        row = [l for l in out.splitlines() if "no longer installed" in l]
+        self.assertEqual(len(row), 1, out)
+        self.assertTrue(row[0].lstrip().startswith("FAIL") and "murmur" in row[0], row)
+        self.assertIn(MOVED % ("paint", "2.0.0", "2.1.0"), out)
+        self.assertRegex(err, r"next: .*setup murmur ")
+
+    def test_17_a_step_3_row_left_at_the_second_read_fails(self):
+        h = self.two_behind()
+        h.file(os.path.join(h.home, "gone"), "murmur@agentik")
+        for _ in range(2):
+            code, out, err = h.run("update", "--yes")
+            self.assertEqual(code, 1, out + err)
+            self.assertIn("claude plugin install murmur@agentik", out)
+            self.assertIn("claude plugin install murmur@agentik", err)
+            self.assertNotIn("everything is current", out)
+            self.assertNotIn("claude plugin install murmur@agentik", h.claude())
+
+    def test_18_updates_lines_name_update(self):
+        h = self.two_behind()
+        code, out, err = h.run("update")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("Update ran nothing, since it cannot ask you here.", err)
+        self.assertNotIn("Setup", out + err)
+        h.file(os.path.join(h.home, "fail"), "paint@agentik")
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("Update stopped: ", err)
+        self.assertNotIn("Setup", out + err)
+
+    def test_19_a_listed_tool_not_installed_is_named(self):
+        h = self.home(("murmur", "paint", "quill"))
+        h.install("murmur@agentik", "1.0.0", "1.1.0")
+        code, out, err = h.run("update", "quill", "--dry-run")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("quill is not installed", out)
+        self.assertNotIn("no tool, since none", out)
+        self.assertRegex(err, r"next: .*setup quill ")
+
+    def test_20_an_unattended_answer_holds_whatever_its_exit(self):
+        h = self.two_behind()
+        session = os.path.join(h.bin, "agentik-session")
+        for body, held in (("echo '{\"id\": \"u1\"}'; exit 1", True), ("echo '[]'; exit 3", True),
+                           ("echo 'not json'", False), ("echo null; exit 3", False), ("exit 1", False)):
+            h.file(session, "#!/bin/sh\n[ \"$1 $2 $3\" = 'unattended status --json' ] || exit 2\n%s\n" % body)
+            self.assertEqual(update.hold(h.command("update")) is not None, held, body)
 
 
 if __name__ == "__main__":
