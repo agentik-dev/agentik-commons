@@ -20,7 +20,8 @@ import termios
 import time
 import unittest
 
-from test_agentik_suite import LAUNCHER, LIB, PLUGIN, ROOT, Home
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from test_agentik_suite import LAUNCHER, LIB, PLUGIN, ROOT, Home  # noqa: E402
 
 sys.path.insert(0, str(LIB))
 from agentik_suite import form, gather, scrub  # noqa: E402
@@ -62,7 +63,11 @@ sys.exit(2)
 def system_line():
     u = os.uname()
     release = re.match(r"[0-9.]*", u.release).group() or "unreadable"
-    return "%s %s %s, Python %d.%d.%d" % (u.sysname, release, u.machine, *sys.version_info[:3])
+    # The launcher runs the command under /usr/bin/python3 (its env names no AGENTIK_PYTHON), so
+    # the draft's version is that interpreter's, not the one running these tests.
+    python = subprocess.run(["/usr/bin/python3", "-I", "-c", "import sys; print('%d.%d.%d' % sys.version_info[:3])"],
+                            capture_output=True, text=True, timeout=30).stdout.strip()
+    return "%s %s %s, Python %s" % (u.sysname, release, u.machine, python)
 
 
 class IssueHome(Home):

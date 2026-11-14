@@ -21,7 +21,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
-- `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private, and send it only when you type send.
+- `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private. It is sent only when you type send.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -316,7 +316,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run `{send}` again and answer once the question shows.
 - `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then run `{send}` again.
 - `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.
-- `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send there.
+- `err.issue.send.yes`: send takes no --yes. An issue is filed only when you read it on your terminal and type send there.
 - `err.issue.send.open`: An open issue already holds this failure: `{url}`. Add to it there, or run `{send}` --not-a-duplicate to file another.
 - `err.issue.sent`: This draft was already filed: `{url}`
 - `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
@@ -339,7 +339,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.new.mark`: line `{line}` holds `{marks}`
 - `issue.new.replaced`: replaced `{n}` `{kind}` on line `{lines}`
 - `issue.new.unsure`: unsure `{n}`
-- `issue.new.weak`: This machine's `{kinds}` is also a common word, so the scan leaves it as a word; strike it where it names you.
+- `issue.new.weak`: This machine's `{kinds}` is also a common word, so the scan leaves it. Strike it where it names you.
 - `issue.new.went`: To stay under the ceiling the draft left out: `{went}`.
 - `issue.new.size`: size `{size}` of `{ceiling}` bytes
 - `issue.new.over`: The draft is `{size}` bytes, `{over}` over the ceiling, and send refuses it until `{drop}` SECTION or `{strike}` WORD takes it under.
@@ -376,5 +376,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`.
 - `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal.
 - `err.issue.edit.none`: Neither VISUAL nor EDITOR names an editor that starts.
-- `err.issue.edit.form`: The saved draft does not read back as the form at line `{line}`, so the draft stands as it was.
+- `err.issue.edit.form`: The saved draft does not read back as the form at line `{line}`, so the draft is unchanged.
 - `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected.
