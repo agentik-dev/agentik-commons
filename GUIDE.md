@@ -110,3 +110,182 @@ Packets and sitting prompts' read lists cite a record as `record <file> --sectio
 **`AGENTIK_ARGV0`, the word typed (commons row sc2).** The root `setup` and the plugin launcher `sync` places set it to the word they were started with, the launcher only where it is unset, so setup's word passes through; the launcher `install-cli` writes sets none. Only the suite reads it, to start the commands its lines print, and drops it from what it spawns. Every other tool's children, sessions and hooks included, inherit it; that is harmless, since the suite takes a word only where, from the working folder, it still names the same file (`samefile`) as the checkout's `setup` or the plugin's launcher, and else prints the launcher's absolute path.
 
 **The aliases.** Through r1 the old names keep working as aliases (agentik-r1 §4.3), and r2 ends them on or after 2026-12-31: `claude-code-session`, `claude-code-decisions`, `claude-code-respeak`, `claude-code-agents`, `agent-relay`, `claude-session`, `claude-local`, `claude-agents`, `localrig`, `agentroute`, and the bare `` `relay <verb>`` and `` `decisions <verb>`` forms. A new machine gets none of them: `install-cli` refreshes an old name's link where one stands, writes no new one, and never writes over a file that is not a link. `claude-api-agent`, `claude-fanout` and `claude-costs` ended on 2026-10-31 with the verbs they named, on the owner's word (agentik-agents a-s17). An alias gives one note on a terminal and nothing new in hooks or pipes (A3). New text uses only the new names; the `renamed` group holds every live file to that, and this guide's row in `.hygiene-allow` covers this paragraph.
+
+## §11 The plug: what a tool prints so the suite can read it
+
+A tool joins `agentik config`, `agentik doctor` and `agentik status` by printing four kinds of JSON answer: its `describe --json`, a config read, a doctor read and any number of status reads. Each rule below says what the suite's reader does with a key; where the reader reads nothing in a key, the rule says what a tool prints and that the suite ignores it. The exit codes are §10's; the config layers' place is §3's.
+
+### §11.1 How the suite calls a tool
+
+- It runs the file that runs for the tool and nothing else: the first `agentik-<tool>` on PATH that is a regular executable, passed over when it lies under the root of a plugin that does not stand for the tool, else the standing plugin's `bin/agentik-<tool>`. A read's `argv` is the words after that file.
+- stdin is `/dev/null`; stderr is thrown away, save a status read's first line (§11.6); the environment and the cwd are the caller's, so "the repo" is the cwd's repo. Each process starts in its own group, and the group is killed when the process exits or at its wall, so nothing it starts outlives the read.
+- `describe --json` and the config read share **one wall of 2 s**, set at the first spawn, over every tool at once: a tool's config read starts as soon as its describe answer is known and ends inside the same wall. A read still running at the wall, or not started by it, reads as `timed out`.
+- A `describe` answer that counts is cached in `${XDG_CACHE_HOME:-~/.cache}/agentik/suite/<tool>.json` while the file's resolved path, size and modified time (in nanoseconds) hold. An answer that does not count is never cached, and neither is a config, doctor or status read. So a tool's two reads together stay well under 1 s on a busy machine, and each tool's test bounds one read at 1 s.
+- stdout past 1 MiB is cut, and the read reads as `unreadable`; so does a file that cannot start.
+- The doctor read has a wall of its own: after the describes' 2 s, one deadline of 30 s over every tool's doctor reads at once, a second round included (§11.5).
+- A status read, and each describe the status asks, has a wall of 1 s from its own start, save a fallback table's read that names its own.
+
+So the `describe` read and the config read start no model and no `claude`, open no socket, prompt for nothing, and write nothing outside `${XDG_CACHE_HOME:-~/.cache}/agentik/`. A status read starts no model and writes nothing outside that folder either. The doctor read is held to §11.5's bounds instead: it may start `claude --version` or a `claude plugin` list, and it may write the tool's own state. Every read prints **one JSON object and a newline on stdout, UTF-8, no escape byte, nothing else**. Notes go to stderr.
+
+Python's bytecode counts as a write. A read that runs under Apple's `/usr/bin/python3` with no prefix set writes files under `~/Library/Caches/com.apple.python` in a new HOME. So a read's interpreter is started with `-X pycache_prefix=${XDG_CACHE_HOME:-$HOME/.cache}/agentik/pycache`, as the vendored launcher starts it, or with `PYTHONPYCACHEPREFIX` set to that folder.
+
+### §11.2 The envelope
+
+Every answer opens `{"schema": "agentik.<read>/1", "ok": true, "tool": "<name>", ...}`. `tool` is the name less `agentik-`: a describe answer whose `tool` is another name does not count, and the list says its command answers under another tool's name; the suite reads no other answer's `tool`. A new key never raises the number, and a reader ignores a key it does not know. The numbers that count: a describe answer at `agentik.describe/1` alone; a config answer at `agentik.config/<n>`, `n` at most 1; a doctor answer at `agentik.doctor/<n>`, `n` at most 1, from the doctor read a describe names, and at `agentik.doctor/1` alone from the `doctor --json` the suite asks a tool that names none. A config or doctor answer above 1 does not count. A status read's `schema` above 1 marks its part changed, and the part is still read (§11.6).
+
+A read that could not run prints, still on stdout, and exits 2:
+
+```json
+{"schema": "agentik.config/1", "ok": false, "tool": "demo",
+ "error": {"code": "bad_file", "message": "/home/u/.config/agentik/demo/config.yaml:7: a tab in the indent", "remedy": null}}
+```
+
+`code` is a lowercase word with `_`; `message` is one line holding the file and line where there is one; `remedy` is a command a person can run, or null. The suite reads a config read's error whatever its exit: an object of the config schema, `ok` false, whose `error` is an object with a string `code` and `message` and a `remedy` that is a string or null; else the read reads as `unreadable`. It shows `code` and `message` as one line each, cut at 300 characters, and reads as null a remedy past 300 characters or holding a control or format character. `ok: true` means the read ran, never that what it found is good; a describe or config answer counts only with exit 0 and `ok` true.
+
+### §11.3 `describe --json`
+
+The one fixed argv. `describe` with no `--json` exits 2 with one line naming `describe --json`; an unknown word after `describe` exits 2.
+
+```json
+{"schema": "agentik.describe/1", "ok": true,
+ "tool": "demo", "version": "1.2.0",
+ "summary": "Paints each line of a report in the colour its level asks for.",
+ "repo": "example/agentik-demo", "plugin": "demo@agentik",
+ "needs": [{"name": "git", "kind": "program", "why": "reads the cwd's repo", "optional": false}],
+ "verbs": [{"name": "paint", "summary": "Paint a report.", "top": false},
+           {"name": "doctor", "summary": "Check the tool and what it needs.", "top": false}],
+ "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]},
+           {"kind": "doctor", "name": "doctor", "argv": ["doctor", "--json"]},
+           {"kind": "status", "name": "queue", "argv": ["queue", "status", "--json"]}]}
+```
+
+| key | type | rule |
+|---|---|---|
+| `version` | string | what `--version` prints after the name; `help` shows it, and `config --json` where the tool's source is none or the marketplace's own |
+| `summary` | string | one sentence, under 80 characters, what the tool does for its user; `help` and `config --json` show it |
+| `repo` | string | `<owner>/<repo>` of the public repo; the suite needs the key and ignores its value |
+| `plugin` | string or null | `<name>@agentik`; null for a tool with no plugin; the suite needs the key and ignores its value, since its finder says which plugin stands |
+| `needs` | list | what must be on the machine for the tool to run. `kind`: `program` (an executable on PATH), `package` (a Python package), `plugin` (a `<name>@agentik`) or `toolchain` (needed to build it). `why`: a clause. `optional`: true when the tool runs without it and says so. The suite needs a list and ignores its rows |
+| `verbs` | list | every first-level verb, in help's order; `summary` is help's own line for it, which the suite ignores. `top` true claims `agentik <verb>` for this tool (below): false unless the verb is a first-level verb of the tool's own that a person would type bare |
+| `reads` | list | each other read by its argv. `kind` `config` and `doctor`: at most one each, with the names and argvs above, the same in every tool; the suite runs the `argv` a read names, and a doctor read whose `argv` is empty is none. `kind` `status`: any number, each naming a read the tool already has, drawn by its `name` (§11.6) |
+
+The suite refuses the whole answer, and the tool reads as `unreadable` with no config read, no claim and no doctor read of its own, when the exit is not 0, stdout is not one JSON object, `ok` is not true, `schema` is not `agentik.describe/1`, `tool` is not the name the suite asked under, `tool` or a key of the table is missing, `needs`, `verbs` or `reads` is not a list, a read is not an object, its `kind` is another word or its `argv` is not a list of strings, or two reads are `config` or two are `doctor`.
+
+**The claim.** A `verbs` row `{"name": "<word>", "top": true}`, `top` the JSON `true` and the word a name (lowercase letters and digits, parts joined by `-`), claims `agentik <word>`; a tool claims a word once however often its list names it. `agentik <word> ...` reads the claims only where the word comes first and nothing else settles it: no suite verb, no tool's name and no plugin's name. A claim counts where the tool's standing source is its plugin from the agentik marketplace and a file runs; where the word is none of the suite's verbs (`help`, `version`, `setup`, `update`, `config`, `describe`, `status`, `install-cli`, `doctor`, `inbox`, `issue`) and none of the words `doctor` reserves (`remove`, `update`, `init`, `completion`, `inbox`), so a suite verb is never handed to a tool; and, for a word the suite keeps for one tool (`rows`, kept for the decisions tool; `guard`, kept for none yet), where the tool is that one. One claim of a word that counts: the suite runs the claimant's file as `<file> <word> <later words unchanged>`, in its own place, printing nothing. Two tools whose claims of one word count: neither runs, `agentik <word>` exits 2 naming the word and the tools, and `doctor` fails one `claim` check. A claim that does not count never runs, and `config <tool>` says why under the tool's list, where the finder knows a source for the tool (`config --json` carries each claim as `{verb, counts, reason}`): the suite keeps that word, keeps it for another tool, or the tool is not from the agentik marketplace. The claims are read from the describes under the 2 s wall, the cache's included; a tool whose describe does not count claims nothing.
+
+### §11.4 The config read: `describe config --json [KEY]`
+
+The suite runs the config read's `argv`, `KEY` after it when one is asked.
+
+```json
+{"schema": "agentik.config/1", "ok": true, "tool": "demo",
+ "layers": [
+  {"name": "default", "path": null, "present": true, "travels": false},
+  {"name": "user", "path": "/home/u/.config/agentik/demo/config.yaml", "present": true, "travels": true},
+  {"name": "repo", "path": "/work/site/.claude/agentik/config.yaml", "present": false, "travels": false},
+  {"name": "env", "path": null, "present": true, "travels": false}],
+ "settings": [
+  {"key": "paint.colour", "value": "dark", "default": "light", "type": "string",
+   "choices": ["light", "dark"], "summary": "The palette each painted line uses.",
+   "source": {"layer": "user", "path": "/home/u/.config/agentik/demo/config.yaml", "line": 4},
+   "change": {"kind": "edit", "command": null, "path": "/home/u/.config/agentik/demo/config.yaml",
+              "block": "paint:\n  colour: dark", "note": null},
+   "live": true,
+   "values": [{"layer": "default", "value": "light"}, {"layer": "user", "value": "dark"}]},
+  {"key": "width", "value": 80, "default": 80, "type": "integer", "choices": null,
+   "summary": "The column a painted line is cut at.",
+   "source": {"layer": "default", "path": null, "line": null},
+   "change": {"kind": "command", "command": "agentik demo set width VALUE", "path": null,
+              "block": null, "note": "Holds for this session only."},
+   "live": true, "values": [{"layer": "default", "value": 80}]},
+  {"key": "token", "value": "(set)", "default": null, "type": "secret", "choices": null,
+   "summary": "The key the demo service is called with.",
+   "source": {"layer": "env", "path": null, "line": null},
+   "change": {"kind": "launch", "command": "DEMO_TOKEN=VALUE agentik demo paint", "path": null,
+              "block": null, "note": null},
+   "live": false, "values": [{"layer": "env", "value": "(set)"}]}],
+ "warnings": [
+  {"key": "paint.color", "reason": "unknown", "value": null,
+   "path": "/home/u/.config/agentik/demo/config.yaml", "line": 9}]}
+```
+
+The answer counts only where `layers` and `settings` are lists and every setting is an object with a `key` that is a non-empty string; a layer, a warning or a `values` row that is not an object is dropped.
+
+**Layers**, lowest first, every layer the tool reads whether or not its file exists.
+
+| key | rule |
+|---|---|
+| `name` | from this list where it fits: `default` (what ships: code or a shipped file), `user`, `repo`, `local` (a repo file git ignores), `env`, `launch` (a flag or a profile named at start), `session` (this session only). **The user's file is named `user`**: the suite's list prints the first `user` layer's path beside the tool |
+| `path` | the absolute path, or null where the layer is no file. A file the tool would read is named even when absent |
+| `present` | whether the file exists; for `env`, whether any of its variables is set; `default` is true. The suite ignores it |
+| `travels` | true for a file that is the user's own configuration and is worth carrying to a new machine: `agentik config --user-files` prints each such layer's `path` once. False for what ships, a repo's file (git carries it), state and the environment |
+
+A name may repeat where a tool reads several files of one kind, one a folder: each row has its own `path`, and a `values` row of such a layer carries its `path` and `line`.
+
+**Settings.** One row a leaf: a mapping is never a value, its leaves are keys.
+
+| key | type | rule |
+|---|---|---|
+| `key` | string | a dotted path of `[a-z0-9_-]` segments, unique, stable. The suite cuts `<tool>.<key>` at the first dot, and past 20 settings groups the list by the first segment, so the first segment is the group a person would look under |
+| `value` | string, number, boolean, null or a flat list | what the tool would use now, here. A secret is `"(set)"` or null, never its text |
+| `default` | the same type, or null | the value on a machine where nothing is set: what ships and nothing else, so no file of the user's or of a repo, no variable and no flag. Where what ships is more than one layer, `default` is what they give together, so a new machine reads `0 changed`. The suite marks a setting as changed when `default` is not null and `value != default`, so the two are one JSON type: never `80` against `"80"`. Null where there is no default; such a key never reads as changed |
+| `type` | string | `string`, `integer`, `number`, `boolean`, `list`, `path` or `secret`. The suite ignores it |
+| `choices` | list or null | every value the tool takes, when the set is closed; the card prints them. Anything but a list reads as null |
+| `summary` | string | one sentence under 100 characters: what the setting decides, in the present tense, for someone who has not read the code. It never opens "This setting" and never restates the key |
+| `source` | object | the highest layer that sets the key. `layer` is a name of `layers`; `path` that layer's file or null; `line` the 1-based line the key stands on in that file, or null where the layer is no text file. Unset anywhere: `{"layer": "default", "path": <the shipped file or null>, "line": <its line or null>}`. The list prints `layer`; the card prints `path`, `:line` after it where given. Anything but an object reads as `{}` |
+| `change` | object | all five keys, null where unused. `kind` `command`: `command` is the exact line, spelled `agentik <tool> ...`, the value as `VALUE`. `edit`: `path` is the file to edit and `block` the lines as they would stand in it, current value included, joined by `\n`, no final newline; the file is the one of the layer in force when a person can edit that layer, else the user's file, since an edit below the layer in force changes nothing here. `launch`: `command` is the start line with its flag or variable. `fixed`: `note` says why it cannot be changed. `note`, with any kind, is one sentence on what the change does not do. The card prints `command` for `command` and `launch`, `path` and `block` for `edit`, and for any other kind, or one missing its `command` or `path`, the fixed line with `note` |
+| `live` | boolean | true when a change holds from the next read; false when it holds from the next session or the next start |
+| `values` | list | `{layer, value}` for each layer that sets the key, lowest first, `default` among them where there is one. The card prints them in order. A row may also carry that layer's `path` and `line`: the card prints the `path` after the value, and `:line` where `line` is an integer |
+
+**With KEY**: `settings` holds that one setting, or is `[]` when the tool has no such key, still `ok: true`, exit 0. The suite takes the setting whose `key` is KEY from `settings`; where there is none, it asks again with no key, under the same wall, to name the nearest. `layers` and `warnings` are whole either way.
+
+**Warnings**, each `{key, reason, value, path, line}`. The suite prints each under the tool's list, a line and the file:
+
+| `reason` | what it is | what the screen prints |
+|---|---|---|
+| `unknown` | a key in a file that the tool does not read | ``unknown key `<key>` ``, then `<path>:<line>` |
+| `choice` | a value outside `choices`, with the `value` | `` `<key>` holds `<value>`, which is not one of its choices ``, then `<path>:<line>` |
+| `unreadable` | `key` null: a file the tool skips because it cannot parse it | `` `<tool>` skipped this file: it could not be read ``, then `<path>`, `:<line>` where `line` is an integer |
+| `ignored` | a key the tool knows and does not take from that file (a key that only a project's file may set, set in the user's) | `` `<tool>` does not take `<key>` from this file ``, then `<path>`, `:<line>` where `line` is an integer |
+
+A `reason` of any other word, or one that is no string, prints the unknown-key line.
+
+**A file that does not parse** is reported as the tool treats it. A tool that refuses to run on it answers §11.2's error, code `bad_file`, exit 2. A tool that skips the layer and goes on answers `ok` true with that layer `present` and one `unreadable` warning.
+
+### §11.5 The doctor read: `doctor --json`
+
+```json
+{"schema": "agentik.doctor/1", "ok": true, "tool": "demo", "failed": 1, "warned": 0,
+ "checks": [
+  {"name": "python", "status": "ok", "detail": "3.9.6 at /usr/bin/python3", "remedy": null},
+  {"name": "service", "status": "note", "detail": "no service is configured, so nothing was asked of one", "remedy": null},
+  {"name": "launcher", "status": "fail", "detail": "the launcher is 1.1.0, older than the plugin's 1.2.0", "remedy": "agentik demo install-cli"}]}
+```
+
+- `status` is `ok`, `note` (true and worth a line, nothing to do), `warn` (worth a look, never a failure) or `fail`. A thing that is not set up because the user never asked for it is a `note`, never a `fail`.
+- `detail` is one line. `remedy` is one command a person can run, or null: a shell line, or a slash command (`/demo:install-cli`) where the thing to mend is the launcher a shell line would run. A line that works only inside the tool's checkout (`make install`) is no remedy. `name` may repeat. A check may carry keys of its own beside these four; the suite reads the four alone.
+- An answer counts when it is one object of §11.2's doctor schema with `ok` true (from the `doctor --json` the suite asks, any `ok` but false) and `checks` a list of objects, each with a string `name`, a `status` of the four, a string `detail` and a `remedy` that is a string or null; one check of another shape and the whole answer does not count. `ok` false reads as one `fail` check, `doctor`, with the error's `message` and `remedy`. From the doctor read a describe names, the suite shows each `detail` and `message` as one line, cut at 300 characters, and reads as null a remedy holding a control or format character.
+- A tool whose describe names no doctor read is asked `doctor --json`; where that answer does not count, a second round asks plain `doctor`, and its exit alone is one check: 0 `ok`, else `fail`. A doctor read that is named, ran and does not count gets no second round: it is one `warn` check, as is a read still running at the 30 s deadline.
+- `failed` and `warned` count the statuses, and `ok` is true whenever the read ran. The suite reads neither count: it counts the statuses of every check of every tool, its own first, prints those counts in its own `doctor --json`, and exits 1 when one check is `fail`, else 0.
+- The exit and the text form stay the tool's own: the suite reads the object whatever the tool's exit was.
+- The read ends inside 20 s whatever does not answer: a check that waits on a socket or a process has a timeout of its own. It never leaves this machine unless the user set up the thing it asks, and never writes outside the tool's own state.
+
+### §11.6 A status read
+
+A read the tool already has, named in `reads` by its argv. Where it prints an object, the object gains `"schema"` and `"ok": true` as its first two keys and keeps every other key as it was. The schema is `agentik.<tool>.<name>/1`, or `agentik.<verb>/1` for a verb the tool claims at the top level; a read that already carries a `schema` keeps it. Where a read prints something else (a bare `null`, a list), it is named as it is. Where a read has nothing to read and exits non-zero with a line on stderr, the exit and the line stay.
+
+The suite's `status` draws five names: `sessions`, `gate`, `backlog`, `run` and `unattended`, the last two into one part, the runs. Of each name it runs the first read, the fallback table's tools first, then the others in name order; a second read of a name, and a read of any other name, is listed and never run. It adds words after a read's `argv` (for `backlog`: `--order` and the hq's `HANDOFF.md` where that file stands, then the checkouts), so the `argv` ends where the tool's own options and paths may follow. A tool the suite's fallback table names is read by that table's argvs and never asked `describe`.
+
+A read counts with exit 0 and stdout one JSON object, or a bare `null` for `unattended`, which reads as no run. Else the source reads as `unreadable`, and the suite shows its stderr's first line, cut at 300 characters. The suite needs no `schema` and reads no `ok`; a `schema` that ends `/<n>`, `n` above 1, marks the part changed. Each part reads its own keys from the answer: a key missing or of another kind marks the part changed and its values null, and the rest is drawn.
+
+### §11.7 What the tests of every tool hold, whatever its language
+
+1. `describe --json`: exit 0; stdout is one object; every key of §11.3; no `ESC` byte; under 1 s.
+2. Every read named in `reads` runs by `agentik-<tool>` plus its `argv` and prints one object with `schema` and `ok`, in a fixture that gives the read something to print (§11.6 names the cases with nothing).
+3. The config read with no key, in a temp HOME with no file: every setting has every key of §11.4, no `source.path` lies under the temp HOME, and every `source.layer` and every `values[].layer` is a name of `layers`.
+4. A user file that sets one key at a known line: that setting's `source` is `{"layer": "user", "path": <that file>, "line": <that line>}`, its `values` end with the user's, and the keyed read prints that setting alone.
+5. The keyed read of a key the tool does not have: `settings` is `[]`, exit 0.
+6. A user file with a key the tool does not know: one `warnings` row with its line.
+7. A layer file that does not parse: `ok` false, `error.code` `bad_file`, the file in `error.message`, exit 2; or, in a tool that skips such a file, `ok` true and one `unreadable` warning naming it.
+8. After every read but the doctor read: the temp HOME outside `$XDG_CACHE_HOME/agentik/` holds the files it held before, byte for byte, `~/Library/Caches` among them. The doctor read may add files under the tool's own state folder and nowhere else.
+9. Every `summary` is one sentence under its bound, and no two settings share a `key`.
