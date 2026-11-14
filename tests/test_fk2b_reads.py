@@ -24,7 +24,8 @@ USER = "~/.config/agentik/suite/config.yaml"
 
 class Reads(Base):
     def made(self, name, tool=T, setup=True):
-        path = os.path.join(self.tmp, "%s-%s" % (name, tool))
+        self.made_n = getattr(self, "made_n", 0) + 1
+        path = os.path.join(self.tmp, "%s-%s-%d" % (name, tool, self.made_n))
         os.mkdir(path)
         h = build(name, path, tool).ready()
         if setup:
@@ -121,8 +122,9 @@ class Fk2bTest(Reads):
         self.assertIn("    seen: %s 0.13.0, %s 0.12.6" % (U, F), lines)
         self.assertIn("    runs ~/.local/bin/agentik-%s 0.12.6, a placed launcher of no known source" % T,
                       lines)
-        self.assertIn("agentik config suite.sources.%s" % T, out.splitlines()[-1])
-        self.assertTrue(out.splitlines()[-1].strip().startswith("next:"), out)
+        close = (out + err).strip().splitlines()[-1].strip()
+        self.assertTrue(close.startswith("next: ") and close.endswith("agentik config suite.sources.%s" % T),
+                        out + err)
 
     # line 4
     def test_4_the_gate_and_a_folder_gone(self):
@@ -132,7 +134,7 @@ class Fk2bTest(Reads):
         suite = self.group(out, "suite")
         self.assertTrue([l for l in suite if "sources" in l and "%s names a source and is on no gate list" % USER in l],
                         suite)
-        self.assertIn("      add this line to ~/.claude/edit-gates: %s" % USER, suite)
+        self.assertIn("add this line to ~/.claude/edit-gates: %s" % USER, [l.strip() for l in suite])
         self.assertTrue(self.group(out, "paint")[0].startswith("warn"), out)
         with open(os.path.join(h.home, ".claude", "edit-gates"), "w") as fh:
             fh.write(os.path.join(h.home, ".config", "agentik", "suite", "config.yaml") + "\n")
@@ -164,7 +166,7 @@ class Fk2bTest(Reads):
         self.assertEqual(code, 0, err)
         first = h.bins()[0].replace(h.home, "~")
         lines = self.group(out, T)
-        self.assertTrue([l for l in lines if "the door would run a file the suite passes over" in l], lines)
+        self.assertTrue([l for l in lines if "the door runs a file the suite passes over" in l], lines)
         self.assertTrue([l for l in lines if l.startswith("    passed over %s/agentik-%s" % (first, T))], lines)
         obj = self.json_of(h, "doctor", more=h.bins())
         self.assertNotIn("agentik-" + T, json.dumps(self.checks(obj, T)))

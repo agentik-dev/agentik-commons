@@ -53,7 +53,7 @@ class DoctorHome(Home):
         self.assertEqual(set(obj), {"schema", "ok", "failed", "warned", "tools"})
         self.assertEqual((obj["schema"], obj["ok"]), ("agentik.doctor/1", True))
         for group in obj["tools"]:
-            self.assertEqual(set(group), {"name", "checks"})
+            self.assertEqual(set(group), {"name", "checks", "source"})  # source: row fk2b-reads R1
             for c in group["checks"]:
                 self.assertEqual(set(c), {"name", "status", "detail", "remedy"})
                 self.assertIn(c["status"], ("ok", "note", "warn", "fail"))

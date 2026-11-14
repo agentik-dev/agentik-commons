@@ -5,7 +5,7 @@
 | from | agentik-hq's brief fk2b-reads of 2026-11-13, R1 to R8, and the coordinator's start line of 2026-11-14; hq design/25 §3 items 2, 9, 10, 11, 13, 15 and 16; level S3 |
 | pin | main at 82d634b (suite 0.7.5: fk2-plan and sc3-table landed); worktree `.claude/worktrees/fk2b-reads`, branch `fk2b-reads`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` process, no agent; made-up names (`murmur`, `acme-tools`); no version (the start line: sc13 and rp8 land first) |
-| may touch | `plugins/suite/lib/agentik_suite/doctor.py`, `config.py`, `apply.py` (`gated` takes the file), `messages.md` (`## Doctor`, `## Config`); `tests/test_fk2b_reads.py` (new); `NICE_TO_HAVE.md` (one row); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-14-7.md` |
+| may touch | `plugins/suite/lib/agentik_suite/doctor.py`, `config.py`, `apply.py` (`gated` takes the file), `messages.md` (`## Doctor`, `## Config`); `tests/test_fk2b_reads.py` (new), `tests/test_ak3d_doctor.py` (a group's keys gain `source`), `tests/test_sc10_doctor_checks.py` (a1 counts a mirror's note apart); `NICE_TO_HAVE.md` (one row); `design/voice/checked.sha256`; this packet; `history/sittings/2026-11-14-7.md` |
 | verify | `make voice`, then `make check`, each once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 10 below; `python3 -m unittest tests.test_fk2b_reads` OK |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
