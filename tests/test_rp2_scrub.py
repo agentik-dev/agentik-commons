@@ -730,5 +730,69 @@ class R2F4Test(Review1Case):
                 self.assertEqual(scrub.scrub(line, m)[0], line)
 
 
+# Phase 2: the join with rp3's `gather` and rp4's `form`. A caller scrubs each free value with
+# `gather.map_free`, cuts with `gather.bound`, then drafts; `bound` never cuts inside a
+# placeholder of R7's closed set, the five unnumbered ones included.
+def bare_facts(free):
+    return {
+        "schema": "agentik.issue-facts/1", "tool": "widget",
+        "versions": [{"name": "widget", "plugin": "1.2.3", "commit": None, "launcher": None}],
+        "system": {"os": "Darwin", "release": "27.0.0", "arch": "arm64", "python": "3.9.6",
+                   "claude": "2.1.3", "where": "at a terminal"},
+        "checks": {"read": True, "rows": [{"tool": "widget", "status": "fail", "name": free,
+                                            "detail": free}], "failed": 1, "warned": 0, "passed": 2},
+        "plugins": {"named": [{"name": "widget", "version": "1.2.3"}], "others": 0},
+        "output": {"ran": free, "exit": 2, "lines": [free, free]},
+        "words": {"expected": free}}
+
+
+def bound_values(f):
+    row = f["checks"]["rows"][0]
+    return ([("name", row["name"]), ("detail", row["detail"]), ("ran", f["output"]["ran"]),
+             ("expected", f["words"]["expected"])] + [("line", l) for l in f["output"]["lines"]])
+
+
+class JoinTest(unittest.TestCase):
+    """Phase 2: what `scrub` writes passes through `gather.bound` and `form.draft` whole."""
+
+    def test_bound_never_cuts_inside_any_placeholder(self):
+        from agentik_suite import gather
+        limits = {"name": gather.ROW_NAME, "detail": gather.ROW_DETAIL, "ran": gather.RAN,
+                  "expected": gather.EXPECTED, "line": gather.LINE}
+        for kind in scrub.KINDS:
+            ph = "<%s-12>" % kind if kind in scrub.NUMBERED else "<%s>" % kind
+            for field, limit in limits.items():
+                for j in range(1, len(ph)):
+                    text = "x" * (limit - j) + ph + " tail"
+                    got = dict(bound_values(gather.bound(bare_facts(text))))[field]
+                    with self.subTest(ph=ph, field=field, j=j):
+                        self.assertEqual(got, "x" * (limit - j))
+
+    def test_scrub_then_bound_then_draft(self):
+        from agentik_suite import form, gather
+        m = machine(emails=("zqvmail" + AT + "example.com",))
+        parts = [HOME + "/proj/x.py", "zqvmail" + AT + "example.com", "token=" + rand(24),
+                 "Authorization: Bearer " + rand(20), "zqvhost", LOGIN, "`", "```", "|", "ok",
+                 "Cookie: sid=" + rand(18), "x" * 40, "é"]
+        rng = random.Random(11)
+        for i in range(120):
+            raw = " ".join(rng.choice(parts) for _ in range(rng.randint(1, 60)))
+            facts = bare_facts(raw)
+            facts["output"]["lines"] = [raw[k:] for k in range(0, len(raw), 37)][:25]
+            s = gather.map_free(facts, lambda v: scrub.scrub(v, m)[0])
+            for field, value in bound_values(s):
+                with self.subTest(i=i, field=field, at="scrubbed"):
+                    self.assertEqual(scrub.detect(value, m), [], value)
+            b = gather.bound(s)
+            for field, value in bound_values(b):
+                with self.subTest(i=i, field=field):
+                    self.assertNotIn(MARK, value.lower())
+                    for at in [k for k, c in enumerate(value) if c == "<"]:
+                        self.assertTrue(PH.match(value, at), value[at:])
+            fields = form.draft(b, "widget", "widget: doctor fails", "doctor fails", "0123456789ab")
+            data = form.build(fields)
+            self.assertEqual(form.build(form.parse(data, {"widget", "suite", "door"})), data)
+
+
 if __name__ == "__main__":
     unittest.main()
