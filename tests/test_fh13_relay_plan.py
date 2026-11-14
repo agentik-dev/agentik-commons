@@ -239,7 +239,7 @@ class PageTest(Base):
         text = unpaint(pty_run(self.launcher, ["setup", "--dry-run", T], dict(self.env(h), COLUMNS="60"), 60))
         lines = text.replace("\r\n", "\n").split("\n")
         self.assertEqual(sum(line.count(PAGE) for line in lines), 1, text)  # one piece: never cut
-        self.assertTrue(all(len(line) <= 60 or PAGE in line for line in lines), text)
+        self.assertEqual([line.strip() for line in lines if PAGE in line], [PAGE_LINE], text)  # on its own line, as a command
 
     def test_r6_a_page_row_is_never_run_nor_counted(self):
         h = self.home("hL")

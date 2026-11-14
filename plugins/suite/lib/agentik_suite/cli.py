@@ -321,11 +321,15 @@ class Command:
             run = prog.shown(found[word], self.env.get("HOME"), self.opts["json"]) + " --help"
             raise Refusal("unknown_verb", "err.verb.own", run, word=word)
         if word in tools.plugin_names(self.env, self.lib):
+            page = tools.page(tools.fallback(self.lib), word)  # it installs its own (row fh13 R8)
+            if page and (tools.rows(self.env, self.lib, names=[word])[word]["runs"] or {}).get("path"):
+                page = None  # a file runs: the pin's refusal
+            more = {"page": page} if page else {}
             if word in tools.installed(self.env):
-                raise Refusal("not_installed", "err.verb.plugin", self.say("config", word),
-                              exit_code=3, word=word)
-            raise Refusal("not_installed", "err.verb.missing", self.say("setup", word),
-                          exit_code=3, word=word)
+                raise Refusal("not_installed", "err.verb.page" if page else "err.verb.plugin",
+                              self.say("config", word), exit_code=3, word=word, **more)
+            raise Refusal("not_installed", "err.verb.page" if page else "err.verb.missing",
+                          self.say("setup", word), exit_code=3, word=word, **more)
         names = sorted(set(found) | set(tools.plugin_names(self.env, self.lib)))
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
                                          n=1, cutoff=NEAR)
