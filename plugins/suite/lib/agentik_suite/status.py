@@ -222,9 +222,9 @@ def check(w, procs, now, env, uid):
 def do_status(cmd, nouns):
     o, t, Usage = cmd.opts, cmd.t, cmd.Usage
     cmd._no_nouns(nouns)
-    again = "%s status --check" % cmd.tool
+    again = cmd.say("status", "--check")
     if not o["check"]:
-        raise Usage("check_only", "err.status.check", again, tool=cmd.tool)
+        raise Usage("check_only", "err.status.check", again, **cmd.slots())
     now = time.time()
     if o["now"] is not None:
         now = when(o["now"])
@@ -242,7 +242,7 @@ def do_status(cmd, nouns):
         home = cmd.env.get("HOME")
         fault = t.text("config.fault" if f.line else "config.fault.noline",
                        path=plan.shown(f.path, home), line=f.line, why=f.why)
-        raise Usage("bad_file", "err.status.file", again, fault=fault, tool=cmd.tool)
+        raise Usage("bad_file", "err.status.file", again, fault=fault, **cmd.slots())
     procs = None
     if watchers:
         if text is None:
@@ -263,5 +263,5 @@ def do_status(cmd, nouns):
                 t.line(LINE[r["state"]], name=r["name"], start=r["start"])
     for name in unchecked:
         t.hint("hint.status.unchecked", name=name, path=plan.shown(path, cmd.env.get("HOME")),
-               tool=cmd.tool)
+               **cmd.slots())
     return 1 if shown else 0

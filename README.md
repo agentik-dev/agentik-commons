@@ -1,7 +1,22 @@
 # agentik-commons
 
+agentik-commons is the way in to agentik: one `setup` that installs the default plugins (session, decisions and agents) and the `agentik` command that manages them.
+Use it when a machine has Claude Code and nothing of agentik's.
+
+Both lines are typed in a terminal; `setup` shows its plan and asks once before it writes anything:
+
+```sh
+git clone https://github.com/agentik-dev/agentik-commons && agentik-commons/setup
+claude
+```
+
+It needs Claude Code, git and the system's Python at 3.9 or newer, and it installs no package.
+Part of [agentik](https://github.com/agentik-dev): what each plugin does, and how to leave.
+
+## For maintainers
+
 The shared ground of the five agentik tools (session, decisions, respeak, relay and agents): the `agentik` front door, the one `agentik` marketplace that lists the five plugins and `suite`, the consistency guide, and the canonical copies of the scripts each tool repo vendors.
-A fresh Mac installs the suite in one line (hq design/04 §5):
+The `suite` plugin also installs with Claude Code's own verbs and no clone; that route places no `agentik` command on the terminal, so a person's install is the clone above:
 
 ```sh
 claude plugin marketplace add agentik-dev/agentik-commons && claude plugin install suite@agentik

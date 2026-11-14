@@ -17,14 +17,14 @@ KEYS = ("launcher", "tree", "version", "door", "door_fate", "on_path")
 def do_install_cli(cmd, nouns):
     o, t = cmd.opts, cmd.t
     cmd._no_nouns(nouns)
-    again = "%s install-cli" % cmd.tool
+    again = cmd.say("install-cli")
     if o["prefix"] == "":   # none given, a flag after it, or '': never HOME's by default
-        raise cmd.Usage("missing_value", "err.install.prefix", again + " --prefix <folder>", tool=cmd.tool)
+        raise cmd.Usage("missing_value", "err.install.prefix", again + " --prefix <folder>", **cmd.slots())
     try:
         done = agentik_install.install(o["prefix"], cmd.env, dry_run=o["dry_run"])
     except (OSError, KeyError, ValueError) as e:
-        raise cmd.Usage("install_failed", "err.install", again, status=1,
-                        why=str(e) or type(e).__name__, tool=cmd.tool)
+        raise cmd.Usage("install_failed", "err.install", again, exit_code=1,
+                        why=str(e) or type(e).__name__, **cmd.slots())
     if o["json"]:
         obj = {"schema": SCHEMA, "ok": True}
         obj.update((k, done[k]) for k in KEYS)
