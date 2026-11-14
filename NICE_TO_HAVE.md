@@ -149,3 +149,4 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n173 | S4 | `plugins/suite` `config.py` `_tool` | `config suite` words each config-read warning but `choice` as `unknown key`, so a `sources` line the suite passes over reads `unknown key sources.suite`; the doctor's `doctor.settings.*` words could serve | `config.py:403`, a user file naming `suite` under `sources:` | 2026-11-14, fk2b-reads build 1 |
+| n174 | S4 | `doctor` | a group line can carry the mark FAIL beside a warn's words: where a tool's own doctor fails in a home with a source warn, the line reads `FAIL  murmur  2 plugins of this name are installed, and no source is declared`; the exit (1) and the close are right | hI with a failing launcher doctor (review 1's `p10_fail.py`) | 2026-11-14, fk2b-reads review 1's leads |

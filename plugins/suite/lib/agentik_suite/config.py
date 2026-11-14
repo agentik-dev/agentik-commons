@@ -170,16 +170,19 @@ def _theirs(source):
 
 
 def _from(source, home):
-    """The id or the folder of a source of kind `plugin` or `folder`, else None (R6)."""
+    """The id or the folder of a source of kind `plugin` or `folder`, else None (R6): a line the
+    config read passes over has no folder, so it gives none (review 1 F3)."""
     if source and source["kind"] == "plugin":
         return source["plugin"]
-    if source and source["kind"] == "folder":
-        return plan.shown(source["root"] or "", home)
+    if source and source["kind"] == "folder" and source["root"]:
+        return plan.shown(source["root"], home)
     return None
 
 
 def _shown_path(row):
-    """`path` of a row in --json: none where the file lies under a source not the marketplace's own (R1)."""
+    """`path` of a row in --json: none where the file lies under a source not the marketplace's own
+    (R1). Its `version` is none for any such source, since that version stands under `source`
+    (review 1 F1)."""
     if _theirs(row["source"]) and ((row["source"]["runs"] or {}).get("of") == "source"):
         return None
     return row["exe"]
@@ -288,7 +291,7 @@ def _list(cmd, r, rows):
             n, d = _counts(row)
             item = {"name": row["name"], "state": row["state"], "path": _shown_path(row),
                     "settings": n, "differ": d, "user_file": r.user_file(row["config"]),
-                    "version": (row["answer"] or {}).get("version"),
+                    "version": None if _theirs(row["source"]) else (row["answer"] or {}).get("version"),
                     "summary": (row["answer"] or {}).get("summary")}
             if row["fault"]:
                 item["fault"] = row["fault"]

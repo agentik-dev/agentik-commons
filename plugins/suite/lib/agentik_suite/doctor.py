@@ -134,7 +134,7 @@ def source_settings(cmd):
                 at = "%s:%s" % (at, w["line"])
             found.append(_check("settings", "warn", t.text("doctor.settings." + w["reason"],
                                                            key=w.get("key"), at=at)))
-    if lines:
+    if lines and home:  # no HOME, no `~/` to read the list by: no gate read (review 1 F4)
         config, user = sources.config_dir(env), settings.user_path(env)
         if apply.gated(config, home, t, user) == (None, None):
             c = _check("sources", "warn", t.text("doctor.sources.gate", path=plan.shown(user, home)))
@@ -191,6 +191,12 @@ def _ids(row):
     return list(dict.fromkeys(s["plugin"] for s in row["seen"]))
 
 
+def _read(row):
+    """False for a line the config read passes over (a folder line with no folder): the suite
+    group's settings warn speaks for it, and the tool reads no `from` line (review 1 F3)."""
+    return not (row["kind"] == "folder" and row["declared"] and not row["root"])
+
+
 def source_checks(cmd, name, row):
     """The warns of a tool's source (R4): undecided, declared and not found, declared with another
     plugin of the name, a file the door would run that the suite passes over. Each is marked
@@ -209,12 +215,14 @@ def source_checks(cmd, name, row):
             mid = "doctor.source.undecided"
         found.append(_check("source", "warn", t.text(mid, count=len(ids)),
                             cmd.say("config", "suite.sources." + name)))
-    elif kind in ("plugin", "folder") and row["declared"]:
+    elif kind in ("plugin", "folder") and row["declared"] and _read(row):
+        # a declared source not found has its own warn alone; `named` counts the seen with the one
+        # that stands (review 1 F2)
+        others = [i for i in ids if i != row["plugin"]]
         if not row["found"]:
             found.append(_check("source", "warn", t.text("doctor.source.%s" % (
                 "folder" if kind == "folder" else "declared"))))
-        others = [i for i in ids if i != row["plugin"]]
-        if others:
+        elif others:
             found.append(_check("source", "warn", t.text("doctor.source.named", count=1 + len(others))))
     if row["passed_over"]:
         found.append(_check("source", "warn", t.text("doctor.source.passed")))
@@ -238,8 +246,8 @@ def source_notes(cmd, group, entries=()):
     def versioned(what, version):
         return what + (" " + version if isinstance(version, str) and version else "")
 
-    if kind in ("plugin", "folder"):
-        what = row["plugin"] if kind == "plugin" else plan.shown(row["root"] or "", home)
+    if kind in ("plugin", "folder") and _read(row):
+        what = row["plugin"] if kind == "plugin" else plan.shown(row["root"], home)
         at = row["declared"]
         if at:
             notes.append(t.text("doctor.from.declared", source=versioned(what, row["version"]),
