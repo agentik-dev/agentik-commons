@@ -17,10 +17,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n59 | S4 | `scripts/agentik_install.py` `_ascii` | control bytes below 0x20 and 0x7f pass as ASCII, so a VERSION holding an escape sequence reaches the terminal raw through the vendored `install_cli`; the suite verb strips it in `term`; escape them too | ak2b review 1's R1-F3 | 2026-11-13, ak2b review 1 |
-| n60 | S4 | `scripts/agentik_install.py` `install` | `install-cli --dry-run --prefix P` says it would place the command where the real run fails (`P` a file: Not a directory); check that the nearest folder above `P/bin` is one it can write to | ak2b review 1's R1-F7 | 2026-11-13, ak2b review 1 |
-| n61 | S4 | `plugins/suite` `plan.py` step 5 | in a frozen tree the step's command runs the tree's runner bare, without `-I` or the bytecode prefix, so it writes `~/Library/Caches/com.apple.python` and reads PYTHONPATH; name `<prefix>/bin/<tool>` when that launcher's tree is this lib | ak2b review 1's R1-F9 | 2026-11-13, ak2b review 1 |
-| n62 | S4 | `scripts/agentik_install.py` `on_path` | a PATH entry that reaches the prefix's `bin` through a link reads off PATH, so the `export PATH` hint shows when it is not needed; compare `realpath` too | ak2b review 1's R1-F10 | 2026-11-13, ak2b review 1 |
 | n63 | S4 | `scripts/agentik_install.py` `install` | a second run replaces the launcher with the same bytes, a new inode and mtime; skip the replace when the bytes are equal | ak2b review 1's R1-F11: a snapshot diff of two runs | 2026-11-13, ak2b review 1 |
 | n64 | S4 | `plugins/suite` `cli.py` help | `help install-cli` has no `--prefix` row and `flag.prefix` sits unused in the catalogue; a `VERB_FLAGS` row for it, or help that lists the value flags | ak2b review 1's R1-F13 | 2026-11-13, ak2b review 1 |
 | n65 | S4 | `plugins/suite` `install.py` | the prune's line is the module's raw English, not a catalogue line, and `--json` has no `pruned` key, so a failed prune is lost there | ak2b review 1's R1-F14 | 2026-11-13, ak2b review 1 |
@@ -135,3 +131,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n145 | S4 | `plugins/suite` `scrub.py` `MAC` | a dotted date or build number of three groups of four hex digits, `build 2024.1113.1230`, is the dotted MAC and gives `<address-1>` | review 2's own10 M11 | 2026-11-13, rp2 review 2 |
 | n146 | S4 | `plugins/suite` `scrub.py` `_emails` | the walk back to a colon takes prose and half a time: `12:30:45 INFO mail sent to <x>` gives `12:30:<name-1> <email-1>` | review 2's own10 N4, N5 | 2026-11-13, rp2 review 2 |
 | n147 | S4 | `plugins/suite` `scrub.py` `_auth` | a plain word after an `authorization:` name is taken: `authorization: denied` gives `authorization: <secret>`, and the rest of the line goes with it | review 2's own10 Z4 | 2026-11-13, rp2 review 2 |
+
+## From packet rp5-send (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n148 | S4 | `tests/test_rp5_send.py` `DoorTest` | the line-11 walk matches a starter by its name and reads `str` constants alone, so a second create through an alias (`_P = subprocess.Popen`) or a bytes argv passes; flag a name bound to a starter, read `bytes` as words | review 2's R2-F3, two mutants `OK` | 2026-11-13, rp5 review 2 |
+| n149 | S4 | `plugins/suite` `send.py` `BLANK` | outside item 4(e)'s list, these pass `check` and the screen and are filed: U+16FE4, U+1D159, U+FFFC, a combining flood, U+0488, a lone U+1F3FB, trailing spaces; a run of U+16FE4 could carry a count unseen | review 2's notes, `probes/p1.py` | 2026-11-13, rp5 review 2 |
+| n150 | S4 | `plugins/suite` `send.py` `unseen` | the `nfkc` kind refuses every line NFKC changes, `…`, `™`, `µ` and `½` among them; if the form puts one in a fixed line or a title, every draft is refused. Measured at phase 2: the form's fixed lines hold none, and a clean draft of each public tool checks clean | review 2's notes | 2026-11-13, rp5 review 2 |
+| n151 | S4 | `plugins/suite` `send.py` `_issue` | an approval can still be made by a direct call in the same process, `send._issue(data, repo, login)`, with no screen; Python has no private names | review 2's notes | 2026-11-13, rp5 review 2 |

@@ -278,3 +278,37 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
 - `hint.doctor.next`: next: `{command}`
+
+## Issue
+
+- `issue.screen.head`: The issue as it would be filed, byte for byte; its first line is the title.
+- `issue.screen.text`: `{text}`
+- `issue.screen.end`: The issue ends above this line.
+- `issue.screen.repo`: It goes to github.com/`{repo}` as a new issue.
+- `issue.screen.login`: It is filed as `{login}`, and that login shows on the issue as its author.
+- `issue.screen.closed`: A closed issue already holds this failure: `{url}`
+- `issue.screen.failed`: The search for an earlier issue failed, so none is known.
+- `issue.screen.more`: Press Enter for the next lines of the issue.
+- `issue.screen.within`: Press Enter for the rest of this line of the issue.
+- `issue.send.ask`: Type send and press Enter to file it; any other answer keeps the draft.
+- `issue.send.kept`: Nothing was filed, and the draft is kept as it was.
+- `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
+- `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
+- `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
+- `err.issue.send.tty`: send needs a terminal to type in, and this process has none. Run it from your own terminal.
+- `err.issue.send.inside`: send files nothing from inside Claude Code. Run it from your own terminal.
+- `err.issue.send.parent`: send files nothing from a process that Claude Code started. Run it from your own terminal.
+- `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it. Run it from your own terminal.
+- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs the login to file as. Run gh auth switch --user LOGIN, then name that login.
+- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
+- `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
+- `err.issue.send.unapproved`: This issue has no approval left, since an approval is used once, so nothing was sent. Run send again to see it.
+- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh. Unset it and send again, or file the issue by the browser.
+- `err.issue.send.switched`: The active github.com account in gh is not `{login}`, the login the screen showed, so nothing was sent. Run gh auth switch --user `{login}`, then send again.
+- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
+- `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run send again and type the word once.
+- `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run send again and answer once the question shows.
+- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then send again.
+- `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.
