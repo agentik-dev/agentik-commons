@@ -24,6 +24,7 @@ import agentik_install  # noqa: E402
 
 MARK = re.compile(r"^(ok|warn|FAIL|note)  +(\S+)  +(.*)$")
 ROW = re.compile(r"^    (ok|warn|FAIL|note)  +(\S+)  +(.*)$")
+ANY_ROW = re.compile(r"^    (ok|warn|FAIL|note)  ")
 TAIL = "the tail line of the text form"
 
 
@@ -220,9 +221,10 @@ class ReadyTest(Checks):
                              (sum(c["status"] == "fail" for c in every),
                               sum(c["status"] == "warn" for c in every)))
             code, out, err = self.screen("--all", **env)
-            rows = self.rows(out)
+            rows = [l[4:].split("  ", 1)[1].lstrip() for l in out.splitlines() if ANY_ROW.match(l)]
             self.assertEqual(len(rows), len(every), out)
-            self.assertEqual([r[1] for r in rows], [c["name"].split(" ")[0] for c in every])
+            for row, c in zip(rows, every):  # a plan's check keeps its whole name, `path ~/.local/bin`
+                self.assertTrue(row.startswith(c["name"] + "  "), (row, c["name"]))
             self.assertEqual(sum(1 for l in out.splitlines() if MARK.match(l)), len(obj["tools"]))
 
 
