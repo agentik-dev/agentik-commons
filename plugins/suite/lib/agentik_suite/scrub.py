@@ -8,8 +8,10 @@ user's own removal; `clean` takes out what a terminal does not draw as itself. N
 or writes a file, and a private row is held behind a repr that only counts it, so its term is in
 no return value and no message.
 
-Inside a pass a placeholder, and a kept span, is a sealed character of plane 15's private use
-area: `clean` removes that category, so text never holds one, and no rule reads one.
+Inside a pass a placeholder is a sealed character of plane 15's private use area: `clean`
+removes that category, so text never holds one, and no rule reads one. A kept span (a public
+repo's URL path, a path of 4(b)'s closed list) is held between two marks of plane 16 instead: the
+path and long-run steps, which would replace it, pass over it, and every other step reads it.
 """
 import os
 import re
@@ -28,6 +30,9 @@ STRUCK = re.compile(r"<struck-([1-9][0-9]*)>")
 BASE = 0xF0000
 SENT = "\U000F0000-\U000FFFFD"
 SEALED = re.compile("[%s]" % SENT)
+OPEN, CLOSE = "\U0010FFFC", "\U0010FFFD"
+STOP = SENT + OPEN + CLOSE
+KEPT = re.compile("%s[^%s]*%s" % (OPEN, CLOSE, CLOSE))
 LIMIT = 32
 
 # The public words beside the public table's names: the suite's verbs and 4(b)'s twelve programs.
@@ -82,19 +87,19 @@ B64 = re.compile(r"[ \t]*([A-Za-z0-9+/]{4,}={0,2})[ \t]*\Z")
 LONG64 = re.compile(r"(?=[^0-9]*[0-9])(?=[^a-z]*[a-z])(?=[^A-Z]*[A-Z])[A-Za-z0-9+/]{32,}={0,2}\Z")
 HEADER = re.compile(r"[A-Za-z-]+: \S")
 
-URL = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{1,15})://[^\s<>\"'`%s]+" % SENT)
+URL = re.compile(r"(?<![A-Za-z0-9+.-])([A-Za-z][A-Za-z0-9+.-]{1,15})://[^\s<>\"'`%s]+" % STOP)
 SCP = re.compile(r"(?<![\w.@+-])[\w.+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*:(?!//)"
-                 r"(?![0-9]+(?:[^\w/]|\Z))[^\s<>\"'`%s]*[\w/~-]" % SENT)
+                 r"(?![0-9]+(?:[^\w/]|\Z))[^\s<>\"'`%s]*[\w/~-]" % STOP)
 TRAIL = ".,;:!?)]}'\""
 EMAIL_CORE = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
 NAMED = re.compile(r"(?:(?<![\w.'-])\"?((?:[^\W\d_][\w.'-]*[ \t]+){0,3}[^\W\d_][\w.'-]*)\"?[ \t]*)?"
                    r"<[ \t]*(" + EMAIL_CORE + r")[ \t]*>")
 EMAIL = re.compile(r"(?<![\w.%+-])" + EMAIL_CORE + r"(?![\w-])")
 
-RUN = re.compile(r"[^\s\"'`<>()\[\]{},;:|=*?\\%s]+" % SENT)
+RUN = re.compile(r"[^\s\"'`<>()\[\]{},;:|=*?\\%s]+" % STOP)
 WORD = re.compile(r"[^ \t\n]+")
 ANCHOR = re.compile(r"(?:~|\.\.?)?/")
-HARD = re.compile(r"[:,;()\[\]{}<>\"'`%s]" % SENT)
+HARD = re.compile(r"[:,;()\[\]{}<>\"'`%s]" % STOP)
 DIGITS = re.compile(r"\d+(?:/\d+)+/?\Z")
 SCHEMA = re.compile(r"agentik[.-][a-z][a-z0-9_.-]*/\d+\Z")
 VERSION = re.compile(r"(?:\d+\.\d+\.\d+[0-9A-Za-z.+-]*|[0-9a-f]{7,40})\Z")
@@ -102,11 +107,11 @@ HASH = re.compile(r"[0-9a-f]{7,64}\Z")
 
 SECRET_NAME = (r"[A-Za-z0-9_.-]*(?:password|passphrase|secret|token|api[_-]?key|credential"
                r"|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*")
-VALUE = r"(?:\"([^\"\n%s]*)\"|'([^'\n%s]*)'|([^\s\"',;%s]+))" % (SENT, SENT, SENT)
+VALUE = r"(?:\"([^\"\n%s]*)\"|'([^'\n%s]*)'|([^\s\"',;%s]+))" % (STOP, STOP, STOP)
 ASSIGN = re.compile(r"(?<![A-Za-z0-9_.-])%s[\"']?[ \t]*[:=][ \t]*%s" % (SECRET_NAME, VALUE), re.I)
 FLAG = re.compile(r"(?<!\S)--?%s[ \t]+%s" % (SECRET_NAME, VALUE), re.I)
 NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
-BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % SENT)
+BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 
 V6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
 MAC = re.compile(r"(?<![\w:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![\w:-])")
@@ -115,6 +120,7 @@ QUAD = re.compile(r"(?<![\w.])(?:%s\.){3}%s(?!\w|\.\d)" % (OCTET, OCTET))
 SITE = re.compile(r"(?<![\w.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?:%s)"
                   r"(?![\w-]|\.[A-Za-z0-9])" % "|".join(SUFFIXES), re.I)
 RUNS = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])")
+SEGMENT_RUNS = re.compile(r"(?<![A-Za-z0-9+=_-])[A-Za-z0-9+=_-]{32,}(?![A-Za-z0-9+=_-])")
 LAN_REACH = re.compile(r"[A-Za-z0-9.-]")
 
 DOTTED = re.compile(r"(?<![\w.-])[A-Za-z][\w-]*(?:\.[A-Za-z][\w-]*){2,}(?![\w-]|\.[A-Za-z])")
@@ -216,7 +222,7 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
          "_groups": [(g, rx) for g, rx in agentik_hygiene.COMPILED if g in GROUPS]}
     m["_secrets"] = re.compile(_alts(m["secrets"]), re.I) if m["secrets"] else None
     dashed = sorted({re.sub(r"[^A-Za-z0-9]", "-", h) for h in homes if not h.startswith(SYSTEM_PREFIXES[0].lower())})
-    m["_dashed"] = (re.compile(r"(?<![A-Za-z0-9])(?:%s)(?![A-Za-z0-9])[^\s\"'`%s]*" % (_alts(dashed), SENT), re.I)
+    m["_dashed"] = (re.compile(r"(?<![A-Za-z0-9])(?:%s)(?![A-Za-z0-9])[^\s\"'`%s]*" % (_alts(dashed), STOP), re.I)
                     if dashed else None)
     fixed = {"~/.local/bin", "~/.local/bin/agentik", "~/.claude/plugins/installed_plugins.json",
              "~/.config/agentik", "~/.config/agentik/hygiene-private.tsv", "~/.cache/agentik",
@@ -233,7 +239,7 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
                   ["~", ".local", "state", "agentik-" + tool]]
     m["_fixed"], m["_heads"] = frozenset(fixed), heads
     alts = "|".join(re.escape(w) for w in sorted(m["_pairs"]))
-    m["_github"] = (re.compile(r"https://github\.com/(?:%s)(?:\.git)?(?:[/#?]\S*)?\Z" % alts, re.I)
+    m["_github"] = (re.compile(r"(https://github\.com/(?:%s)(?:\.git)?)([/#?]\S*)?\Z" % alts, re.I)
                     if alts else None)
     m["_checkouts"] = frozenset(_norm(m, c).lower().rstrip("/") for c in checkouts if c)
     repos = list(repos) + [os.path.basename(c.rstrip("/")) for c in checkouts if c]
@@ -356,6 +362,22 @@ class _Pass:
         self.seals.append(text)
         return chr(BASE + len(self.seals) - 1)
 
+    def hold(self, s):
+        """Each kept span sealed for a step that must pass over it; `held` restores them."""
+        held = {}
+
+        def one(mt):
+            c = self.seal(mt.group())
+            held[c] = mt.group()
+            return c
+        return KEPT.sub(one, s), held
+
+    @staticmethod
+    def held(s, held):
+        if not held:
+            return s
+        return re.sub("[%s]" % "".join(held), lambda mt: held[mt.group()], s)
+
     def note(self, kind):
         self.kinds.add(kind)
         self.st.counts[kind] = self.st.counts.get(kind, 0) + 1
@@ -393,7 +415,7 @@ class _Pass:
                      self._names, self._groups, self._private, self._addresses, self._sites,
                      self._runs):
             s = step(s)
-        return s
+        return s.replace(OPEN, "").replace(CLOSE, "")
 
     # the steps of a pass, in R3's order
 
@@ -447,9 +469,11 @@ class _Pass:
                 return mt.group()
             cut = mt.group().rstrip(TRAIL)
             rest = mt.group()[len(cut):]
-            gh = self.m["_github"]
-            if gh and gh.match(cut):
-                return self.seal(cut) + rest
+            gh = self.m["_github"] and self.m["_github"].match(cut)
+            if gh:
+                tail = gh.group(2) or ""
+                k = len(re.match(r"[^?#]*", tail).group())
+                return self.seal(gh.group(1)) + (OPEN + tail[:k] + CLOSE if k else "") + tail[k:] + rest
             return self.put("url", cut) + rest
         s = URL.sub(url, s)
         return SCP.sub(lambda mt: self.put("url", mt.group()), s)
@@ -462,6 +486,11 @@ class _Pass:
         return EMAIL.sub(lambda mt: self.put("email", mt.group()), s)
 
     def _paths(self, s):
+        s, held = self.hold(s)
+        s = self._paths_outside(s)
+        return self.held(s, held)
+
+    def _paths_outside(self, s):
         rx = self.m["_dashed"]
         if rx:
             s = rx.sub(lambda mt: self.put("project", mt.group()), s)
@@ -649,7 +678,11 @@ class _Pass:
             if not re.search(r"[+/=]", v) and all(p.isalpha() or p.isdigit() for p in parts):
                 return v
             return self.put("run", v)
-        return RUNS.sub(run, s)
+        s, held = self.hold(s)
+        s = RUNS.sub(run, s)
+        for c, span in held.items():
+            held[c] = SEGMENT_RUNS.sub(lambda mt: mt.group() if HASH.match(mt.group()) else run(mt), span)
+        return self.held(s, held)
 
     # the spans of a settled pass
 

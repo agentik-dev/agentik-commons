@@ -412,5 +412,69 @@ class ModuleTest(unittest.TestCase):
                                 ".:settings"})
 
 
+
+# Review 1's findings (R1-F1 to R1-F7, and its note on `Authorization:`). Every private piece
+# is assembled here at run time; the cases are the review's probes with `zqv` markers.
+GH = "https://github.com/acmeorg/agentik-widget"
+
+
+def token():
+    return "gh" + "p_" + rand(36)
+
+
+def private_rows(*terms):
+    return [("client", re.compile(re.escape(t), re.I)) for t in terms]
+
+
+class Review1Case(unittest.TestCase):
+    """What every new case holds: nothing private is left, the scrub is its own fixed point,
+    `detect` finds nothing in what it gives, and `detect` and `scrub` agree on the raw line."""
+
+    def closes(self, m, raw, gone=(), keep=()):
+        out = scrub.scrub(raw, m)[0]
+        self.assertNotIn(MARK, out.lower(), out)
+        for word in gone:
+            self.assertNotIn(word.lower(), out.lower(), out)
+        for word in keep:
+            self.assertIn(word, out)
+        self.assertEqual(scrub.scrub(out, m)[0], out, repr(raw))
+        self.assertEqual(scrub.detect(out, m), [], repr(raw))
+        self.assertEqual(scrub.detect(raw, m) == [], out == raw, repr(raw))
+        return out
+
+
+class R1F1Test(Review1Case):
+    """R1-F1: of a kept URL only the prefix through the repo's name is sealed; its path, query
+    and fragment go through every later step, and `detect` reads them too."""
+
+    def test_r1f1_public_url_tail(self):
+        import urllib.parse
+        m = machine(private=private_rows("zqvacme"))
+        tok = token()
+        mail = "zqvperson" + AT + "zqvcorp.example"
+        cases = [
+            (GH + "/issues?access_token=" + tok, [tok]),
+            (GH + "/issues/new?body=%s/code/zqvsecretrepo/x" % HOME, []),
+            (GH + "/issues/new?body=" + urllib.parse.quote(HOME + "/code/zqvsecretrepo", safe=""), []),
+            (GH + "/issues?q=involves:" + mail, []),
+            (GH + "/pulls?q=author:" + LOGIN, []),
+            (GH + "#zqvhost", []),
+            (GH + "/issues?q=zqvacme", []),
+            (GH + "/issues/3);zqvacme", []),
+            (GH + "/blob/main/x" + USERS + "/zqvother/code/zqvrepo", []),
+        ]
+        for raw, gone in cases:
+            with self.subTest(raw=raw[len(GH):len(GH) + 14]):
+                out = self.closes(m, "see " + raw, gone, keep=["see " + GH])
+                self.assertNotEqual(out, "see " + raw)
+
+    def test_r1f1_issue_url_still_kept(self):
+        m = machine()
+        for raw in (GH + "/issues/12", GH + "/pull/7/files#diff-3", GH + ".git", GH + "/issues?q=is:open"):
+            with self.subTest(raw=raw):
+                self.assertEqual(scrub.scrub("see %s." % raw, m)[0], "see %s." % raw)
+                self.assertEqual(scrub.detect("see %s." % raw, m), [])
+
+
 if __name__ == "__main__":
     unittest.main()
