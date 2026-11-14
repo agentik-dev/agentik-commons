@@ -4,6 +4,7 @@ browser's links. Each test runs in a temp HOME with a PATH of a stub folder, /us
 stub `gh` records its argv and stdin and answers from fixture files, and a stub `ps` prints a tree
 with no `claude` in it. The typed word goes through `pty.fork`. Nothing here reaches the network,
 runs the real `gh` or reads the real home; logins and repos are made up."""
+import ast
 import fcntl
 import hashlib
 import io
@@ -156,17 +157,24 @@ class Base(unittest.TestCase):
         return [c for c in found if verb is None or c["argv"][:2] == verb.split()]
 
     def drive(self, data, word, rows=24, cols=200, env=None, notes=(), after=None, ahead=None,
-              flood=None, file_repo=None):
+              flood=None, file_repo=None, stdin=None):
         """approve, then _file when approved, in a child of pty.fork; this side reads the screen,
         presses Enter at each page's prompt and types `word` at the last, each after a person's
         pause; `word` may be [(pause, bytes)]. `ahead` is typed before any screen; `flood` is
-        typed every 5 ms whatever the screen shows. (screen, result)."""
+        typed every 5 ms whatever the screen shows; `stdin`, when given, is the child's fd 0, a
+        pipe, while the terminal stays its device. (screen, result)."""
         env = env or self.env()
         out = os.path.join(self.home, "result.json")
         pid, fd = pty.fork()
         if pid == 0:
             try:
                 fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+                if stdin is not None:
+                    r, w = os.pipe()
+                    os.write(w, stdin)
+                    os.close(w)
+                    os.dup2(r, 0)
+                    os.close(r)
                 result = {}
                 t = term.Term(env=env, out=io.StringIO(), err=io.StringIO())
                 try:
@@ -306,6 +314,10 @@ class TypedWordTest(Base):
                            start_new_session=True, env=self.env())
         self.assertEqual(json.loads(p.stdout), {"refusal": [2, "err.issue.send.tty"]}, p.stderr)
         self.assertEqual(self.calls(), [])
+        # a terminal, and `send` waiting on stdin: the word is read from the device alone
+        _, result = self.drive(draft(), b"no\n", stdin=b"send\n" * 64)
+        self.assertEqual(result, {"approved": False})
+        self.assertEqual(self.calls("issue create"), [])
 
     def test_4_inside_claude_code_is_refused(self):
         _, result = self.drive(draft(), b"send\n", env=self.env(CLAUDECODE="1"))
@@ -366,6 +378,13 @@ class TypedWordTest(Base):
         def change(approved):
             approved.data = draft(happened="something else")
         _, result = self.drive(data, b"send\n", after=change)
+        self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.changed"]})
+        self.assertEqual(len(self.calls("issue create")), 1)
+
+        def change_with_hash(approved):  # a rewrite that keeps the object agreeing with itself
+            approved.data = draft(happened="something else")
+            approved.sha256 = hashlib.sha256(approved.data).hexdigest()
+        _, result = self.drive(data, b"send\n", after=change_with_hash)
         self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.changed"]})
         self.assertEqual(len(self.calls("issue create")), 1)
 
@@ -640,6 +659,68 @@ class DoorTest(unittest.TestCase):
                 if n:
                     counts[path.name] = n
         self.assertEqual(counts, {"send.py": 1})
+
+    STARTERS = {"Popen", "run", "call", "check_call", "check_output", "getoutput",
+                "getstatusoutput", "system", "popen", "startfile", "posix_spawn", "posix_spawnp",
+                "create_subprocess_exec", "create_subprocess_shell", "_run"} | {
+                    "exec" + t for t in ("l", "le", "lp", "lpe", "v", "ve", "vp", "vpe")} | {
+                    "spawn" + t for t in ("l", "le", "lp", "lpe", "v", "ve", "vp", "vpe")}
+
+    @staticmethod
+    def words(node):
+        """The words of an argv as written: string constants split, a list's items, a sum's
+        sides, `"a b".split()`; `?` for anything else."""
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value.split()
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return [w for item in node.elts for w in DoorTest.words(item)]
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            return DoorTest.words(node.left) + DoorTest.words(node.right)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "split" and not node.args):
+            return DoorTest.words(node.func.value)
+        return ["?"]
+
+    def starts(self):
+        """(module, function, callee, argv words) of each call in the package that starts a
+        process, by the callee's name however it is reached."""
+        found = []
+        for path in sorted(PACKAGE.rglob("*.py")):
+            tree = ast.parse(path.read_text())
+            for func in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.Module))]:
+                inner = [n for n in ast.walk(func) if isinstance(n, ast.FunctionDef) and n is not func]
+                skip = {id(m) for f in inner for m in ast.walk(f)}
+                for node in ast.walk(func):
+                    if id(node) in skip or not isinstance(node, ast.Call):
+                        continue
+                    callee = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(
+                        node.func, "id", "?")
+                    if callee in self.STARTERS:
+                        argv = self.words(node.args[0]) if node.args else ["?"]
+                        found.append((path.name, getattr(func, "name", "<module>"), callee, argv))
+        return found
+
+    def test_11_one_writing_call_in_the_package(self):
+        starts = [s for s in self.starts() if s[0] == "send.py"]
+        self.assertEqual([(f, c) for _, f, c, _ in starts if c != "_run"], [("_run", "Popen")])
+        runs = {(f, " ".join(argv[:3])) for _, f, c, argv in starts if c == "_run"}
+        self.assertEqual(runs, {("accounts", "gh auth status"), ("search", "gh issue list"),
+                                ("_claude_above", "ps -A -o"), ("_file", "gh issue create")})
+        self.assertEqual(len([s for s in starts if s[2] == "_run"]), 4)
+        for _, func, callee, argv in starts:  # each call of the door's runner reads as written
+            if callee == "_run":
+                self.assertNotIn("?", argv[:3], func)
+        writing = [s for s in starts if "create" in s[3]]
+        self.assertEqual([(m, f) for m, f, _, _ in writing], [("send.py", "_file")])
+        for module, func, callee, argv in self.starts():  # the package's other starters
+            if module != "send.py":
+                self.assertNotIn("gh", argv, (module, func))
+        for path in sorted(PACKAGE.rglob("*.py")):  # gh's name is spelled in send.py alone
+            if path.name == "send.py":
+                continue
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    self.assertNotIn("gh", re.findall(r"[\w-]+", node.value), path.name)
 
     def test_r1_r6_imports_and_no_way_round(self):
         self.assertTrue(SEND.exists())

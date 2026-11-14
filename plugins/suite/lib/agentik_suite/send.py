@@ -435,9 +435,9 @@ def _file(approved, repo, env):
     child = {k: v for k, v in env.items() if k not in UNPASSED}
     if not login or [name for name, on in accounts(child) if on] != [login]:
         raise Refusal(2, "err.issue.send.switched", login=login or "")
-    argv = ["gh"] + "issue create".split() + ["-R", "%s/%s" % (HOST, repo),
-                                               "-t", title.decode("utf-8"), "-F", "-"]
-    code, out, err, state = _run(argv, child, data=body, wall=FILE_WALL)
+    code, out, err, state = _run(["gh"] + "issue create".split() + [
+        "-R", "%s/%s" % (HOST, repo), "-t", title.decode("utf-8"), "-F", "-"],
+        child, data=body, wall=FILE_WALL)
     if state == "unstarted":
         raise Refusal(2, "err.issue.send.nogh")
     if state == "timed out":
