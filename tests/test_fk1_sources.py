@@ -249,9 +249,9 @@ class FkTest(unittest.TestCase):
                                       argv=["/usr/bin/python3", str(LIB / "agentik-suite")])
             self.assertEqual(code, 0, name + err)
             got = json.loads(out)["tools"]
-            keys = ("tool", "kind", "plugin", "root", "version", "found", "declared", "seen")
-            self.assertEqual([{k: r[k] for k in keys} for r in got],
-                             [{k: r[k] for k in keys} for r in want], name)
+            # every field but `runs`, which the PATH moves (review 1, note 2)
+            self.assertEqual([{k: v for k, v in r.items() if k != "runs"} for r in got],
+                             [{k: v for k, v in r.items() if k != "runs"} for r in want], name)
 
 
 if __name__ == "__main__":
