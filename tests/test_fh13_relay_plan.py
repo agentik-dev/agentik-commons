@@ -241,6 +241,84 @@ class PageTest(Base):
         self.assertEqual(sum(line.count(PAGE) for line in lines), 1, text)  # one piece: never cut
         self.assertEqual([line.strip() for line in lines if PAGE in line], [PAGE_LINE], text)  # on its own line, as a command
 
+    def assert_page_row(self, out):
+        """Step 4's row of the page and, on the line under it, the page: what the close points to."""
+        lines = [line.strip() for line in unpaint(out).splitlines()]
+        at = [i for i, line in enumerate(lines) if line.endswith(LAUNCHER_PAGE)]
+        self.assertEqual(len(at), 1, out)
+        self.assertIn("~/.local/bin/agentik-murmur", lines[at[0]])
+        self.assertEqual(lines[at[0] + 1:at[0] + 2], [PAGE_LINE], out)
+        self.assertEqual(out.count(PAGE), 1, out)
+
+    def test_f1_nothing_to_do_shows_the_page_above_its_close(self):
+        for args in (("setup", T), ("setup", "--yes", T)):  # stdin closed, then a yes
+            h = self.home("hL")
+            self.settle(h)
+            code, out, err = self.cli(h, *args)
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("Setup has nothing to do", out + err)
+            self.assertEqual(err.splitlines()[-1], CLOSE)
+            self.assert_page_row(out)
+            self.assertFalse(h.ran(), args)
+
+    def test_f1_an_applied_runs_report_keeps_the_page_under_step_4(self):
+        h = self.home("hL")
+        code, out, err = self.cli(h, "setup", "--yes", T)
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(err.splitlines()[-1], CLOSE)
+        self.assertIn("The plan, read again after the run:", out)
+        self.assert_page_row(out.split("The plan, read again after the run:", 1)[1])
+
+    def off(self, h):
+        """The terminal's PATH without ~/.local/bin."""
+        return os.pathsep.join(["/usr/bin", "/bin", h.stubs])
+
+    def test_f2_its_own_command_at_w_off_path_is_left_as_it_is(self):
+        h = self.home("hM")
+        self.settle(h)
+        where = os.path.join(self.bindir(h), "agentik-" + T)
+        steps = self.plan(h, path=self.off(h))
+        four, seven = self.one(steps, 4), self.one(steps, 7)
+        self.assertEqual((four["state"], four["mid"], four["command"], four["line"]),
+                         ("ok", "setup.launcher.theirs", None, "run"))
+        self.assertEqual(four["detail"], "murmur installed its own command, at ~/.local/bin/agentik-murmur; "
+                                         "setup leaves it as it is")
+        self.assertEqual((seven["state"], seven["mid"], seven["command"], seven["line"]),
+                         ("todo", "setup.doctor.todo", "%s doctor" % where, "later"))
+        self.assertFalse([s for s in steps if s["line"] == "page" or "page" in s])
+        self.assertFalse([s for s in steps if s["command"] and "install-cli" in s["command"] and T in s["command"]])
+        out, err = self.screen(h, path=self.off(h))
+        self.assertNotIn(PAGE, out + err)
+        self.assertIn("yours to run later: %s doctor" % where, out)
+        self.assertIn("add to your shell profile:", out)
+        path_close = "next: add the line marked add above to your shell profile, then open a new terminal."
+        self.assertEqual(err.splitlines()[-1], path_close)
+        with open(where) as fh:
+            body = fh.read()
+        code, out, err = self.cli(h, "setup", "--yes", T, path=self.off(h))
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(err.splitlines()[-1], path_close)
+        with open(where) as fh:
+            self.assertEqual(fh.read(), body)  # setup writes nothing at W
+        self.assertFalse([line for line in h.ran() if T in line], h.ran())
+
+    def test_f2_no_file_that_runs_at_w_keeps_the_page(self):
+        for kind in ("dangling link", "file that is not executable", "folder"):
+            h = self.home("hL")
+            self.settle(h)
+            where = os.path.join(self.bindir(h), "agentik-" + T)
+            if kind == "dangling link":
+                os.symlink(os.path.join(h.home, "nowhere"), where)
+            elif kind == "folder":
+                os.mkdir(where)
+            else:
+                h.file(where, "#!/bin/sh\nexit 0\n")
+                os.chmod(where, 0o644)
+            for path in (None, self.off(h)):
+                steps = self.plan(h, path=path)
+                self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]),
+                                 ("setup.launcher.page", "setup.doctor.page"), (kind, path))
+
     def test_r6_a_page_row_is_never_run_nor_counted(self):
         h = self.home("hL")
         steps = self.plan(h)
@@ -251,17 +329,28 @@ class PageTest(Base):
 
 
 class NotAPageTest(Base):
-    """Line 8: a `page` that is not an https string is read as absent."""
+    """Line 8: a `page` that is not an https string, or that holds whitespace or a control
+    character, is read as absent."""
+
+    def assert_no_page(self, page):
+        self.page = page
+        self.setUp()
+        for name, (four, seven) in PIN.items():
+            h = self.home(name)
+            steps = self.plan(h)
+            self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (page, name))
+            self.assertFalse([s for s in steps if "page" in s])
 
     def test_8_a_number_a_list_or_another_scheme_is_no_page(self):
         for page in (7, [PAGE], "http://example.com/murmur", ""):
-            self.page = page
-            self.setUp()
-            for name, (four, seven) in PIN.items():
-                h = self.home(name)
-                steps = self.plan(h)
-                self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (page, name))
-                self.assertFalse([s for s in steps if "page" in s])
+            self.assert_no_page(page)
+
+    def test_8_whitespace_or_a_control_character_is_no_page(self):
+        for page in ("https://example.com/a b", "https://example.com/murmur\nnext: touch x",
+                     "https://example.com/\tx", "https://example.com/\x1b[2J", "https://example.com/\x00",
+                     "https://example.com/\x07", "https://example.com/" + chr(0x202E) + "x",
+                     "https://example.com/" + chr(0xA0) + "x"):
+            self.assert_no_page(page)
 
 
 if __name__ == "__main__":
