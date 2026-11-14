@@ -423,6 +423,20 @@ class SystemTest(GatherHome):
         self.assertEqual(s["python"], "%d.%d.%d" % sys.version_info[:3])
         self.assertEqual(f["schema"], "agentik.issue-facts/1")
 
+    def test_r1f3_a_dotted_run_of_four_parts_is_no_version(self):
+        """An address in a tool's output reads `unreadable`, and no three of its parts pass; a real
+        `--version` line still gives its three numbers (review 1, R1-F3)."""
+        parts = [str(random.randrange(10, 250)) for _ in range(4)]
+        address = ".".join(parts)
+        for text, want in (("proxy at %s ok" % address, "unreadable"),
+                           ("via %s:8080" % address, "unreadable"),
+                           ("%s.%s" % (address, parts[0]), "unreadable"),
+                           ("2.0.1 (Claude Code)", "2.0.1"),
+                           ("claude version 2.0.1.", "2.0.1"),
+                           ("%s then 2.0.1" % address, "2.0.1")):
+            self.stub("claude", '#!/bin/sh\necho "$*" >> "%s"\necho "%s"\n' % (self.calls, text))
+            self.assertEqual(self.gather()["system"]["claude"], want, text)
+
     def test_line9_no_claude(self):
         os.remove(os.path.join(self.stubs, "claude"))
         f = self.gather(calls=())

@@ -30,7 +30,9 @@ NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 REPO = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+\Z")
 VERSION = re.compile(r"[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}(?:-(?:alpha|beta|rc)\.[0-9]{1,9})?\Z")
 COMMIT = re.compile(r"[0-9a-f]{12}\Z")
-CLAUDE = re.compile(r"(?<![0-9])[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}")
+# `claude --version`'s N.N.N: no dotted run that goes on to a fourth part, before or after, so
+# no three parts of an address in a tool's output pass for a version.
+CLAUDE = re.compile(r"(?<![0-9])(?<![0-9]\.)[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}(?![0-9]*\.[0-9])")
 SYSTEMS = ("Darwin", "Linux")
 ARCHES = ("arm64", "x86_64", "aarch64")
 RELEASE = 20
