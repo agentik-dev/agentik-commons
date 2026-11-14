@@ -5,9 +5,9 @@
 | from | agentik-hq's brief ak4a-update of 2026-11-14, R1 to R10, acceptance 1 to 12; level S2 |
 | pin | main at cab964a (suite 0.7.11, sc5-first-screen landed); worktree `.claude/worktrees/ak4a-update`, branch `ak4a-update`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` started; stubs for `claude`, `git`, `ps` and the session tool in a temp HOME; made-up names |
-| may touch | `plugins/suite/lib/agentik_suite/cli.py` (the verb table, `do_update`); `plugins/suite/lib/agentik_suite/update.py` (new); `doctor.py`'s `do_doctor` split into a read and its print; `apply.py`'s journal line (the verb); `messages.md` (`## Help`, a new `## Update`); `tests/test_ak4a_update.py`; the older tests that pin the verb list; `design/voice/checked.sha256`; `README.md`; `NICE_TO_HAVE.md`; `history/NICE-overflow.md`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-11.md` |
+| may touch | `plugins/suite/lib/agentik_suite/cli.py` (the verb table, `do_update`); `plugins/suite/lib/agentik_suite/update.py` (new); `doctor.py`'s `do_doctor` split into a read and its print; `apply.py`'s journal line (the verb); `messages.md` (`## Help`, a new `## Update`); `tests/test_ak4a_update.py`; the older tests that pin the verb list; `design/voice/checked.sha256`; `README.md`; `NICE_TO_HAVE.md`; `history/NICE-overflow.md`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-11.md`; review 1's fix: `.hygiene-allow` |
 | verify | `make voice`, then `make check` once, last, through the gate queue, `--strict` |
-| acceptance | 1 to 12 below |
+| acceptance | 1 to 12 below; review 1's fix, 13 to 20 (section 7) |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
 
 ## 1. The owner's words
@@ -57,3 +57,24 @@ Measured at cab964a in a temp HOME under `env -i`: `agentik-suite update` prints
 ## 6. Choices
 
 Listed in the charter's handover as they are made.
+
+## 7. Review 1's fix (the coordinator's ruling of 2026-11-14)
+
+- F1: a held run with `--json` prints R8's one object with `held` set, on stdout, exit 2; `--dry-run --json` too; no traceback on a `--json` path.
+- F2: a plugin id's name and marketplace are taken only where each is lowercase letters, digits and dashes and begins with a letter or a digit; any other id gets one skip row, `update.skip.id`, with its control bytes cleaned, and no command, in the plan, a dry run and `skipped`. No word read from a file is a command's option.
+- F3: the hold tries each prefix of a process line's words, up to its first environment value, as the program, so a runner under a path with a space holds. A false hold is the safe side: a command whose words join into a path ending in the runner's name, then `run`, `gate` or `plan` (`vim /x/relay run`) holds.
+- F4: a tool the second read finds absent gets a FAIL row, `update.tool.gone`; `hint.update.setup` names `setup` for it; exit 1.
+- F5: a step 3 row of `plan.build` that is not ok at the second read is shown with its command and is not run; the run exits 1 on `err.update.left`; `update.nothing` only where no row is left.
+- Leads: update's failure and ran-nothing lines are its own `err.update.*` ids, setup's words with the verb that ran (setup's screens stay as at the pin); `update NAME` for a listed tool not installed says so (`update.plan.absent`) and names `setup NAME`; an unattended answer that parses as JSON other than `null` holds whatever its exit; R6's test asserts no file of a made-up checkout changed.
+- Stand as built: `run`, `gate` or `plan` among the runner's words holds; a wrapper's `sh -c` does not; R5's order. The version stays 0.7.12, so its commit is no longer the last under `plugins/`.
+
+| # | line | at eaec186 |
+|---|---|---|
+| 13 | `python3 -m unittest tests.test_ak4a_update -k test_13_` (F1) | red, a traceback |
+| 14 | `-k test_14_` (F2) | red, `--help` reaches `claude` |
+| 15 | `-k test_15_` (F3) | red, not held |
+| 16 | `-k test_16_` (F4) | red, `to None`, exit 0 |
+| 17 | `-k test_17_` (F5) | red, exit 0, `update.nothing` |
+| 18 | `-k test_18_` (lead a) | red, `Setup` on update's screen |
+| 19 | `-k test_19_` (lead b) | red, `no tool` |
+| 20 | `-k test_20_` (lead c) | red, an object on exit 1 holds nothing |
