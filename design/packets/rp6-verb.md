@@ -58,3 +58,11 @@ Measured at aa8e16b: `agentik-suite issue` prints `issue is not a verb. Run agen
 ## 4. Not built
 
 `new --render` (rp8); the guard rule (rp7); a seed from a finding; a label, a comment, a browser opened. The respeak pass over the new messages is the coordinator's. The version is phase 2's (A6).
+
+## 5. The fix of review 1 and phase 2 (main at 9042a21, suite 0.7.0)
+
+Main merged in; its rules run over the verb, and review 1's F1 to F6 and F8 are mended:
+
+- sc4: every refusal of `issue` is a `Refusal`, its cause and then `next:` and the line typed, mended, where `cmd.offer` passes it. `offer` takes `issue.takes` (the refusals that read no file) and `issue.reads`: only bare `issue`, `--check` and `show` are offered, since no word but `send` keeps `--dry-run` and `send` is never offered; else `help issue`. send.py's refusals keep their words in the cause and name the help. sc2: each command comes from `cmd.say`; gh's own `auth switch` stays in the account's cause, as design/22 item 9 hands it over.
+- F1: no cut lands before layer 1. gather keeps a free value whole (over 1 MiB it reads `unreadable` whole); a one-line window keeps its tail past its edge, its first 1,024 bytes and the word there dropped; the title's cut backs off a placeholder. A draft or render over the read cap is refused, not cut.
+- F2: `reword` takes the words a render added after the layer. F3: `new` numbers past the given values and reports only the placeholders the scrub wrote. F4, F5: every word that acts on a draft checks the drafts folder and the draft as `send` did, and a file of the drafts that fails is a refusal that names no path. F6: each word answers `--json` with one object.
