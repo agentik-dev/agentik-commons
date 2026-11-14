@@ -2,6 +2,7 @@
  "schema": "agentik.status/1",
  "ok": true,
  "check": false,
+ "fault": null,
  "at": 1794571200,
  "ms": 100,
  "covers": {

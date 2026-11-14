@@ -133,8 +133,8 @@ def rows(text):
 
 
 def holds_self(procs):
-    """A listing this process took holds this process: one that does not is no listing of
-    this machine's processes, never an empty one (packet su2-read, review 1)."""
+    """A listing this process took holds this process: one that does not is `bad_listing`,
+    read as no listing and never as an empty one (packet su2-read, review 1)."""
     return any(pid == os.getpid() for pid, uid, words in procs)
 
 
@@ -294,20 +294,25 @@ def _status(cmd, nouns):
         fault = t.text("config.fault" if f.line else "config.fault.noline",
                        path=plan.shown(f.path, home), line=f.line, why=f.why)
         raise Usage("bad_file", "err.status.file", again, fault=fault, tool=cmd.tool)
-    procs = None
+    procs, bad = None, None
     if watchers:
         if text is None:
             text = listing(cmd.env)
             if text is not None and not holds_self(rows(text)):
-                raise Usage("bad_listing", "err.status.ps", again, path=ps_argv(cmd.env)[0])
+                text, bad = None, ps_argv(cmd.env)[0]
         procs = rows(text) if text is not None else None
     found = [check(w, procs, now, cmd.env, os.getuid()) for w in watchers]
     shown = [r for r in found if r["state"] != "running"]
     if o["json"]:
-        t.json({"schema": "agentik.status/1", "ok": True, "check": True, "watchers": found})
+        obj = {"schema": "agentik.status/1", "ok": True, "check": True, "watchers": found}
+        if bad:
+            obj["fault"] = "bad_listing"  # held only when the listing was bad: su1's object as it was
+        t.json(obj)
     else:
         for r in shown:
-            if r["state"] == "unknown":
+            if r["state"] == "unknown" and bad:
+                t.line("status.unknown.listing", name=r["name"], path=bad)
+            elif r["state"] == "unknown":
                 t.line("status.unknown", name=r["name"])
             elif r["since"] is not None:
                 t.line(LINE[r["state"]] + ".since", name=r["name"], start=r["start"],

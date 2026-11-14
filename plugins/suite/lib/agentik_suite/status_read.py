@@ -346,7 +346,8 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     _, watchers, _ = status.declared(env)
     cov = covering.covers(env, cwd, paths)
     at = int(now) if float(now).is_integer() else now
-    head = {"schema": "agentik.status/1", "ok": True, "check": False, "at": at, "covers": cov}
+    head = {"schema": "agentik.status/1", "ok": True, "check": False, "fault": None, "at": at,
+            "covers": cov}
 
     own = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     on_path = {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}
@@ -429,7 +430,6 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             listing["settled"] = True
         else:
             jobs.append((("ps",), argv))
-            listing["path"] = argv[0]
 
     parts, hand, done = {}, [], []
     walls = {key: keys[key]["wall_s"] if key[0] == "read" else WALL for key, _ in jobs}
@@ -493,10 +493,10 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             listing["settled"] = True
             if state == "ran" and code == 0:
                 procs = status.rows(out.decode("utf-8", "replace"))
-                if not status.holds_self(procs):  # run_all ends every read on the way out
-                    raise cmd.Usage("bad_listing", "err.status.ps", "%s status" % cmd.tool,
-                                    path=listing["path"])
-                listing["procs"] = procs
+                if status.holds_self(procs):
+                    listing["procs"] = procs
+                else:  # the parts that need it read partial, with no process judged
+                    head["fault"] = "bad_listing"
         elif key[0] == "describe":
             entry = next(e for e in asked if e["name"] == key[1])
             code, out, state = result

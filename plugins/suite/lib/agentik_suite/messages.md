@@ -235,6 +235,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung.since`: `{name}`: running but silent since `{when}`; start it: `{start}`
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
+- `status.unknown.listing`: `{name}`: not checked: `{path}` gave a listing that lacks this process
 - `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{tool}` status --check.
 
 ## Doctor
