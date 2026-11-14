@@ -15,6 +15,16 @@ STUB = "#!/bin/sh\nexit 0\n"
 RAN = '#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\nexit 0\n'  # row fk2: what ran, and with which words
 
 
+def describing(tool, plugin, version):
+    """Row fk2b-reads review 1 F1: a command's body that answers `describe --json` as a fork of a
+    suite tool would, with its own id and version, and logs what ran as RAN does."""
+    answer = json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": tool, "version": version,
+                         "summary": "A made-up tool.", "repo": "acme/" + tool, "plugin": plugin,
+                         "needs": [], "verbs": [], "reads": []})
+    return ('#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\n'
+            "if [ \"$1\" = describe ]; then echo '%s'; fi\nexit 0\n" % answer)
+
+
 class FkHome:
     def __init__(self, home, tool=T):
         self.home, self.tool = home, tool

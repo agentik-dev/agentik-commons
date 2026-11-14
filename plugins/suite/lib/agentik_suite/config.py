@@ -7,6 +7,11 @@ default; `--user-files` each layer path marked `travels`. A tool answers through
 `describe --json` and the config read it names there; the suite answers for itself in process,
 and to other tools through `describe --json` and `describe config --json [KEY]`. Nothing here
 writes a setting: the card prints the line, and the tool's own verb writes.
+
+A tool's row carries `source`, the finder's row (row fk2b-reads), null for the suite; the `from`
+word of a row and a title, and the card of a tool no source is declared for, are made from it.
+Where the file that runs lies under the root of a source not the marketplace's own, `path` is
+null: the source's folder stands under `source` alone (R1).
 """
 import difflib
 import json
@@ -115,7 +120,7 @@ class Reader:
         rows = []
         for e in entries:
             row = {"name": e["name"], "exe": e["exe"], "answer": None, "config": None,
-                   "fault": None, "read": None, "read_state": None}
+                   "fault": None, "read": None, "read_state": None, "source": e.get("source")}
             if e["name"] == self.suite:
                 row["state"] = "answers"
                 row["answer"] = self.suite_describe()
@@ -160,6 +165,45 @@ def _nearest(word, names):
     return near[0] if near else None
 
 
+def _theirs(source):
+    return bool(source) and source["kind"] not in ("own", "absent")
+
+
+def _from(source, home):
+    """The id or the folder of a source of kind `plugin` or `folder`, else None (R6): a line the
+    config read passes over has no folder, so it gives none (review 1 F3)."""
+    if source and source["kind"] == "plugin":
+        return source["plugin"]
+    if source and source["kind"] == "folder" and source["root"]:
+        return plan.shown(source["root"], home)
+    return None
+
+
+def _shown_path(row):
+    """`path` of a row in --json: none where the file lies under a source not the marketplace's own
+    (R1). Its `version` is none for any such source, since that version stands under `source`
+    (review 1 F1)."""
+    if _theirs(row["source"]) and ((row["source"]["runs"] or {}).get("of") == "source"):
+        return None
+    return row["exe"]
+
+
+def _ids(source):
+    """The plugins of the name: the standing one first, then the seen, each once."""
+    first = [source["plugin"]] if source["kind"] in ("own", "plugin") and source["plugin"] \
+        and source["kind"] != "undecided" else []
+    return list(dict.fromkeys(first + [s["plugin"] for s in source["seen"]]))
+
+
+def _titled(cmd, mid, origin, **values):
+    """A title line; with `origin`, it ends `from <id or folder>` (R6)."""
+    t = cmd.t
+    if origin:
+        t.line("config.titled", title=t.text(mid, **values).rstrip("."), source=origin)
+    else:
+        t.line(mid, **values)
+
+
 def path(nouns):
     """The words after `config` are one path, joined by dots (row sc4 R5)."""
     return ".".join(nouns)
@@ -201,6 +245,8 @@ def do_config(cmd, nouns):
     entry = entries[names.index(name)]
     if dot and not key:
         raise Refusal("unknown_key", "err.config.nokey", _again(cmd, name), name=name)
+    if not key and (entry.get("source") or {}).get("kind") == "undecided":
+        return _source_card(cmd, r, name, entry["source"])
     row = r.survey([entry], key=key or None)[0]
     if row["fault"]:  # no command mends a file that does not parse (R7)
         raise Refusal("bad_file", "err.config.file", None, fault=row["fault"])
@@ -212,8 +258,12 @@ def do_config(cmd, nouns):
                           name=name, key=key, state=row["state"])
         return _silent(cmd, r, row, table)
     if not key:
-        return _tool(cmd, r, name, cfg)
+        return _tool(cmd, r, name, cfg, _from(row["source"], r.home))
     found = [s for s in cfg["settings"] if s["key"] == key]
+    if not found and name == r.suite and key.startswith("sources."):
+        known = tools.rows(cmd.env, cmd.lib)
+        if key[len("sources."):] in known:  # no line is written: the card that shows how (R6)
+            return _source_card(cmd, r, key[len("sources."):], known[key[len("sources."):]], key=key)
     if not found:
         whole = r.suite_config() if row["name"] == r.suite else r.read_one(row, None)
         keys = [s["key"] for s in (whole or {}).get("settings") or ()]
@@ -239,9 +289,9 @@ def _list(cmd, r, rows):
         out = []
         for row in rows:
             n, d = _counts(row)
-            item = {"name": row["name"], "state": row["state"], "path": row["exe"],
+            item = {"name": row["name"], "state": row["state"], "path": _shown_path(row),
                     "settings": n, "differ": d, "user_file": r.user_file(row["config"]),
-                    "version": (row["answer"] or {}).get("version"),
+                    "version": None if _theirs(row["source"]) else (row["answer"] or {}).get("version"),
                     "summary": (row["answer"] or {}).get("summary")}
             if row["fault"]:
                 item["fault"] = row["fault"]
@@ -251,6 +301,7 @@ def _list(cmd, r, rows):
                 words = words if words is not None else tools.descriptions(cmd.env)
                 item["table"] = table[row["name"]]
                 item["description"] = words.get(row["name"])
+            item["source"] = row["source"]
             out.append(item)
         t.json({"schema": "agentik.config/1", "ok": True, "tools": out})
         return 0
@@ -275,8 +326,17 @@ def _list(cmd, r, rows):
             after = words.get(row["name"])
         else:
             cells = [term.name(row["name"]), row["state"]]
-        lines.append(("warn" if row["read_state"] else STATUS.get(row["state"], "warn"), cells, after))
-    t.table(lines)
+        status = "warn" if row["read_state"] else STATUS.get(row["state"], "warn")
+        source, extra = row["source"], None
+        if source and source["kind"] == "undecided":
+            status, extra = "warn", t.text("config.undecided", count=len(_ids(source)))
+        elif _from(source, r.home):
+            extra = t.text("config.from", source=_from(source, r.home))
+        lines.append((status, cells, after, extra))
+    # the source's words end a row, in a column after every other row's cells (R6)
+    wide = max(len(cells) for _, cells, _, _ in lines)
+    t.table([(status, cells + ([""] * (wide - len(cells)) + [extra] if extra else []), after)
+             for status, cells, after, extra in lines])
     t.hint("hint.config", **cmd.slots())
     return 0
 
@@ -294,7 +354,7 @@ def _silent(cmd, r, row, table):
             obj["description"] = tools.descriptions(cmd.env).get(name)
         cmd.t.json(obj)
         return 0
-    t.line(STATE_LINE[why(row)], name=name)
+    _titled(cmd, STATE_LINE[why(row)], _from(row["source"], r.home), name=name)
     if table:
         desc = tools.descriptions(cmd.env).get(name)
         t.line("config.table.title", name=name)
@@ -315,15 +375,15 @@ def _silent(cmd, r, row, table):
     return 0
 
 
-def _tool(cmd, r, name, cfg):
+def _tool(cmd, r, name, cfg, origin=None):
     t, rows = cmd.t, cfg["settings"]
     if cmd.opts["json"]:
         t.json({"schema": "agentik.config/1", "ok": True, "tool": name, "layers": cfg["layers"],
                 "settings": rows, "warnings": cfg.get("warnings") or []})
         return 0
     changed = sum(1 for s in rows if differs(s))
-    t.line("config.tool.title", name=name, changed=changed,
-           settings=t.text("config.count.one" if len(rows) == 1 else "config.count", n=len(rows)))
+    _titled(cmd, "config.tool.title", origin, name=name, changed=changed,
+            settings=t.text("config.count.one" if len(rows) == 1 else "config.count", n=len(rows)))
 
     def row(s, key):
         cells = [term.name(key), shown_value(s.get("value")),
@@ -388,6 +448,39 @@ def _card(cmd, r, name, cfg, s):
     if kind != "fixed" and change.get("note"):
         rows.append((None, [label("note"), str(change["note"])], None))
     rows.append((None, [label("holds"), t.text("config.live" if s.get("live") else "config.later")], None))
+    t.table(rows)
+    t.hint("hint.config.card", **cmd.slots())
+    return 0
+
+
+def _source_card(cmd, r, name, source, key=None):
+    """The card of a tool's source while no line is written (R6): how many plugins have the name,
+    each seen, and the block the user file takes; `key` is the suite's `sources.<name>`."""
+    t, ids = cmd.t, _ids(source)
+    user = settings.user_path(cmd.env)
+    pick = "%s@%s" % (name, plan.MARKETPLACE)
+    block = "sources:\n  %s: %s" % (name, pick if pick in ids or not ids else ids[0])
+    if cmd.opts["json"]:
+        t.json({"schema": "agentik.config/1", "ok": True, "tool": r.suite if key else name, "key": key,
+                "source": source, "change": {"kind": "edit", "path": user, "block": block}})
+        return 0
+    if source["kind"] == "undecided":
+        mid = "config.source.undecided"
+    else:
+        mid = {0: "config.source.none", 1: "config.source.one"}.get(len(ids), "config.source.count")
+    if key:
+        t.line("config.card.title", name=r.suite, key=key)
+        t.line(mid, count=len(ids), name=name)
+    else:
+        t.line("config.source.title", name=name, words=t.text(mid, count=len(ids)))
+    label = lambda mid: term.name(t.text("config.label." + mid))  # noqa: E731
+    plugins = [source] if source["kind"] in ("own", "plugin") and source["plugin"] else []
+    seen = list(dict.fromkeys("%s %s" % (s["plugin"], s["version"]) if s.get("version") else s["plugin"]
+                              for s in plugins + source["seen"]))
+    rows = [(None, [label("seen"), ", ".join(seen)], None)] if seen else []
+    rows.append((None, [label("edit"), term.path(plan.shown(user, r.home))], None))
+    rows += [(None, ["", line], None) for line in block.splitlines()]
+    rows.append((None, [label("holds"), t.text("config.live")], None))
     t.table(rows)
     t.hint("hint.config.card", **cmd.slots())
     return 0
