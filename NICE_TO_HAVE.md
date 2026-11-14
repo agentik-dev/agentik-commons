@@ -6,6 +6,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n199 | S4 | `plugins/suite` `doctor.py` `close_command` | where a failing group of R5's comes first, R7's plain close takes the close from a later group on sc10's path, and that group's row gains its `fix:` line; first match by design | review 2's lead, `probe_mix.py` s1 | 2026-11-14, ak9b-plug-reader review 2 |
+| n198 | S4 | `plugins/suite` `doctor.py` `doctor_read` | an R5 doctor read whose `argv` is `[""]`, or opens with a flag (`["--json"]`), still counts and runs the tool with no verb, so its row reads unreadable; only an empty `argv` was ruled | review 2's lead | 2026-11-14, ak9b-plug-reader review 2 |
+| n197 | S3 | `config.py` `asks`, `doctor.py` `_closes` | sc5 R8's word rule, in both: a quoted `'-y'` or `"--yes"` and a cluster such as `-yq` pass it, so the remedy goes behind `next:`, the pin's doctor too; one rule for both (quotes stripped, a cluster holding `y`), ruling on `--YES`, `REMOVE`, `--assume-yes` | review 2 F1, the remedy `murmur reset -yq` | 2026-11-14, ak9b-plug-reader review 2 |
 | n196 | S4 | `plugins/suite` `doctor.py` | R3's reason shows on the config screens only: `doctor` prints `ok  T  its doctor passed` for a tool whose describe answers under another tool's name, with no reason beside it | review 1 lead, R8's "with R3's reason where it applies"; build 1 left it not done | 2026-11-14, ak9b-plug-reader review 1 |
 | n195 | S4 | `plugins/suite` `config.py` `--json` | `config --json` carries a describe's `summary` whole, so a 200 KB summary is 200 KB of the answer, as at the pin; R4's 300-character cut reaches the error's message only | review 1 lead, a 200 KB summary | 2026-11-14, ak9b-plug-reader review 1 |
 | n194 | S4 | `plugins/suite` `cli.py` `help` | where a plugin's command sits under its root off PATH (fk_homes hD), `agentik help T` exits 3 while `agentik T --help` runs the tool's file (R1) | review 1 lead, the exit code alone seen | 2026-11-14, ak9b-plug-reader review 1 |
@@ -27,18 +30,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
 
-## From packet sc10-doctor-checks (review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n117 | S4 | `plugins/suite` `messages.md` | `doctor.settings.unchecked` is 79 characters with its slots in, over the 76 of the row's acceptance 9, kept by R9; shorten it when that message is next turned | build 2's charter; acceptance 9's test | 2026-11-13, sc10 phase 2 |
-
 ## From packet rp3-gather (review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n118 | S4 | `plugins/suite` `doctor.py` details | the doctor's `doctor.tool.*` detail takes the last line of a tool's own doctor output whole, and the `shadow` and `plan` details hold paths; free by R4 and kept by `gather`, so rp2's scrub is their only guard: a line for rp2's or rp6's review | review 1's first note, read | 2026-11-13, rp3 review 1 |
-| n119 | S4 | `gather.py` `_entry` | takes the first install of a key's list, so with several scopes (a project-scoped install first) the version shown may be another folder's; it does not change with the working folder | review 1's note; read, not verified on a real file | 2026-11-13, rp3 review 1 |
 | n120 | S4 | `gather.py` `_launcher` | an unreadable launcher (mode 000) reads None, as an absent one does, not `unreadable`: `read_regular` gives None for both | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
 | n121 | S4 | `gather.py` `_installed` | reads `installed_plugins.json` with no size limit (`read_regular`, limit -1), so a huge file costs memory | review 1's note; read, not probed | 2026-11-13, rp3 review 1 |
 | n122 | S4 | `gather.py` `bound` | assumes `map_free`'s `fn` gives text: a None in a row's name, detail or a line raises in `_cut`, and a lone surrogate raises `UnicodeEncodeError`; the join's contract | review 1's note; read, not run | 2026-11-13, rp3 review 1 |
