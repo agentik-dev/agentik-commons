@@ -72,6 +72,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.verb.none`: `{word}` is not a verb or a tool
 - `err.verb.own`: `{word}` is a tool, not a verb
 - `err.verb.plugin`: `{word}` is a plugin with no command
+- `err.verb.page`: `{word}` has no command here yet: it installs its own. Its page has the line: `{page}`
 - `err.verb.missing`: `{word}` is not installed
 - `err.flag`: `{flag}` is not a flag
 - `err.flag.of`: `{flag}` is not a flag of `{verb}`
@@ -184,6 +185,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.run`: would run: `{command}`
 - `setup.later`: yours to run later: `{command}`
 - `setup.add`: add to your shell profile: `{command}`
+- `setup.page`: its page has the line: `{command}`
 - `setup.cmd.found`: on PATH at `{path}`
 - `setup.cmd.missing`: not on PATH; setup stops here until it is installed
 - `setup.cmd.get`: get it: https://claude.com/claude-code
@@ -212,6 +214,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.link`: a link to the source's own command, so there is nothing to place
 - `setup.launcher.noversion`: placed, and the source gives no version to compare, so setup leaves it as it is
 - `setup.launcher.other`: at version `{have}`, and the source is at `{want}`; setup would place it again
+- `setup.launcher.page`: not placed, and not setup's to place: `{name}` installs its own command
+- `setup.launcher.theirs`: `{name}` installed its own command, at `{path}`; setup leaves it as it is
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
@@ -229,12 +233,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.todo`: setup would check the plugin with its doctor
 - `setup.doctor.wait`: step 4 places the launcher first
 - `setup.doctor.nocmd`: the plugin ships no command, so it has no doctor to run
+- `setup.doctor.page`: not checked: its command is not installed yet
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
+- `hint.setup.page`: next: step 4 names the page with the install line for `{names}`. Setup has done the rest.
 - `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
 - `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
 - `setup.running`: running `{command}`

@@ -1,6 +1,6 @@
 {
   "session": {"lines": ["agentik session profile", "agentik session set KEY VALUE"], "user_file": "~/.claude/agentik/profiles.yaml", "needs": [], "status": [{"name": "gate", "argv": ["gate", "status", "--json"]}, {"name": "unattended", "argv": ["unattended", "status", "--json"]}], "inbox": [{"name": "charter", "argv": ["charter", "show", "--json"]}]},
-  "relay": {"lines": ["agentik relay doctor"], "user_file": "~/.config/agentik/relay/config.yaml", "needs": ["Go"], "status": [{"name": "run", "argv": ["status", "--json"], "wall_s": 2.5}]},
+  "relay": {"lines": ["agentik relay doctor"], "user_file": "~/.config/agentik/relay/config.yaml", "needs": ["Go"], "status": [{"name": "run", "argv": ["status", "--json"], "wall_s": 2.5}], "page": "https://github.com/agentik-dev/agentik-relay#install"},
   "decisions": {"lines": ["agentik decisions doctor"], "user_file": null, "needs": [], "status": [{"name": "backlog", "argv": ["backlog", "--json"]}], "inbox": [{"name": "questions", "argv": ["questions", "--json"]}, {"name": "backlog", "argv": ["backlog", "--json"]}]},
   "agents": {"lines": ["agentik agents doctor"], "user_file": "~/.config/agentik/agents/", "needs": [], "status": [{"name": "sessions", "argv": ["status", "--json"]}]},
   "respeak": {"lines": [], "user_file": "~/.claude/respeak/config.yaml", "needs": ["PyYAML"], "status": []}

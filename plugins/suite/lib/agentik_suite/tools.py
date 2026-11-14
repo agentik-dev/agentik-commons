@@ -490,6 +490,17 @@ def fallback(lib):
     return {k: v for k, v in found.items() if isinstance(v, dict)} if isinstance(found, dict) else {}
 
 
+def page(table, name):
+    """The `page` of `name`'s row of the table (row fh13 R1): the tool installs its own
+    command, and this page has the line. A string that starts https:// and holds no whitespace and
+    no character that is not printable (a control or format one), else None; never opened (row
+    fh13 review 1)."""
+    value = (table.get(name) or {}).get("page")
+    if not (isinstance(value, str) and value.startswith("https://") and len(value) > 8):
+        return None
+    return value if value.isprintable() and not any(c.isspace() for c in value) else None
+
+
 def descriptions(env):
     """{plugin name: description} from the agentik marketplace's own file."""
     known = plan._read_json(os.path.join(_config_dir(env), "plugins", "known_marketplaces.json"))
