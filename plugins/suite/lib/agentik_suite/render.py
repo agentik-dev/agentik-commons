@@ -47,13 +47,13 @@ def load(lib):
 
 
 def find(env, lib):
-    """The narrator's script under the install path of `<plugin>@<marketplace>` in Claude Code's
-    installed_plugins.json, a regular executable file; else None."""
+    """The narrator's script under the root the finder names for `<plugin>@<marketplace>`
+    (row fk2-plan R7), a regular executable file; else None."""
     try:
         conf, market = load(lib), gather.load_public(lib)["marketplace"]
     except ValueError:
         return None
-    root, there = apply.install_root(tools._config_dir(env), "%s@%s" % (conf["plugin"], market))
+    root, there = apply.install_root(env, "%s@%s" % (conf["plugin"], market))
     if not there:
         return None
     path = os.path.join(root, conf["script"])
