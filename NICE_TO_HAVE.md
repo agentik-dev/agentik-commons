@@ -19,23 +19,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n41 | S4 | `plugins/suite` `tools.py` `counted_config` | a tool's key holding a blank or a line break shows as an empty key or run together, and no `config <tool>.<key>` reaches it; hold keys to the name pattern or refuse them | review 1's p2 | 2026-11-13, ak1b review 1 |
 | n40 | S4 | `plugins/suite` `tools.py` `_keep` | when the cache folder `$XDG_CACHE_HOME/agentik/suite` is a symlink out of the cache root, `_keep` follows it and writes the answer file there | review 1's p6 | 2026-11-13, ak1b review 1 |
 
-## From packet h2 (binary, empty list)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n12 | S4 | `scripts/hygiene` | a private term under an encoding inside a binary (UTF-16, base64, deflate, zip, PDF) is not found, nor a non-ASCII term a 1 MiB cut splits; the range cuts each blob over 1 MiB, the tree a file over 4 MiB; a term in a 4 KiB overlap counts twice | packet h2 ruling 6, its refuter's F4 (`p3_split.py`); `stream_fh`'s cut | 2026-11-10, packet h2 |
-| n14 | S4 | `scripts/hygiene` | `re`'s compile cache gives a private row equal to a built-in group's joined pattern the built-in's object, so `GENERIC`'s identity test reads it as built-in and it skips a binary; mark private rows by index instead | the refuter's `p4_identity_anchor.py`: `netpriv` misses net.bin, `netcopy` hits | 2026-11-10, h2's refuter round 1, F3 |
-| n15 | S4 | `scripts/plugin-description-bytes` | counts descriptions only; Claude Code lists an agent as `- plugin:name: desc (Tools: ...)`, so the agents plugin's 777 B load as 1,096 B (+319), about 1,350 B in all vs the gate's 1,001; count prefix and suffix, or say in GUIDE §1 it counts descriptions only | listing format read from the Claude Code binary | 2026-11-12, p1 review r1 |
-| n16 | S4 | `scripts/plugin-description-bytes` | only `true`/`True`/`TRUE` read as true for `disable-model-invocation`; Claude Code also takes `yes`, `on`, `1` in any case, so a command hidden so is overcounted; a UTF-8 BOM gives `error: no description`, Claude Code's BOM handling unverified | probe: `disable-model-invocation: yes` is listed `10 command yeshidden` | 2026-11-12, p1 review r1 |
-| n17 | S4 | `scripts/hygiene` | a private row with an interior wildcard (`a.*b`; a leading or trailing `.*` is stripped) is quadratic on a long newline-free span: a text file's line or a binary's content, which a NUL-padded binary leaves whole; cap the span | `.*` and a term over one line of `a`: 16 KiB 0.6 s, 32 KiB 2.3 s | 2026-11-12, packet h2-hygiene-binary |
-| n18 | S4 | `scripts/hygiene` | `unwild` (`:242`) keeps a DOTALL row whole, though a stripped edge `.*` matches the same there too: `(?s).*zqterm`, `.+zqterm`, `.*?zqterm` stay quadratic on a binary; strip under DOTALL too, `.+` and `.*?` with n17 | 64 KiB NUL binary at `2e2431f`: 6.8 s, 7.3 s, 9.0 s, as before the fix | 2026-11-12, h2-hygiene-binary review r2 F1 |
-| n19 | S4 | `scripts/plugin-version-check` | the second read takes `refs/heads/main` before `origin/main`, so a stale local main hides the fault: a branch that merged a bumped `origin/main` meets an older merge base, below the merged bump; the newer merge base of the two would close it | a local main behind the bump the branch merged; ruling R1's order | 2026-11-12, packet c7-version-read |
-| n20 | S4 | `scripts/plugin-version-check` | under `--json` an exit 2 prints nothing on stdout (R4's unordered version, invalid JSON in the working tree, a numeric version at a base), as the pin's exit-2 paths do, so a caller that parses stdout gets no object; print `{"error": ...}` there too | `main` returns 2 before the `--json` branch (`:234`) | 2026-11-13, c7-version-read review 1 L1 |
-| n21 | S4 | `scripts/plugin-version-check` | build metadata is ignored by precedence, so `1.0.0` to `1.0.0+b2` with a change under `plugin/` exits 1 on a branch, though Claude Code refreshes an install on any change to the version string | `precedence` drops `+...`; semver §10 | 2026-11-13, c7-version-read review 1 L3 |
-| n22 | S4 | `scripts/plugin-version-check` | the shebang is `#!/usr/bin/env python3`, so the tests run the script under PATH's python3, not the interpreter that runs the tests; the rule for stdlib scripts is `#!/usr/bin/python3` | `:1`; a PATH shim at 3.9.6 and at 3.12 both pass | 2026-11-13, c7-version-read review 1 L4 |
-| n23 | S4 | `scripts/plugin-version-check` | R4 runs after the first read, so a branch the pin failed with 1 (an untracked file) and a version not semver-shaped now exits 2, its lines lost; consistent with R4 | the review's probe of an untracked file under a non-semver version | 2026-11-13, c7-version-read review 1 L6 |
-| n24 | S4 | `scripts/plugin-version-check` | a path holding a newline breaks "one stderr line a path"; the output is the pin's | the review's odd-name probe | 2026-11-13, c7-version-read review 1 L7 |
-
 ## From packet ak1a (the suite's command, review 1)
 
 | id | level | area | finding | evidence | from |
@@ -109,3 +92,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n92 | S4 | `scripts/hygiene` JWT | each part opens `eyJ`, three letters where the brief says six, a superset; an unsigned JWT (`header.payload.`, empty signature) counts 0 | review 1's N9 | 2026-11-13, rp1 review 1 |
 | n93 | S4 | `scripts/hygiene` | a token split across a line end counts 0, but a project key whose first half is 20 characters or more; the design's item 13 accepts this | review 1's N10 | 2026-11-13, rp1 review 1 |
 | n94 | S4 | `scripts/hygiene` `secret` | a lead for rp2: GitLab's `glpat-<body>.01.<suffix>` form counts 1 but the match ends at the first `.`, so a scrub of the match alone leaves the suffix | review 1's N11 | 2026-11-13, rp1 review 1 |
+
+## From packet rp5-send (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n118 | S4 | `tests/test_rp5_send.py` `DoorTest` | the line-11 walk matches a starter by its name and reads `str` constants alone, so a second create through an alias (`_P = subprocess.Popen`) or a bytes argv passes; flag a name bound to a starter, read `bytes` as words | review 2's R2-F3, two mutants `OK` | 2026-11-13, rp5 review 2 |
+| n119 | S4 | `plugins/suite` `send.py` `BLANK` | outside item 4(e)'s list, these pass `check` and the screen and are filed: U+16FE4, U+1D159, U+FFFC, a combining flood, U+0488, a lone U+1F3FB, trailing spaces; a run of U+16FE4 could carry a count unseen | review 2's notes, `probes/p1.py` | 2026-11-13, rp5 review 2 |
+| n120 | S4 | `plugins/suite` `send.py` `unseen` | the `nfkc` kind refuses every line NFKC changes, `…`, `™`, `µ` and `½` among them; if the form puts one in a fixed line or a title, every draft is refused. Not measured: this base has no form | review 2's notes | 2026-11-13, rp5 review 2 |
+| n121 | S4 | `plugins/suite` `send.py` `_issue` | an approval can still be made by a direct call in the same process, `send._issue(data, repo, login)`, with no screen; Python has no private names | review 2's notes | 2026-11-13, rp5 review 2 |
