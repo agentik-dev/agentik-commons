@@ -237,7 +237,11 @@ class Command:
         """The line for the tool `near` the person meant, its file at `path`: through the door
         where one reaches the suite, else that file through sc2's `prog.shown` (review 1 F5);
         the words after the typed one, or its help where none follow, since a tool run bare is a
-        usage error (R4). A plugin with no command here gets the suite's help for it (F6)."""
+        usage error (R4). A plugin with no command here gets the suite's help for it (F6). Words
+        that hold a flag answering a question or a word of NEVER_MENDED pass the gate a suite line
+        does in `offer`: the tool's help, by either form (review 2 F1)."""
+        if any(w.partition("=")[0] in SKIPS or w in NEVER_MENDED for w in rest):
+            rest = []
         if path is None:
             return self.say("help", near)
         if prog.form(self.env, self.tool)[0] != "typed":

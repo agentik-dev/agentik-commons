@@ -101,3 +101,9 @@ The rule: a mended line is offered only when it would run, and never when it doe
 - `Term.hint`: a message that does not start `next:` keeps its mark on a terminal and starts `next: ` off one. `Term.error` drops U+2028, U+2029 and the direction controls from both its lines; `term.clean` is left to su2-screen.
 - No exit and no `error.code` changes.
 
+## Review 2's ruling (the fix, one round)
+
+- A mended tool's line takes the gate a suite line takes in `offer`: where the words after the typed one hold `--yes`, `-y` (also as `--yes=...`) or a word of `NEVER_MENDED`, the line is the tool's help, `help <tool>` through the door, else the tool's file and `--help` (`_tool_line`).
+- `test_f1` holds `setup --dry-run --test` and `install-cli --dry-run --ask`, the lines only the rule on flags that skip a question keeps from `--yes`.
+- No message printed behind `next:` (each `hint.*`, and `err.next`) holds `<`, `>`, a pipe, `;`, `&`, a backtick or `$(`; a placeholder there is an upper-case word (`TOOL`, `KEY`). One test reads the whole catalogue.
+- No exit and no `error.code` changes.

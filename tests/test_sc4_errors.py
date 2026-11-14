@@ -337,6 +337,47 @@ class Review1Test(Sc4Home):
             self.assertFalse([c for c in err if c in marks], (argv, err))
 
 
+PLOW = r'''#!/bin/sh
+# a made-up tool: it records its words, and its remove deletes the canary
+printf '%s\n' "$*" >> "$HOME/plow-calls"
+if [ "$1" = remove ]; then rm -f "$HOME/canary"; fi
+exit 0
+'''
+
+
+class Review2Test(Sc4Home):
+    """Review 2 F1: a mended tool's line goes through the gate a suite line does; one that holds a
+    flag that skips a question, or a word of NEVER_MENDED, is the tool's help."""
+
+    def setUp(self):
+        Sc4Home.setUp(self)
+        self.stub("agentik-plow", PLOW)
+        self.canary = os.path.join(self.home, "canary")
+        open(self.canary, "w").close()
+
+    def gated(self, typed, nxt):
+        self.refusal(typed, "%s is not a tool" % typed[0], nxt, code_word="unknown_verb")
+        code, out, err = self.pasted(nxt)
+        self.assertTrue(os.path.exists(self.canary), (typed, nxt, err))
+        self.assertNotIn(code, (2, 127), (typed, nxt, err))
+
+    def test_f1_a_mended_tools_line_never_skips_a_question_or_removes(self):
+        for typed in (("plw", "remove", "--yes"), ("plw", "remove", "-y"), ("plw", "--yes"),
+                      ("plw", "remove"), ("plw", "remove", "--jsno"), ("plw", "list", "--yes=1")):
+            self.gated(typed, "agentik help plow")
+        self.refusal(("murmr", "remove", "--yes"), "murmr is not a tool", "agentik help murmur")
+        self.refusal(("plw", "list"), "plw is not a tool", "agentik plow list")  # as before
+
+    def test_f1_with_no_door_the_same_gate(self):
+        os.remove(os.path.join(self.stubs, "agentik"))
+        for typed in (("plw", "remove", "--yes"), ("plw", "remove", "-y"), ("plw", "--yes"),
+                      ("plw", "remove"), ("plw", "remove", "--jsno")):
+            self.gated(typed, "~/stubs/agentik-plow --help")
+        self.refusal(("plw", "list"), "plw is not a tool", "~/stubs/agentik-plow list")
+
+    refusal = Review1Test.refusal
+
+
 class CatalogueTest(unittest.TestCase):
     def test_l8_each_cause_is_short_and_holds_no_command(self):
         text = open(catalogue.PATH, encoding="utf-8").read()
