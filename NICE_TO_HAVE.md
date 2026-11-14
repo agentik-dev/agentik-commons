@@ -6,6 +6,11 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
+| n196 | S4 | `plugins/suite` `doctor.py` | R3's reason shows on the config screens only: `doctor` prints `ok  T  its doctor passed` for a tool whose describe answers under another tool's name, with no reason beside it | review 1 lead, R8's "with R3's reason where it applies"; build 1 left it not done | 2026-11-14, ak9b-plug-reader review 1 |
+| n195 | S4 | `plugins/suite` `config.py` `--json` | `config --json` carries a describe's `summary` whole, so a 200 KB summary is 200 KB of the answer, as at the pin; R4's 300-character cut reaches the error's message only | review 1 lead, a 200 KB summary | 2026-11-14, ak9b-plug-reader review 1 |
+| n194 | S4 | `plugins/suite` `cli.py` `help` | where a plugin's command sits under its root off PATH (fk_homes hD), `agentik help T` exits 3 while `agentik T --help` runs the tool's file (R1) | review 1 lead, the exit code alone seen | 2026-11-14, ak9b-plug-reader review 1 |
+| n193 | S4 | `tests/test_sc10_doctor_checks.py` a10, `tests/test_ak3d_doctor.py` line 5 | the two timing tests set `tools.WALL` to 0.5 s, so no test holds the describe wall R5 adds before the doctor's deadline at its real 2 s (a worst case of 32 s, against 30 s at the pin) | review 1 lead, six hung tools: 5.0 s at head, 3.0 s at the pin, the deadline at 3 | 2026-11-14, ak9b-plug-reader review 1 |
+| n192 | S4 | `plugins/suite` `config.py` `_list` | in `agentik config`, R3's reason is a cell after the state, in the settings column, so where one reason shows every row's `N settings` pads by about 27 columns | review 1 lead, the config table at the pin and at head | 2026-11-14, ak9b-plug-reader review 1 |
 | n191 | S4 | `plugins/suite` `update.py` | with output sent to a file, `agentik update` prints its `running claude plugin marketplace update agentik` line above the plan's first line, since the two streams are not flushed in order; not fixed | the first real run of `agentik update`, in ak9b-plug-reader's start line | 2026-11-14, ak9b-plug-reader build 1 |
 | n182 | S4 | `plugins/suite` `cli.py` `help_verb` | the sentence under `usage:` in `help <verb>` is not wrapped to the width, so the terminal breaks it mid-word: `help doctor` at 60 columns has a line of 103 characters | sc5 review 1 N1 | 2026-11-14, sc5-first-screen review 1 |
 | n180 | S4 | `plugins/suite` `plan.py` step 3, `cli.py` `_not_a_verb` | a tool with a `page` and a held or unfound source: setup's plan shows step 3's lone row, no step 4 or 7 row and never the page, while `T doctor` refuses with the page | review 1 lead, homes hB, hH, pC | 2026-11-14, fh13-relay-plan fix of review 1 |
@@ -26,12 +31,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n111 | S4 | `plugins/suite` `term.py` `_cleaned` | `--json` is not a tool's bytes verbatim when they hold control characters: all but `\n` are removed (before sc10) | review 1's note | 2026-11-13, sc10 review 1 |
-| n112 | S4 | `plugins/suite` `doctor.py` `close_command` | a settings fault or a shadow `fail` with no other problem closes on `2 failed, 0 to look at, 18 ok.` and no `next:` line (R8's "else none"); the pin ended on a hint | review 1's note: probe p7 | 2026-11-13, sc10 review 1 |
-| n113 | S4 | `plugins/suite` `doctor.py` `_rows` | failing step-1 rows fold into one row, `FAIL  prereqs  not on PATH: claude, git` (R6 rules this; each subject is still named) | review 1's note | 2026-11-13, sc10 review 1 |
-| n114 | S4 | `plugins/suite` `doctor.py` | when the close is setup (R8 b), a failing tool's own doctor command shows nowhere on the screen; the tool shows only its group line or rows | review 1's note: probe p3 `nodoor` | 2026-11-13, sc10 review 1 |
-| n115 | S4 | `plugins/suite` `doctor.py` `_under` | build 1's lead that `fix: <setup>` can show up to three times under a plan's rows (a failing door's install-cli the close) was not reproduced: in an old-door HOME the plan rows were counted as waiting | review 1's note; build 1's charter | 2026-11-13, sc10 review 1 |
-| n116 | S4 | `plugins/suite` `doctor` | not run by review 1: a real terminal emulator (bytes on a pty only), a HOME or tool path with spaces, a colour pty run at the pin, a door placed by a real `setup` | review 1's note | 2026-11-13, sc10 review 1 |
 | n117 | S4 | `plugins/suite` `messages.md` | `doctor.settings.unchecked` is 79 characters with its slots in, over the 76 of the row's acceptance 9, kept by R9; shorten it when that message is next turned | build 2's charter; acceptance 9's test | 2026-11-13, sc10 phase 2 |
 
 ## From packet rp3-gather (review 1)
