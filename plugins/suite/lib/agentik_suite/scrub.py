@@ -102,7 +102,7 @@ ANCHOR = re.compile(r"(?:~|\.\.?)?/")
 HARD = re.compile(r"[:,;()\[\]{}<>\"'`%s]" % STOP)
 DIGITS = re.compile(r"\d+(?:/\d+)+/?\Z")
 SCHEMA = re.compile(r"agentik[.-][a-z][a-z0-9_.-]*/\d+\Z")
-VERSION = re.compile(r"(?:\d+\.\d+\.\d+[0-9A-Za-z.+-]*|[0-9a-f]{7,40})\Z")
+VERSION = re.compile(r"(?:\d+(?:\.\d+){2,}(?:[+-]\d+(?:\.\d+)*)?|[0-9a-f]{7,40})\Z")
 HASH = re.compile(r"[0-9a-f]{7,64}\Z")
 
 SECRET_NAME = (r"[A-Za-z0-9_.-]*(?:password|passphrase|secret|token|api[_-]?key|credential"
@@ -122,6 +122,7 @@ SITE = re.compile(r"(?<![\w.-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+(?
 RUNS = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{32,}(?![A-Za-z0-9+/=_-])")
 SEGMENT_RUNS = re.compile(r"(?<![A-Za-z0-9+=_-])[A-Za-z0-9+=_-]{32,}(?![A-Za-z0-9+=_-])")
 LAN_REACH = re.compile(r"[A-Za-z0-9.-]")
+HOME_REACH = re.compile(r"[^\s\"'`<>()\[\]{},;:|=*?\\%s]" % STOP)
 
 DOTTED = re.compile(r"(?<![\w.-])[A-Za-z][\w-]*(?:\.[A-Za-z][\w-]*){2,}(?![\w-]|\.[A-Za-z])")
 HANDLE = re.compile(r"(?<![\w.])@[A-Za-z][\w-]*")
@@ -511,21 +512,21 @@ class _Pass:
             out.append(s[pos:start])
             low = run.lower()
             if DIGITS.match(run) or low in PAIRS or low in self.m["_pairs"] or SCHEMA.match(run):
-                out.append(self.seal(run))
+                out.append(OPEN + run + CLOSE)
                 pos = end
                 continue
             p = _norm(self.m, run)
             if p in ("~", "~/"):
                 if p != run:
                     self.note("path")
-                out.append(self.seal(p))
+                out.append(OPEN + p + CLOSE)
                 pos = end
                 continue
             form = self._form(p)
             if form == "keep":
                 if p != run:
                     self.note("path")
-                out.append(self.seal(p))
+                out.append(OPEN + p + CLOSE)
                 pos = end
                 continue
             reach = self._reach(s, start, end)
@@ -637,6 +638,9 @@ class _Pass:
                     while a > pos and LAN_REACH.match(s[a - 1]):
                         a -= 1
                     while b < len(s) and LAN_REACH.match(s[b]):
+                        b += 1
+                elif group == "home":
+                    while b < len(s) and HOME_REACH.match(s[b]):
                         b += 1
                 out.append(s[pos:a])
                 out.append(self.put(kind, s[a:b]))

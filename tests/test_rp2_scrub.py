@@ -476,5 +476,37 @@ class R1F1Test(Review1Case):
                 self.assertEqual(scrub.detect("see %s." % raw, m), [])
 
 
+class R1F2Test(Review1Case):
+    """R1-F2: a kept tree and a schema word are sealed against the path step alone; a version
+    takes no letters glued after its numbers."""
+
+    def test_r1f2_kept_tree_tail_read(self):
+        m = machine(private=private_rows("zqvacme"))
+        cache = "~/.claude/plugins/cache/agentik/widget/"
+        share = "%s/.local/share/agentik-widget/0a1b2c3d/" % HOME
+        tok = token()
+        cases = [
+            (cache + "1.2.3/notes/zqvacme-plan.md", [], cache + "1.2.3/notes/"),
+            (share + LOGIN + "-notes/x", [], "~/.local/share/agentik-widget/0a1b2c3d/"),
+            (share + tok, [tok], "~/.local/share/agentik-widget/0a1b2c3d/"),
+            ("agentik-zqvacme/1", [], "agentik-"),
+            (cache + "1.0.0/link" + USERS + "/zqvother/code/zqvrepo", [], cache + "1.0.0/link"),
+        ]
+        for raw, gone, keep in cases:
+            with self.subTest(raw=raw[-20:]):
+                self.closes(m, "at %s ok" % raw, gone, keep=[keep])
+
+    def test_r1f2_version_takes_no_letters(self):
+        m = machine()
+        cache = "~/.claude/plugins/cache/agentik/widget/"
+        for tail in ("1.0.0-zqvacme/x", "1.0.0zqvacme" + USERS + "/zqvlogin", "1.2.3zqv"):
+            with self.subTest(tail=tail):
+                out = self.closes(m, "at %s%s ok" % (cache, tail))
+                self.assertEqual(out, "at <path-1> ok")
+        for kept in ("1.2.3", "1.2.3/bin/run", "3f9a2b7c1d4e", "1.2.3-4"):
+            with self.subTest(kept=kept):
+                self.assertEqual(scrub.scrub("at %s%s ok" % (cache, kept), m)[0], "at %s%s ok" % (cache, kept))
+
+
 if __name__ == "__main__":
     unittest.main()
