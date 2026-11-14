@@ -9,12 +9,15 @@ apart; a name is bold, a path or a hint dim; nothing is told by colour alone.
 
 A stream that is closed, or whose reader has gone, takes nothing more and raises nothing, at a
 write or at the interpreter's exit; a character a stream cannot encode is replaced; a value has
-its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out.
+its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out; a
+tab or a line break in it is one space, and the line and direction controls (U+2028, U+2029,
+U+202A to U+202E, U+2066 to U+2069) are removed.
 """
 import json
 import os
 import re
 import sys
+import unicodedata
 
 from . import catalogue
 
@@ -28,9 +31,34 @@ CONTROL = re.compile("[\x00-\x1f\x7f-\x9f]")
 JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survives, escaped
 
 
+LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
+BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
+
+
 def clean(value):
-    """The value as text, with its control characters removed."""
-    return CONTROL.sub("", str(value))
+    """The value as text, with its control characters removed: a tab or a line break becomes one
+    space, so no value splits a row or glues two words, and the line and direction controls go,
+    so no value reorders a row or starts another."""
+    return LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value))))
+
+
+def columns(text):
+    """The screen columns a text takes: a wide character two, a combining mark none."""
+    return sum(0 if unicodedata.combining(c) else 2 if unicodedata.east_asian_width(c) in "WF" else 1
+               for c in text)
+
+
+def fit(text, room, mark):
+    """The text cut so that it and its mark take at most `room` columns; a combining mark stays
+    with the character it follows."""
+    room -= columns(mark)
+    kept, used = [], 0
+    for c in text:
+        used += columns(c)
+        if used > room:
+            break
+        kept.append(c)
+    return "".join(kept) + mark
 
 
 def _cleaned(obj):
@@ -184,6 +212,53 @@ class Term:
             start = indent + sum(w + len(GAP) for w in widths[:len(cells) - 1])
             for line in under + ([after] if after else []):
                 stream.write(" " * start + stream.paint(line, STYLE_SGR["hint"]))
+
+    def grid(self, status, label, rows, err=False):
+        """One part of a status screen (packet su2-screen R4): the mark, or its blank when the
+        status is None, two spaces, the label bold and padded to 8, two spaces, then each row at
+        the text's column. A row is (text or [cell...], style, whole); a row of cells pads each
+        cell but the last to the widest of its column among the part's rows, two spaces apart.
+        On a terminal no cell but the last takes more than a third of the width: a longer one
+        ends at it with an ellipsis, so one row's long cell never pushes another row's last cell
+        off; a row past the width ends at it with an ellipsis, unless it is whole. A width is in
+        screen columns (`columns`). No row ends in a space."""
+        stream = self._stream(err)
+        rows = rows or [("", None, False)]
+        try:
+            ellipsis = "…"
+            ellipsis.encode(stream.encoding)
+        except (LookupError, UnicodeEncodeError):
+            ellipsis = "..."
+        third = stream.width() // 3
+        widths, laid = {}, []
+        for cells, style, whole in rows:
+            if isinstance(cells, (list, tuple)):
+                cells = [clean(c) for c in cells]
+                if stream.tty and not whole:
+                    cells = [fit(c, third, ellipsis) if columns(c) > third else c for c in cells[:-1]] + cells[-1:]
+                for i, cell in enumerate(cells[:-1]):
+                    widths[i] = max(widths.get(i, 0), columns(cell))
+            laid.append((cells, style, whole))
+        lead = 1 if stream.glyphs else 4
+        label = clean(label)
+        for n, (cells, style, whole) in enumerate(laid):
+            if isinstance(cells, list):
+                line = "".join(c + " " * (widths[i] - columns(c)) + GAP for i, c in enumerate(cells[:-1]))
+                line += cells[-1] if cells else ""
+            else:
+                line = clean(cells)
+            line = line.rstrip(" ")
+            plain = " " * (lead + len(GAP) + 8 + len(GAP))
+            head = plain
+            if n == 0:
+                shown, painted = stream.mark(status) if status else ("", "")
+                head = (painted + " " * (lead - len(shown)) + GAP
+                        + stream.paint(label, STYLE_SGR["name"]) + " " * (8 - columns(label)) + GAP)
+            room = stream.width() - len(plain)
+            if stream.tty and not whole and columns(line) > room:
+                line = fit(line, room, ellipsis)
+            shown = head + stream.paint(line, STYLE_SGR.get(style))
+            stream.write(shown if line else shown.rstrip(" "))
 
     def hint(self, mid, values=None, **more):
         values = dict(values or {}, **more)
