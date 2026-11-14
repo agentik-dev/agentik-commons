@@ -41,8 +41,9 @@ def described(tool=T, reads=("config", "doctor")):
 
 
 def stub(describe=None, config=None, config_exit=1, checks=None, checks_exit=0, text="murmur doctor",
-         sleep=None):
-    """A command's body: each case prints its answer (a dict, or raw text) and exits."""
+         sleep=None, doctor_json=None):
+    """A command's body: each case prints its answer (a dict, or raw text) and exits; `doctor
+    --json` prints `doctor_json` where it is given, else refuses the flag."""
     def emit(answer):
         body = answer if isinstance(answer, str) else json.dumps(answer)
         return "cat <<'EOF'\n%s\nEOF\n" % body
@@ -56,7 +57,11 @@ def stub(describe=None, config=None, config_exit=1, checks=None, checks_exit=0, 
         lines.append("checks) %s%sexit %d;;" % ("sleep %s\n" % sleep if sleep else "",
                                                  checks if isinstance(checks, str) else emit(checks),
                                                  checks_exit))
-    lines.append('doctor) [ "$2" = --json ] && exit 2; echo "%s"; exit 0;;' % text)
+    if doctor_json is not None:
+        lines.append('doctor) if [ "$2" = --json ]; then\n%sexit 0\nfi\necho "%s"; exit 0;;'
+                     % (emit(doctor_json), text))
+    else:
+        lines.append('doctor) [ "$2" = --json ] && exit 2; echo "%s"; exit 0;;' % text)
     lines.append("esac\nexit 0\n")
     return "\n".join(lines)
 
@@ -74,6 +79,30 @@ def doctor_answer(checks, ok=True, schema="agentik.doctor/1"):
 def check(name, status, detail=None, remedy=None):
     return {"name": name, "status": status, "detail": detail or "%s reads %s" % (name, status),
             "remedy": remedy}
+
+
+# test 9: sc10's path, a fail and a warn with no remedy, a detail past the 300-character cut
+NO_READ = [check("c0", "ok"), check("w1", "warn"), check("f1", "fail", " ".join(["word"] * 80)),
+           check("n1", "note"), check("c1", "ok")]
+# the pin's bytes, from b99f677's suite (`git archive b99f677 plugins/suite tests`) in this home
+PIN_9 = (1,
+         'FAIL  murmur     1 failed, 1 to look at, 3 ok\n'
+         '    warn  w1  w1 reads warn\n'
+         '    FAIL  f1  word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word\n'
+         'next: agentik murmur doctor\n',
+         '[{"detail": "c0 reads ok", "name": "c0", "remedy": null, "status": "ok"}, {"detail": "w1 '
+         'reads warn", "name": "w1", "remedy": null, "status": "warn"}, {"detail": "word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word word word word word word word word word word word word word word '
+         'word word word word word", "name": "f1", "remedy": null, "status": "fail"}, {"detail": '
+         '"n1 reads note", "name": "n1", "remedy": null, "status": "note"}, {"detail": "c1 reads '
+         'ok", "name": "c1", "remedy": null, "status": "ok"}]')
 
 
 class Copy(unittest.TestCase):
@@ -209,6 +238,44 @@ class NameTest(Copy):
         row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
         self.assertEqual(len(row["error"]["message"]), 300)
 
+    def test_13_a_remedy_that_answers_or_removes_stands_on_its_own_line(self):
+        """Review 1's lead 1, ruled as sc5's R8: no `next:` offers a `--yes`, a `-y` or a remove."""
+        for remedy in ("murmur config --reset --yes", "murmur config --reset -y", "murmur remove all"):
+            h = self.home("hD")
+            h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
+            code, out, err = self.cli(h, "config", T)
+            self.assertEqual(code, 0, out + err)
+            lines = (out + err).splitlines()
+            self.assertIn(remedy, [l.strip() for l in lines], out + err)
+            self.assertFalse([l for l in lines if l.startswith("next:") and remedy in l], out + err)
+            self.assertRegex(lines[-1], r"^next: \S*agentik\S* config murmur reads its settings again")
+
+    def test_14_a_remedy_with_a_control_byte_is_no_remedy(self):
+        """Review 1's lead 2: no second line of the tool's joins a line a person pastes."""
+        for remedy in ("mend \x1b]52;c;ZWNobyBoaQ==\x07 x\nrm -rf ~", "mend x\nrm -rf ~", "mend\rrm -rf ~",
+                       "mend\x00 x"):
+            h = self.home("hD")
+            h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
+            code, out, err = self.cli(h, "config", T)
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("its settings read failed: " + MESSAGE, out + err)
+            self.assertNotIn("mend", out + err)
+            self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])
+            code, out, err = self.cli(h, "config", "--json")
+            row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
+            self.assertEqual(row["error"], {"code": "bad_file", "message": MESSAGE, "remedy": None})
+
+    def test_15_a_tool_that_is_no_string_is_unread(self):
+        for tool in (None, 5, [T]):
+            h = self.home("hK")
+            h.file(h.launch, stub(describe=described(tool)))
+            path = h.terminal()
+            code, out, err = self.cli(h, "config", "--json", path=path)
+            row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
+            self.assertEqual((row["state"], row.get("reason")), ("unreadable", "unread"), tool)
+            code, out, err = self.cli(h, "config", T, path=path)
+            self.assertIn("gave no answer that reads", out + err)
+
 
 class DoctorTest(Checks):
     def starts(self, name=T):
@@ -291,16 +358,55 @@ class DoctorTest(Checks):
         code, out, err = self.screen(PATH=path)
         self.assertIn(("FAIL", "f1", "red [31mpart second"), self.rows(out))
 
-    def test_9_no_doctor_read_keeps_the_text_run(self):
+    def no_read(self):
+        """(exit, the group's lines and the close, the group's --json) of a tool on sc10's path."""
+        code, out, err = self.screen(PATH=self.path)
+        lines = self.group(out) + err.splitlines()[-1:]
+        _, _, obj = self.json_of(PATH=self.path)
+        group = [g for g in obj["tools"] if g["name"] == T][0]
+        return code, "\n".join(lines) + "\n", json.dumps(group["checks"], sort_keys=True)
+
+    def test_9_no_doctor_read_keeps_the_pins_bytes(self):
+        """Review 1's F1: a tool whose describe names no doctor read, or that answers no describe,
+        is read through sc10's `doctor --json` and keeps the pin's rows, order, close and --json,
+        as taken at b99f677 in this home (PIN_9)."""
+        self.path = self.ready()
+        answer = self.answer_of(T, NO_READ)
+        self.tool(T, answer)  # no describe: sc10's stub exits 9
+        self.assertEqual(self.no_read(), PIN_9)
+        self.assertEqual(self.starts(T)[-2:], ["describe --json", "doctor --json"])
+        self.murmur(stub(describe=described(reads=("config",)), doctor_json=json.loads(answer)))
+        self.assertEqual(self.no_read(), PIN_9)
+        self.assertEqual(self.starts(T)[-2:], ["describe --json", "doctor --json"])
+
+    def test_14_a_doctor_remedy_with_a_control_byte_is_no_remedy(self):
+        """Review 1's lead 2: a check of R5's read whose remedy holds a control byte or a newline
+        has no `fix:` line, and the close names no command of it."""
         path = self.ready()
-        self.murmur(stub(text="murmur is well"))
-        code, pin, err = self.screen(PATH=path)
-        self.murmur(stub(describe=described(reads=("config",)), text="murmur is well"))
+        bad = "m \x1b]0;x\x07\nrm -rf ~"
+        for answer in (doctor_answer([check("c0", "ok"), check("f1", "fail", remedy=bad)]),
+                       {"schema": "agentik.doctor/1", "ok": False,
+                        "error": {"code": "c", "message": "it broke", "remedy": "mend\nrm -rf ~"}}):
+            self.murmur(stub(describe=described(reads=("doctor",)), checks=answer))
+            code, out, err = self.screen(PATH=path)
+            self.assertEqual(code, 1, out + err)
+            self.assertNotIn("rm -rf", out + err)
+            self.assertNotIn("fix:", "\n".join(self.group(out)))
+            self.assertTrue(err.splitlines()[-1].startswith(PLAIN), err)
+            _, _, obj = self.json_of(PATH=path)
+            group = [g for g in obj["tools"] if g["name"] == T][0]
+            self.assertEqual([c["remedy"] for c in group["checks"] if c["status"] == "fail"], [None])
+
+    def test_16_an_empty_doctor_read_does_not_count(self):
+        path = self.ready()
+        d = described(reads=("doctor",))
+        d["reads"][0]["argv"] = []
+        self.murmur(stub(describe=d, checks=doctor_answer([check("f1", "fail")])))
         code, out, err = self.screen(PATH=path)
-        self.assertEqual(out, pin)
+        self.assertEqual(code, 0, out + err)
         self.assertIn(("ok", T, "its doctor passed"), [MARK.match(l).groups() for l in out.splitlines()
                                                        if MARK.match(l)])
-        self.assertEqual(self.starts(T)[-3:], ["describe --json", "doctor --json", "doctor"])
+        self.assertEqual(self.starts(T), ["describe --json", "doctor --json", "doctor"])
 
 
 class TableTest(unittest.TestCase):

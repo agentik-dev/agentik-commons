@@ -26,8 +26,6 @@ MARK = re.compile(r"^(ok|warn|FAIL|note)  +(\S+)  +(.*)$")
 ROW = re.compile(r"^    (ok|warn|FAIL|note)  +(\S+)  +(.*)$")
 ANY_ROW = re.compile(r"^    (ok|warn|FAIL|note)  ")
 TAIL = "the tail line of the text form"
-# row ak9b R7: a counted answer whose fails name no command the close may run
-PLAIN = "next: the FAIL rows above say what failed: mend each, then agentik doctor"
 
 
 class Checks(DoctorHome):
@@ -127,7 +125,7 @@ class ReadyTest(Checks):
         self.assertEqual(code, 1, out + err)
         self.assertIn(("FAIL", "root", detail.replace(self.home, "~")), self.rows(out))
         self.assertNotIn(TAIL, out + err)
-        self.assertEqual(err.splitlines()[-1], PLAIN)
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")
         code, raw, obj = self.json_of(PATH=path)
         self.assertEqual(code, 1)
         root = [c for g in obj["tools"] if g["name"] == "murmur" for c in g["checks"]]
@@ -204,7 +202,7 @@ class ReadyTest(Checks):
         at = [i for i, l in enumerate(lines) if ROW.match(l) and ROW.match(l).group(2) == "launcher"][0]
         self.assertEqual(lines[at + 1].strip(), "in Claude Code: /murmur:install-cli")
         self.assertNotIn("/murmur", err)
-        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")  # a fix line stands (ak9b R7)
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor")
         self.assertNotIn("run:", out + err)
         code, out, err = self.screen()  # an empty HOME
         self.assertNotIn("run:", out + err)
@@ -279,7 +277,7 @@ class QuietTest(Checks):
         self.tool("zed", self.answer_of("zed", checks), code=1)
         code, out, err = self.screen(PATH=path)
         self.assertEqual(code, 1, out + err)
-        self.assertEqual(err.splitlines()[-1:], [PLAIN], err)
+        self.assertEqual(err.splitlines()[-1:], ["next: agentik zed doctor"], err)
         for args in ((), ("-q",)):
             code, out, err = self.screen(*args, PATH=path)
             for l in out.splitlines():
