@@ -98,7 +98,7 @@ class ReadyTest(Checks):
             self.tool(n, self.answer_of(n, self.ok_checks()))
         code, out, err = self.screen(PATH=path)
         self.assertEqual((code, err), (0, ""), out)
-        lines = out.splitlines()
+        lines = [l for l in out.splitlines() if not l.startswith("    from ")]  # R3 of fk2b: a mirror's note
         self.assertEqual(lines[-1], "This machine is set up.")
         _, _, obj = self.json_of(PATH=path)
         self.assertEqual(len(lines) - 1, len(obj["tools"]), out)

@@ -45,6 +45,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.check`: Print one line for each thing that needs a hand, and exit 1 when there is one.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
+- `flag.render`: Render the Happened and Expected lines by the narrator's script. A render that adds a word is dropped.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
 ## Version
@@ -105,6 +106,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.count.one`: 1 setting
 - `config.differ`: `{n}` changed
 - `config.from_table`: from the suite's table
+- `config.from`: from `{source}`
+- `config.titled`: `{title}`, from `{source}`
+- `config.undecided`: `{count}` plugins of this name; no source is declared
+- `config.source.title`: `{name}`: `{words}`.
+- `config.source.undecided`: `{count}` plugins of this name are installed, and no source is declared
+- `config.source.count`: `{count}` plugins of this name are installed
+- `config.source.one`: 1 plugin of this name is installed
+- `config.source.none`: no plugin of this name is installed
 - `config.fault`: `{path}` cannot be read at line `{line}`: `{why}`
 - `config.fault.noline`: `{path}` cannot be read: `{why}`
 - `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed from the default.
@@ -128,6 +137,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.label.run`: run
 - `config.label.file`: user file
 - `config.label.needs`: needs
+- `config.label.seen`: seen
 - `config.fixed`: no verb changes it
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
@@ -402,6 +412,32 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
+- `doctor.plan.source`: installed from the source that stands for it
+- `doctor.plan.launcher`: placed, at the version of the source that stands
+- `doctor.plan.declared`: declared, and not installed
+- `doctor.plan.gone`: listed, but its folder is gone
+- `doctor.plan.earlier`: `{path}` comes first on PATH and runs in place of this one
+- `doctor.plan.other`: at another version than the source that stands
+- `doctor.source.undecided`: `{count}` plugins of this name are installed, and no source is declared
+- `doctor.source.twice`: installed for you and for this repo, and no source is declared
+- `doctor.source.repo`: the only plugin of this name came from this repo; no source is declared
+- `doctor.source.declared`: its declared source is not installed
+- `doctor.source.folder`: its declared folder holds no plugin
+- `doctor.source.named`: `{count}` plugins have this name; the declared one stands
+- `doctor.source.passed`: the door runs a file the suite passes over
+- `doctor.from.only`: from `{source}`, the only plugin of that name
+- `doctor.from.declared`: from `{source}`, declared at `{at}`
+- `doctor.from.mirror`: from the agentik marketplace, which names its own source: `{names}`
+- `doctor.seen`: seen: `{seen}`
+- `doctor.runs.placed`: runs `{file}`, a placed launcher of no known source
+- `doctor.runs.unknown`: runs `{file}`, a file of no known source
+- `doctor.passed`: passed over `{path}`, which lies in the folder of `{of}`
+- `doctor.settings.value`: `{key}` at `{at}` is no plugin id or folder, so it is passed over
+- `doctor.settings.ignored`: `{key}` at `{at}` is read only from the user file, so it is passed over
+- `doctor.settings.self`: `{key}` at `{at}` names the suite itself, so it is passed over
+- `doctor.settings.relative`: XDG_CONFIG_HOME is a relative path, so `{key}` at `{at}` is not read
+- `doctor.sources.gate`: `{path}` names a source and is on no gate list
+- `doctor.sources.add`: add this line to `{list}`: `{path}`
 - `hint.doctor.next`: next: `{command}`
 
 ## Inbox
@@ -569,3 +605,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.edit.none`: neither VISUAL nor EDITOR names an editor that starts
 - `err.issue.edit.form`: the saved draft does not read back as the form at line `{line}`, so the draft is unchanged
 - `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected
+- `err.issue.render`: --render renders a new draft, so it goes with new alone
+- `issue.render.none`: No narrator plugin with its render script is installed, so the template stands with the words as typed.
+- `issue.render.start`: The narrator's script could not start, so the template stands with the words as typed.
+- `issue.render.exit`: The narrator's script exited `{code}`, so the template stands with the words as typed.
+- `issue.render.wall`: The narrator's script ran past `{secs}` s and was stopped, so the template stands with the words as typed.
+- `issue.render.nofile`: The narrator's script wrote no answer, so the template stands with the words as typed.
+- `issue.render.shape`: The narrator's answer is not two lines, Happened and Expected, so the template stands with the words as typed.
+- `issue.render.stopped`: The render was stopped, so the template stands with the words as typed in draft `{id}`.
+- `issue.render.left`: The render's temporary folder `{path}` could not be removed, so remove it by hand.
+- `issue.render.contract`: Technical. Render only the Happened and Expected lines of this issue, two sentences a line at most. Keep each error text verbatim. Add nothing the issue does not say: no name, path, version or word of your own context. Answer with two lines and nothing else: `Happened: ...` and `Expected: ...`.

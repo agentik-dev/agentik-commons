@@ -134,11 +134,12 @@ def execute(command, env):
             "why": why, "wall": wall}
 
 
-def gated(config, home, t):
-    """(path, why): the settings file when the user's gate list names it; the list itself, and
-    why, when it is there but cannot be read, which refuses too (review 1 F4); else (None, None).
-    A byte that is not UTF-8 is replaced, so it hides no line (F2)."""
-    target = os.path.join(config, "settings.json")
+def gated(config, home, t, target=None):
+    """(path, why): `target` (Claude Code's settings file when None) when the user's gate list
+    names it; the list itself, and why, when it is there but cannot be read, which refuses too
+    (review 1 F4); else (None, None). A byte that is not UTF-8 is replaced, so it hides no line
+    (F2). The doctor asks it of the suite's user file (row fk2b-reads R5): one reader of the list."""
+    target = target or os.path.join(config, "settings.json")
     listing = os.path.join(config, "edit-gates")
     if not os.path.lexists(listing):
         return None, None

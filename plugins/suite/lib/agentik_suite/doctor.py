@@ -10,6 +10,11 @@ is {name, status, detail, remedy}; the status is ok, note, warn or fail; exit 1 
 else 0. The screen is a line a group, a row for each check that fails or warns, and a close that
 names at most one command. It reads no cache, runs no `describe` and no `claude`, and writes
 nothing itself; a tool's own doctor may write its state.
+
+Each group carries `source`, the finder's row (row fk2b-reads), null for the suite. What a source
+that is not the marketplace's own gives (its id, marketplace, folder, version) stands in no check's
+name, detail or remedy: the `from`, `seen`, `runs` and `passed over` lines under a group are made
+from `source` at print time, and the checks name a step by its tool.
 """
 import json
 import os
@@ -18,7 +23,7 @@ import time
 
 import agentik_install
 
-from . import plan, prog, settings, status, tools
+from . import apply, plan, prog, settings, sources, status, tools
 
 DEADLINE = 30.0
 RESERVED = ("remove", "update", "init", "completion", "inbox")
@@ -30,7 +35,24 @@ FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.p
         "setup.python.low": "doctor.plan.python", "setup.market.missing": "doctor.plan.market",
         "setup.plugin.missing": "doctor.plan.plugin", "setup.plugin.broken": "doctor.plan.broken",
         "setup.launcher.behind": "doctor.plan.behind", "setup.suite.behind": "doctor.plan.behind",
-        "setup.launcher.unread": "doctor.plan.unread", "setup.suite.unread": "doctor.plan.unread"}
+        "setup.launcher.unread": "doctor.plan.unread", "setup.suite.unread": "doctor.plan.unread",
+        "setup.plugin.declared": "doctor.plan.declared", "setup.plugin.gone": "doctor.plan.gone",
+        "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other"}
+# A held row (fk2-plan R4) in doctor's words, whose remedy is the card that shows how to choose.
+HELD = {"setup.plugin.held": "doctor.source.undecided", "setup.plugin.held.twice": "doctor.source.twice",
+        "setup.plugin.held.repo": "doctor.source.repo"}
+FACT.update(HELD)
+# An ok row of a source not the marketplace's own whose plan words hold the source's version.
+SOURCE_OK = {"setup.plugin.source": "doctor.plan.source", "setup.plugin.source.none": "doctor.plan.source",
+             "setup.launcher.ok": "doctor.plan.launcher"}
+SAID = ("value", "ignored", "self", "relative")  # the config read's warnings the doctor shows (R4)
+
+
+class _Blank(dict):
+    """The settings' summaries the doctor does not print: each is empty."""
+
+    def __missing__(self, key):
+        return ""
 
 
 def _check(name, state, detail, remedy=None):
@@ -89,23 +111,161 @@ def user_settings(cmd):
     return [_check("settings", "ok", cmd.t.text("doctor.settings.ok", path=shown))]
 
 
+def source_settings(cmd):
+    """The warns of the `sources` lines (R4, R5): each config-read warning of a reason in SAID,
+    with its file and line; and, while the user file holds a line and is on no gate list, the
+    gate warn, the line to add kept under `add`, which --json cuts away. A file that does not
+    parse is user_settings' fail, so nothing here."""
+    t, env, home = cmd.t, cmd.env, cmd.env.get("HOME")
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = None
+    try:
+        lines, _ = settings.declared(env)
+        body = settings.resolve(env, cwd, _Blank())
+    except settings.Fault:
+        return []
+    found = []
+    for w in body["warnings"]:
+        if w.get("reason") in SAID:
+            at = plan.shown(str(w.get("path")), home)
+            if w.get("line"):
+                at = "%s:%s" % (at, w["line"])
+            found.append(_check("settings", "warn", t.text("doctor.settings." + w["reason"],
+                                                           key=w.get("key"), at=at)))
+    if lines and home:  # no HOME, no `~/` to read the list by: no gate read (review 1 F4)
+        config, user = sources.config_dir(env), settings.user_path(env)
+        if apply.gated(config, home, t, user) == (None, None):
+            c = _check("sources", "warn", t.text("doctor.sources.gate", path=plan.shown(user, home)))
+            c["add"] = t.text("doctor.sources.add", path=plan.shown(user, home),
+                              list=plan.shown(os.path.join(config, "edit-gates"), home))
+            found.append(c)
+    return found
+
+
+def _tool_of(step, names):
+    """The tool a step of steps 3 and 4 is about: step 3's are in the plan's order (`names`, an
+    iterator), step 4's subject is `~/.local/bin/agentik-<tool>`."""
+    if step["n"] == 3:
+        return next(names, None)
+    if step["n"] == 4:
+        return os.path.basename(step["subject"])[len("agentik-"):]
+    return None
+
+
 def plan_rows(cmd):
     """Steps 1 to 6, a check a row: an ok row keeps the plan's message, one not ok takes
-    doctor's own fact (R6). Each keeps its step under `step`, which --json cuts away."""
-    steps = plan.build(plan.default_set(cmd.lib), cmd.env, cmd.lib, cmd.tool, cmd.version)
-    found = []
+    doctor's own fact (R6). A step of a source not the marketplace's own is named by its tool and
+    holds no word of the source (row fk2b-reads R1); a held row's remedy is the source's card.
+    Each keeps its step under `step`, which --json cuts away."""
+    names = plan.default_set(cmd.lib)
+    steps = plan.build(names, cmd.env, cmd.lib, cmd.tool, cmd.version)
+    rows = tools.rows(cmd.env, cmd.lib, None, names=names)
+    order, found = iter(names), []
     for s in steps:
+        tool = _tool_of(s, order)
         if s["n"] > 6:
             continue
+        row = rows.get(tool) if tool else None
+        theirs = row is not None and row["kind"] not in ("own", "absent")
         state = STATE[s["state"]]
         remedy = None
         if state == "warn":
-            remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup")
-        mid = s["mid"] if state == "ok" else FACT.get(s["mid"], "doctor.plan.placed")
-        c = _check("%s %s" % (s["id"], s["subject"]), state, cmd.t.text(mid, **s["values"]), remedy)
-        c["step"] = s
+            if s["mid"] in HELD:
+                remedy = cmd.say("config", "suite.sources." + tool)
+            else:
+                remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup")
+        if state == "ok":
+            mid = SOURCE_OK.get(s["mid"], s["mid"]) if theirs else s["mid"]
+        else:
+            mid = FACT.get(s["mid"], "doctor.plan.placed")
+        subject = tool if theirs and s["n"] == 3 else s["subject"]
+        c = _check("%s %s" % (s["id"], subject), state, cmd.t.text(mid, **s["values"]), remedy)
+        c["step"], c["shown"] = s, subject
         found.append(c)
     return found
+
+
+def _ids(row):
+    return list(dict.fromkeys(s["plugin"] for s in row["seen"]))
+
+
+def _read(row):
+    """False for a line the config read passes over (a folder line with no folder): the suite
+    group's settings warn speaks for it, and the tool reads no `from` line (review 1 F3)."""
+    return not (row["kind"] == "folder" and row["declared"] and not row["root"])
+
+
+def source_checks(cmd, name, row):
+    """The warns of a tool's source (R4): undecided, declared and not found, declared with another
+    plugin of the name, a file the door would run that the suite passes over. Each is marked
+    `source`, which --json cuts away; none names the source."""
+    t, found = cmd.t, []
+    if not row:
+        return found
+    kind, ids = row["kind"], _ids(row)
+    if kind == "undecided":
+        seen = row["seen"]
+        if len(seen) == 1 and seen[0]["scope"] in ("project", "local"):
+            mid = "doctor.source.repo"
+        elif len(ids) == 1:
+            mid = "doctor.source.twice"
+        else:
+            mid = "doctor.source.undecided"
+        found.append(_check("source", "warn", t.text(mid, count=len(ids)),
+                            cmd.say("config", "suite.sources." + name)))
+    elif kind in ("plugin", "folder") and row["declared"] and _read(row):
+        # a declared source not found has its own warn alone; `named` counts the seen with the one
+        # that stands (review 1 F2)
+        others = [i for i in ids if i != row["plugin"]]
+        if not row["found"]:
+            found.append(_check("source", "warn", t.text("doctor.source.%s" % (
+                "folder" if kind == "folder" else "declared"))))
+        elif others:
+            found.append(_check("source", "warn", t.text("doctor.source.named", count=1 + len(others))))
+    if row["passed_over"]:
+        found.append(_check("source", "warn", t.text("doctor.source.passed")))
+    for c in found:
+        c["source"] = True
+    return found
+
+
+def source_notes(cmd, group, entries=()):
+    """The lines under a group made from `source` at print time (R2, R3): `from`, `seen`, `runs`
+    and `passed over`; for the suite's group, one `from` line for the tools of a mirror."""
+    t, home, row = cmd.t, cmd.env.get("HOME"), group.get("source")
+    if group is not None and group.get("suite"):
+        names = [e["name"] for e in entries if e["source"] and e["source"]["kind"] == "own"
+                 and e["source"]["mirror"]]
+        return [t.text("doctor.from.mirror", names=", ".join(names))] if names else []
+    if not row:
+        return []
+    notes, kind = [], row["kind"]
+
+    def versioned(what, version):
+        return what + (" " + version if isinstance(version, str) and version else "")
+
+    if kind in ("plugin", "folder") and _read(row):
+        what = row["plugin"] if kind == "plugin" else plan.shown(row["root"], home)
+        at = row["declared"]
+        if at:
+            notes.append(t.text("doctor.from.declared", source=versioned(what, row["version"]),
+                                at="%s:%s" % (plan.shown(at["path"], home), at["line"])))
+        else:
+            notes.append(t.text("doctor.from.only", source=versioned(what, row["version"])))
+    others = [s for s in row["seen"] if kind == "undecided" or s["plugin"] != row["plugin"]]
+    if others:
+        pairs = list(dict.fromkeys(versioned(s["plugin"], s["version"]) for s in others))
+        notes.append(t.text("doctor.seen", seen=", ".join(pairs)))
+    runs = row["runs"]
+    if kind in ("plugin", "folder", "undecided") and runs and runs["of"] != "source":
+        mid = "doctor.runs.placed" if runs["of"] == "placed" else "doctor.runs.unknown"
+        notes.append(t.text(mid, file=versioned(plan.shown(runs["path"], home), runs.get("version"))))
+    passed = row["passed_over"]
+    if passed:
+        notes.append(t.text("doctor.passed", path=plan.shown(passed["path"], home), of=passed["of"]))
+    return notes
 
 
 def read_answer(out, failed):
@@ -169,13 +329,16 @@ def own_doctors(cmd, entries):
     groups = []
     for e in entries:
         name = e["name"]
-        group = {"name": name, "one": True, "nocmd": False, "exe": e["exe"]}
+        group = {"name": name, "one": True, "nocmd": False, "exe": e["exe"], "source": e["source"]}
         groups.append(group)
+        lead = source_checks(cmd, name, e["source"])
+        if lead:
+            group["lead"] = lead[0]
         if not e["exe"]:
-            group.update(nocmd=True, checks=[_check("doctor", "note", t.text("doctor.tool.nocmd"))])
+            group.update(nocmd=True, checks=lead + [_check("doctor", "note", t.text("doctor.tool.nocmd"))])
             continue
         if name in answers:
-            group.update(one=False, checks=answers[name])
+            group.update(one=False, checks=lead + answers[name])
             continue
         again = tool_doctor(cmd, name, e["exe"])
         code, out, state = results[(name, 1)]
@@ -191,7 +354,7 @@ def own_doctors(cmd, entries):
             c = _check("doctor", "fail", t.text("doctor.tool.failed"), again)
         else:
             c = _check("doctor", "fail", t.text("doctor.tool.silent"), again)
-        group["checks"] = [c]
+        group["checks"] = lead + [c]
     return groups
 
 
@@ -210,7 +373,9 @@ def _is_shell(remedy):
 
 
 def _left(checks, low, high):
-    return any(c.get("step") and low <= c["step"]["n"] <= high and c["status"] != "ok" for c in checks)
+    """A step of `low` to `high` that setup has left, a held row aside: its remedy is its card."""
+    return any(c.get("step") and low <= c["step"]["n"] <= high and c["status"] != "ok"
+               and c["step"]["mid"] not in HELD for c in checks)
 
 
 def close_command(cmd, groups):
@@ -236,6 +401,8 @@ def close_command(cmd, groups):
 
 def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
+    if c.get("add"):
+        return c["add"]
     s = c.get("step")
     if s and s["line"] != "run":
         if left or not s["command"]:
@@ -270,21 +437,22 @@ def _rows(cmd, group, hint, every):
         if every:
             rows.append([c["status"], c["name"], _home(c["detail"], home), after])
             continue
-        if c["status"] not in ("fail", "warn") or (group["one"] and s is None):
+        if c["status"] not in ("fail", "warn") or c is group.get("lead") \
+                or (group["one"] and s is None and not c.get("source") and not group.get("lead")):
             continue
         if s is None:
             rows.append([c["status"], c["name"], _home(c["detail"], home), after])
             continue
-        if (2 <= s["n"] <= 5 and s["state"] == "todo" and not s["command"]) \
+        if (2 <= s["n"] <= 5 and s["state"] == "todo" and not s["command"] and s["mid"] not in HELD) \
                 or (s["n"] == 5 and s["id"] == "door" and not door_ok):
             waiting += 1
             continue
         key = (s["id"], c["detail"])
         if key in folds:
-            folds[key][1].append(s["subject"])
+            folds[key][1].append(c.get("shown", s["subject"]))
             continue
         row = [c["status"], s["id"], None, after]
-        folds[key] = (row, [s["subject"]])
+        folds[key] = (row, [c.get("shown", s["subject"])])
         rows.append(row)
     for (sid, fact), (row, subjects) in folds.items():
         row[2] = cmd.t.text("doctor.fold", fact=fact, subjects=", ".join(subjects))
@@ -302,6 +470,8 @@ def _mark(group):
 
 def _summary(t, group, waiting):
     checks = group["checks"]
+    if group.get("lead"):
+        return group["lead"]["detail"] + (" " + t.text("doctor.part.waiting", n=waiting) if waiting else "")
     if group["one"]:
         return checks[0]["detail"]
     failed = sum(c["status"] == "fail" for c in checks)
@@ -316,7 +486,7 @@ def _summary(t, group, waiting):
     return text + (" " + t.text("doctor.part.waiting", n=waiting) if waiting else "")
 
 
-def screen(cmd, groups, failed, warned, total):
+def screen(cmd, groups, failed, warned, total, entries=()):
     t = cmd.t
     hint = close_command(cmd, groups)
     closed = None if t.quiet else hint  # -q prints no close, so each row keeps its fix: line
@@ -329,6 +499,7 @@ def screen(cmd, groups, failed, warned, total):
         pad = " " * (mark_w - len(t.out.mark(mark)[0]))
         t.table([(mark, [(pad + g["name"].ljust(wide), "name"), _summary(t, g, waiting)], None)],
                 indent=0)
+        t.table([(None, [(note, "hint")], None) for note in source_notes(cmd, g, entries)], indent=4)
         t.table([(status, [name, detail], after) for status, name, detail, after in rows], indent=4)
     if failed or warned:
         t.line("doctor.total", failed=failed, warned=warned, ok=total - failed - warned)
@@ -343,16 +514,18 @@ def do_doctor(cmd, nouns):
     on_path = cmd._on_path()
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     entries = tools.listed(suite, on_path, cmd.env)
-    own = [door(cmd, on_path)] + shadow(cmd, on_path) + user_settings(cmd) + plan_rows(cmd)
-    groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None}]
+    own = [door(cmd, on_path)] + shadow(cmd, on_path) + user_settings(cmd) + source_settings(cmd) \
+        + plan_rows(cmd)
+    groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
+               "source": None, "suite": True}]
     groups += own_doctors(cmd, entries[1:])
     checks = [c for g in groups for c in g["checks"]]
     failed = sum(c["status"] == "fail" for c in checks)
     warned = sum(c["status"] == "warn" for c in checks)
     if cmd.opts["json"]:
         cmd.t.json({"schema": SCHEMA, "ok": True, "failed": failed, "warned": warned,
-                    "tools": [{"name": g["name"], "checks": [{k: c[k] for k in KEYS} for c in g["checks"]]}
-                              for g in groups]})
+                    "tools": [{"name": g["name"], "checks": [{k: c[k] for k in KEYS} for c in g["checks"]],
+                               "source": g["source"]} for g in groups]})
     else:
-        screen(cmd, groups, failed, warned, len(checks))
+        screen(cmd, groups, failed, warned, len(checks), entries)
     return 1 if failed else 0

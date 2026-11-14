@@ -53,7 +53,7 @@ class DoctorHome(Home):
         self.assertEqual(set(obj), {"schema", "ok", "failed", "warned", "tools"})
         self.assertEqual((obj["schema"], obj["ok"]), ("agentik.doctor/1", True))
         for group in obj["tools"]:
-            self.assertEqual(set(group), {"name", "checks"})
+            self.assertEqual(set(group), {"name", "checks", "source"})  # source: row fk2b-reads R1
             for c in group["checks"]:
                 self.assertEqual(set(c), {"name", "status", "detail", "remedy"})
                 self.assertIn(c["status"], ("ok", "note", "warn", "fail"))
@@ -114,7 +114,7 @@ class DoorTest(DoctorHome):
         self.assertEqual(code, 1)
         self.assertIn("next: %s install-cli" % CMD, err)  # sc10: a failing suite row's remedy
         # the door at this command's own version
-        self.place(self.bindir, "agentik", "#!/bin/sh\nVERSION=0.2.0\n")
+        self.place(self.bindir, "agentik", "#!/bin/sh\nVERSION=0.3.0\n")
         code, obj = self.answer(PATH=self.path(self.bindir))
         self.assertEqual(self.suite(obj, "door")[0]["status"], "ok")
         self.assertEqual(code, 0)
@@ -136,7 +136,7 @@ class DoorTest(DoctorHome):
         os.mkfifo(os.path.join(fifo, "agentik"))
         folder = os.path.join(self.home, "folder")
         os.makedirs(os.path.join(folder, "agentik"))
-        door = self.place(self.bindir, "agentik", "#!/bin/sh\nVERSION=0.2.0\n")
+        door = self.place(self.bindir, "agentik", "#!/bin/sh\nVERSION=0.3.0\n")
         start = time.monotonic()
         code, obj = self.answer(PATH=self.path(fifo, folder, self.bindir))
         self.assertLess(time.monotonic() - start, 5)
