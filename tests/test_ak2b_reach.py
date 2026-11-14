@@ -104,7 +104,7 @@ class InstallCliTest(Reach):
             self.assertEqual((code, out), (2, ""), args)
             self.assertEqual(len(err.splitlines()), lines, err)  # cli.py's is two lines (row sc4 R3)
         code, out, err = self.call([LAUNCHER, "help"])
-        self.assertRegex(out, r"(?m)^  install-cli  ")
+        self.assertRegex(out, r"(?m)^  more  .*  install-cli\b")  # the full list's more row (row sc5 R4)
         code, out, err = self.call([LAUNCHER, "help", "install-cli"])
         self.assertEqual(code, 0, err)
         self.assertIn("--prefix", out)

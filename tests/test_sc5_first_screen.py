@@ -181,7 +181,7 @@ class FullListTest(Homes):
         for verb in ("version", "describe", "install-cli"):
             self.assertIn(verb, more.split())
         tools = {r.split()[0]: r.split(None, 1)[1:] for r in lines[order[1] + 1:] if r.startswith("  ")}
-        self.assertEqual(tools["murmur"], ["1.7.1   Whisper each change to the log."])
+        self.assertEqual(tools["murmur"][0].split(None, 1), ["1.7.1", "Whisper each change to the log."])
         self.assertEqual(tools["paint"], [])
         self.assertEqual(tools["sketch"], ["a plugin with no command"])
         self.assertNotIn("suite", tools)

@@ -4,15 +4,35 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Help
 
-- `help.title`: `{tool}` `{version}` manages the agentik suite's default set of plugins.
+- `help.title`: `{tool}` `{version}`   one command for the agentik tools
 - `help.usage`: usage: `{prog}` <verb> [<name>...] [flags]
+- `help.usage.tool`: `{run}` [<its words>...]
 - `help.verbs`: verbs
 - `help.flags`: flags
-- `help.path`: agentik commands on PATH
-- `help.path.none`: No agentik command is on PATH yet.
+- `help.row.setup`: install the plugins and put their commands on PATH
+- `help.row.doctor`: check this machine
+- `help.row.config`: show each key, where it is set and how to change it
+- `help.row.status`: the watchers, sessions, gate, backlog and runs on one screen
+- `help.row.help`: every verb, tool and flag
+- `help.row.help.all`: this list; help <verb> for one verb, help <tool> for a tool's own
+- `help.row.tool`: run a tool: `{names}`
+- `help.row.tool.none`: run a tool; none is installed yet
+- `help.more`: more
+- `help.tools`: tools
+- `help.tools.none`: none is installed yet
+- `help.tool.bare`: a plugin with no command
+- `help.also`: also
+- `help.eg.setup`: the default set, after one question
+- `help.eg.setup_dry`: the plan; nothing is written
+- `help.eg.setup_names`: those plugins and no others
+- `help.eg.config`: every tool, and how many keys changed
+- `help.eg.config_tool`: one tool's keys
+- `help.eg.config_key`: one key, where it is set and how to change it
+- `help.eg.help`: every verb, tool and flag
+- `help.eg.help_verb`: one verb, with examples
+- `help.eg.help_tool`: that tool's own help
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
-- `hint.verb`: next: `{help}` lists every verb and the agentik commands on PATH.
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.

@@ -144,13 +144,13 @@ class FirstScreenTest(Home):
         env = self.finished(on_path=False)
         self.assertEqual(self.last([str(LAUNCHER)], env), "next: ~/.local/bin/agentik doctor")
 
-    def test_r3_help_with_a_verb_keeps_its_hint(self):
-        self.assertIn(" help lists every verb", self.last([str(LAUNCHER), "help", "setup"], self.env()))
+    def test_r3_help_with_a_verb_prints_no_hint(self):  # hint.verb left the catalogue (row sc5 R5)
+        self.assertEqual(self.screen([str(LAUNCHER), "help", "setup"], self.env())[1], "")
 
     def test_r4_the_quiet_first_screen_prints_no_hint(self):
         out, err = self.screen([str(LAUNCHER), "-q"], self.env())
         self.assertEqual(err, "")
-        self.assertIn("verbs", out)
+        self.assertIn("<tool>", out)  # the first screen (row sc5 R2)
 
     def test_a4_the_first_screen_starts_no_process(self):
         def refuse(*args, **kwargs):
