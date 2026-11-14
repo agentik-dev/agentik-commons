@@ -223,7 +223,8 @@ def _closes(remedy):
 
 def close_command(cmd, groups):
     """The one command the close names (R8), first match, or None. A tool's remedy that fails
-    `_closes` stands on its check's line, and the close names the read that shows it."""
+    `_closes` stands on its check's line, and the close names the tool's own doctor, through the
+    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name)."""
     suite = groups[0]["checks"]
     for c in suite:
         if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
@@ -236,12 +237,14 @@ def close_command(cmd, groups):
             remedy = fails[0]["remedy"]
             if _closes(remedy):
                 return remedy
-            return cmd.say("doctor", g["name"]) if _is_shell(remedy) else tool_doctor(cmd, g["name"], g["exe"])
+            return tool_doctor(cmd, g["name"], g["exe"])
     for i, g in enumerate(groups):
         for c in g["checks"]:
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
                     and not (c.get("step") and c["step"]["n"] == 6):
-                return c["remedy"] if i == 0 or _closes(c["remedy"]) else cmd.say("doctor", g["name"])
+                if i == 0 or _closes(c["remedy"]):
+                    return c["remedy"]
+                return tool_doctor(cmd, g["name"], g["exe"])
     return None
 
 

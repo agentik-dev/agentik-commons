@@ -41,7 +41,7 @@ Cited: hq design/23 §3 (`cmd.say`) and §8 (the voice); hq entry 37 (made-up na
 
 - R6, `--json` with no word and with `help`: the pin's `agentik.help/1` and one more key, `tools`: `[{name, version, summary, command}]`, `command` true or false, the two before it null where R4 prints none. Every other key keeps the pin's bytes.
 - R7, the catalogue: new ids for the rows, the usage's second line, `more`, `tools`, the no-command line, the nine glosses and `also`; `help.path`, `help.path.none` and `hint.verb` leave. No `verb.*`, `flag.*` or `usage.*` changes a byte. A new message: at most 76 characters before its values, the present tense, `key`, no path, no code.
-- R8, doctor's close (the coordinator's, 2026-11-14, reversible): a tool's remedy goes behind the close's `next:` only when it holds no word of `cli.SKIPS` and not the word `remove`. One that fails stands on its check's line as the tool wrote it, and the close names `agentik doctor <tool>` (`cmd.say`). A write such as `install-cli` or `setup` stays the close.
+- R8, doctor's close (the coordinator's, 2026-11-14, reversible): a tool's remedy goes behind the close's `next:` only when it holds no word of `cli.SKIPS` and not the word `remove`. One that fails stands on its check's line as the tool wrote it, and the close names `agentik <tool> doctor`, the tool's own doctor through the door, with no door the tool's file and `doctor` (`doctor.tool_doctor`). A write such as `install-cli` or `setup` stays the close. Amended by review 1 F1 (the coordinator, 2026-11-14): the first build's `agentik doctor <tool>` exits 2, since doctor takes no name.
 
 The builder's reading: with no door, the usage's second line names the tool's own command, `agentik-<tool>`, since the suite by its own name runs no tool; `more` holds every verb not in the five rows (`inbox` and `issue` came after the brief); with no tool the full list's `tools` holds one row, `none is installed yet`.
 
@@ -60,7 +60,7 @@ Each in a temp HOME under `env -i`, the homes of §2.
 | 7 | `help doctor`, `help version`, `help status`: usage, sentence, flags; no example; stderr empty | a hint |
 | 8 | `--json` bare and `help`: R6's `tools`; every other key byte-equal to the pin's | no `tools` |
 | 9 | no `verb.*`, `flag.*`, `usage.*` changed; no new message past 76 characters before its values | |
-| 10 | R8: a tool's failing check with `agentik-murmur reset --yes`, and one with `remove`: `next: agentik doctor murmur`, the remedy on its row byte for byte; with `agentik-murmur install-cli` the close is that command | red, red, holds |
+| 10 | R8: a tool's failing check with `agentik-murmur reset --yes`, and one with `remove`: `next: agentik murmur doctor` (F1), the remedy on its row byte for byte, and a warn the same; with `agentik-murmur install-cli` the close is that command; in the finished home the close pasted under `sh -c` exits neither 2 nor 127 | red, red, holds; at 6d73e06 the close exits 2 |
 | 11 | `tests/test_door.py` as it stands; `make voice` and its sum; the suite under `/usr/bin/python3`; `make check` once, last, through the gate queue | |
 
 ## 5. Not built

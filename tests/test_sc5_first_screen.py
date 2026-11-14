@@ -285,17 +285,19 @@ class CatalogueTest(unittest.TestCase):
 
 
 class DoctorCloseTest(Checks):
-    def close(self, remedy):
+    def close(self, remedy, status="fail"):
         path = self.ready()
-        checks = self.ok_checks(1) + [{"name": "reset", "status": "fail", "detail": "the log is stale",
+        checks = self.ok_checks(1) + [{"name": "reset", "status": status, "detail": "the log is stale",
                                        "remedy": remedy}]
-        self.tool("murmur", self.answer_of("murmur", checks), code=1)
+        self.tool("murmur", self.answer_of("murmur", checks), code=1 if status == "fail" else 0)
         code, out, err = self.screen(PATH=path)
         return out, err
 
-    def stands(self, remedy):
-        out, err = self.close(remedy)
-        self.assertEqual(err.splitlines()[-1], "next: agentik doctor murmur", remedy)
+    def stands(self, remedy, status="fail"):
+        """Review 1 F1: the close names the tool's own doctor through the door, the line that runs;
+        `agentik doctor murmur` exits 2 (doctor takes no name)."""
+        out, err = self.close(remedy, status)
+        self.assertEqual(err.splitlines()[-1], "next: agentik murmur doctor", remedy)
         self.assertIn("fix: " + remedy, [l.strip() for l in out.splitlines()], out)
 
     def test_r8_a_remedy_that_answers_stays_on_its_row(self):
@@ -304,9 +306,36 @@ class DoctorCloseTest(Checks):
     def test_r8_a_remedy_that_removes_stays_on_its_row(self):
         self.stands("agentik-murmur remove stale-log")
 
+    def test_r8_a_warned_remedy_that_answers_stays_on_its_row(self):
+        self.stands("agentik-murmur reset -y", status="warn")
+
     def test_r8_a_write_stays_the_close(self):
         out, err = self.close("agentik-murmur install-cli")
         self.assertEqual(err.splitlines()[-1], "next: agentik-murmur install-cli")
+
+
+class DoctorClosePasteTest(Homes):
+    def test_f1_the_close_runs_when_pasted(self):
+        """Review 1 F1: in the finished home, a tool's check that fails with a remedy that answers
+        for the person closes on a line that, pasted under `sh -c`, neither exits 2 nor 127."""
+        env = self.finished()
+        answer = json.dumps({"schema": "agentik.doctor/1", "ok": True, "tool": "murmur", "failed": 1,
+                             "warned": 0, "checks": [{"name": "reset", "status": "fail",
+                                                      "detail": "the log is stale",
+                                                      "remedy": "agentik-murmur reset --yes"}]})
+        executable(os.path.join(self.home, "tools", "agentik-murmur"),
+                   "#!/bin/sh\n[ \"$1\" = describe ] && cat <<'EOF'\n%s\nEOF\n"
+                   "[ \"$1\" = doctor ] && [ \"$2\" = --json ] && cat <<'EOF' && exit 1\n%s\nEOF\n"
+                   "exit 0\n" % (json.dumps(DESCRIBE), answer))
+        p = subprocess.run([os.path.join(self.bindir, "agentik"), "doctor"], cwd=self.home, env=env,
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        last = p.stderr.splitlines()[-1]
+        self.assertTrue(last.startswith("next: "), p.stderr)
+        line = last[len("next: "):]
+        q = subprocess.run(["/bin/sh", "-c", line], cwd=self.home, env=env, stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=120)
+        self.assertNotIn(q.returncode, (2, 127), "%s: %s%s" % (line, q.stdout, q.stderr))
 
 
 if __name__ == "__main__":
