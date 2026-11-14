@@ -243,8 +243,9 @@ class BeatTest(StatusHome):
         """Review 1's F4: a local --now near year 1 exits 2 with the line, no traceback."""
         self.assertIsNone(status.when("0001-01-01T00:00:00"))
         code, out, err = self.cfg("status", "--check", "--now", "0001-01-01T00:00:00", TZ="UTC")
-        self.assertEqual((code, out, len(err.splitlines())), (2, "", 1))
-        self.assertIn("is not a time", err)
+        self.assertEqual((code, out, len(err.splitlines())), (2, "", 2))  # the cause, then next: (sc4)
+        self.assertIn("is not an ISO 8601 time", err)
+        self.assertEqual(err.splitlines()[1], "next: %s status --check" % LAUNCHER)
         self.assertNotIn("Traceback", err)
 
 

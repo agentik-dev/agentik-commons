@@ -275,9 +275,7 @@ class Review1Test(Sc4Home):
 
     def test_f3_a_mended_line_that_would_be_refused_is_the_verbs_help(self):
         for argv, cause, nxt in (
-                (("statu",), "statu is not a verb", "agentik help status"),
-                (("start",), "start is not a verb", "agentik help status"),
-                (("state",), "state is not a verb", "agentik help status"),
+                (("statu", "--check", "x"), "statu is not a verb", "agentik help status"),
                 (("describe", "x"), "describe prints JSON for other tools, so it needs --json",
                  "agentik help describe"),
                 (("doctor", "--jsno", "x"), "--jsno is not a flag of doctor", "agentik help doctor")):
@@ -413,8 +411,8 @@ class MergedVerbsTest(Sc4Home):
         (("--all",), "--all is not a flag", "agentik help", "unknown_flag"),
         (("status", "--chek"), "--chek is not a flag of status", "agentik status --check", "unknown_flag"),
         (("statsu", "--check"), "statsu is not a verb", "agentik status --check", "unknown_verb"),
-        (("status", "--check", "x"), "status takes no name; x is one more", "agentik help status",
-         "extra_word"),
+        (("status", "--check", "x"), "status --check takes no name; x is one more", "agentik status --check",
+         "extra_word"),  # since su2-read, status takes paths and --check alone takes none
         (("install-cli", "--prefx", "/x"), "--prefx is not a flag of install-cli",
          "agentik help install-cli", "unknown_flag"),
         (("instal-cli", "--dry-run"), "instal-cli is not a verb", "agentik help", "unknown_verb"),
@@ -456,7 +454,7 @@ class CatalogueTest(unittest.TestCase):
         text = open(catalogue.PATH, encoding="utf-8").read()
         section = text.split("\n## Errors\n", 1)[1].split("\n## ", 1)[0]
         found = {m.group(1): m.group(2) for m in map(catalogue.ITEM.match, section.splitlines()) if m}
-        turned = [mid for mid in found if not mid.startswith("err.status.")]
+        turned = list(found)  # err.status.* too, since su2-read's phase 2 turned them
         self.assertGreaterEqual(len(turned), 22)
         for mid in turned:
             body = found[mid]

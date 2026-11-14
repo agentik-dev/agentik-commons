@@ -30,6 +30,7 @@ from agentik_suite import catalogue, status_read, status_screen, term  # noqa: E
 SCREEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su2", "screen")
 WORDS = catalogue.load()
 LABELS = ("watchers", "sessions", "gate", "backlog", "runs", "sources", "not read")
+SLOTS = {"status": "agentik status", "doctor": "agentik doctor", "tool": "agentik"}  # cmd.slots()'s
 WHOLE = re.compile(r"^\s*(see: |start it: |and \d+ more: )")
 
 
@@ -102,7 +103,7 @@ class TextPathTest(JoinHome):
     def test_j4_help_and_the_catalogue(self):
         code, out, err = self.cfg("help", "status")
         self.assertEqual(code, 0, err)
-        self.assertIn("usage: agentik-suite status [<path>...] [--check] [flags]", out)
+        self.assertIn("usage: %s status [<path>...] [--check] [flags]" % LAUNCHER, out)  # sc2's name
         self.assertNotIn("err.status.check", WORDS)
         self.assertEqual(WORDS["verb.status"],
                          "Show the watchers, sessions, gate, backlog and runs on one screen.")
@@ -166,11 +167,11 @@ class FaultTest(JoinHome):
         t, out = self.term()
         obj = json.loads(text(os.path.join(SCREEN, "quiet.json")))
         obj["fault"] = "bad_listing"
-        status_screen.part(t, obj, "watchers", "agentik-suite")
+        status_screen.part(t, obj, "watchers", SLOTS)
         self.assertTrue(out.getvalue().startswith("warn  watchers  " + WORDS["status.fault.listing"]))
         t, out = self.term()
         obj["watchers"], obj["hand"] = [], []
-        status_screen.part(t, obj, "watchers", "agentik-suite")
+        status_screen.part(t, obj, "watchers", SLOTS)
         self.assertTrue(out.getvalue().startswith("warn  watchers  " + WORDS["status.fault.listing"]),
                         out.getvalue())
         self.assertIn(WORDS["status.watcher.none"], out.getvalue())
@@ -191,7 +192,7 @@ class FaultTest(JoinHome):
         src = next(s for s in obj["sources"] if s["name"] == "gate")
         src["state"], src["fields"] = "changed", ["runner", "est"]
         obj["gate"]["state"] = "partial"
-        status_screen.part(t, obj, "gate", "agentik-suite")
+        status_screen.part(t, obj, "gate", SLOTS)
         self.assertIn("answers in a shape that has changed", out.getvalue())
         self.assertNotIn("runner", out.getvalue())
 

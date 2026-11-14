@@ -75,9 +75,14 @@ def make(tty, env=None, quiet=False, width=None):
     return t, out, err
 
 
+def slots(tool="agentik"):
+    """The suite's commands as `cmd.slots()` names them where `tool` starts them (row sc2)."""
+    return {"status": tool + " status", "doctor": tool + " doctor", "tool": tool}
+
+
 def draw(obj, tty, tool="agentik", **kw):
     t, out, err = make(tty, **kw)
-    screen_module().draw(t, obj, tool)
+    screen_module().draw(t, obj, slots(tool))
     t.flush()
     return out.getvalue(), err.getvalue()
 
@@ -103,10 +108,10 @@ class FixtureTest(unittest.TestCase):
         sentence = fixture("broken", "hint").rstrip("\n")
         out, err = draw(load("broken"), True)
         self.assertEqual(out, fixture("broken", "tty"))
-        self.assertEqual(err, "·  %s\n" % sentence)
+        self.assertEqual(err, "%s\n" % sentence)  # a hint that starts `next:` has no mark (sc4)
         out, err = piped(load("broken"))
         self.assertEqual(out, fixture("broken", "piped"))
-        self.assertEqual(err, "note  %s\n" % sentence)
+        self.assertEqual(err, "%s\n" % sentence)
         for tty in (True, False):
             self.assertEqual(draw(load("broken"), tty, quiet=True)[1], "")
 
@@ -229,7 +234,7 @@ class WordsTest(unittest.TestCase):
         obj["covers"]["rule"] = "none"
         got = rows(obj)
         i = next(k for k, r in enumerate(got) if "backlog" in r)
-        self.assertEqual(got[i], "note  backlog   no checkout here; name one: agentik status <path>")
+        self.assertEqual(got[i], "note  backlog   no checkout here; name one: agentik status PATH")
         self.assertTrue(got[i + 1].startswith("ok    runs"))
         obj["covers"]["rule"] = "checkouts"
         obj["backlog"]["checkouts"] = 2
@@ -271,12 +276,12 @@ class HintTest(unittest.TestCase):
     def test_line9_the_hint(self):
         obj = load("quiet")
         obj["hand"] = [{"part": "runs", "kind": "run_gone", "name": "r1", "remedy": "agentik baton status"}]
-        self.assertEqual(piped(obj)[1], "note  1 needs a hand. next: agentik baton status\n")
+        self.assertEqual(piped(obj)[1], "next: agentik baton status\n")
         obj["hand"] = [dict(obj["hand"][0], remedy=None), dict(obj["hand"][0], name="r2", remedy=None)]
-        self.assertEqual(piped(obj)[1], "note  2 need a hand; the first is above.\n")
+        self.assertEqual(piped(obj)[1], "next: 2 need a hand, and no command for them is known\n")
         obj = load("quiet")
         obj["sources"][2]["state"] = "timed out"
-        self.assertEqual(piped(obj)[1], "note  next: agentik doctor\n")
+        self.assertEqual(piped(obj)[1], "next: agentik doctor\n")
         self.assertEqual(piped(load("quiet"))[1], "")
         self.assertEqual(piped(load("busy"))[1], "")
 
@@ -496,7 +501,7 @@ class DoctorHintTest(unittest.TestCase):
         for state in ("timed out", "unreadable", "changed"):
             obj = load("quiet")
             obj["sources"][2]["state"] = state
-            self.assertEqual(piped(obj)[1], "note  next: agentik doctor\n", state)
+            self.assertEqual(piped(obj)[1], "next: agentik doctor\n", state)
 
 
 if __name__ == "__main__":

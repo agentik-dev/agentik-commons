@@ -273,38 +273,62 @@ def _full(cmd, nouns, now, text):
         t.json(status_read.compose(cmd, nouns, now, text))
         return 0
     from . import status_screen
+    slots = cmd.slots()
 
     def on_part(name, obj):
-        status_screen.part(t, obj, name, cmd.tool)
+        status_screen.part(t, obj, name, slots)
         t.flush()
         if t.out.gone:  # the reader closed the pipe: raised here, run_all ends every read
             raise BrokenPipeError("stdout closed")
 
     obj = status_read.compose(cmd, nouns, now, text, on_part)
-    status_screen.foot(t, obj, cmd.tool)
+    status_screen.foot(t, obj, slots)
     return 0
 
 
+HOOKS = ("--now", "--ps")  # the test hooks, each with its value
+
+
+def mended(cmd, nouns):
+    """The line to paste after a refusal of status (row sc4 R1 and R4, su2-read phase 2): the line
+    as typed less each path that is no folder and less the test hooks with their values, so it
+    passes every check of the verb's that reads no user file."""
+    swap = {cmd.at[k + 1]: [] for k, path in enumerate(nouns) if not os.path.isdir(path)}
+    args = iter(enumerate(cmd.argv))
+    for i, arg in args:
+        if arg == "--":
+            break
+        flag, eq, _ = arg.partition("=")
+        if flag in HOOKS:
+            swap[i] = []
+            if not eq:
+                j = next(args, (None, None))[0]
+                if j is not None:
+                    swap[j] = []
+    return cmd.again(swap)
+
+
 def _status(cmd, nouns):
-    o, t, Usage = cmd.opts, cmd.t, cmd.Usage
-    again = cmd.say("status", "--check")
-    if o["check"]:
-        cmd._no_nouns(nouns)
-    else:
-        for path in nouns:
-            if not os.path.isdir(path):
-                raise Usage("bad_path", "err.status.path", cmd.say("status"), path=path)
+    """Each refusal is its cause and the line to paste (sc4's form): a name after --check, a path
+    that is no folder, a bad --now or --ps; a user file that does not parse is its fault alone."""
+    o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
+    if o["check"] and nouns:
+        raise Refusal("extra_word", "err.extra", cmd.say("status", "--check"),
+                      verb="status --check", word=nouns[0])
+    for path in nouns:
+        if not os.path.isdir(path):
+            raise Refusal("bad_path", "err.status.path", mended(cmd, nouns), path=path)
     now = time.time()
     if o["now"] is not None:
         now = when(o["now"])
         if now is None:
-            raise Usage("bad_time", "err.status.now", again, value=o["now"])
+            raise Refusal("bad_time", "err.status.now", mended(cmd, nouns), value=o["now"])
     text = None
     if o["ps"] is not None:
         try:
             text = regular(o["ps"]).decode("utf-8", "replace")
         except OSError:
-            raise Usage("bad_listing", "err.status.ps", again, path=o["ps"])
+            raise Refusal("bad_listing", "err.status.ps", mended(cmd, nouns), path=o["ps"])
     try:
         if not o["check"]:
             return _full(cmd, nouns, now, text)
@@ -313,7 +337,7 @@ def _status(cmd, nouns):
         home = cmd.env.get("HOME")
         fault = t.text("config.fault" if f.line else "config.fault.noline",
                        path=plan.shown(f.path, home), line=f.line, why=f.why)
-        raise Usage("bad_file", "err.status.file", again, fault=fault, **cmd.slots())
+        raise Refusal("bad_file", "err.status.file", None, fault=fault)
     procs, bad = None, None
     if watchers:
         if text is None:

@@ -4,7 +4,8 @@ Five parts in a fixed order, always all five, then the sources and what was not 
 hint on stderr where a hand is needed or a source gave no answer. A part reads its own part of
 the object, `at`, `covers`, `hand`, `fault` and its own sources only, so it may be drawn while
 the later parts are still absent. Nothing here runs a tool, reads a file or reads the clock: a time is the
-object's `at` less a value of it. A value the object does not give is drawn `?`.
+object's `at` less a value of it. A value the object does not give is drawn `?`. A command of the
+suite's own is named by `slots`, the command's `cmd.slots()` (row sc2).
 """
 import os
 import time
@@ -131,7 +132,7 @@ def _fault(t, obj):
     return [row(t.text("status.fault.unknown", fault=shown(fault)), whole=True)]
 
 
-def _watchers(t, obj, hand, tool):
+def _watchers(t, obj, hand, slots):
     """The rows and the mark: `warn` for a hand, for the read's fault, or for a watcher the
     object does not say runs."""
     fault = _fault(t, obj)
@@ -185,7 +186,7 @@ def _helpers(t, helpers, skip_busy):
     return parts
 
 
-def _sessions(t, obj, part, hand, sources, tool):
+def _sessions(t, obj, part, hand, sources, slots):
     live = sorted(seq(part.get("live")), key=lambda s: (str(s.get("name") or ""), str(s.get("id") or "")))
     past = seq(part.get("past_window"))
     window = shown(part.get("window_min"))
@@ -232,7 +233,7 @@ def _failed(t, job):
     return t.text("status.cut", text=text, cut=job["cut"]) if job.get("cut") else text
 
 
-def _gate(t, obj, part, hand, sources, tool):
+def _gate(t, obj, part, hand, sources, slots):
     running, queued, red = (seq(part.get(k)) for k in ("running", "queued", "red"))
     alone = [h for h in hand if h.get("kind") == "no_runner"]
     head = []
@@ -288,7 +289,7 @@ def _level(key):
     return (head, int(tail) if tail else -1, key)
 
 
-def _backlog(t, obj, part, hand, sources, tool):
+def _backlog(t, obj, part, hand, sources, slots):
     rows = [row(one(t, "status.backlog.open", part.get("open"), covers=_covers(t, obj, part)))]
     first = mapping(part.get("first"))
     if first:
@@ -306,7 +307,7 @@ def _backlog(t, obj, part, hand, sources, tool):
     return rows
 
 
-def _runs(t, obj, part, hand, sources, tool):
+def _runs(t, obj, part, hand, sources, slots):
     shown_runs = seq(part.get("shown"))
     if not shown_runs:
         return [row(t.text("status.runs.none"))]
@@ -350,19 +351,19 @@ def _gave_nothing(t, sources, whole):
     """The rows of the part's sources that gave nothing; `whole` when the part is not read."""
     rows = []
     for s in sources:
-        state, tool = s.get("state"), shown(s.get("tool"))
+        state, which = s.get("state"), shown(s.get("tool"))  # another tool's name
         if state == "not installed" and whole:
-            rows.append(row(t.text("status.source.absent", tool=tool)))
+            rows.append(row(t.text("status.source.absent", tool=which)))
         elif state == "timed out":
-            rows.append(row(t.text("status.source.slow", tool=tool, wall=wall(s.get("wall_s")))))
+            rows.append(row(t.text("status.source.slow", tool=which, wall=wall(s.get("wall_s")))))
         elif state == "unreadable":
-            cmd = " ".join(["agentik-" + tool] + [str(a) for a in seq(s.get("argv")) if a != "--json"])
+            cmd = " ".join(["agentik-" + which] + [str(a) for a in seq(s.get("argv")) if a != "--json"])
             failed = s.get("exit") not in (0, None)
             rows.append(row(t.text("status.source.failed" if failed else "status.source.nojson", command=cmd)))
             if s.get("stderr"):
                 rows.append(row(s["stderr"], whole=True))
         elif state == "changed":
-            rows.append(row(t.text("status.source.changed", tool=tool)))
+            rows.append(row(t.text("status.source.changed", tool=which)))
     if whole and not rows:
         rows.append(row(t.text("status.source.none")))
     return rows
@@ -371,28 +372,28 @@ def _gave_nothing(t, sources, whole):
 BUILD = {"sessions": _sessions, "gate": _gate, "backlog": _backlog, "runs": _runs}
 
 
-def part(t, obj, name, tool):
+def part(t, obj, name, slots):
     """One of the five parts: its mark, its label and its rows, behind one guard, so a value of
     the wrong kind or a time out of range makes this part read not read and the others draw."""
     label = t.text("status.label." + name)
     try:
-        mark, rows = _part(t, obj, name, tool, label)
+        mark, rows = _part(t, obj, name, slots, label)
     except WRONG:
         mark, rows = "warn", [row(t.text("status.wrong", part=label))]
     t.grid(mark, label, rows)
 
 
-def _part(t, obj, name, tool, label):
+def _part(t, obj, name, slots, label):
     hand = [h for h in entries(obj, "hand") if h.get("part") == name]
     sources = [s for s in entries(obj, "sources") if s.get("name") in SOURCES[name]]
     if name == "watchers":
-        rows, mark = _watchers(t, obj, hand, tool)
+        rows, mark = _watchers(t, obj, hand, slots)
         return mark, rows
     p = mapping(obj.get(name))
     state = p.get("state")
     note = state in ("partial", "not read")
     if name == "backlog" and mapping(obj.get("covers")).get("rule") == "none":
-        rows, note = [row(t.text("status.backlog.nowhere", tool=tool))], True
+        rows, note = [row(t.text("status.backlog.nowhere", status=slots["status"]))], True
     elif name not in obj:
         rows = [row(t.text("status.part.absent", part=label))]
     elif state is None:
@@ -402,12 +403,12 @@ def _part(t, obj, name, tool, label):
     elif state == "not read":
         rows = _gave_nothing(t, sources, True)
     else:
-        rows = BUILD[name](t, obj, p, hand, sources, tool) + _gave_nothing(t, sources, False)
+        rows = BUILD[name](t, obj, p, hand, sources, slots) + _gave_nothing(t, sources, False)
     said = state == "ok" or note  # read whole, or said to be read in part or not at all
     return "warn" if hand or not said else "note" if note else "ok", rows
 
 
-def foot(t, obj, tool):
+def foot(t, obj, slots):
     """The two last labels, with no mark, each behind its guard, and the hint."""
     label = t.text("status.label.sources")
     try:
@@ -423,7 +424,7 @@ def foot(t, obj, tool):
     if rows:
         t.grid(None, label, rows)
     try:
-        hint = _hint(obj, tool)
+        hint = _hint(obj, slots)
     except WRONG:
         hint = None
     if hint:
@@ -458,7 +459,7 @@ def _not_read(t, obj):
     return [row(", ".join(words), DIM)] if words else []
 
 
-def _hint(obj, tool):
+def _hint(obj, slots):
     """The hint's id and its values, or None."""
     hand = entries(obj, "hand")
     if hand:
@@ -466,12 +467,12 @@ def _hint(obj, tool):
         mid = "hint.status.hand" + (".one" if len(hand) == 1 else "") + ("" if remedy else ".bare")
         return mid, {"n": len(hand), "remedy": remedy}
     if any(s.get("state") in GAVE_NOTHING for s in entries(obj, "sources")):
-        return "hint.status.doctor", {"tool": tool}
+        return "hint.status.doctor", {"doctor": slots["doctor"]}
     return None
 
 
-def draw(t, obj, tool):
+def draw(t, obj, slots):
     """The whole screen: the five parts in order, then the foot."""
     for name in PARTS:
-        part(t, obj, name, tool)
-    foot(t, obj, tool)
+        part(t, obj, name, slots)
+    foot(t, obj, slots)

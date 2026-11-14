@@ -339,11 +339,12 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     subset."""
     t0 = time.monotonic()
     env, uid = cmd.env, os.getuid()
-    try:
+    try:  # asked here too, since the command reads a gone folder as `/` (sc2)
         cwd = getattr(cmd, "cwd", None) or os.getcwd()
+        os.getcwd()
     except OSError:  # the working folder is gone: R2's fault for a path that is no folder
-        raise cmd.Usage("bad_path", "err.status.path", "%s status" % cmd.tool,
-                        path=cmd.env.get("PWD") or ".")
+        raise cmd.Refusal("bad_path", "err.status.path", cmd.say("status"),
+                          path=cmd.env.get("PWD") or ".")
     _, watchers, _ = status.declared(env)
     cov = covering.covers(env, cwd, paths)
     at = int(now) if float(now).is_integer() else now

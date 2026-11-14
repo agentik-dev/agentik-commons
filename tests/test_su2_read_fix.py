@@ -181,7 +181,7 @@ class GoneFolderTest(FixHome):
         self.assertNotIn("Traceback", p.stderr)
         obj = json.loads(p.stdout)
         self.assertEqual((obj["schema"], obj["ok"], obj["error"]["code"]), ("agentik.status/1", False, "bad_path"))
-        self.assertEqual(obj["error"]["remedy"], "agentik-suite status")
+        self.assertEqual(obj["error"]["remedy"], "%s status" % LAUNCHER)  # sc2's name, in --json the full path
 
 
 class OwnProcessTest(FixHome):

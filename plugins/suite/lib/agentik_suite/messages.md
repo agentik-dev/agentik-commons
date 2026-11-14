@@ -84,9 +84,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
 - `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
 - `err.config.file`: `{fault}`
-- `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
-- `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
-- `err.status.file`: `{fault}`. Mend the file by hand, then run `{status}` --check again.
+- `err.status.now`: `{value}` is not an ISO 8601 time, such as 2026-11-13T12:00:00Z
+- `err.status.ps`: `{path}` cannot be read as a listing that ps wrote
+- `err.status.file`: `{fault}`
 - `err.status.path`: `{path}` is not a folder
 - `err.config.both`: --changed and --user-files are two answers
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json
@@ -298,7 +298,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.job.waits`: waits on `{wait}`
 - `status.job.est`: est. `{est}`
 - `status.job.failed`: failed
-- `status.backlog.nowhere`: no checkout here; name one: `{tool}` status <path>
+- `status.backlog.nowhere`: no checkout here; name one: `{status}` PATH
 - `status.backlog.open`: `{n}` open steps in `{covers}`
 - `status.backlog.open.one`: 1 open step in `{covers}`
 - `status.covers.hq`: `{n}` checkouts beside `{hq}` (kind: hq)
@@ -333,11 +333,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.sources.undrawn`: not drawn: agentik-`{tool}` `{name}`
 - `status.not_read.owner`: what waits on the owner
 - `status.not_read.rows`: the rows in flight
-- `hint.status.hand.one`: 1 needs a hand. next: `{remedy}`
-- `hint.status.hand`: `{n}` need a hand; the first is above. next: `{remedy}`
-- `hint.status.hand.one.bare`: 1 needs a hand.
-- `hint.status.hand.bare`: `{n}` need a hand; the first is above.
-- `hint.status.doctor`: next: `{tool}` doctor
+- `hint.status.hand.one`: next: `{remedy}`
+- `hint.status.hand`: next: `{remedy}`, for the first of `{n}` that need a hand
+- `hint.status.hand.one.bare`: next: 1 needs a hand, and no command for it is known
+- `hint.status.hand.bare`: next: `{n}` need a hand, and no command for them is known
+- `hint.status.doctor`: next: `{doctor}`
 - `status.fault.listing`: the process listing could not be trusted, so no watcher is checked
 - `status.fault.listing.parts`: sessions, gate and runs are read in part
 - `status.fault.unknown`: the read gave a fault not known here, `{fault}`

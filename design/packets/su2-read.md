@@ -83,3 +83,12 @@ No version here: the join takes it (0.7.0 expected) in its last commit under `pl
 | J-7 | a terminal at 40, 80, 120 columns: no row past the width but a command's; at 120 the piped rows |
 | J-8 | `bad_listing`: its two rows once, `warn` on watchers, `note` on sessions, gate and runs |
 | J-9 | a closed pipe or an interrupt while it draws: back inside 2 s, the slow read and its child gone |
+
+## 8. Phase 2 (main at 39fccca, suite 0.7.0)
+
+Main merged in; its rules run over both slices:
+
+- sc4: every refusal of `status` is a `Refusal`, its cause and then `next:`. A name after `--check` is `status --check takes no name; X is one more`, next `status --check`. A path that is no folder, a bad `--now` or an unreadable `--ps` names the line as typed less each such path and less the two test hooks (`status.mended`). A user file that does not parse is its fault alone, with no next, as config's is. `_takes` lets `status` take paths, so a near word mends into a bare `status`.
+- sc4: each `hint.status.*` the screen prints starts `next:`, so in a pipe it has no `note` mark. The hand's hint is `next: REMEDY`, with `, for the first of N that need a hand` past one; with no remedy it says none is known. `hint.status.unchecked` is main's, untouched.
+- sc2: the screen takes `cmd.slots()` where R2 named `tool`, so `status` and `doctor` come from `cmd.say`; the backlog's row reads `name one: agentik status PATH`. A tool's own command keeps the door's form, `agentik TOOL ...`, as the tools print it.
+- `compose` asks `os.getcwd()` itself, since the command now reads a gone folder as `/`.

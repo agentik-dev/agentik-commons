@@ -67,8 +67,9 @@ class Usage(Exception):
 
 class Refusal(Usage):
     """A refusal in the two-line form (row sc4 R1): the message is the cause alone and the remedy,
-    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py,
-    install.py and status.py until their rows turn them, keeps the pin's one sentence (R3)."""
+    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py and
+    install.py until their rows turn them, keeps the pin's one sentence (R3); status.py's are
+    turned (su2-read phase 2)."""
     paste = True
 
 
@@ -146,7 +147,7 @@ def _takes(verb, o, nouns):
     if verb == "setup":
         return all(NOUN.match(n) for n in nouns)
     if verb == "status":
-        return not nouns and o["check"]
+        return not (nouns and o["check"])
     if verb == "describe":
         return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
                               not nouns or (nouns[0] == "config" and len(nouns) <= 2))
