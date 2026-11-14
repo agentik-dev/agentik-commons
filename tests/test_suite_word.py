@@ -6,9 +6,11 @@ import json
 import os
 import unittest
 
-from test_agentik_suite import Home
+from test_agentik_suite import LAUNCHER, Home
 
-LINE = "pear is a plugin with no command here. Run agentik-suite setup --dry-run pear for the steps."
+CMD = str(LAUNCHER)  # a printed command with no door: the launcher's path, as typed (row sc2)
+
+LINE = "pear is a plugin with no command here. Run %s setup --dry-run pear for the steps." % CMD
 
 
 class PluginWordTest(Home):
@@ -33,7 +35,7 @@ class PluginWordTest(Home):
         self.assertEqual(code, 3, args)
         answer = json.loads(out)
         self.assertEqual((answer["ok"], answer["error"]["code"]), (False, "not_installed"))
-        self.assertEqual(answer["error"]["remedy"], "agentik-suite setup --dry-run pear")
+        self.assertEqual(answer["error"]["remedy"], "%s setup --dry-run pear" % CMD)
         self.assertEqual(len(out.splitlines()), 1)
 
     def test_a4_a_plugin_with_no_command_exits_three(self):
@@ -52,8 +54,8 @@ class PluginWordTest(Home):
 
     def test_f3_the_json_remedy_names_a_verb_only(self):
         # review 1 F3: `agentik-suite pear` never succeeds, so a nearest plugin's remedy is --help
-        for args, remedy in ((("paer",), "agentik-suite --help"), (("stup",), "agentik-suite setup"),
-                             (("nosuch",), "agentik-suite --help")):
+        for args, remedy in ((("paer",), CMD + " --help"), (("stup",), CMD + " setup"),
+                             (("nosuch",), CMD + " --help")):
             code, out, _ = self.run_cli(*args, "--json")
             self.assertEqual((code, json.loads(out)["error"]["remedy"]), (2, remedy), args)
 

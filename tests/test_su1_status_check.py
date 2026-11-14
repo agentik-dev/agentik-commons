@@ -142,7 +142,7 @@ class MatchAndDeclarationTest(StatusHome):
         self.assertIn("config.yaml", err)
         # the voice pass's one change: `next:` before the hint's second sentence
         self.assertIn(" is not checked, since it needs both match and start in ", err)
-        self.assertIn(". next: add them, then run agentik-suite status --check.", err)
+        self.assertIn(". next: add them, then run %s status --check." % LAUNCHER, err)
         self.assertNotIn("Add them", err)
         self.assertEqual(self.check("-q"), (0, "", ""))
 

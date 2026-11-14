@@ -156,10 +156,10 @@ class AskTest(SetupHome):
         self.plan_of_one()
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: agentik doctor checks each plugin.", err.splitlines()[-1])
+        self.assertIn("next: ~/.local/bin/agentik doctor checks each plugin.", err.splitlines()[-1])  # sc2: off PATH
         code, out, err = self.run_cli("setup", "alpha")  # nothing to do, the door in place
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: agentik doctor", err.splitlines()[-1])
+        self.assertIn("next: ~/.local/bin/agentik doctor", err.splitlines()[-1])
 
     def test_a6_a_door_not_ours_keeps_the_suites_name(self):
         self.plan_of_one()
@@ -167,7 +167,7 @@ class AskTest(SetupHome):
         os.symlink("/nonexistent/agentik", os.path.join(self.bindir, "agentik"))  # a link: left alone
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: agentik-suite doctor", err.splitlines()[-1])
+        self.assertIn("next: %s doctor" % LAUNCHER, err.splitlines()[-1])  # sc2: no door, the path typed
 
 
 if __name__ == "__main__":
