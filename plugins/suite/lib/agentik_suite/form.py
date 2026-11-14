@@ -319,6 +319,8 @@ def _read(lines, tools):
         if not code:
             r.stop("a value outside its code span")
         f["exit"] = None if code.group(1) == UNKNOWN else int(code.group(1))
+        if f["exit"] is not None and f["exit"] > 255:
+            r.stop("an exit the form cannot hold")
         r.i += 1
     f["happened"], end, line = r.labelled(HAPPENED)
     if line[end:]:
@@ -340,6 +342,8 @@ def _read(lines, tools):
                 r.stop("a tool the draft may not name", r.i - 1)
             versions.append(item)
         elif SYSTEM_ITEM.fullmatch(item):
+            if not versions:
+                r.stop("a system item before any version item", r.i - 1)
             system.append(item)
         else:
             r.stop("a version or system item is not the form's", r.i - 1)

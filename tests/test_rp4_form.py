@@ -228,6 +228,17 @@ class NotTheFormTest(unittest.TestCase):
         self.assertLine(g[:-1], 24)
         self.assertLine(b"\xff\n", 1)
 
+    def test_a_value_the_writer_refuses_stops_on_its_own_line(self):
+        g = GOLDEN.read_text()
+        self.assertLine(g.replace(", exit 2\n", ", exit 999\n"), 3)
+        self.assertLine(g.replace(", exit 2\n", ", exit 256\n"), 3)
+        named = "lantern 2.0.0-alpha.101 (1f3a9c0d2b7e), suite 0.6.0, door 0.2.0, "
+        self.assertIn(named, g.splitlines()[5])
+        self.assertLine(g.replace(named, ""), 6)
+        words = form.build(form.drop(example(), "words")).decode()
+        self.assertTrue(words.splitlines()[4].startswith("**Versions:** "))
+        self.assertLine(words.replace(named, ""), 5)
+
     def test_a_fence_closed_early_by_a_shorter_run(self):
         f = example()
         f["lines"] = ["a", "```", "b"]
