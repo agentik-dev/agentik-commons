@@ -528,7 +528,7 @@ class Command:
             t.table([(None, [command, gloss], None) for command, gloss in examples])
             return
         for command, gloss in examples:
-            out.write("  " + term.clean(command))
+            t.marked("  " + term.clean(command), [])  # one line as it is: term's own writer
             t.table([(None, [gloss], None)], indent=6)
 
     def help_verb(self, verb):
