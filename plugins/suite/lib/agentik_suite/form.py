@@ -499,7 +499,9 @@ def _cut(tool, text):
 
 def draft(facts, tool, title, happened, fingerprint):
     """The fields of an `agentik.issue-facts/1` object already scrubbed and bounded, its line
-    breaks folded to spaces; a title whose line passes 72 bytes is cut on a character's edge."""
+    breaks folded to spaces; a title whose line passes 72 bytes is cut on a character's edge. A
+    plugin of no version reads `unreadable`, and when no tool shows a version the Versions line
+    names the tool as `<tool> unreadable`, so every object gather gives builds."""
     out = facts.get("output") or {}
     words = facts.get("words") or {}
     checks = facts.get("checks") or {}
@@ -519,6 +521,7 @@ def draft(facts, tool, title, happened, fingerprint):
         versions.append(item)
         if v["name"] == tool:
             version = shown
+    versions = versions or ["%s %s" % (tool, version)]
     f = {"tool": tool, "title": _cut(tool, title), "ran": None if ran is None else _one_line(ran),
          "exit": out.get("exit") if ran is not None else None, "happened": _one_line(happened or ""),
          "expected": None if words.get("expected") is None else _one_line(words["expected"]),
@@ -534,7 +537,8 @@ def draft(facts, tool, title, happened, fingerprint):
                      for r in checks.get("rows") or []]
         f["counts"] = [checks["failed"], checks["warned"], checks["passed"]]
     if named is not None:
-        f["plugins"] = ["%s %s" % (p["name"], p["version"]) for p in named.get("named") or []]
+        f["plugins"] = ["%s %s" % (p["name"], p["version"] or "unreadable")
+                        for p in named.get("named") or []]
         f["others"] = named.get("others") or 0
     return f
 

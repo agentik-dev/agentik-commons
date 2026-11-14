@@ -507,5 +507,46 @@ class TitleTest(unittest.TestCase):
         self.assertEqual(form.title(None, "no profile"), "no profile")
 
 
+class GatherJoinTest(unittest.TestCase):
+    """Phase 2: `draft` over the versions and plugins rp3's `gather` gives, read from a table in
+    memory and a PATH of nothing, so no file is read; every value it can give builds a form."""
+
+    PUBLIC = {"marketplace": "agentik", "tools": {"lantern": "made-up/lantern", "suite": "made-up/suite"}}
+
+    def facts(self, table):
+        from agentik_suite import gather
+        f = example_facts()
+        f["versions"] = gather.versions({"PATH": ""}, self.PUBLIC, table, [])
+        f["plugins"] = gather.plugins(self.PUBLIC, table)
+        return f
+
+    def built(self, table):
+        f = form.draft(self.facts(table), "lantern", "lantern: doctor fails", FAILING, "2bcc624a2914")
+        data = form.build(f)
+        self.assertEqual(form.build(form.parse(data, TOOLS)), data)
+        return form.parse(data, TOOLS)
+
+    def test_a_plugin_of_no_version_reads_unreadable(self):
+        for entry in ({}, {"version": None}, []):
+            got = self.built({"lantern@agentik": entry, "suite@agentik": {"version": "0.6.9"}})
+            self.assertEqual(got["plugins"], ["lantern unreadable", "suite 0.6.9"])
+
+    def test_no_version_shown_names_the_tool_unreadable(self):
+        got = self.built({})
+        self.assertEqual(got["versions"], ["lantern unreadable"])
+        self.assertEqual(got["version"], "unreadable")
+
+    def test_every_value_gather_gives_builds(self):
+        values = [None, "1.2.3", "1.2", "0.6.9-alpha.3", 7]
+        commits = [None, "ABCDEF0123456789", "zz", 12]
+        for v in values:
+            for c in commits:
+                for w in values:
+                    entry = {} if v is None else {"version": v}
+                    if c is not None:
+                        entry["gitCommitSha"] = c
+                    self.built({"lantern@agentik": entry, "suite@agentik": {"version": w}, "other@x": {}})
+
+
 if __name__ == "__main__":
     unittest.main()
