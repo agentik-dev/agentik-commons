@@ -145,7 +145,8 @@
    "ms": 100,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "gate",
@@ -159,7 +160,8 @@
    "ms": 100,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "backlog",
@@ -172,7 +174,8 @@
    "ms": 100,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "unattended",
@@ -186,7 +189,8 @@
    "ms": 100,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "run",
@@ -200,7 +204,8 @@
    "ms": 100,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "weather",
@@ -213,7 +218,8 @@
    "ms": null,
    "exit": null,
    "stderr": null,
-   "wall_s": null
+   "wall_s": null,
+   "fields": null
   }
  ],
  "not_read": [

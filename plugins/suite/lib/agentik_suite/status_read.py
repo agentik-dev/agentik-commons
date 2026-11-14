@@ -8,6 +8,7 @@ the rest drawn. The object holds no sentence; the screen says every word (packet
 """
 import datetime
 import json
+import math
 import os
 import re
 import time
@@ -20,6 +21,7 @@ READS = {"sessions": "sessions", "gate": "gate", "backlog": "backlog", "run": "r
 LISTED = ("watchers", "sessions", "gate", "runs")  # the parts held against the listing
 WALL = 1.0
 STDERR_MAX = 300
+TEXT_MAX = 80  # a word an answer gives that the object holds as text: a run, a row, a reason
 NOT_READ = ["owner", "rows"]
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z")
 SCHEMA = re.compile(r".*/([0-9]+)\Z")
@@ -40,7 +42,8 @@ def _kind_ok(value, kinds):
 
 
 class Pins:
-    """A source's answer read by its pins: a key missing or of another kind marks it changed."""
+    """A source's answer read by its pins: a key missing or of another kind marks it changed,
+    and its name joins the source's `fields`."""
 
     def __init__(self, src):
         self.src = src
@@ -49,13 +52,20 @@ class Pins:
         if isinstance(obj, dict) and key in obj and _kind_ok(obj[key], kinds):
             return obj[key]
         self.src["changed"] = True
+        if key not in self.src["fields"]:
+            self.src["fields"].append(key)
         return None
+
+
+def _clean(text):
+    """A text value with its control characters removed, its ends trimmed, cut at TEXT_MAX."""
+    return CONTROL.sub("", text).strip()[:TEXT_MAX] if isinstance(text, str) else text
 
 
 def _source(name, tool, argv, wall_s, exe):
     return {"name": name, "tool": tool, "argv": list(argv), "state": None, "ms": None, "exit": None,
             "stderr": None, "wall_s": wall_s, "exe": exe, "answer": None, "changed": False,
-            "settled": False}
+            "fields": [], "settled": False}
 
 
 def _table_reads(row):
@@ -102,6 +112,7 @@ def _settle(src, result, err, secs):
     src["state"], src["answer"] = "ok", answer
     if m and int(m.group(1)) > 1:
         src["changed"] = True
+        src["fields"].append("schema")
 
 
 def _remedy(src):
@@ -284,18 +295,23 @@ def _runs(srcs, procs, uid, now, hand):
         else:
             if answer is None:
                 continue
-            rid = pin.get(answer, "run", TEXT)
+            rid = _clean(pin.get(answer, "run", TEXT))
             rows = pin.get(answer, "rows", MAP, NONE) or {}
             running = pin.get(answer, "running", MAP, NONE)
             stop = pin.get(answer, "stop", TEXT, MAP, NONE)
+            row = age = None
+            if running is not None:
+                row = _clean(pin.get(running, "row", TEXT, NONE))
+                age = pin.get(running, "age_s", NUM, NONE)
+                if age is not None and not math.isfinite(age):
+                    age = pin.get({}, "age_s", NUM)
             if stop is not None and running is None:
-                reason = stop if isinstance(stop, str) else stop.get("reason")
-                state = "stopped: %s" % reason
+                reason = _clean(stop if isinstance(stop, str) else pin.get(stop, "reason", TEXT))
+                state = "stopped: %s" % reason if reason else "stopped"
             else:
                 state = "running" if running is not None else "ended"
             run = {"source": src["name"], "by": src["name"], "run": rid, "state": state,
-                   "row": running.get("row") if running else None,
-                   "age_s": running.get("age_s") if running else None, "pid": None, "alive": None,
+                   "row": row, "age_s": age, "pid": None, "alive": None,
                    "rows": {k: len(v) for k, v in rows.items() if isinstance(v, list)}}
         m = DAY.match(run["run"] or "")
         if run["state"] == "running" or (m and m.group(1) in days):
@@ -513,4 +529,6 @@ def compose(cmd, paths, now, ps_text, on_part=None):
 
 
 def _shown(src):
-    return {k: src[k] for k in ("name", "tool", "argv", "state", "ms", "exit", "stderr", "wall_s")}
+    shown = {k: src[k] for k in ("name", "tool", "argv", "state", "ms", "exit", "stderr", "wall_s")}
+    shown["fields"] = list(src["fields"]) or None  # the pins its answer failed, by key
+    return shown
