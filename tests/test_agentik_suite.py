@@ -377,7 +377,7 @@ class VerbTest(Home):
     def test_a6_usage_exits_two(self):
         code, out, err = self.run_cli("stup")
         self.assertEqual((code, out), (2, ""))
-        self.assertIn("setup", err)
+        self.assertRegex(err, r"\AFAIL  stup is not a verb\nnext: \S+ help\n\Z")  # sc4 review 1 F2
         before = self.snapshot()
         for args in (("setup", "Bad_name"), ("setup", "-y", "Bad_name"), ("setup", "--yes", "alpha", "Bad_name")):
             code, out, err = self.run_cli(*args)

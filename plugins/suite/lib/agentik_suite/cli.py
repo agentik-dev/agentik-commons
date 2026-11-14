@@ -40,6 +40,8 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
+SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
+NEVER_MENDED = WRITES + ("remove",)  # a word that is no verb is never mended into one of these
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
@@ -113,6 +115,63 @@ def _parse(argv):
     return opts, words, bad, at, bad_at
 
 
+def _flag_fault(opts, words, verb):
+    """The first flag `_dispatch` refuses for `verb`, past the parse, or None."""
+    if opts["version"] and (words or opts["help"]):
+        return "--version"
+    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
+        if opts[key] and (long, short, key) not in VERB_FLAGS.get(verb, ()):
+            return long
+    for flag, (key, owner) in VALUE_FLAGS.items():
+        if opts[key] is not None and owner != verb:
+            return flag
+    return None
+
+
+def _takes(verb, o, nouns):
+    """True where `verb` takes these flags and words: each verb's refusals that read no file, in
+    the order the verb raises them (cli.py, config.py, install.py, status.py)."""
+    if verb == "help":
+        return len(nouns) <= 1 and all(n in VERBS for n in nouns)
+    if verb in ("version", "doctor"):
+        return not nouns
+    if verb == "install-cli":
+        return not nouns and o["prefix"] != ""
+    if verb == "setup":
+        return all(NOUN.match(n) for n in nouns)
+    if verb == "status":
+        return not nouns and o["check"]
+    if verb == "describe":
+        return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
+                              not nouns or (nouns[0] == "config" and len(nouns) <= 2))
+    if verb == "config":
+        name, dot, key = config.path(nouns).partition(".")
+        both = o["changed"] and o["user_files"]
+        return not both and not (nouns and (o["changed"] or o["user_files"])) and \
+            (not nouns or bool(name) and not (dot and not key))
+    return False
+
+
+def _door_takes(line):
+    """True where the door, bin/agentik, hands `line` on: a name first, `help` with at most one
+    name after it, or `--version` alone (packet ak2 R2)."""
+    if line[:1] and line[0] in ("help", "-h", "--help"):
+        return len(line) == 1 or len(line) == 2 and bool(NOUN.match(line[1]))
+    return line == ["--version"] or not line or bool(NOUN.match(line[0]))
+
+
+def refused(line):
+    """True where the suite refuses `line`, the words after its name, before it reads a file:
+    the parse, the verb, `_dispatch`'s flags and the verb's own words (sc4 review 1)."""
+    opts, words, bad = _parse(line)[:3]
+    if bad is not None:
+        return True
+    verb = words[0] if words else "version" if opts["version"] and not opts["help"] else "help"
+    if verb not in VERBS or _flag_fault(opts, words, verb):
+        return True
+    return not opts["help"] and not _takes(verb, opts, words[1:])
+
+
 class Command:
     Usage, Refusal, VERBS = Usage, Refusal, VERBS
 
@@ -150,10 +209,28 @@ class Command:
                 line.extend(swap[i])
             elif word not in SWITCHES:
                 line.append(word)
-        return self.say(*(line + list(tail)))
+        return self.offer(line + list(tail))
 
     def mend(self, at, *words):
         return self.again({at: list(words)})
+
+    def offer(self, line):
+        """The command for `line`, the words after the suite's name, where the suite would run it
+        and it does no more than the typed line asked; else the help line of its verb. A line
+        is not offered that the suite refuses, that holds a flag answering a question for the
+        person, that holds more flags than the person typed, that would write (a verb that
+        writes is offered with --dry-run alone), or that the door it starts with refuses (sc4
+        review 1)."""
+        opts, words = _parse(line)[:2]
+        verb = words[0] if words and words[0] in VERBS else self.verb
+        flags = sum(1 for w in line if w.startswith("-") and w != "-")
+        typed = sum(1 for w in self.argv if w.startswith("-") and w not in SWITCHES + ("-",))
+        writes = verb in WRITES and not opts["dry_run"] and not opts["help"]
+        door = prog.form(self.env, self.tool)[0] != "typed"
+        if refused(line) or set(line) & set(SKIPS) or flags > typed or writes or \
+                door and not _door_takes(line):
+            return self.say("help", verb) if verb and verb != "help" else self.say("help")
+        return self.say(*line)
 
     def slots(self):
         """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
@@ -184,14 +261,9 @@ class Command:
         nouns = words[1:]
         if self.bad is not None:
             self._bad_flag(self.bad)
-        if o["version"] and (words or o["help"]):
-            self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS:
-            if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
-                self._bad_flag(long)
-        for flag, (key, verb) in VALUE_FLAGS.items():
-            if o[key] is not None and verb != self.verb:
-                self._bad_flag(flag)
+        fault = _flag_fault(o, words, self.verb)
+        if fault:
+            self._bad_flag(fault)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb.replace("-", "_"))(nouns)
@@ -216,10 +288,12 @@ class Command:
                                          n=1, cutoff=NEAR)
         if not near:
             raise Refusal("unknown_verb", "err.verb.none", self.say("help"), word=word)
-        if near[0] in VERBS:
-            raise Refusal("unknown_verb", "err.verb", self.mend(at, near[0]), word=word)
-        alone = asked_help or len(self.words) == 1  # a tool run bare is a usage error (R4)
-        run = self.mend(at, near[0]) if asked_help or not alone else self.mend(at, "help", near[0])
+        near = near[0]
+        if near in VERBS:  # never into a verb that writes from a word that is none (review 1 F2)
+            run = self.say("help") if near in NEVER_MENDED and not asked_help else self.mend(at, near)
+            raise Refusal("unknown_verb", "err.verb", run, word=word)
+        rest = [w for w in self.argv[at + 1:] if w not in SWITCHES]  # a tool's words are its own
+        run = self.say(*([near] + rest if rest and not asked_help else ["help", near]))
         raise Refusal("unknown_verb", "err.verb.tool", run, word=word)
 
     def _bad_flag(self, flag):
@@ -229,7 +303,9 @@ class Command:
         known = [f for long, short, _ in FLAGS + VERB_FLAGS.get(verb, ()) for f in (long, short) if f]
         known += [f for f, (_, owner) in VALUE_FLAGS.items() if owner == verb]
         known += [] if verb else ["--version"]
-        near = difflib.get_close_matches(flag, [f for f in known if f != flag], n=1, cutoff=NEAR)
+        known = [f for f in known if f != flag and f not in SKIPS]  # never --yes (review 1 F1)
+        # a value flag typed rightly with no value after it is no other flag (review 1 F4)
+        near = [] if flag in VALUE_FLAGS else difflib.get_close_matches(flag, known, n=1, cutoff=NEAR)
         mid = "err.flag.of" if verb else "err.flag"
         if near and flag == self.bad:
             raise Refusal("unknown_flag", mid, self.mend(self.bad_at, near[0]), flag=flag, verb=verb)

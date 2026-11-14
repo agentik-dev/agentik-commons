@@ -83,7 +83,7 @@ TABLE = [
     (("config", "paint", "width"), "paint.width cannot be read: paint ships no command",
      "agentik config paint", 2, "no_answer"),
     (("describe",), "describe prints JSON for other tools, so it needs --json",
-     "agentik describe --json", 2, "needs_json"),
+     "agentik help describe", 2, "needs_json"),  # --json is a flag not typed (review 1)
     (("setup", "Bad_Name"), "Bad_Name is not a plugin name: lowercase letters, digits and dashes",
      "agentik setup --dry-run", 2, "bad_name"),
 ]
@@ -109,9 +109,34 @@ class Sc4Home(base.Home):
             json.dump({"plugins": {"paint@agentik": [{}]}}, fh)
 
     def paste(self, command):
+        return self.pasted(command)[0]
+
+    def pasted(self, command):
         p = subprocess.run(["sh", "-c", command], cwd=self.home, env=self.env(),
                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
-        return p.returncode
+        return p.returncode, p.stdout, p.stderr
+
+    def tree(self):
+        """Every file and folder under the temp HOME, with its size and mtime."""
+        found = {}
+        for top, dirs, files in os.walk(self.home):
+            for name in dirs + files:
+                full = os.path.join(top, name)
+                st = os.lstat(full)
+                found[os.path.relpath(full, self.home)] = (st.st_size, st.st_mtime_ns)
+        return found
+
+    def assert_runs(self, command, why):
+        """A pasted `next:` is not refused: it neither exits 127 nor 2, and prints no FAIL line."""
+        code, out, err = self.pasted(command)
+        self.assertNotIn(code, (2, 127), (why, command, err))
+        self.assertFalse([l for l in err.splitlines() if l.startswith("FAIL")], (why, command, err))
+
+    def assert_writes_nothing(self, command, why):
+        before = self.tree()
+        self.pasted(command)
+        self.assertEqual(self.tree(), before, (why, command))
+        self.assertFalse(os.path.exists(self.calls), (why, command))
 
 
 class PathTest(Sc4Home):
@@ -135,7 +160,13 @@ class TableTest(Sc4Home):
             code, out, err = self.run_cli(*argv)
             want = "FAIL  %s\n" % cause + ("next: %s\n" % nxt if nxt else "")
             self.assertEqual((code, out, err), (exit_code, "", want), argv)
-            self.assertNotEqual(self.paste(nxt), 127, (argv, nxt))
+            if nxt.split()[1:2] == ["setup"] and "--dry-run" not in nxt:
+                # setup asks on a terminal; in a pipe it stops at that question and writes nothing
+                self.assert_writes_nothing(nxt, argv)
+                code, out, err = self.pasted(nxt)
+                self.assertRegex(err, r"(?m)^FAIL  .*--yes", (argv, nxt))
+            else:
+                self.assert_runs(nxt, argv)
 
     def test_l3_json_gives_the_cause_and_the_command(self):
         for argv, cause, nxt, exit_code, code_word in TABLE:
@@ -198,6 +229,67 @@ class FormTest(Sc4Home):
         self.assertEqual(code, 2, err)
         self.assertTrue(lines and lines[-1].startswith("FAIL  ") and "Run agentik setup" in lines[-1], err)
         self.assertFalse([l for l in lines if l.startswith("next:")], err)
+
+
+class Review1Test(Sc4Home):
+    """Review 1's findings. A mended line is offered only when it would run, and never when it
+    does more than the typed line asked."""
+
+    def refusal(self, argv, cause, nxt, exit_code=2, code_word=None, json_too=True):
+        code, out, err = self.run_cli(*argv)
+        self.assertEqual((code, out, err), (exit_code, "", "FAIL  %s\nnext: %s\n" % (cause, nxt)), argv)
+        if not json_too:
+            return
+        code, out, err = self.run_cli("--json", *argv)  # first: a value flag takes what follows
+        got = json.loads(out)["error"]
+        want = self.home + nxt[1:] if nxt.startswith("~/") else nxt
+        self.assertEqual((code, got["message"], got["remedy"]), (exit_code, cause, want), argv)
+        if code_word:
+            self.assertEqual(got["code"], code_word, argv)
+
+    def test_f1_a_flag_is_never_mended_into_one_that_skips_a_question(self):
+        for argv, cause, nxt in (
+                (("setup", "--test"), "--test is not a flag of setup", "agentik help setup"),
+                (("setup", "--ask"), "--ask is not a flag of setup", "agentik help setup"),
+                (("setup", "--test", "plum"), "--test is not a flag of setup", "agentik help setup"),
+                (("install-cli", "--test"), "--test is not a flag of install-cli",
+                 "agentik help install-cli"),
+                (("setup", "--yes", "--jsno"), "--jsno is not a flag of setup", "agentik help setup")):
+            self.refusal(argv, cause, nxt, code_word="unknown_flag")
+            self.assert_writes_nothing(nxt, argv)
+        self.refusal(("setup", "--dry-rn"), "--dry-rn is not a flag of setup", "agentik setup --dry-run")
+
+    def test_f2_a_word_that_is_no_verb_is_never_mended_into_a_verb_that_writes(self):
+        for word in ("uninstall", "stop", "stup"):
+            self.refusal((word,), "%s is not a verb" % word, "agentik help", code_word="unknown_verb")
+            self.assert_writes_nothing("agentik help", word)
+        self.refusal(("set", "suite.kind"), "set is not a verb", "agentik help")
+
+    def test_f3_a_mended_line_that_would_be_refused_is_the_verbs_help(self):
+        for argv, cause, nxt in (
+                (("statu",), "statu is not a verb", "agentik help status"),
+                (("start",), "start is not a verb", "agentik help status"),
+                (("state",), "state is not a verb", "agentik help status"),
+                (("describe", "x"), "describe prints JSON for other tools, so it needs --json",
+                 "agentik help describe"),
+                (("doctor", "--jsno", "x"), "--jsno is not a flag of doctor", "agentik help doctor")):
+            self.refusal(argv, cause, nxt, json_too=argv[0] != "describe")
+            self.assert_runs(nxt, argv)
+
+    def test_f3_a_mended_line_the_door_would_refuse_is_help(self):
+        # the door hands on a name first, `help` and at most one name, or `--version` alone
+        for argv, cause in ((("help", "--jsno"), "--jsno is not a flag"),
+                            (("--jsno", "config"), "--jsno is not a flag of config")):
+            nxt = "agentik help config" if "config" in argv else "agentik help"
+            self.refusal(argv, cause, nxt, code_word="unknown_flag")
+            self.assert_runs(nxt, argv)
+
+    def test_f4_a_value_flag_with_no_value_is_not_mended_into_another(self):
+        for argv, cause in ((("status", "--ps"), "--ps is not a flag of status"),
+                            (("status", "--check", "--ps"), "--ps is not a flag of status"),
+                            (("status", "--pss"), "--pss is not a flag of status")):
+            self.refusal(argv, cause, "agentik help status", code_word="unknown_flag")
+            self.assert_runs("agentik help status", argv)
 
 
 class CatalogueTest(unittest.TestCase):

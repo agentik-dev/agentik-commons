@@ -53,7 +53,8 @@ class PluginWordTest(Home):
 
     def test_f3_the_json_remedy_names_a_verb_only(self):
         # review 1 F3: `agentik-suite pear` never succeeds, so a nearest plugin's remedy is --help
-        for args, remedy in ((("paer",), CMD + " help"), (("stup",), CMD + " setup"),
+        # sc4 review 1 F2: never a verb that writes
+        for args, remedy in ((("paer",), CMD + " help"), (("stup",), CMD + " help"),
                              (("nosuch",), CMD + " help")):
             code, out, _ = self.run_cli(*args, "--json")
             self.assertEqual((code, json.loads(out)["error"]["remedy"]), (2, remedy), args)

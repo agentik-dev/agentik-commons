@@ -56,7 +56,7 @@ The repo keeps no `DECISIONS.md`; `GUIDE.md` binds. Cited: hq entry 6 (stdlib at
 | `config .width`; `config murmur.` | `a tool's name goes before the dot`; `a key goes after the dot` | `agentik config`; `agentik config murmur` |
 | a key of a tool that gave no keys | the pin's clause up to its first full stop, `settings` read as `keys` | `agentik config murmur` |
 | a file that does not parse | the fault: its path, line and reason | none |
-| `describe` | `describe prints JSON for other tools, so it needs --json` | `agentik describe --json` |
+| `describe` | `describe prints JSON for other tools, so it needs --json` | `agentik help describe` (review 1: `--json` is a flag not typed) |
 | `setup Bad_Name` | `Bad_Name is not a plugin name: lowercase letters, digits and dashes` | `agentik setup --dry-run` |
 | `version`, no manifest | `agentik has no version: <path> cannot be read` | `claude plugin install suite@agentik` |
 
@@ -90,3 +90,14 @@ Left: each hint's words as a command alone (sm2, sc5, sc6, sc8, sc10); the refus
 ## Interfaces
 
 `cli.Refusal(Usage)`: the two-line form; `Usage` itself keeps the pin's one line for apply.py, install.py and status.py (R3). `Command.mend(index, *words)`: the typed line with the word at argv's `index` replaced by `words`, through `cmd.say`. `Term.error(mid, command=None, **values)`. `config.path(nouns)`: the words joined by dots.
+
+## Review 1's ruling (the fix, one round)
+
+The rule: a mended line is offered only when it would run, and never when it does more than the typed line asked.
+
+- `Command.offer(line)` takes every mended line, the words after the suite's name, and gives the help line of its verb (`help <verb>`, else `help`) where `cli.refused(line)` is true, where the line holds `--yes` or `-y`, where it holds more flags than the person typed, or where its verb writes (`setup`, `install-cli`) and it holds no `--dry-run`. `cli.refused(line)` is the suite's own parser: `_parse`, the verb, `_dispatch`'s flags (`_flag_fault`) and each verb's refusals that read no file (`_takes`).
+- A word that is no verb is never mended into a verb that writes (`setup`, `install-cli`, `remove`): its next is `help`. A flag is never mended into `--yes` or `-y`, and a value flag with no value after it is never mended into another flag.
+- The near word is looked for among the verbs, the tools with a command and every plugin the suite knows. A plugin with no command gives `help <plugin>`. With no door that reaches the suite, a mended tool is its own file through `prog.shown`, then the words after the typed one, or `--help`.
+- `Term.hint`: a message that does not start `next:` keeps its mark on a terminal and starts `next: ` off one. `Term.error` drops U+2028, U+2029 and the direction controls from both its lines; `term.clean` is left to su2-screen.
+- No exit and no `error.code` changes.
+
