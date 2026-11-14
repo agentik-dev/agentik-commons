@@ -7,6 +7,7 @@ shows a traceback. F6, every word answers --json with one object. Phase 2, each 
 two lines, and no `next:` line files or carries --yes. Each test runs in rp6's temp HOME with its
 stub `gh`, `ps` and tool; every value here is made up.
 """
+import hashlib
 import json
 import os
 import pty
@@ -359,6 +360,60 @@ class JsonTest(FixHome):
         name = os.path.basename(self.draft_dir())
         code, out, err = self.issue("--json", "discard", "--draft", name)
         self.assertEqual(self.one(out, ("discarded",))["id"], name)
+
+
+class DryRunTest(FixHome):
+    """Review 2's R2-1: --dry-run never writes and never removes. send alone keeps it; every other
+    word that would write refuses it before anything is read, made, written or removed."""
+
+    WRITERS = ("new", "strike", "drop", "edit", "reword", "discard")
+
+    def tree(self):
+        """Every path under HOME with its mode, size and sha256, less the bytecode caches."""
+        skip = (os.path.join(self.cache, "agentik"), os.path.join(self.home, "Library", "Caches"))
+        seen = {}
+        for top, dirs, files in os.walk(self.home):
+            dirs[:] = [d for d in dirs if os.path.join(top, d) not in skip]
+            for name in dirs + files:
+                path = os.path.join(top, name)
+                st = os.lstat(path)
+                digest = None
+                if os.path.isfile(path) and not os.path.islink(path):
+                    with open(path, "rb") as fh:
+                        digest = hashlib.sha256(fh.read()).hexdigest()
+                elif os.path.islink(path):
+                    digest = os.readlink(path)
+                seen[path] = (st.st_mode, st.st_size if digest is not None else None, digest)
+        return seen
+
+    def test_r2_1_dry_run_is_sends_alone(self):
+        self.assertEqual(self.new()[0], 0)
+        draft = self.draft_dir()
+        render = self.write("render.txt", "Happened: %s, every time\nExpected: %s\n" % (FAILING, EXPECTED))
+        rest = {"new": [TOOL], "strike": ["billing-api"], "drop": ["plugins"], "edit": [],
+                "reword": [render], "discard": []}
+        self.issue("--help")  # the interpreter's own caches settle first
+        for word in self.WRITERS:
+            for args in (["--dry-run", word] + rest[word], [word] + rest[word] + ["--dry-run"]):
+                before = self.tree()
+                code, out, err = self.issue(*args)
+                self.assertEqual((code, out), (2, ""), (args, err))
+                lines = err.splitlines()
+                self.assertEqual(lines[0], "FAIL  --dry-run is send's alone: %s would write, so nothing "
+                                 "was done" % word, (args, err))
+                self.assertEqual(len(lines), 2, (args, err))
+                self.assertTrue(lines[1].startswith("next: ") and lines[1].endswith(" help issue"), err)
+                self.assertEqual(self.tree(), before, args)
+                self.assertTrue(os.path.isdir(draft), args)
+                code, out, err = self.issue("--json", *args)
+                self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "dry_run"), args)
+        for args in (["--dry-run"], ["--check", "--dry-run"], ["show", "--dry-run"]):
+            before = self.tree()
+            self.assertIn(self.issue(*args)[0], (0, 1), args)  # a read, as before
+            self.assertEqual(self.tree(), before, args)
+        code, screen, _ = self.pty_send("--dry-run")
+        self.assertEqual(code, 0, screen[-300:])
+        self.assertEqual(self.gh_calls("issue create"), [])
 
 
 class Phase2Test(FixHome):
