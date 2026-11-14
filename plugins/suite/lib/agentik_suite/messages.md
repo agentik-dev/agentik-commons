@@ -291,4 +291,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
 - `err.issue.send.flood`: More input came on the terminal right after the word, so nothing was sent. Run send again and type the word once.
 - `err.issue.send.early`: Input came on the terminal before the question could be read, so nothing was sent. Run send again and answer once the question shows.
+- `err.issue.send.small`: The terminal is too small to show a line of the issue beside its question, so nothing was sent. Make the window larger, then send again.
 - `err.issue.send.nogh`: gh could not start, so nothing was filed. Install gh, or file the issue by the browser.

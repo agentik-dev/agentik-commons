@@ -636,6 +636,40 @@ class QuietTest(Base):
         self.assertEqual(self.calls("issue create"), [])
 
 
+class SizeTest(Base):
+    """R2-F2: a page counts its question's own rows and the cursor's against the screen, the
+    size is read again at each page, and a terminal with no room for one row of the draft beside
+    the question is refused, exit 2, before anything of the draft is drawn."""
+    TALL = " ".join("w%03d" % n for n in range(100))
+
+    def test_r2_f2_no_page_is_taller_than_a_narrow_screen(self):
+        for name, data in (("tall", draft(happened=self.TALL)), ("short", draft())):
+            with self.subTest(draft=name):
+                screen, result = self.drive(data, b"no\n", rows=10, cols=20)
+                self.assertEqual(result, {"approved": False}, screen[-300:])
+                tops = self.tops(screen, 20)
+                self.assertTrue(tops and max(tops) <= 10, tops)
+                self.assertEqual(self.shown(screen).encode("utf-8"), data)
+
+    def test_r2_f2_no_room_for_a_row_is_refused_before_it_draws(self):
+        for rows, cols in ((1, 80), (2, 80), (12, 1), (12, 2)):
+            with self.subTest(rows=rows, cols=cols):
+                screen, result = self.drive(draft(), b"send\n", rows=rows, cols=cols)
+                self.assertEqual(result, {"refusal": SMALL}, screen[-300:])
+                self.assertNotIn(HEAD, screen)
+        self.assertEqual(self.calls("issue create"), [])
+        self.assertEqual(len(MESSAGES.get("err.issue.send.small", "").splitlines()), 1)
+
+    def test_r2_f2_the_size_is_read_again_at_each_page(self):
+        data = draft(happened=" ".join("w%03d" % n for n in range(300)))
+        screen, result = self.drive(data, b"no\n", rows=24, cols=80, resize=(10, 80))
+        self.assertEqual(result, {"approved": False}, screen[-300:])
+        tops = self.tops(screen, 80)
+        self.assertLessEqual(tops[0], 24)
+        self.assertTrue(len(tops) > 2 and max(tops[1:]) <= 10, tops)
+        self.assertEqual(self.shown(screen).encode("utf-8"), data)
+
+
 class ApprovalTest(Base):
     """R1-F4: an approval is made by `approve` alone and is good once."""
 

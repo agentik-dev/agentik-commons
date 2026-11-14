@@ -335,54 +335,80 @@ def _ask(fd, dev, mid, word=False):
     return answer or None
 
 
+QUESTIONS = ("issue.screen.more", "issue.screen.within", "issue.send.ask")
+
+
+def _room(fd, dev, items):
+    """(cols, rows, room) of the terminal as it is now. A page holds `room` rows beside its
+    question, which takes its own rows at this width (the tallest of the three is counted), and
+    the cursor's row under it. A Refusal, exit 2, when not one row of the draft fits beside the
+    question, or a fixed line of the screen (`items` that are not the draft's) does not fit."""
+    try:
+        cols, rows = os.get_terminal_size(fd)
+    except OSError:
+        cols, rows = FALLBACK
+    cols, rows = cols or FALLBACK[0], rows or FALLBACK[1]
+    room = rows - 1 - max(len(_rows(dev.text(mid), cols)) for mid in QUESTIONS)
+    fixed = [len(_rows(dev.text(mid, **values), cols)) for mid, values in items
+             if mid != "issue.screen.text" and mid not in QUESTIONS]
+    if room < max([1] + fixed):
+        raise Refusal(2, "err.issue.send.small")
+    return cols, rows, room
+
+
 def _screen(fd, data, lines, repo, login, notes_, env, t):
     out = open(fd, "w", encoding="utf-8", errors="strict", closefd=False)
     dev = term.Term(env=env, out=out, err=out, messages=t.messages)
     items = ([("issue.screen.head", {})] + [("issue.screen.text", {"text": line}) for line in lines]
              + [("issue.screen.end", {}), ("issue.screen.repo", {"repo": repo}),
                 ("issue.screen.login", {"login": login})] + list(notes_) + [("issue.send.ask", {})])
-    try:
-        cols, rows = os.get_terminal_size(fd)
-    except OSError:
-        cols, rows = FALLBACK
-    cols, rows = cols or FALLBACK[0], rows or FALLBACK[1]
-    heights = [len(_rows(dev.text(mid, **values), cols)) for mid, values in items]
-    room = max(rows - 2, 1)  # a page leaves a row for its question and one for the cursor
-    paged = sum(heights) + 1 > rows
-    state = {"used": 0}
+    state = dict(zip(("cols", "rows", "room"), _room(fd, dev, items)), used=0)  # before a line
 
-    def page(mid):
-        """At a page's end, the question for the next; False when it gets no answer."""
+    def height(mid, values):
+        return len(_rows(dev.text(mid, **values), state["cols"]))
+
+    paged = sum(height(mid, values) for mid, values in items) + 1 > state["rows"]
+
+    def page(mid, rest):
+        """At a page's end, the question for the next; False when it gets no answer. The size is
+        read again for the next page."""
         if _ask(fd, dev, mid) is None:
             return False
-        state["used"] = 0
+        state.update(zip(("cols", "rows", "room"), _room(fd, dev, rest)), used=0)
         return True
 
     answer = None
     try:
-        for (mid, values), height in zip(items, heights):
-            if paged and mid == "issue.screen.text" and height > room:
+        n = 0
+        while n < len(items):
+            mid, values = items[n]
+            if paged and mid == "issue.screen.text" and height(mid, values) > state["room"]:
                 # a line taller than a page is paged inside itself, by its screen rows
-                parts, within = _rows(dev.text(mid, **values), cols), False
+                parts, within = _rows(dev.text(mid, **values), state["cols"]), False
                 while parts:
-                    if state["used"] >= room and not page(
-                            "issue.screen.within" if within else "issue.screen.more"):
-                        break
-                    take = room - state["used"]
+                    if state["used"] >= state["room"]:
+                        if not page("issue.screen.within" if within else "issue.screen.more",
+                                    items[n:]):
+                            break
+                        parts = _rows("".join(parts), state["cols"])  # at the width it has now
+                    take = state["room"] - state["used"]
                     dev.line(mid, text="".join(parts[:take]))
                     state["used"] += len(parts[:take])
                     parts, within = parts[take:], True
                 if parts:
                     break
+                n += 1
                 continue
-            if paged and state["used"] and state["used"] + height > room:
-                if not page("issue.screen.more"):
+            if paged and state["used"] and state["used"] + height(mid, values) > state["room"]:
+                if not page("issue.screen.more", items[n:]):
                     break
+                continue  # the size may have changed: this line is weighed again on the new page
             if mid == "issue.send.ask":
                 answer = _ask(fd, dev, mid, word=True)
                 break
             dev.line(mid, **values)
-            state["used"] += height
+            state["used"] += height(mid, values)
+            n += 1
     except KeyboardInterrupt:
         answer = None
     if answer == WORD:
