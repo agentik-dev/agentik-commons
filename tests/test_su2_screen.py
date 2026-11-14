@@ -465,5 +465,39 @@ class GuardTest(unittest.TestCase):
             self.assertIn("runs", out)
 
 
+class NeverCutTest(unittest.TestCase):
+    """Line 4: a command's row and a hand's row are never cut on a terminal."""
+
+    def test_line4_command_rows_whole(self):
+        long = " --and-a-flag-long-enough-to-pass-any-width-this-test-draws"
+        obj = load("broken")
+        obj["watchers"][0]["start"] += long
+        obj["watchers"].append({"name": "drum" + long, "state": "unknown", "beat_line": None})
+        obj["hand"].append({"part": "watchers", "kind": "watcher_unknown", "name": "drum", "remedy": None})
+        obj["hand"][2]["remedy"] += long
+        obj["hand"][3]["remedy"] += long
+        one = obj["gate"]["queued"][0]
+        obj["gate"]["queued"] = [dict(one, name="q%d" % i, label="") for i in range(9)]
+        obj["sources"][1]["argv"] = ["gate", "status" + long, "--json"]
+        for width in (40, 60, 80):
+            got = [r[13:] for r in tty(obj, width)]
+            for whole in ("start it: lampd watch --every 60" + long,
+                          "drum%s: not checked: ps gave no listing" % long,
+                          "see: agentik bench gate status" + long,
+                          "and 6 more: agentik bench gate status" + long,
+                          "see: agentik baton status" + long):
+                self.assertIn(whole, got, (width, got))
+
+
+class DoctorHintTest(unittest.TestCase):
+    """Line 9: each state that gave nothing points at doctor."""
+
+    def test_line9_unreadable_and_changed(self):
+        for state in ("timed out", "unreadable", "changed"):
+            obj = load("quiet")
+            obj["sources"][2]["state"] = state
+            self.assertEqual(piped(obj)[1], "note  next: agentik doctor\n", state)
+
+
 if __name__ == "__main__":
     unittest.main()
