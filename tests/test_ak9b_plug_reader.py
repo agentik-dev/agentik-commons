@@ -31,7 +31,7 @@ PAGE = "https://example.com/murmur#install"
 LOG = 'echo "$*" >> "$HOME/ran.log"\n'
 MESSAGE = "line 3 of /opt/acme/murmur.yaml does not parse"
 REMEDY = "murmur-mend /opt/acme/murmur.yaml"
-PLAIN = "next: the FAIL rows above say what failed; mend each, then "
+PLAIN = "next: the FAIL rows above say what failed: mend each, then "
 
 
 def described(tool=T, reads=("config", "doctor")):
@@ -182,8 +182,8 @@ class NameTest(Copy):
         self.assertEqual((out + err).splitlines()[-1], "next: " + REMEDY)
         code, out, err = self.cli(h, "config", T + ".key")
         self.assertNotEqual(code, 0)
-        self.assertRegex(err, re.escape("murmur.key cannot be read: " + MESSAGE + " Run ")
-                         + r".* config murmur for what it gives\.")
+        self.assertIn("murmur.key cannot be read: " + MESSAGE + "\n", err)  # sc4: the command is next's
+        self.assertRegex(err.splitlines()[-1], r"^next: .*config murmur$")
         code, out, err = self.cli(h, "config", "--json")
         row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
         self.assertEqual(row["read"], "error")

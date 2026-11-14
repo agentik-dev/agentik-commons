@@ -504,7 +504,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
         elif key[0] == "describe":
             entry = next(e for e in asked if e["name"] == key[1])
             code, out, state = result
-            answer = tools.counted_describe(code, out) if state == "ran" else None
+            answer = tools.counted_describe(code, out, key[1]) if state == "ran" else None
             if answer is not None:
                 tools._keep(folder, key[1], stamps[key[1]], answer)
             entry["answer"], entry["settled"] = answer, True
