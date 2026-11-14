@@ -23,6 +23,9 @@ plugins/suite/lib/fallback.json: sibling
 scripts/voice: sibling
 tests/test_voice.py: sibling
 
+# the launcher step test's first commit named a sibling tool; the file now uses a made-up one
+tests/test_sp1_launcher_step.py: sibling
+
 # a packet names its read-only sources by path
 design/packets/*.md: sibling,home
 
