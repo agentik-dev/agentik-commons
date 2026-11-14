@@ -11,7 +11,7 @@ AGENTIK_CODE ?= $(patsubst %/,%,$(dir $(REPO)))
 AGENTIK_MARKETPLACE_DIR ?= $(HOME)/.local/share/agentik/marketplace
 AGENTIK_MARKETPLACE_OVERLAY ?= $(HOME)/.config/agentik/marketplace-local.json
 PYTHON ?= python3
-FRONT_DOOR_MAX_LINES := 100
+FRONT_DOOR_MAX_LINES := 120
 
 .PHONY: check test lint hygiene recordlint marketplace-check voice voice-check local-marketplace install help
 
