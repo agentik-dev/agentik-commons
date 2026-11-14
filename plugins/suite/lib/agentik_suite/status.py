@@ -241,9 +241,11 @@ def _signalled(signum, frame):
 
 
 def do_status(cmd, nouns):
-    """`--check` (su1), or the full read, `status [<path>...] --json` (packet su2-read R2). For
-    the life of the reads SIGTERM and SIGHUP end every read and exit 128 plus the signal's
-    number; an interrupt ends them and exits 130, with no traceback (su2-read, review 1)."""
+    """`--check` (su1), or the full read, `status [<path>...]`: the screen, each part drawn as
+    soon as it and every part above it is read, or with `--json` the object (packet su2-read R2,
+    J2). For the life of the reads SIGTERM and SIGHUP end every read and exit 128 plus the
+    signal's number; an interrupt ends them and exits 130, a closed stdout 141 (128 plus SIGPIPE),
+    each with no traceback (su2-read, review 1 and the join)."""
     saved = {}
     try:
         for sig in (signal.SIGTERM, signal.SIGHUP):
@@ -254,6 +256,8 @@ def do_status(cmd, nouns):
         return _status(cmd, nouns)
     except KeyboardInterrupt:
         return 130
+    except BrokenPipeError:  # stdout was closed while the screen drew: every read is ended
+        return 128 + signal.SIGPIPE
     except Signalled as s:
         return 128 + s.signum
     finally:
@@ -261,13 +265,31 @@ def do_status(cmd, nouns):
             signal.signal(sig, handler)
 
 
+def _full(cmd, nouns, now, text):
+    """The full read: the object on `--json`, else the screen, a part at a time (J2)."""
+    from . import status_read
+    t = cmd.t
+    if cmd.opts["json"]:
+        t.json(status_read.compose(cmd, nouns, now, text))
+        return 0
+    from . import status_screen
+
+    def on_part(name, obj):
+        status_screen.part(t, obj, name, cmd.tool)
+        t.flush()
+        if t.out.gone:  # the reader closed the pipe: raised here, run_all ends every read
+            raise BrokenPipeError("stdout closed")
+
+    obj = status_read.compose(cmd, nouns, now, text, on_part)
+    status_screen.foot(t, obj, cmd.tool)
+    return 0
+
+
 def _status(cmd, nouns):
     o, t, Usage = cmd.opts, cmd.t, cmd.Usage
     again = "%s status --check" % cmd.tool
     if o["check"]:
         cmd._no_nouns(nouns)
-    elif not o["json"]:
-        raise Usage("check_only", "err.status.check", again, tool=cmd.tool)
     else:
         for path in nouns:
             if not os.path.isdir(path):
@@ -285,9 +307,7 @@ def _status(cmd, nouns):
             raise Usage("bad_listing", "err.status.ps", again, path=o["ps"])
     try:
         if not o["check"]:
-            from . import status_read
-            t.json(status_read.compose(cmd, nouns, now, text))
-            return 0
+            return _full(cmd, nouns, now, text)
         path, watchers, unchecked = declared(cmd.env)
     except settings.Fault as f:
         home = cmd.env.get("HOME")

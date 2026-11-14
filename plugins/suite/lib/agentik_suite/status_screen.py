@@ -2,8 +2,8 @@
 
 Five parts in a fixed order, always all five, then the sources and what was not read, then one
 hint on stderr where a hand is needed or a source gave no answer. A part reads its own part of
-the object, `at`, `covers`, `hand` and its own sources only, so it may be drawn while the later
-parts are still absent. Nothing here runs a tool, reads a file or reads the clock: a time is the
+the object, `at`, `covers`, `hand`, `fault` and its own sources only, so it may be drawn while
+the later parts are still absent. Nothing here runs a tool, reads a file or reads the clock: a time is the
 object's `at` less a value of it. A value the object does not give is drawn `?`.
 """
 import os
@@ -120,14 +120,27 @@ def capped(t, rows, source):
 
 # ---- the parts
 
+def _fault(t, obj):
+    """The read's own fault, said once, in the first part: rows never cut, and a warn mark."""
+    fault = obj.get("fault")
+    if fault is None:
+        return []
+    if fault == "bad_listing":
+        return [row(t.text("status.fault.listing"), whole=True),
+                row(t.text("status.fault.listing.parts"), whole=True)]
+    return [row(t.text("status.fault.unknown", fault=shown(fault)), whole=True)]
+
+
 def _watchers(t, obj, hand, tool):
-    """The rows and the mark: `warn` for a hand, or for a watcher the object does not say runs."""
+    """The rows and the mark: `warn` for a hand, for the read's fault, or for a watcher the
+    object does not say runs."""
+    fault = _fault(t, obj)
     if "watchers" not in obj:
-        return [row(t.text("status.part.absent", part=t.text("status.label.watchers")))], "warn"
+        return fault + [row(t.text("status.part.absent", part=t.text("status.label.watchers")))], "warn"
     watchers = seq(obj.get("watchers"))
     if not watchers:
-        return [row(t.text("status.watcher.none"))], "warn" if hand else "note"
-    rows = []
+        return fault + [row(t.text("status.watcher.none"))], "warn" if hand or fault else "note"
+    rows = list(fault)
     for w in watchers:
         name, state = shown(w.get("name")), w.get("state")
         if state in ("missing", "hung"):
@@ -147,13 +160,14 @@ def _watchers(t, obj, hand, tool):
             else:
                 rows.append(row(t.text("status.watcher.running", name=name)))
         elif state == "unknown":
-            rows.append(row(t.text("status.watcher.unknown", name=name), whole=True))
+            mid = "status.watcher.unchecked" if fault else "status.watcher.unknown"
+            rows.append(row(t.text(mid, name=name), whole=True))
         else:
             rows.append(row(t.text("status.watcher.state", name=name, state=shown(state)), whole=True))
         if w.get("beat_writer") and w.get("writer") and w["beat_writer"] != w["writer"]:
             rows.append(row(t.text("status.watcher.writer", by=w["beat_writer"], writer=w["writer"])))
     running = all(w.get("state") == "running" for w in watchers)
-    return rows, "warn" if hand or not running else "ok"
+    return rows, "warn" if hand or fault or not running else "ok"
 
 
 def _helpers(t, helpers, skip_busy):
@@ -202,7 +216,7 @@ def _sessions(t, obj, part, hand, sources, tool):
     for p in past:
         rows.append(row([shown(p.get("id"))[:8], "", "", t.text("status.past", window=window)]))
     rows = [row(first)] + capped(t, rows, _source(sources, "sessions"))
-    if part.get("checked") is False:
+    if part.get("checked") is False and obj.get("fault") is None:  # a fault is said once, above
         rows.append(row(t.text("status.unchecked")))
     return rows
 

@@ -2,6 +2,7 @@
  "schema": "agentik.status/1",
  "ok": true,
  "check": false,
+ "fault": null,
  "at": 1794571200,
  "covers": {
   "rule": "hq",
@@ -160,7 +161,8 @@
    "ms": 81,
    "exit": 1,
    "stderr": "crew: cannot read the sittings dir /var/lib/crew/sittings: No such file or directory",
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "gate",
@@ -174,7 +176,8 @@
    "ms": 96,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "backlog",
@@ -187,7 +190,8 @@
    "ms": 71,
    "exit": 0,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "unattended",
@@ -201,7 +205,8 @@
    "ms": 1000,
    "exit": null,
    "stderr": null,
-   "wall_s": 1.0
+   "wall_s": 1.0,
+   "fields": null
   },
   {
    "name": "run",
@@ -214,7 +219,8 @@
    "ms": 1702,
    "exit": 0,
    "stderr": null,
-   "wall_s": 2.5
+   "wall_s": 2.5,
+   "fields": null
   }
  ],
  "not_read": [

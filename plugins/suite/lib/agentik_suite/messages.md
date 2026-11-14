@@ -17,7 +17,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
-- `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
+- `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
 - `usage.help`: usage: `{tool}` help [<verb>] [flags]
@@ -25,7 +25,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.setup`: usage: `{tool}` setup [<plugin>...] [flags]
 - `usage.config`: usage: `{tool}` config [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{tool}` describe [config [<key>]] --json
-- `usage.status`: usage: `{tool}` status --check [flags]
+- `usage.status`: usage: `{tool}` status [<path>...] [--check] [flags]
 - `usage.install_cli`: usage: `{tool}` install-cli [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{tool}` doctor [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
@@ -78,7 +78,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{tool}` config `{name}` for what it gives.
 - `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{tool}` config `{name}` for what it gives.
 - `err.config.file`: `{fault}`. Mend the file by hand, then run `{tool}` config `{name}` again.
-- `err.status.check`: `{tool}` status only checks in this version. Run `{tool}` status --check.
 - `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
 - `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
 - `err.status.file`: `{fault}`. Mend the file by hand, then run `{tool}` status --check again.
@@ -257,6 +256,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.watcher.hung`: `{name}`: running but silent
 - `status.watcher.hung.since`: `{name}`: running but silent since `{when}` (`{age}`)
 - `status.watcher.unknown`: `{name}`: not checked: ps gave no listing
+- `status.watcher.unchecked`: `{name}`: not checked
 - `status.watcher.state`: `{name}`: unknown: its state reads `{state}`
 - `status.watcher.start`: start it: `{start}`
 - `status.watcher.writer`: its beat file was last written by `{by}`, not `{writer}`
@@ -330,6 +330,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.status.hand.one.bare`: 1 needs a hand.
 - `hint.status.hand.bare`: `{n}` need a hand; the first is above.
 - `hint.status.doctor`: next: `{tool}` doctor
+- `status.fault.listing`: the process listing could not be trusted, so no watcher is checked
+- `status.fault.listing.parts`: sessions, gate and runs are read in part
+- `status.fault.unknown`: the read gave a fault not known here, `{fault}`
 
 ## Doctor
 

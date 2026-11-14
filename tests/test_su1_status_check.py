@@ -147,9 +147,6 @@ class MatchAndDeclarationTest(StatusHome):
         self.assertEqual(self.check("-q"), (0, "", ""))
 
     def test_a9_usage(self):
-        code, out, err = self.cfg("status")
-        self.assertEqual((code, out), (2, ""))
-        self.assertIn("--check", err)
         self.assertEqual(self.cfg("status", "--check", "--now", "soon")[:2], (2, ""))
         self.assertEqual(self.cfg("status", "--check", "--ps", self.ps + ".none")[:2], (2, ""))
         self.assertEqual(self.cfg("status", "--check", "--ps")[:2], (2, ""))
