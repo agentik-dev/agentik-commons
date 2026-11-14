@@ -561,4 +561,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.render.nofile`: The narrator's script wrote no answer, so the template stands with the words as typed.
 - `issue.render.shape`: The narrator's answer is not two lines, Happened and Expected, so the template stands with the words as typed.
 - `issue.render.stopped`: The render was stopped, so the template stands with the words as typed in draft `{id}`.
+- `issue.render.left`: The render's temporary folder `{path}` could not be removed, so remove it by hand.
 - `issue.render.contract`: Technical. Render only the Happened and Expected lines of this issue, two sentences a line at most. Keep each error text verbatim. Add nothing the issue does not say: no name, path, version or word of your own context. Answer with two lines and nothing else: `Happened: ...` and `Expected: ...`.

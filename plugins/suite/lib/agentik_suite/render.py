@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import signal
+import stat
 import subprocess
 import tempfile
 import time
@@ -71,7 +72,8 @@ def run(script, data, env, wall=WALL, mode=None, why=None):
     None for an exit that is not 0, no output file, a file that is not the two lines, or the
     wall passed; `why`, a dict when given, is filled with the reason's `code` (`start`, `exit`,
     `wall`, `nofile`, `shape`) and, for `exit`, the exit. The child's group is ended and the
-    folder removed on every way out. `mode` defaults to render.json's beside the package."""
+    folder removed on every way out; a folder that stays is `why`'s `left`. SIGINT, SIGTERM and
+    SIGHUP raise Stopped once both are done. `mode` defaults to render.json's beside the package."""
     why = {} if why is None else why
     mode = load(LIB)["mode"] if mode is None else mode
     state = {"armed": True, "got": None}
@@ -134,7 +136,8 @@ def _run(script, data, env, wall, mode, why, state):
         return got
     finally:
         state["armed"] = False
-        _remove(folder)
+        if not _remove(folder):
+            why["left"] = folder
         if state["got"] is not None:
             raise Stopped(state["got"])
 
@@ -235,5 +238,25 @@ def _answer(data):
 
 
 def _remove(folder):
-    """The folder and whatever the script left in it, never through a link."""
+    """The folder and whatever the script left in it, never through a link, whatever modes the
+    script left (review 1 F3): a removal that leaves it makes each folder in it 0700 and tries
+    again. True when it is gone."""
     shutil.rmtree(folder, ignore_errors=True)
+    if not os.path.lexists(folder):
+        return True
+    _open(folder)
+    for top, dirs, _files in os.walk(folder):  # walk follows no link
+        for name in dirs:
+            _open(os.path.join(top, name))
+    shutil.rmtree(folder, ignore_errors=True)
+    return not os.path.lexists(folder)
+
+
+def _open(path):
+    """The folder at `path` made 0700, never a link or what it points at."""
+    nofollow = {"follow_symlinks": False} if os.chmod in os.supports_follow_symlinks else {}
+    try:
+        if stat.S_ISDIR(os.lstat(path).st_mode):
+            os.chmod(path, 0o700, **nofollow)
+    except (OSError, NotImplementedError):
+        pass

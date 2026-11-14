@@ -459,9 +459,11 @@ def _render(cmd, d, fields, public, data):
             return {"rendered": False, "why": "none", "data": data}
         got = render.run(script, data, cmd.env, mode=mode, why=why)
     except render.Stopped as s:  # the script's group is ended and its folder gone by now
+        _left(cmd, why)
         return {"rendered": False, "stopped": s.signum, "data": data}
     except KeyboardInterrupt:  # before the script started: nothing of it to end (review 1 F5)
         return {"rendered": False, "stopped": signal.SIGINT, "data": data}
+    _left(cmd, why)
     if got is None:
         return dict({"rendered": False, "data": data}, why=why.get("code", "shape"),
                     **({"exit": why["exit"]} if "exit" in why else {}))
@@ -469,6 +471,15 @@ def _render(cmd, d, fields, public, data):
     if kinds:
         return {"rendered": False, "why": "kept", "kept": kinds, "data": data}
     return {"rendered": True, "added": added, "data": saved}
+
+
+def _left(cmd, why):
+    """One line on stderr naming the render's folder when it could not be removed (review 1 F3)."""
+    if "left" in why:
+        try:
+            cmd.t.line("issue.render.left", err=True, path=why["left"])
+        except OSError:  # a closed terminal
+            pass
 
 
 def _said(cmd, said):
