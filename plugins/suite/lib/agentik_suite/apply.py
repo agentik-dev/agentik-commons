@@ -223,15 +223,15 @@ def run(cmd, names):
 
 def _before(cmd, names, build, the_plan, home, config):
     """The reads and the asking before the first command: the steps, or the run's exit."""
-    t, o, tool = cmd.t, cmd.opts, cmd.tool
+    t, o = cmd.t, cmd.opts
     steps = build()
     blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
     if blocked:
         if o["json"]:
-            raise cmd.Usage("blocked", "err.setup.blocked", "%s setup --dry-run" % tool,
-                            missing=", ".join(blocked), tool=tool)
+            raise cmd.Usage("blocked", "err.setup.blocked", cmd.say("setup", "--dry-run"),
+                            missing=", ".join(blocked), **cmd.slots())
         the_plan(steps)
-        t.hint("hint.setup.blocked", missing=", ".join(blocked), tool=tool)
+        t.hint("hint.setup.blocked", missing=", ".join(blocked), **cmd.slots())
         return 2
     if not runnable(steps):
         return report(cmd, names, steps, [], [], None, None, home)
@@ -239,15 +239,15 @@ def _before(cmd, names, build, the_plan, home, config):
     if not terminal and any(s["n"] in (2, 3) and s["state"] == "todo" for s in steps):
         gate, why = gated(config, home, t)
         if why:
-            raise cmd.Usage("gate_unread", "err.setup.gate_unread", "%s setup" % tool,
-                            path=plan.shown(gate, home), why=why, tool=tool)
+            raise cmd.Usage("gate_unread", "err.setup.gate_unread", cmd.say("setup"),
+                            path=plan.shown(gate, home), why=why, **cmd.slots())
         if gate:
-            raise cmd.Usage("gated", "err.setup.gated", "%s setup" % tool,
-                            path=plan.shown(gate, home), tool=tool)
+            raise cmd.Usage("gated", "err.setup.gated", cmd.say("setup"),
+                            path=plan.shown(gate, home), **cmd.slots())
     if not o["yes"]:
         the_plan(steps)
         if not (terminal and not o["json"]):
-            raise cmd.Usage("needs_yes", "err.setup.yes", "%s setup --yes" % tool, tool=tool)
+            raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
         count = planned(steps)
         t.line("setup.ask.one" if count == 1 else "setup.ask", err=True, count=count)
         t.flush()
@@ -259,7 +259,7 @@ def _before(cmd, names, build, the_plan, home, config):
             answer = None
             t.blank(err=True)
         if (answer or "").strip().lower() not in ("y", "yes"):
-            raise cmd.Usage("declined", "err.setup.declined", "%s setup" % tool, tool=tool)
+            raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
     return steps
 
 
@@ -284,7 +284,7 @@ def _run(cmd, names):
     except KeyboardInterrupt:  # an interrupt before the first command declines, as at the question
         _ignore()
         t.blank(err=True)
-        raise cmd.Usage("declined", "err.setup.declined", "%s setup" % tool, tool=tool)
+        raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
     if isinstance(steps, int):
         return steps
     ran, wrote, done, failure, current = [], [], set(), None, None
@@ -347,7 +347,7 @@ def _failure(command, result):
 
 
 def report(cmd, names, steps, ran, wrote, failure, journal, home):
-    t, tool = cmd.t, cmd.tool
+    t = cmd.t
     failure = failure and (tuple(failure) + (1, "step_failed"))[:4]  # (id, values, exit, JSON code)
     code = failure[2] if failure else 0
     journal_error = None
@@ -373,8 +373,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
-            obj["error"] = {"code": failure[3], "message": t.text(failure[0], tool=tool, **failure[1]),
-                            "remedy": "%s setup" % tool}
+            obj["error"] = {"code": failure[3], "message": t.text(failure[0], **cmd.slots(), **failure[1]),
+                            "remedy": cmd.say("setup")}
         t.json(obj)
         return code
     if not ran:
@@ -400,15 +400,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
         t.error("err.setup.journal", path=plan.shown(journal_path(cmd.env, home), home), why=journal_error)
     if failure:
         t.flush()
-        t.error(failure[0], tool=tool, **failure[1])
+        t.error(failure[0], **cmd.slots(), **failure[1])
     else:
-        t.hint("hint.setup.doctor", tool=_doctor_door(steps, tool))
+        t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
     return code
 
-
-def _doctor_door(steps, tool):
-    """The name the closing hint gives doctor: the door's, `agentik`, where the door's row reads in
-    place, since it hands a word it has no tool for to the suite; else this command's own, since a
-    link or a door with no version may be no door of ours (row sm1-setup-ask R5)."""
-    ours = any(s["id"] == "door" and s["mid"] == "setup.door.ok" for s in steps)
-    return plan.DOOR if ours and tool == plan.SUITE else tool
