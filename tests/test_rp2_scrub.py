@@ -655,5 +655,29 @@ class AuthorizationTest(Review1Case):
         self.assertEqual(scrub.scrub("missing Authorization header", m)[0], "missing Authorization header")
 
 
+# Review 2's findings (R2-F1 to R2-F4), the close round; the cases are its probes.
+class R2F1Test(Review1Case):
+    """R2-F1: after an `Authorization:` name the whole rest of the value is replaced, the scheme
+    word kept only when it is `Basic`, `Bearer`, `Digest` or `token` and something follows it."""
+
+    def test_r2f1_scheme_from_a_closed_list(self):
+        m = machine()
+        letters = rand(20, string.ascii_letters)
+        dashed = rand(8, string.ascii_letters) + "-" + rand(6) + "-" + rand(6)
+        cases = [
+            ("Authorization: %s sent ok" % letters, "Authorization: <secret>"),
+            ("header Authorization: %s (retry 2)" % dashed, "header Authorization: <secret>"),
+            ('-H "Authorization: %s "' % letters, '-H "Authorization: <secret> "'),
+            ("Authorization: Negotiate %s" % letters, "Authorization: <secret>"),
+            ("Authorization: Bearer %s" % letters, "Authorization: Bearer <secret>"),
+            ("Authorization: token %s and more" % letters, "Authorization: token <secret>"),
+            ("Authorization: digest %s" % letters, "Authorization: digest <secret>"),
+        ]
+        for raw, want in cases:
+            with self.subTest(raw=raw[:24]):
+                self.assertEqual(self.closes(m, raw, [letters, dashed]), want)
+        self.assertEqual(self.closes(m, "Authorization: Basic"), "Authorization: <secret>")
+
+
 if __name__ == "__main__":
     unittest.main()

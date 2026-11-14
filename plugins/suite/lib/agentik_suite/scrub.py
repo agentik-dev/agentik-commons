@@ -111,7 +111,7 @@ ASSIGN = re.compile(r"(?<![A-Za-z0-9_.-])%s[\"']?[ \t]*[:=][ \t]*%s" % (SECRET_N
 FLAG = re.compile(r"(?<!\S)--?%s[ \t]+%s" % (SECRET_NAME, VALUE), re.I)
 NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?\Z")
 AUTH = re.compile(r"(?<![\w-])(?:proxy-)?authorization[\"']?[ \t]*[:=][ \t]*([\"'`]?)", re.I)
-SCHEME = re.compile(r"[A-Za-z]+(?:[0-9]?-[A-Za-z0-9]+)*[ \t]+")
+SCHEME = re.compile(r"(?:Basic|Bearer|Digest|token)[ \t]+(?=\S)", re.I)
 BEARER = re.compile(r"\b(?:Bearer|Basic)[ \t]+([^\s\"',;%s]{8,})" % STOP)
 
 V6 = re.compile(r"(?<![\w:.])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
@@ -616,8 +616,9 @@ class _Pass:
         return words[k - 1].end() if k else end
 
     def _auth(self, s):
-        """An `Authorization:` header's value, whatever its scheme: its scheme word stays, the
-        rest of its line, or of its quoted string, is the secret."""
+        """An `Authorization:` header's value, whatever its scheme: the rest of its line, or of
+        its quoted string, is the secret; a scheme word of `Basic`, `Bearer`, `Digest` or `token`
+        stays when something follows it."""
         out, pos = [], 0
         for mt in AUTH.finditer(s):
             if mt.start() < pos:
