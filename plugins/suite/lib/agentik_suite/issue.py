@@ -17,7 +17,6 @@ import os
 import re
 import shlex
 import shutil
-import stat
 import subprocess
 import sys
 import tempfile
@@ -345,7 +344,7 @@ def _new(cmd, nouns):
                 "counts": {k: v["n"] for k, v in counts.items()}, "unsure": len(layer.unsure),
                 "went": [list(w) for w in went]})
         return 0
-    t.line("issue.new.done", tool=tool)
+    t.line("issue.new.done", tool=meta["tool"])
     _print_draft(cmd, data, layer.unsure)
     _report(cmd, data, counts, layer.unsure, m, went, meta["repo"])
     t.hint("hint.issue.new", _slots(cmd))
@@ -428,7 +427,7 @@ def _read_file(cmd, path):
     except OSError:
         raise _usage(cmd, "unreadable", "err.issue.unreadable", path=plan.shown(path, cmd.env.get("HOME")))
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode):
+        if _kind(os.fstat(fd).st_mode) != _FILE:
             raise _usage(cmd, "unreadable", "err.issue.unreadable",
                          path=plan.shown(path, cmd.env.get("HOME")))
         chunks, size = [], 0
@@ -570,14 +569,22 @@ def _reword(cmd, nouns):
 
 # ---- send, show, discard (R6, R7) ----------------------------------------------------------
 
+# The file-type bits of a mode (the stat module's S_IFMT, S_IFREG, S_IFDIR), so the package keeps
+# to the modules its layout test allows; a link is neither kind and is refused as one.
+_KIND, _FILE, _FOLDER = 0o170000, 0o100000, 0o040000
+
+
+def _kind(mode):
+    return mode & _KIND
+
+
 def _private_path(cmd, path, folder):
     """A link, the wrong kind, or one open to others: exit 2."""
     try:
         st = os.lstat(path)
     except OSError:
         raise _usage(cmd, "unsafe", "err.issue.unsafe", path=plan.shown(path, cmd.env.get("HOME")))
-    kind = stat.S_ISDIR(st.st_mode) if folder else stat.S_ISREG(st.st_mode)
-    if stat.S_ISLNK(st.st_mode) or not kind or st.st_mode & (0o077 if folder else 0o022) \
+    if _kind(st.st_mode) != (_FOLDER if folder else _FILE) or st.st_mode & (0o077 if folder else 0o022) \
             or st.st_uid != os.getuid():
         raise _usage(cmd, "unsafe", "err.issue.unsafe", path=plan.shown(path, cmd.env.get("HOME")))
 
