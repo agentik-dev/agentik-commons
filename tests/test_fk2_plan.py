@@ -38,8 +38,8 @@ class Base(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.tmp = os.path.realpath(tmp.name)
 
-    def home(self, name, *listed):
-        path = os.path.join(self.tmp, name)
+    def home(self, name, *listed, folder=None):
+        path = os.path.join(self.tmp, folder or name)
         os.mkdir(path)
         return build(name, path).ready(*listed)
 
@@ -284,6 +284,111 @@ class OwnBytesTest(Base):
             self.assertEqual(code, 0, err)
         self.assertEqual(h.ran(), [w + " describe --json", w + " doctor --json", w + " doctor",
                                    w + " describe --json"])
+
+
+def relink(path, target):
+    os.remove(path)
+    os.symlink(target, path)
+
+
+class ReviewOneTest(Base):
+    """Review 1's four findings, each red at 295b86f."""
+
+    def setup_ran(self, h, cwd=None):
+        """`ran.log` after `setup --dry-run`, then after `setup --yes`, in the temp HOME."""
+        code, out, err = self.cli(h, "setup", "--dry-run", T, cwd=cwd)
+        self.assertEqual(code, 0, err)
+        dry = h.ran()
+        p = subprocess.run([str(LAUNCHER), "setup", "--yes", T], capture_output=True, text=True,
+                           env=self.env(h), cwd=cwd or h.cwd, stdin=subprocess.DEVNULL, timeout=120)
+        return dry, h.ran(), p
+
+    def no_command(self, h, cwd=None):
+        steps = self.plan(h, cwd=cwd)
+        self.assertEqual(self.one(steps, 4)["mid"], "setup.launcher.none")
+        dry, yes, p = self.setup_ran(h, cwd)
+        self.assertEqual((dry, yes), ([], []), p.stderr)
+
+    # F1: a source's command that is a link out of its root is no command
+    def test_f1_a_line_naming_the_fork_whose_command_links_into_the_marketplaces_root(self):
+        h = self.home("hB")
+        cmds = h.commands()
+        h.user_file("sources:\n  %s: %s\n" % (T, F))
+        relink(cmds[F], cmds[U])
+        self.no_command(h)
+
+    def test_f1_a_line_naming_the_own_plugin_whose_command_links_into_the_fork(self):
+        h = self.home("hB")
+        cmds = h.commands()
+        h.user_file("sources:\n  %s: %s\n" % (T, U))
+        relink(cmds[U], cmds[F])
+        self.no_command(h)
+
+    def test_f1_a_folder_source_whose_command_links_into_an_installed_root(self):
+        h = self.home("hF")
+        cmds = h.commands()
+        fork = os.path.join(h.home, "forks", T)
+        os.makedirs(os.path.join(fork, ".claude-plugin"))
+        with open(os.path.join(fork, ".claude-plugin", "plugin.json"), "w") as fh:
+            json.dump({"name": T, "version": "0.12.6"}, fh)
+        os.makedirs(os.path.join(fork, "bin"))
+        os.symlink(cmds[U], os.path.join(fork, "bin", "agentik-" + T))
+        h.user_file("sources:\n  %s: ~/forks/%s\n" % (T, T))
+        self.assertEqual(self.one(self.plan(h), 3)["subject"], "~/forks/" + T)
+        self.no_command(h)
+
+    def test_f1_an_own_tool_whose_command_links_into_another_root(self):
+        h = self.home("pB")
+        h.commands()
+        os.remove(os.path.join(h.home, ".local", "bin", "agentik-" + T))
+        project = os.path.join(h.table[U][0]["installPath"], "bin", "agentik-" + T)
+        relink(os.path.join(h.table[U][1]["installPath"], "bin", "agentik-" + T), project)
+        self.no_command(h)
+
+    # F2: a file that is W, by a link to it or a folder linked to W's, is W
+    def test_f2_a_link_to_w_is_w_and_a_stale_launcher_is_behind(self):
+        for form in ("file", "folder"):
+            h = self.home("hF", folder="hF-" + form)
+            h.commands()
+            w = h.launcher(os.path.join(".local", "bin"), "0.12.0")
+            if form == "file":
+                os.makedirs(os.path.join(h.home, "bin"))
+                os.symlink(w, os.path.join(h.home, "bin", "agentik-" + T))
+            else:
+                os.symlink(os.path.join(h.home, ".local", "bin"), os.path.join(h.home, "bin"))
+            s4 = self.one(self.plan(h), 4)
+            self.assertEqual((s4["mid"], s4["values"]), ("setup.launcher.behind",
+                                                         {"have": "0.12.0", "want": "0.13.0"}), form)
+            self.assertEqual(s4["command"], h.cmd + " install-cli", form)
+
+    # F3: the held row counts plugins, not entries
+    def test_f3_one_plugin_installed_twice_is_not_two_plugins(self):
+        h = self.home("pB")
+        rows = self.of(self.plan(h, cwd=os.path.join(h.project, "sub")))
+        self.assertEqual([(s["state"], s["command"], s["mid"]) for s in rows],
+                         [("todo", None, "setup.plugin.held.twice")])
+        self.assertNotIn("2 plugins", rows[0]["detail"])
+        self.assertIn(U, rows[0]["detail"])
+
+    # F4: a source with no string version names none and calls nothing the same
+    def test_f4_a_source_with_no_string_version(self):
+        for given, placed in ((None, None), (7, "7"), (None, "0.12.6")):
+            h = self.home("hD", folder="hD-%s-%s" % (given, placed))
+            if given is None:
+                del h.table[F][0]["version"]
+            else:
+                h.table[F][0]["version"] = given
+            h.write()
+            if placed:
+                h.launcher(os.path.join(".local", "bin"), placed)
+            else:
+                h.file(os.path.join(h.home, ".local", "bin", "agentik-" + T), "#!/bin/sh\nTREE=/t\nexit 0\n")
+            steps = self.plan(h)
+            self.assertEqual(self.one(steps, 3)["mid"], "setup.plugin.source.none")
+            s4 = self.one(steps, 4)
+            self.assertEqual((s4["state"], s4["mid"], s4["command"]), ("ok", "setup.launcher.noversion", None),
+                             (given, placed))
+            self.assertNotRegex(s4["detail"], r"None|same|behind|\b7\b|0\.12\.6")
 
 
 if __name__ == "__main__":
