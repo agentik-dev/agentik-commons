@@ -45,7 +45,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.check`: Print one line for each thing that needs a hand, and exit 1 when there is one.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
-- `flag.render`: Render the draft's Happened and Expected lines with the narrator plugin's script, and keep the template when the render adds a word.
+- `flag.render`: Render the Happened and Expected lines by the narrator's script. A render that adds a word is dropped.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 
 ## Version
@@ -559,5 +559,5 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.render.exit`: The narrator's script exited `{code}`, so the template stands with the words as typed.
 - `issue.render.wall`: The narrator's script ran past `{secs}` s and was stopped, so the template stands with the words as typed.
 - `issue.render.nofile`: The narrator's script wrote no answer, so the template stands with the words as typed.
-- `issue.render.shape`: The narrator's answer is not the two lines Happened and Expected, so the template stands with the words as typed.
+- `issue.render.shape`: The narrator's answer is not two lines, Happened and Expected, so the template stands with the words as typed.
 - `issue.render.contract`: Technical. Render only the Happened and Expected lines of this issue, two sentences a line at most. Keep each error text verbatim. Add nothing the issue does not say: no name, path, version or word of your own context. Answer with two lines and nothing else: `Happened: ...` and `Expected: ...`.
