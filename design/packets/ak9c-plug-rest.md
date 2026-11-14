@@ -58,3 +58,18 @@ Measured at 70dcd97 by `tests/test_ak9c_plug_rest.py`, before the change: see th
 ## 6. Choices
 
 Listed in the charter's handover as they are made. Two meet the unedited tests: a claim's line is said on `config T` only where the finder knows a source for T (`test_agentik_suite` a1 and `test_sc4_errors` f7 hold a bare file on PATH whose `config T` has no line more on either stream), and the keeper's name is data (above). So a bare file on PATH that claims a verb gets no line on the `config T` screen; its claim shows in `--json` and in the `next:` of `agentik W`.
+
+## 7. The fix of review 1
+
+The coordinator's ruling of 2026-11-14, one round on this branch, each with a test red at 61ca2e2:
+
+- F1 (S3): a tool claims a word once however often its describe lists it; two claims are two tools (`tools.claims`, read by `cli._claimed` and `doctor`'s `twice`).
+- F2 (S3, a regression of the pin's screen): a warning whose `reason` is no string (a list, a dict, a number, null) prints the unknown-key line, as the pin does, and nothing in a tool's answer raises (`config.py`, the `WARNED` lookup).
+- F3 (S4): the `next:` for a claimant the finder knows only as a file on PATH is that file's own name and the word, a line that runs; for a claimant with a source that runs as `agentik T`, it stays `agentik T W` (`cli._claimed`).
+- To NICE at S4: a describe that hangs is never cached, so a word that is nothing pays the whole wall each time while a tool hangs.
+
+| # | line | at 61ca2e2 |
+|---|---|---|
+| 11 | `-k test_11_` (F1: quill's describe lists `ink` twice) | red: `ink is claimed by quill and quill`, exit 2; a doctor `claim` FAIL row |
+| 12 | `-k test_12_` (F2: `reason` a list, a dict, a number, null) | red: exit 1, `TypeError: unhashable type` for the list and the dict |
+| 13 | `-k test_13_` (F3: a bare PATH claimant, an own one) | red: the bare file's `next:` is `agentik quill ink`, which refuses |
