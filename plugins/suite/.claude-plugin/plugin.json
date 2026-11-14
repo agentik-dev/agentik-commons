@@ -1,6 +1,6 @@
 {
   "name": "suite",
-  "version": "0.6.10",
+  "version": "0.6.11",
   "description": "The agentik suite in one install: the default set, three of the tools, which Claude Code installs and enables with it, and the agentik-suite command that manages it.",
   "dependencies": ["session", "decisions", "agents"]
 }
