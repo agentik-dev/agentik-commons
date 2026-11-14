@@ -122,10 +122,19 @@ def _under(path, root):
     return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
 
 
+def _same(a, b):
+    """True when `a` and `b` are one file; never raises (review 1 F2)."""
+    try:
+        return os.path.samefile(a, b)
+    except (OSError, ValueError):
+        return False
+
+
 def _earlier(path, bindir, search):
-    """True when `path`'s folder comes before `bindir` on PATH, and `bindir` is on it."""
-    entries = [os.path.normpath(p or ".") for p in search.split(os.pathsep)]
-    here, there = os.path.normpath(os.path.dirname(path)), os.path.normpath(bindir)
+    """True when `path`'s folder comes before `bindir` on PATH, and `bindir` is on it; each folder
+    resolved, so a folder linked to `bindir` is `bindir` (review 1 F2)."""
+    entries = [_real(os.path.normpath(p or ".")) for p in search.split(os.pathsep)]
+    here, there = _real(os.path.dirname(path)), _real(bindir)
     if there not in entries or here not in entries:
         return False
     return entries.index(here) < entries.index(there)
@@ -140,21 +149,31 @@ def _cwd(cwd):
         return None
 
 
+def _command(root, name):
+    """The source's own `bin/agentik-<name>`, or None: a file that is not a regular file, or that
+    resolves out of the root, is no command, as the finder holds it (review 1 F1)."""
+    path = os.path.join(root, "bin", "agentik-" + name)
+    return path if os.path.isfile(path) and _under(path, root) else None
+
+
 def _plugin_row(n, name, row, home):
     """Step 3 for a source that is not the marketplace's own: (step, (version, command) or None)."""
     root, ver = row["root"], row["version"]
     if row["kind"] == "undecided":
         seen = row["seen"]
+        ids = list(dict.fromkeys(s["plugin"] for s in seen))  # plugins, not entries (review 1 F3)
         if len(seen) == 1 and seen[0]["scope"] in ("project", "local"):
             return _step(n, "plugin", "todo", name, "setup.plugin.held.repo", name=name), None
-        return _step(n, "plugin", "todo", name, "setup.plugin.held", name=name, count=len(seen)), None
+        if len(ids) == 1:
+            return _step(n, "plugin", "todo", name, "setup.plugin.held.twice", name=name, id=ids[0]), None
+        return _step(n, "plugin", "todo", name, "setup.plugin.held", name=name, count=len(ids)), None
     subject = row["plugin"] or (shown(root, home) if isinstance(root, str) else name)
     if row["found"] and isinstance(root, str) and os.path.isdir(root):
         if isinstance(ver, str) and ver:
             step = _step(n, "plugin", "ok", subject, "setup.plugin.source", name=name, version=ver)
         else:
             step = _step(n, "plugin", "ok", subject, "setup.plugin.source.none", name=name)
-        return step, (ver, os.path.join(root, "bin", "agentik-" + name))
+        return step, (ver, _command(root, name))
     at = row["declared"]
     if at and not row["found"]:
         return _step(n, "plugin", "todo", subject, "setup.plugin.declared",
@@ -214,14 +233,14 @@ def build(names, env, lib, tool, version, cwd=None):
         if not (isinstance(ver, str) and ver):
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.missing", install))
         elif isinstance(root, str) and os.path.isdir(root):
-            have[name] = (ver, os.path.join(root, "bin", "agentik-" + name))
+            have[name] = (ver, _command(root, name))
             steps.append(_step(3, "plugin", "ok", key, "setup.plugin.ok", version=ver))
         else:
             steps.append(_step(3, "plugin", "todo", key, "setup.plugin.broken", install, version=ver))
 
     # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli
     placed = []
-    inplace = in_place({n: have[n][1] for n in names if n in have and os.path.isfile(have[n][1])
+    inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1]
                         and agentik_install.read_launcher(os.path.join(bindir, "agentik-" + n)) is None},
                        env)
     direct = set()  # step 4 places nothing, since the file that runs is not the one it would place
@@ -238,12 +257,13 @@ def build(names, env, lib, tool, version, cwd=None):
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.wait"))
             continue
         want, source = have[name]
-        command = "%s install-cli" % shlex.quote(source)
+        command = "%s install-cli" % shlex.quote(source) if source else None
         runs = (row["runs"] or {}).get("path")
-        if not os.path.isfile(source):
+        if not source:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.none"))
             placed = [p for p in placed if p != where]
-        elif runs and runs != where and not _under(runs, row["root"]) and _earlier(runs, bindir, search):
+        elif runs and not _same(runs, where) and not _under(runs, row["root"]) \
+                and _earlier(runs, bindir, search):
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.earlier",
                                path=shown(runs, home)))
             direct.add(name)
@@ -255,6 +275,8 @@ def build(names, env, lib, tool, version, cwd=None):
         elif read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
+        elif not (isinstance(want, str) and want):  # nothing to compare (review 1 F4)
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.noversion"))
         elif read.get("version") == want:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.ok",
                                version=want))
@@ -319,7 +341,7 @@ def build(names, env, lib, tool, version, cwd=None):
         exe = "agentik-%s" % name
         where = os.path.join(bindir, exe)
         runs = (rows[name]["runs"] or {}).get("path")  # the file that runs names the line (R6)
-        if name in have and not os.path.isfile(have[name][1]):
+        if name in have and not have[name][1]:
             steps.append(_step(7, "doctor", "ok", exe, "setup.doctor.nocmd"))
         elif name in inplace:  # its command runs from the plugin's folder, as a placed one would
             steps.append(_step(7, "doctor", "todo", exe, "setup.doctor.todo",

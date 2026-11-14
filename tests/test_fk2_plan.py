@@ -349,7 +349,7 @@ class ReviewOneTest(Base):
     def test_f2_a_link_to_w_is_w_and_a_stale_launcher_is_behind(self):
         for form in ("file", "folder"):
             h = self.home("hF", folder="hF-" + form)
-            h.commands()
+            cmd = h.commands()[U]
             w = h.launcher(os.path.join(".local", "bin"), "0.12.0")
             if form == "file":
                 os.makedirs(os.path.join(h.home, "bin"))
@@ -359,7 +359,7 @@ class ReviewOneTest(Base):
             s4 = self.one(self.plan(h), 4)
             self.assertEqual((s4["mid"], s4["values"]), ("setup.launcher.behind",
                                                          {"have": "0.12.0", "want": "0.13.0"}), form)
-            self.assertEqual(s4["command"], h.cmd + " install-cli", form)
+            self.assertEqual(s4["command"], cmd + " install-cli", form)
 
     # F3: the held row counts plugins, not entries
     def test_f3_one_plugin_installed_twice_is_not_two_plugins(self):

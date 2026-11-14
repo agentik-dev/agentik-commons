@@ -187,6 +187,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.plugin.declared`: declared at `{at}`, and not installed; install it from its own marketplace
 - `setup.plugin.gone`: listed, but its folder is gone; install it again from its own marketplace
 - `setup.plugin.held`: held, since `{count}` plugins named `{name}` are installed; `{config}` suite.sources.`{name}` shows how to choose one
+- `setup.plugin.held.twice`: held, since `{id}` is installed both for you and for this repo; `{config}` suite.sources.`{name}` shows how to choose one
 - `setup.plugin.held.repo`: held, since the only plugin named `{name}` came from this repo's settings; `{config}` suite.sources.`{name}` shows how to choose it
 - `setup.launcher.wait`: not placed; step 3 installs the plugin first
 - `setup.launcher.missing`: not placed; setup would place it from the plugin
@@ -197,6 +198,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.launcher.earlier`: `{path}` comes first on PATH, so it runs in place of this one; setup leaves both as they are
 - `setup.launcher.link`: a link to the source's own command, so there is nothing to place
+- `setup.launcher.noversion`: placed, and the source gives no version to compare, so setup leaves it as it is
 - `setup.launcher.other`: at version `{have}`, and the source is at `{want}`; setup would place it again
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
