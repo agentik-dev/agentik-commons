@@ -2,7 +2,9 @@
 holding Claude Code's `installed_plugins.json` and `known_marketplaces.json`, each root at
 `.claude/plugins/cache/<marketplace>/<tool>/<version>`. A command is an executable stub,
 `bin/agentik-<tool>` under a root; a launcher holds `VERSION=` and `TREE=` lines. Rows fk2 and
-fk2b import this one set. Nothing here writes outside the HOME it is given."""
+fk2b import this one set; fk2 adds `ready` (a stub `claude` and the `agentik` marketplace's own
+file) and `commands` (a command under each root that logs to `$HOME/ran.log`). Nothing here writes
+outside the HOME it is given."""
 import json
 import os
 
@@ -10,6 +12,7 @@ T = "murmur"
 SOURCE = "agentik-dev/agentik-commons"
 HOMES = ("hA", "hB", "hC", "hD", "hE", "hF", "hG", "hH", "hI", "hJ", "hK", "pA", "pB", "pC")
 STUB = "#!/bin/sh\nexit 0\n"
+RAN = '#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\nexit 0\n'  # row fk2: what ran, and with which words
 
 
 class FkHome:
@@ -81,6 +84,36 @@ class FkHome:
     def bins(self):
         """Every root's bin/, in the table's order."""
         return [os.path.join(e["installPath"], "bin") for v in self.table.values() for e in v]
+
+    def ready(self, *listed):
+        """Row fk2: a folder holding a stub `claude`, `self.stubs`, and the `agentik` marketplace's
+        own file listing `listed` (the tool alone when none is given)."""
+        self.stubs = os.path.join(self.home, "stubs")
+        self.file(os.path.join(self.stubs, "claude"), STUB)
+        market = os.path.join(self.home, "market")
+        os.makedirs(os.path.join(market, ".claude-plugin"), exist_ok=True)
+        with open(os.path.join(market, ".claude-plugin", "marketplace.json"), "w") as fh:
+            json.dump({"name": "agentik", "plugins": [{"name": n, "description": "A made-up tool."}
+                                                      for n in listed or (self.tool,)]}, fh)
+        self.known["agentik"]["installLocation"] = market
+        self.write()
+        return self
+
+    def commands(self, body=RAN):
+        """Row fk2: a command under each root of the table, `body` its text; {id: path}."""
+        found = {}
+        for pid, listed in self.table.items():
+            for e in listed:
+                found[pid] = self.file(os.path.join(e["installPath"], "bin", "agentik-" + self.tool), body)
+        return found
+
+    def ran(self):
+        """The lines of `$HOME/ran.log`, or [] when nothing ran."""
+        try:
+            with open(os.path.join(self.home, "ran.log")) as fh:
+                return fh.read().splitlines()
+        except FileNotFoundError:
+            return []
 
     def env(self, path=None, **more):
         env = {"HOME": self.home, "PATH": path or self.terminal()}
