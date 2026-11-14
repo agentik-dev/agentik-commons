@@ -106,3 +106,13 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n71 | S4 | `plugins/suite` `apply.py` | no lock: two setups at once each run every command and each claims the other's writes; an exclusive `flock` beside the journal for the run | ak3-setup review 1's R1-F8: two runs, every call twice | 2026-11-13, ak3-setup review 1 |
 | n72 | S4 | `plugins/suite` `apply.py` `--json` | a refusal (`needs_yes`, `gated`, `blocked`, `declined`) prints the error object alone, without `steps`, `ran`, `wrote`, `nothing`, `journal`, which a failed step keeps | ak3-setup review 1's R1-F9; the builder's choice | 2026-11-13, ak3-setup review 1 |
 | n73 | S4 | `plugins/suite` `apply.py` `run` | an interrupt after `execute` returns and before `current` clears records a finished command as stopped; one inside `record` reads between steps and can leave it out of `ran` | ak3-setup review 2's N1, not confirmed | 2026-11-13, ak3-setup review 2 |
+
+## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n74 | S4 | `plugins/suite` `apply.py` | SIGTERM ends setup with exit 130, SIGINT's code; a caller's script expects 143 | ak3-setup review 2's N2 | 2026-11-13, ak3-setup review 2 |
+| n75 | S4 | `plugins/suite` `apply.py` `run` | after the first interrupt both signals stay ignored until `run` returns, so a second Ctrl-C cannot end a last `plan.build` that hangs; whether each read there has its own bound is not checked | ak3-setup review 2's N3 | 2026-11-13, ak3-setup review 2 |
+| n77 | S4 | `plugins/suite` `doctor.py` `own_doctors` | doctor runs `<exe> doctor` for an `agentik-<verb>` it has just flagged as a shadow; leave out a word that is a verb or reserved | ak3d review 1's R1-F3 | 2026-11-13, ak3d review 1 |
+| n78 | S4 | `plugins/suite` `doctor.py` `shadow` | an `agentik-help` on PATH reads as a shadow `fail`, exit 1, though the door answers `help` before any lookup; leave `help` out of the shadow words | ak3d review 1's R1-F4 | 2026-11-13, ak3d review 1 |
+| n79 | S4 | `plugins/suite` `doctor.py` hint | when only a fail with no remedy is left (a shadow, a settings fault), the closing hint still says to run each `run:` line above, and there is none | ak3d review 1's R1-F5; follows R5 | 2026-11-13, ak3d review 1 |
