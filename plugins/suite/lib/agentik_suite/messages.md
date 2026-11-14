@@ -284,6 +284,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.inactive`: `{login}` is not the active github.com account in gh. Run gh auth switch --user `{login}`, then send again.
 - `err.issue.send.line`: Line `{line}` of the draft fails the `{kind}` check, so nothing was sent. Mend that line, then send again.
 - `err.issue.send.changed`: The approved issue changed after it was shown, so nothing was sent. Run send again to see it.
+- `err.issue.send.unapproved`: This issue holds no approval that is still good, since each is used once, so nothing was sent. Run send again to see it.
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept; run send again.
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown. Search the repo before you send again.
 - `err.issue.send.flood`: Input kept coming on the terminal for `{secs}` s after the question, so nothing was sent. Run send again and type the word once the question shows.

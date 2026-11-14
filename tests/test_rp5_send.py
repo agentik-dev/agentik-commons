@@ -5,6 +5,7 @@ stub `gh` records its argv and stdin and answers from fixture files, and a stub 
 with no `claude` in it. The typed word goes through `pty.fork`. Nothing here reaches the network,
 runs the real `gh` or reads the real home; logins and repos are made up."""
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -154,7 +155,7 @@ class Base(unittest.TestCase):
         return [c for c in found if verb is None or c["argv"][:2] == verb.split()]
 
     def drive(self, data, word, rows=24, cols=200, env=None, notes=(), after=None, ahead=None,
-              flood=None):
+              flood=None, file_repo=None):
         """approve, then _file when approved, in a child of pty.fork; this side reads the screen,
         presses Enter at each page's prompt and types `word` at the last, each after a person's
         pause; `word` may be [(pause, bytes)]. `ahead` is typed before any screen; `flood` is
@@ -173,7 +174,7 @@ class Base(unittest.TestCase):
                     if approved is not None:
                         if after:
                             after(approved)
-                        result["url"] = send._file(approved, REPO, env)
+                        result["url"] = send._file(approved, file_repo or REPO, env)
                 except send.Refusal as e:
                     result["refusal"] = [e.code, e.mid] + ([e.values] if e.values else [])
                 except Exception as e:  # noqa: BLE001 - said back to the parent
@@ -545,6 +546,47 @@ class QuietTest(Base):
         _, result = self.drive(draft(), [(PAUSE, b"send\n"), (0.05, b"send\n")])
         self.assertEqual(result, {"refusal": [2, "err.issue.send.flood", {"secs": 3}]})
         self.assertEqual(self.calls("issue create"), [])
+
+
+class ApprovalTest(Base):
+    """R1-F4: an approval is made by `approve` alone and is good once."""
+
+    def test_r1_f4_an_approval_built_by_hand_files_nothing(self):
+        data = draft()
+        try:
+            forged = send.Approved(data, REPO, LOGIN)
+        except TypeError:  # the shape before this row's fix
+            forged = send.Approved(data, REPO)
+        with self.assertRaises(send.Refusal) as cm:
+            send._file(forged, REPO, self.env())
+        self.assertEqual((cm.exception.code, cm.exception.mid), (2, "err.issue.send.unapproved"))
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f4_a_rewrite_that_keeps_the_hash_files_nothing(self):
+        other = draft(happened="something no one saw")
+
+        def rewrite(approved):
+            approved.data, approved.sha256 = other, hashlib.sha256(other).hexdigest()
+        _, result = self.drive(draft(), b"send\n", after=rewrite)
+        self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.changed"]})
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f4_an_approval_pointed_at_another_repo_files_nothing(self):
+        def retarget(approved):
+            approved.repo = "example-owner/elsewhere"
+        _, result = self.drive(draft(), b"send\n", after=retarget,
+                               file_repo="example-owner/elsewhere")
+        self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.changed"]})
+        self.assertEqual(self.calls("issue create"), [])
+
+    def test_r1_f4_an_approval_is_good_once(self):
+        env = self.env()
+
+        def first(approved):
+            self.assertEqual(send._file(approved, REPO, env), URL)
+        _, result = self.drive(draft(), b"send\n", env=env, after=first)
+        self.assertEqual(result, {"approved": True, "refusal": [2, "err.issue.send.unapproved"]})
+        self.assertEqual(len(self.calls("issue create")), 1)
 
 
 class DoorTest(unittest.TestCase):

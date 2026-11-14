@@ -57,12 +57,24 @@ class Refusal(Exception):
 
 
 class Approved:
-    """What `approve` returns when the word was typed: the bytes shown, their SHA-256 and the
-    repo shown. `_file` takes this alone and checks it again."""
-    __slots__ = ("data", "sha256", "repo")
+    """What `approve` returns when the word was typed: the bytes shown, their SHA-256, the repo
+    and the login shown. Only `approve` makes one that `_file` takes, and `_file` takes it once:
+    the bytes, hash, repo and login are recorded when it is made and compared again."""
+    __slots__ = ("data", "sha256", "repo", "login")
 
-    def __init__(self, data, repo):
-        self.data, self.sha256, self.repo = data, hashlib.sha256(data).hexdigest(), repo
+    def __init__(self, data, repo, login=None):
+        self.data, self.sha256 = data, hashlib.sha256(data).hexdigest()
+        self.repo, self.login = repo, login
+
+
+_ISSUED = {}  # id of each approval `approve` made and no `_file` has taken: (it, what it recorded)
+
+
+def _issue(data, repo, login):
+    """An approval of the bytes shown, recorded so that `_file` takes it once and only as made."""
+    approved = Approved(bytes(data), repo, login)
+    _ISSUED[id(approved)] = (approved, (approved.data, approved.sha256, repo, login))
+    return approved
 
 
 def _run(argv, env, data=None, wall=READ_WALL):
@@ -366,7 +378,7 @@ def _screen(fd, data, lines, repo, login, notes_, env, t):
     except KeyboardInterrupt:
         answer = None
     if answer == WORD:
-        return Approved(data, repo)
+        return _issue(data, repo, login)
     try:
         dev.line("issue.send.kept")
         dev.flush()
@@ -400,12 +412,17 @@ def approve(data, repo, login, notes, env, t):
 def _file(approved, repo, env):
     """The URL gh prints for the new issue: the approved bytes' first line as the title and the
     bytes after the second line on stdin, to github.com/OWNER/REPO, under a 60 s wall. It takes
-    only what approve returned and checks its hash and repo again."""
-    if (not isinstance(approved, Approved) or not isinstance(approved.data, bytes)
-            or hashlib.sha256(approved.data).hexdigest() != approved.sha256
-            or approved.repo != repo):
+    only an approval this process's `approve` made and no call has taken, with the bytes, hash
+    and repo it recorded, and files the recorded bytes."""
+    made = _ISSUED.pop(id(approved), None)  # taken at once: an approval is good for one try
+    if made is None or made[0] is not approved:
+        raise Refusal(2, "err.issue.send.unapproved")
+    data, sha256, shown, _login = made[1]
+    if (not isinstance(approved.data, bytes) or approved.data != data
+            or hashlib.sha256(approved.data).hexdigest() != sha256 or approved.sha256 != sha256
+            or approved.repo != shown or repo != shown):
         raise Refusal(2, "err.issue.send.changed")
-    title, blank, body = (approved.data.split(b"\n", 2) + [b"", b""])[:3]
+    title, blank, body = (data.split(b"\n", 2) + [b"", b""])[:3]
     if not title or blank:
         raise Refusal(2, "err.issue.send.changed")
     argv = ["gh"] + "issue create".split() + ["-R", "%s/%s" % (HOST, repo),
