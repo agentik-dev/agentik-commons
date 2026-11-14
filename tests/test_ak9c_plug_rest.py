@@ -251,5 +251,48 @@ PIN_8 = ("quill.pen.width\n  value       2\n  about       the pen's width\n  set
          "  takes hold  at the next start of Claude Code\n")
 
 
+class FixTest(Claims):
+    """Section 7, the fix of review 1."""
+
+    def test_11_a_word_listed_twice_is_one_claim(self):
+        h = self.blank()
+        place(h, "quill", body(claiming("quill", W, W)))
+        code, out, err = self.cli(h, W, "a")
+        self.assertEqual((code, out, err), (7, "", ""))
+        self.assertEqual(ran(h), ["[ink][a]"])
+        code, out, err = self.cli(h, "doctor", "--json")
+        suite = json.loads(out)["tools"][0]["checks"]
+        self.assertEqual([c for c in suite if c["name"] == "claim"], [])
+
+    def test_12_a_reason_that_is_no_string_reads_as_unknown(self):
+        h = self.blank()
+        path = os.path.join(h.home, ".config", "quill", "a.yaml")
+        reasons = (["ignored"], {"why": "ignored"}, 3, None)
+        warnings = [{"key": "pen.k%d" % n, "reason": r, "value": 1, "path": path, "line": n}
+                    for n, r in enumerate(reasons, 1)]
+        place(h, "quill", body(claiming("quill", reads=("config",)), config=config_answer("quill", warnings)))
+        code, out, err = self.cli(h, "config", "quill")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("Traceback", err)
+        lines = out.splitlines()
+        for n in range(1, len(reasons) + 1):
+            self.assertIn("  warn  unknown key pen.k%d  ~/.config/quill/a.yaml:%d" % (n, n), lines)
+
+    def test_13_a_bare_claimants_next_is_its_file(self):
+        bare = self.blank()
+        bare.file(os.path.join(bare.home, ".local", "bin", "agentik-quill"), body(claiming("quill", W)))
+        code, out, err = self.cli(bare, W, "a")
+        self.assertEqual(code, 2, out + err)
+        self.assertEqual(self.last(err), "next: ~/.local/bin/agentik-quill ink")
+        fork = self.blank()
+        place(fork, "quill", body(claiming("quill", W)), market="acme-tools")
+        fork.user_file("sources:\n  quill: quill@acme-tools\n")
+        code, out, err = self.cli(fork, W, "a")
+        self.assertEqual(code, 2, out + err)
+        self.assertRegex(self.last(err), r"^next: \S+ quill ink$")
+        self.assertNotIn("agentik-quill", self.last(err))
+        self.assertEqual(ran(bare) + ran(fork), [])
+
+
 if __name__ == "__main__":
     unittest.main()
