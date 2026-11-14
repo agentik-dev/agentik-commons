@@ -1,0 +1,266 @@
+{
+ "schema": "agentik.status/1",
+ "ok": true,
+ "check": false,
+ "fault": null,
+ "at": 1794571200,
+ "covers": {
+  "rule": "hq",
+  "hq": "/w/acme-hq",
+  "checkouts": [
+   "/w/acme-hq",
+   "/w/acme-api",
+   "/w/acme-billing",
+   "/w/acme-cli",
+   "/w/acme-docs",
+   "/w/acme-infra",
+   "/w/acme-notes",
+   "/w/acme-site",
+   "/w/acme-sync"
+  ]
+ },
+ "watchers": [
+  {
+   "name": "lamp",
+   "state": "running",
+   "pid": 4100,
+   "since": 1794571180,
+   "beat_writer": "watch",
+   "beat_line": "3 live: 2 busy, 1 waits on helpers; none stuck",
+   "start": "lampd watch --every 60",
+   "writer": "watch",
+   "beat_at": 1794571180
+  }
+ ],
+ "sessions": {
+  "state": "ok",
+  "checked": true,
+  "window_min": 30,
+  "ended": 2,
+  "past_window": [],
+  "live": [
+   {
+    "id": "80349587-0000-4000-8000-000000000001",
+    "name": "acme-hq",
+    "state": "busy",
+    "context": 295210,
+    "window": 1000000,
+    "turns": 99,
+    "pid": 75557,
+    "helpers": {
+     "busy": 13,
+     "quiet": 0,
+     "done": 7
+    }
+   },
+   {
+    "id": "eb3805c7-0000-4000-8000-000000000002",
+    "name": "acme-cli",
+    "state": "busy",
+    "context": 326400,
+    "window": 1000000,
+    "turns": 134,
+    "pid": 96194,
+    "helpers": {
+     "busy": 1,
+     "quiet": 1,
+     "done": 2
+    }
+   },
+   {
+    "id": "88a95ea6-0000-4000-8000-000000000003",
+    "name": "billing",
+    "state": "idle",
+    "context": 172000,
+    "window": 1000000,
+    "turns": 48,
+    "pid": 80543,
+    "helpers": {
+     "busy": 3,
+     "quiet": 0,
+     "done": 0
+    }
+   }
+  ]
+ },
+ "gate": {
+  "state": "ok",
+  "runner": {
+   "pid": 9813,
+   "since": 1794549200,
+   "alive": true
+  },
+  "running": [
+   {
+    "id": "20261113-112733-1478",
+    "name": "acme-api",
+    "repo": "/w/acme-api",
+    "label": "land importer-fix",
+    "seconds": 866.0,
+    "est_s": 940.4
+   },
+   {
+    "id": "20261113-104616-1465",
+    "name": "gate43",
+    "repo": "/w/acme-sync/.claude/worktrees/gate43",
+    "label": "go1274",
+    "seconds": 905.0,
+    "est_s": 3021.4
+   },
+   {
+    "id": "20261113-113200-1481",
+    "name": "acme-cli",
+    "repo": "/w/acme-cli",
+    "label": "",
+    "seconds": 540.0,
+    "est_s": null
+   }
+  ],
+  "queued": [
+   {
+    "id": "20261113-113301-1482",
+    "name": "acme-site",
+    "repo": "/w/acme-site",
+    "label": "",
+    "position": 1,
+    "wait": "running 3 of 3",
+    "est_s": null
+   },
+   {
+    "id": "20261113-113557-1483",
+    "name": "ledger-chain",
+    "repo": "/w/acme-infra/.claude/worktrees/ledger-chain",
+    "label": "",
+    "position": 2,
+    "wait": "running 3 of 3",
+    "est_s": 582.3
+   }
+  ],
+  "red": [],
+  "last": {
+   "id": "20261113-113020-1480",
+   "name": "flight0127",
+   "repo": "/w/acme-docs/.claude/worktrees/flight0127",
+   "exit": 0,
+   "seconds": 268.0,
+   "cut": null
+  }
+ },
+ "backlog": {
+  "state": "ok",
+  "open": 41,
+  "first": {
+   "n": 22,
+   "title": "The review's builds 5 (one state root) and 6 (an unattended loop beside the old one)"
+  },
+  "items": {
+   "S3": 26,
+   "S4": 200,
+   "unplaced": 13
+  },
+  "checkouts": 9,
+  "skipped": [
+   "/w/acme-notes"
+  ]
+ },
+ "runs": {
+  "state": "ok",
+  "aged": 1,
+  "shown": [
+   {
+    "source": "unattended",
+    "by": "unattended",
+    "run": "2026-11-13-1",
+    "state": "running",
+    "row": "importer-fix",
+    "age_s": 40,
+    "pid": null,
+    "alive": null,
+    "rows": {
+     "landed": 2,
+     "refused": 1
+    }
+   }
+  ]
+ },
+ "hand": [],
+ "ms": 1310,
+ "sources": [
+  {
+   "name": "sessions",
+   "tool": "crew",
+   "argv": [
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 412,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
+   "name": "gate",
+   "tool": "bench",
+   "argv": [
+    "gate",
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 96,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
+   "name": "backlog",
+   "tool": "ledger",
+   "argv": [
+    "backlog",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 71,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
+   "name": "unattended",
+   "tool": "bench",
+   "argv": [
+    "unattended",
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 88,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
+   "name": "run",
+   "tool": "baton",
+   "argv": [
+    "status",
+    "--json"
+   ],
+   "state": "ok",
+   "ms": 1310,
+   "exit": 0,
+   "stderr": null,
+   "wall_s": 2.5,
+   "fields": null
+  }
+ ],
+ "not_read": [
+  "owner",
+  "rows"
+ ]
+}

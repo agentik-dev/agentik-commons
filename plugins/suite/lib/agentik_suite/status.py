@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import time
 
 from . import plan, settings, tools
@@ -131,8 +132,14 @@ def rows(text):
     return found
 
 
+def holds_self(procs):
+    """A listing this process took holds this process: one that does not is `bad_listing`,
+    read as no listing and never as an empty one (packet su2-read, review 1)."""
+    return any(pid == os.getpid() for pid, uid, words in procs)
+
+
 def _wrapper(word):
-    base = os.path.basename(word)
+    base = os.path.basename(word).lower()  # macOS shows /usr/bin/python3 as .../MacOS/Python
     return base.startswith("python") or base in WRAPPERS
 
 
@@ -201,7 +208,8 @@ def beat(w, env):
 
 
 def check(w, procs, now, env, uid):
-    """{name, state, pid, since, beat_writer, beat_line, start} for one watcher."""
+    """{name, state, pid, since, beat_writer, beat_line, start, writer, beat_at} for one watcher:
+    `writer` the declared one, `beat_at` the beat's `at` whoever wrote it."""
     b = beat(w, env)
     own = b is not None and (w["writer"] is None or b["writer"] == w["writer"])
     fresh = b is not None and max(0, now - b["at"]) <= b["fresh_s"]
@@ -216,45 +224,139 @@ def check(w, procs, now, env, uid):
         state = "running" if b is None or fresh else "hung"
     return {"name": w["name"], "state": state, "pid": pid, "since": b["at"] if own else None,
             "beat_writer": b["writer"] if b else None,
-            "beat_line": b["line"] if own and fresh else None, "start": w["start"]}
+            "beat_line": b["line"] if own and fresh else None, "start": w["start"],
+            "writer": w["writer"], "beat_at": b["at"] if b else None}
+
+
+class Signalled(BaseException):
+    """SIGTERM or SIGHUP while the reads run: raised so run_all ends every read on its way out."""
+
+    def __init__(self, signum):
+        BaseException.__init__(self, signum)
+        self.signum = signum
+
+
+def _signalled(signum, frame):
+    raise Signalled(signum)
 
 
 def do_status(cmd, nouns):
-    o, t, Usage = cmd.opts, cmd.t, cmd.Usage
-    cmd._no_nouns(nouns)
-    again = cmd.say("status", "--check")
-    if not o["check"]:
-        raise Usage("check_only", "err.status.check", again, **cmd.slots())
+    """`--check` (su1), or the full read, `status [<path>...]`: the screen, each part drawn as
+    soon as it and every part above it is read, or with `--json` the object (packet su2-read R2,
+    J2). For the life of the reads SIGTERM and SIGHUP end every read and exit 128 plus the
+    signal's number; an interrupt ends them and exits 130, a closed stdout 141 (128 plus SIGPIPE),
+    each with no traceback (su2-read, review 1 and the join)."""
+    saved = {}
+    try:
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            saved[sig] = signal.signal(sig, _signalled)
+    except ValueError:  # not the main thread: the default actions stay
+        pass
+    try:
+        return _status(cmd, nouns)
+    except KeyboardInterrupt:
+        return 130
+    except BrokenPipeError:  # stdout was closed while the screen drew: every read is ended
+        return 128 + signal.SIGPIPE
+    except Signalled as s:
+        return 128 + s.signum
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def _full(cmd, nouns, now, text):
+    """The full read: the object on `--json`, else the screen, a part at a time (J2)."""
+    from . import status_read
+    t = cmd.t
+    if cmd.opts["json"]:
+        t.json(status_read.compose(cmd, nouns, now, text))
+        return 0
+    from . import status_screen
+    slots = cmd.slots()
+
+    def on_part(name, obj):
+        status_screen.part(t, obj, name, slots)
+        t.flush()
+        if t.out.gone:  # the reader closed the pipe: raised here, run_all ends every read
+            raise BrokenPipeError("stdout closed")
+
+    obj = status_read.compose(cmd, nouns, now, text, on_part)
+    status_screen.foot(t, obj, slots)
+    return 0
+
+
+HOOKS = ("--now", "--ps")  # the test hooks, each with its value
+
+
+def mended(cmd, nouns):
+    """The line to paste after a refusal of status (row sc4 R1 and R4, su2-read phase 2): the line
+    as typed less each path that is no folder and less the test hooks with their values, so it
+    passes every check of the verb's that reads no user file."""
+    swap = {cmd.at[k + 1]: [] for k, path in enumerate(nouns) if not os.path.isdir(path)}
+    args = iter(enumerate(cmd.argv))
+    for i, arg in args:
+        if arg == "--":
+            break
+        flag, eq, _ = arg.partition("=")
+        if flag in HOOKS:
+            swap[i] = []
+            if not eq:
+                j = next(args, (None, None))[0]
+                if j is not None:
+                    swap[j] = []
+    return cmd.again(swap)
+
+
+def _status(cmd, nouns):
+    """Each refusal is its cause and the line to paste (sc4's form): a name after --check, a path
+    that is no folder, a bad --now or --ps; a user file that does not parse is its fault alone."""
+    o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
+    if o["check"] and nouns:
+        raise Refusal("extra_word", "err.extra", cmd.say("status", "--check"),
+                      verb="status --check", word=nouns[0])
+    for path in nouns:
+        if not os.path.isdir(path):
+            raise Refusal("bad_path", "err.status.path", mended(cmd, nouns), path=path)
     now = time.time()
     if o["now"] is not None:
         now = when(o["now"])
         if now is None:
-            raise Usage("bad_time", "err.status.now", again, value=o["now"])
+            raise Refusal("bad_time", "err.status.now", mended(cmd, nouns), value=o["now"])
     text = None
     if o["ps"] is not None:
         try:
             text = regular(o["ps"]).decode("utf-8", "replace")
         except OSError:
-            raise Usage("bad_listing", "err.status.ps", again, path=o["ps"])
+            raise Refusal("bad_listing", "err.status.ps", mended(cmd, nouns), path=o["ps"])
     try:
+        if not o["check"]:
+            return _full(cmd, nouns, now, text)
         path, watchers, unchecked = declared(cmd.env)
     except settings.Fault as f:
         home = cmd.env.get("HOME")
         fault = t.text("config.fault" if f.line else "config.fault.noline",
                        path=plan.shown(f.path, home), line=f.line, why=f.why)
-        raise Usage("bad_file", "err.status.file", again, fault=fault, **cmd.slots())
-    procs = None
+        raise Refusal("bad_file", "err.status.file", None, fault=fault)
+    procs, bad = None, None
     if watchers:
         if text is None:
             text = listing(cmd.env)
+            if text is not None and not holds_self(rows(text)):
+                text, bad = None, ps_argv(cmd.env)[0]
         procs = rows(text) if text is not None else None
     found = [check(w, procs, now, cmd.env, os.getuid()) for w in watchers]
     shown = [r for r in found if r["state"] != "running"]
     if o["json"]:
-        t.json({"schema": "agentik.status/1", "ok": True, "check": True, "watchers": found})
+        obj = {"schema": "agentik.status/1", "ok": True, "check": True, "watchers": found}
+        if bad:
+            obj["fault"] = "bad_listing"  # held only when the listing was bad: su1's object as it was
+        t.json(obj)
     else:
         for r in shown:
-            if r["state"] == "unknown":
+            if r["state"] == "unknown" and bad:
+                t.line("status.unknown.listing", name=r["name"], path=bad)
+            elif r["state"] == "unknown":
                 t.line("status.unknown", name=r["name"])
             elif r["since"] is not None:
                 t.line(LINE[r["state"]] + ".since", name=r["name"], start=r["start"],

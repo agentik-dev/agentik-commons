@@ -18,7 +18,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
 - `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
-- `verb.status`: Name each declared watcher that is not running. This version only checks, so pass --check.
+- `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
 - `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
 - `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private. It is sent only when you type send.
@@ -27,7 +27,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
 - `usage.config`: usage: `{config}` [<tool>[.<key>]] [flags]
 - `usage.describe`: usage: `{describe}` [config [<key>]] --json
-- `usage.status`: usage: `{status}` --check [flags]
+- `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
 - `usage.issue`: usage: `{issue}` [new [TOOL] | show | strike WORD... | drop SECTION... | edit | reword FILE | send | discard] [flags]
@@ -63,33 +63,37 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Errors
 
-- `err.verb.near`: `{word}` is not a verb; the nearest is `{near}`. Run `{prog}` --help for the list.
-- `err.verb`: `{word}` is not a verb. Run `{prog}` --help for the list.
-- `err.verb.plugin`: `{word}` is a plugin with no command here. Run `{setup}` --dry-run `{word}` for the steps.
-- `err.flag.near`: `{flag}` is not a flag here; the nearest is `{near}`. Run `{where}` --help for the flags.
-- `err.flag`: `{flag}` is not a flag here. Run `{where}` --help for the flags.
-- `err.extra`: `{where}` takes no argument, and got `{word}`. Run `{where}` --help for its usage.
-- `err.version`: `{tool}` has no version: `{path}` cannot be read. Run claude plugin install suite@agentik to mend it.
-- `err.setup.name`: `{name}` is not a plugin name: a name is lowercase letters, digits and dashes. Run `{setup}` --dry-run for the default set.
+- `err.next`: next: `{command}`
+- `err.verb`: `{word}` is not a verb
+- `err.verb.tool`: `{word}` is not a tool
+- `err.verb.none`: `{word}` is not a verb or a tool
+- `err.verb.own`: `{word}` is a tool, not a verb
+- `err.verb.plugin`: `{word}` is a plugin with no command
+- `err.verb.missing`: `{word}` is not installed
+- `err.flag`: `{flag}` is not a flag
+- `err.flag.of`: `{flag}` is not a flag of `{verb}`
+- `err.flag.version`: --version takes no verb and no --help
+- `err.extra`: `{verb}` takes no name; `{word}` is one more
+- `err.extra.one`: `{verb}` takes one name; `{word}` is one more
+- `err.version`: `{tool}` has no version: `{path}` cannot be read
+- `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
 
-- `err.config.tool.near`: `{name}` is not a tool here; the nearest is `{near}`. Run `{config}` for the list.
-- `err.config.tool`: `{name}` is not a tool here. Run `{config}` for the list.
-- `err.config.key.near`: `{name}` has no setting `{key}`; the nearest is `{near}`. Run `{config}` `{name}` for its keys.
-- `err.config.key`: `{name}` has no setting `{key}`. Run `{config}` `{name}` for its keys.
-- `err.config.noname`: A tool's name goes before the dot. Run `{config}` for the list.
-- `err.config.nokey`: A key goes after the dot. Run `{config}` `{name}` for its keys.
-- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no settings (`{state}`). Run `{config}` `{name}` for what it gives.
-- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command. Run `{config}` `{name}` for what it gives.
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its settings. Run `{config}` `{name}` for what it gives.
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its settings ran past 2 s. Run `{config}` `{name}` for what it gives.
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but its settings answer cannot be read. Run `{config}` `{name}` for what it gives.
-- `err.config.file`: `{fault}`. Mend the file by hand, then run `{config}` `{name}` again.
-- `err.status.check`: `{status}` only checks in this version. Run `{status}` --check.
-- `err.status.now`: `{value}` is not a time. Give --now in ISO 8601, such as 2026-11-13T12:00:00Z.
-- `err.status.ps`: `{path}` cannot be read as a listing. Give --ps a file that ps wrote.
-- `err.status.file`: `{fault}`. Mend the file by hand, then run `{status}` --check again.
-- `err.config.both`: --changed and --user-files are two answers; ask for one. Run `{config}` --changed first.
-- `err.describe.json`: describe prints JSON for other tools, so it needs --json. Run `{config}` suite to read the settings.
+- `err.config.tool`: `{name}` is not a tool here
+- `err.config.key`: `{name}` has no key `{key}`
+- `err.config.noname`: a tool's name goes before the dot
+- `err.config.nokey`: a key goes after the dot
+- `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no keys (`{state}`)
+- `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.file`: `{fault}`
+- `err.status.now`: `{value}` is not an ISO 8601 time, such as 2026-11-13T12:00:00Z
+- `err.status.ps`: `{path}` cannot be read as a listing that ps wrote
+- `err.status.file`: `{fault}`
+- `err.status.path`: `{path}` is not a folder
+- `err.config.both`: --changed and --user-files are two answers
+- `err.describe.json`: describe prints JSON for other tools, so it needs --json
 
 ## Config
 
@@ -144,11 +148,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{config}` <tool> lists one tool's settings.
-- `hint.config.tool`: next: `{config}` `{name}`.<key> shows one setting, where it is set and how to change it.
+- `hint.config`: next: `{config}` TOOL lists one tool's settings.
+- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
 - `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
-- `hint.config.changed`: next: `{config}` <tool>.<key> shows where one is set and how to change it.
+- `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 
 ## The suite's settings
 
@@ -242,7 +246,105 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung.since`: `{name}`: running but silent since `{when}`; start it: `{start}`
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
+- `status.unknown.listing`: `{name}`: not checked: `{path}` gave a listing that lacks this process
 - `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{status}` --check.
+- `status.label.watchers`: watchers
+- `status.label.sessions`: sessions
+- `status.label.gate`: gate
+- `status.label.backlog`: backlog
+- `status.label.runs`: runs
+- `status.label.sources`: sources
+- `status.label.not_read`: not read
+- `status.age.s`: `{n}` s
+- `status.age.min`: `{n}` min
+- `status.age.h`: `{n}` h
+- `status.age.d`: `{n}` d
+- `status.count`: `{n}` `{word}`
+- `status.watcher.none`: none declared
+- `status.watcher.running`: `{name}`: running
+- `status.watcher.beat`: `{name}`: running; its beat is `{age}` old
+- `status.watcher.missing`: `{name}`: not running
+- `status.watcher.missing.since`: `{name}`: not running since `{when}` (`{age}`)
+- `status.watcher.hung`: `{name}`: running but silent
+- `status.watcher.hung.since`: `{name}`: running but silent since `{when}` (`{age}`)
+- `status.watcher.unknown`: `{name}`: not checked: ps gave no listing
+- `status.watcher.unchecked`: `{name}`: not checked
+- `status.watcher.state`: `{name}`: unknown: its state reads `{state}`
+- `status.watcher.start`: start it: `{start}`
+- `status.watcher.writer`: its beat file was last written by `{by}`, not `{writer}`
+- `status.sessions.none`: none live
+- `status.sessions.live`: `{n}` live
+- `status.sessions.ended`: `{n}` ended in the last `{window}` min
+- `status.helpers`: `{n}` helpers `{word}`
+- `status.helpers.one`: 1 helper `{word}`
+- `status.turns`: `{n}` turns
+- `status.turns.one`: 1 turn
+- `status.waits`: waits on `{n}` helpers
+- `status.waits.one`: waits on 1 helper
+- `status.past`: live; no turn in the last `{window}` min
+- `status.unchecked`: processes not checked: ps gave no listing
+- `status.more`: and `{n}` more: `{command}`
+- `status.gate.idle`: idle
+- `status.gate.running`: `{n}` running
+- `status.gate.queued`: `{n}` queued
+- `status.gate.running.alone`: `{n}` running and no runner alive
+- `status.gate.queued.alone`: `{n}` queued and no runner alive
+- `status.gate.passed`: last: `{name}` passed
+- `status.gate.failed`: last: `{name}` failed
+- `status.gate.unknown`: last: `{name}` ?
+- `status.cut`: `{text}` (`{cut}`)
+- `status.see`: see: `{remedy}`
+- `status.job.running`: running
+- `status.job.queued`: queued
+- `status.job.red`: red
+- `status.job.label`: `{name}`: `{label}`
+- `status.job.of`: `{seconds}` of est. `{est}`
+- `status.job.waits`: waits on `{wait}`
+- `status.job.est`: est. `{est}`
+- `status.job.failed`: failed
+- `status.backlog.nowhere`: no checkout here; name one: `{status}` PATH
+- `status.backlog.open`: `{n}` open steps in `{covers}`
+- `status.backlog.open.one`: 1 open step in `{covers}`
+- `status.covers.hq`: `{n}` checkouts beside `{hq}` (kind: hq)
+- `status.covers.hq.one`: 1 checkout beside `{hq}` (kind: hq)
+- `status.covers.checkouts`: `{n}` checkouts from the user file
+- `status.covers.checkouts.one`: 1 checkout from the user file
+- `status.covers.args`: `{n}` checkouts named
+- `status.covers.args.one`: 1 checkout named
+- `status.covers.cwd`: this checkout, `{name}`
+- `status.backlog.first`: first: `{n}` `{title}`
+- `status.backlog.items`: items: `{items}`
+- `status.backlog.unplaced`: `{n}` not placed
+- `status.backlog.skipped`: skipped, no build order: `{names}`
+- `status.runs.none`: none since yesterday
+- `status.run`: `{by}` `{run}`: `{state}`
+- `status.run.row`: `{text}` row `{row}`
+- `status.run.age`: `{text}`, its last line `{age}` ago
+- `status.run.gone`: `{by}` `{run}`: reads running, and its process (pid `{pid}`) is gone
+- `status.source.absent`: not read: agentik-`{tool}` is not installed
+- `status.source.none`: not read: no tool here gives it
+- `status.part.absent`: not read: the status object holds no `{part}`
+- `status.part.stateless`: not read: `{part}` holds no state
+- `status.part.unknown`: unknown: `{part}` reads a state not known here, `{state}`
+- `status.wrong`: not read: `{part}` has a value of the wrong kind
+- `status.source.slow`: not read: agentik-`{tool}` gave no answer in `{wall}` s
+- `status.source.failed`: not read: `{command}` failed
+- `status.source.nojson`: not read: `{command}` printed no JSON object
+- `status.source.changed`: read in part: agentik-`{tool}` answers in a shape that has changed
+- `status.sources.read`: `{n}` read in `{s}` s; the slowest, agentik-`{tool}`, took `{slow}` s
+- `status.sources.none`: no source read
+- `status.sources.absent`: not installed: `{names}`
+- `status.sources.undrawn`: not drawn: agentik-`{tool}` `{name}`
+- `status.not_read.owner`: what waits on the owner
+- `status.not_read.rows`: the rows in flight
+- `hint.status.hand.one`: next: `{remedy}`
+- `hint.status.hand`: next: `{remedy}`, for the first of `{n}` that need a hand
+- `hint.status.hand.one.bare`: next: 1 needs a hand, and no command for it is known
+- `hint.status.hand.bare`: next: `{n}` need a hand, and no command for them is known
+- `hint.status.doctor`: next: `{doctor}`
+- `status.fault.listing`: the process listing could not be trusted, so no watcher is checked
+- `status.fault.listing.parts`: sessions, gate and runs are read in part
+- `status.fault.unknown`: the read gave a fault not known here, `{fault}`
 
 ## Doctor
 

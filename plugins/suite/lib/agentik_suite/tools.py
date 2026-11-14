@@ -24,6 +24,7 @@ WALL = 2.0
 # megabyte. Past CAP bytes on stdout the tool is cut, so a flood costs at most CAP a tool.
 CAP = 1 << 20
 POLL = 0.02
+ERR_CAP = 4096  # a job's stderr kept for `errs` (packet su2-read R4)
 REAP = 0.1
 DESCRIBE = re.compile(r"agentik\.describe/(1)\Z")  # R3 names the one schema
 CONFIG = re.compile(r"agentik\.config/([0-9]+)\Z")
@@ -69,8 +70,11 @@ def plugin_names(env, lib):
 
 
 def _end(job):
-    """Kill the process group and close the parent's end of the pipe. Never wait for EOF: a
-    child that left the group may hold the pipe open."""
+    """Kill the process group and close the parent's end of the pipe, once. Never wait for EOF:
+    a child that left the group may hold the pipe open."""
+    if job.get("ended"):
+        return
+    job["ended"] = True
     try:
         os.killpg(job["proc"].pid, signal.SIGKILL)
     except OSError:
@@ -86,6 +90,15 @@ def _reap(proc):
         proc.wait(timeout=REAP)
     except (subprocess.TimeoutExpired, OSError):
         pass
+
+
+def _end_all(live):
+    """Every live job's group killed first, then each reaped, each wait bounded by REAP."""
+    for job in live.values():
+        _end(job)
+    for job in live.values():
+        _reap(job["proc"])
+        _keep_err(job, None, None)
 
 
 def _drain(job):
@@ -105,50 +118,110 @@ def _drain(job):
         job["chunks"].append(data)
 
 
-def run_all(jobs, env, then=None, deadline=None):
+def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=None):
     """{key: (exit or None, stdout bytes, state)} for jobs [(key, argv)], every one started at
     once, under one deadline (WALL seconds from now when none is given). State is `ran`, `timed
     out` (still running at the deadline, or not started by it) or `unreadable` (it could not
     start, or its stdout passed CAP). `then(key, result)` names more jobs, started at once under
     the same deadline. A job ends when its process exits; its group is then killed, so no
-    process of a group outlives the run."""
-    deadline = time.monotonic() + WALL if deadline is None else deadline
+    process of a group outlives the run. That holds on every way out: an exception from `then`
+    or an interrupt kills and reaps every live group before it leaves (packet su2-read, review 1).
+
+    Three optional keywords (packet su2-read R4); without them the call is as it was. `walls`,
+    {key: seconds}: each job runs under its own wall from its own start (WALL for a key it does
+    not name), and the one deadline holds only when given. `errs`, a dict filled with each job's
+    stderr up to ERR_CAP bytes. `times`, a dict filled with each job's seconds from this call's
+    start to its end."""
+    t0 = time.monotonic()
+    if walls is None:
+        deadline = t0 + WALL if deadline is None else deadline
     queue, live, results = list(jobs), {}, {}
 
     def finish(key, result):
         results[key] = result
+        if times is not None:
+            times[key] = time.monotonic() - t0
         queue.extend(then(key, result) if then else ())
 
+    try:
+        _run(queue, live, finish, env, deadline, walls, errs)
+    except BaseException:
+        _end_all(live)
+        live.clear()
+        raise
+    for job in live.values():
+        _end(job)
+    for key, job in live.items():
+        _reap(job["proc"])
+        _keep_err(job, key, errs)
+        results[key] = (None, b"", "timed out")
+    for key, _ in queue:
+        results[key] = (None, b"", "timed out")
+    return results
+
+
+def _run(queue, live, finish, env, deadline, walls, errs):
+    """run_all's loop: it starts, drains and ends jobs until none is live or the walls pass."""
     while True:
         while queue:
             key, argv = queue.pop(0)
-            if time.monotonic() >= deadline:
+            now = time.monotonic()
+            if deadline is not None and now >= deadline:
                 finish(key, (None, b"", "timed out"))
                 continue
-            fd, end = os.pipe()
+            end = deadline
+            if walls is not None:
+                end = now + walls.get(key, WALL)
+                end = min(end, deadline) if deadline is not None else end
+            fd, out = os.pipe()
+            efd, eout = os.pipe() if errs is not None else (None, None)
             try:
-                proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=end,
-                                        stderr=subprocess.DEVNULL, env=dict(env),
-                                        start_new_session=True)
+                proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out,
+                                        stderr=subprocess.DEVNULL if eout is None else eout,
+                                        env=dict(env), start_new_session=True)
+                live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True,
+                             "end": end, "efd": efd, "err": b""}
             except (OSError, ValueError):
                 os.close(fd)
+                if efd is not None:
+                    os.close(efd)
+                    errs[key] = b""
                 finish(key, (None, b"", "unreadable"))
                 continue
             finally:
-                os.close(end)
+                os.close(out)
+                if eout is not None:
+                    os.close(eout)
             os.set_blocking(fd, False)
-            live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True}
-        left = deadline - time.monotonic()
+            if efd is not None:
+                os.set_blocking(efd, False)
+        now = time.monotonic()
+        for key, job in list(live.items()):
+            if job["end"] is not None and job["end"] <= now and walls is not None:
+                _end(job)
+                _reap(job["proc"])
+                del live[key]
+                _keep_err(job, key, errs)
+                finish(key, (None, b"", "timed out"))
+        if queue:
+            continue
+        ends = [job["end"] for job in live.values() if job["end"] is not None]
+        left = (min(ends) if ends else now) - now
         if not live or left <= 0:
             break
         fds = {job["fd"]: key for key, job in live.items() if job["open"]}
+        efds = {job["efd"]: key for key, job in live.items() if job["efd"] is not None}
         try:
-            ready = select.select(list(fds), [], [], min(left, POLL))[0] if fds else ()
+            ready = select.select(list(fds) + list(efds), [], [], min(left, POLL))[0] \
+                if fds or efds else ()
         except (OSError, ValueError):
-            ready = list(fds)
-        if not fds:
+            ready = list(fds) + list(efds)
+        if not fds and not efds:
             time.sleep(min(left, POLL))
         for fd in ready:
+            if fd in efds:
+                _drain_err(live[efds[fd]])
+                continue
             job = live[fds[fd]]
             if _drain(job) != "open":
                 job["open"] = False
@@ -159,19 +232,40 @@ def run_all(jobs, env, then=None, deadline=None):
                 continue
             if not over and job["open"]:
                 over = _drain(job) == "cap"
-            del live[key]
+            _drain_err(job)
             _end(job)
             _reap(proc)
+            del live[key]
+            _keep_err(job, key, errs)
             finish(key, (None, b"", "unreadable") if over
                    else (proc.returncode, b"".join(job["chunks"]), "ran"))
-    for job in live.values():
-        _end(job)
-    for key, job in live.items():
-        _reap(job["proc"])
-        results[key] = (None, b"", "timed out")
-    for key, _ in queue:
-        results[key] = (None, b"", "timed out")
-    return results
+
+
+def _drain_err(job):
+    """Keep what the stderr pipe holds now, up to ERR_CAP bytes; read past it and drop it."""
+    while job["efd"] is not None:
+        try:
+            data = os.read(job["efd"], 65536)
+        except BlockingIOError:
+            return
+        except OSError:
+            data = b""
+        if not data:
+            os.close(job["efd"])
+            job["efd"] = None
+            return
+        job["err"] = (job["err"] + data)[:ERR_CAP]
+
+
+def _keep_err(job, key, errs):
+    if job["efd"] is not None:
+        try:
+            os.close(job["efd"])
+        except OSError:
+            pass
+        job["efd"] = None
+    if errs is not None:
+        errs[key] = job["err"]
 
 
 def _object(code, out, pattern):

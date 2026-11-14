@@ -1,0 +1,17 @@
+ok    watchers  lamp: running
+ok    sessions  3 live, 3 helpers busy; 1 ended in the last 30 min
+                acme-hq   295k/1M  99 turns  busy; 2 helpers busy, 1 done
+                billing   172k/1M  48 turns  waits on 1 helper
+                44444444                     live; no turn in the last 30 min
+ok    gate      1 running, 1 queued; last: flight0127 passed
+                running  acme-api: land importer-fix  14 min of est. 15 min
+                queued   acme-site                    waits on running 1 of 1
+                red      netnames                     failed
+ok    backlog   3 open steps in this checkout, acme-cli
+                first: 22 The review's builds 5 and 6
+                items: S3 1, S4 2, 1 not placed
+                skipped, no build order: acme-notes
+ok    runs      none since yesterday
+      sources   5 read in 0.1 s; the slowest, agentik-demo, took 0.1 s
+                not drawn: agentik-demo weather
+      not read  what waits on the owner, the rows in flight

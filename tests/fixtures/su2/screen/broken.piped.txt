@@ -1,0 +1,21 @@
+warn  watchers  lamp: not running since 2026-11-04 13:45 (8 d)
+                start it: lampd watch --every 60
+                bell: running but silent
+                start it: belld ring
+                its beat file was last written by report, not ring
+note  sessions  not read: agentik-crew status failed
+                crew: cannot read the sittings dir /var/lib/crew/sittings: No such file or directory
+warn  gate      2 queued and no runner alive; last: acme-api failed (wall cut)
+                see: agentik bench gate status
+                queued  acme-cli: land importer-fix  est. 9 min
+                queued  acme-api                     waits on key hold
+                red     netnames                     failed
+note  backlog   ? open steps in 3 checkouts beside acme-hq (kind: hq)
+                first: 4 The importer reads a file twice
+                items: S3 2, S4 9
+                read in part: agentik-ledger answers in a shape that has changed
+warn  runs      baton 2026-11-13-2: reads running, and its process (pid 4242) is gone
+                see: agentik baton status
+                not read: agentik-bench gave no answer in 1 s
+      sources   3 read in 1.7 s; the slowest, agentik-baton, took 1.7 s
+      not read  what waits on the owner, the rows in flight

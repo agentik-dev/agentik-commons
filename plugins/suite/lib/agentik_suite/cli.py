@@ -2,18 +2,21 @@
 
 Verbs: help (bare, -h, --help), version (--version), setup, which plans with --dry-run and
 otherwise applies the plan's steps 2 to 5, a command at a time (apply.py), config, every tool's
-settings drilled down to one, describe, the suite's own answer to that read, status, which in
-this version only checks the declared watchers (`status --check`), install-cli, which places this
-command and the agentik door under a prefix's bin (install.py), and doctor, the machine checked
-in one read (doctor.py). Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and
-install-cli, the verbs that write, also take --dry-run and -y/--yes; config takes --changed and
---user-files; doctor takes --all; status takes --check, and the test hooks --ps FILE and --now ISO; install-cli takes
---prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit, --output,
---expected, --as and --draft, each with a value. Those nine are the only flags with a value. stdout carries the answer alone;
-stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage or a failed
-precondition, 3 not installed (a plugin's name with no command here). Nothing here loops; setup
-asks once on a terminal before its first command. config writes only its cache under
-${XDG_CACHE_HOME:-~/.cache}/agentik/; status starts ps at most; setup starts the plan's commands
+settings drilled down to one, describe, the suite's own answer to that read, status, five parts
+on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
+status_screen.py draws each as it is read), the object alone with --json, and with --check only
+the declared watchers (status.py), install-cli, which places this command and the agentik door
+under a prefix's bin (install.py), and doctor, the machine checked in one read (doctor.py).
+Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup and install-cli, the verbs
+that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
+--all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
+install-cli takes --prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit,
+--output, --expected, --as and --draft, each with a value. Those nine are the only flags with a
+value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said no or a step failed, 2 usage
+or a failed precondition, 3 not installed (a plugin's name with no command here). Nothing here
+loops; setup asks once on a terminal before its first command. config writes only its cache under
+${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache and starts each tool's status
+reads and ps, each under its wall, and --check starts ps at most; setup starts the plan's commands
 and writes what they write and its journal; install-cli writes under its prefix; doctor writes
 nothing itself, and starts each listed tool's own doctor; issue drafts a report of a problem
 under ${XDG_STATE_HOME:-~/.local/state}/agentik-suite/issues/ and files it only when a person types
@@ -22,6 +25,7 @@ send on the terminal device (issue.py).
 import difflib
 import os
 import re
+import shlex
 import sys
 
 import agentik_install
@@ -51,6 +55,10 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              + ISSUE_FLAGS
              for f in (long, short) if f}
+SWITCHES = ("--json", "--quiet", "-q", "--no-color")
+SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
+NEVER_MENDED = WRITES + ("remove",)  # a word that is no verb is never mended into one of these
+NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
@@ -67,6 +75,17 @@ class Usage(Exception):
         self.code, self.mid, self.remedy, self.status, self.values = code, mid, remedy, exit_code, values
 
 
+class Refusal(Usage):
+    """A refusal in the two-line form (row sc4 R1): the message is the cause alone and the remedy,
+    the command or None, is printed under it after `next:`. A bare Usage, raised by apply.py and
+    install.py until their rows turn them, keeps the pin's one sentence (R3); status.py's are
+    turned (su2-read phase 2)."""
+    paste = True
+
+
+Usage.paste = False
+
+
 def _lib():
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -79,23 +98,29 @@ def _tool(lib):
 
 
 def parse(argv):
+    return _parse(argv)[:3]
+
+
+def _parse(argv):
+    """(opts, words, the first bad flag, each word's index in argv, the bad flag's index)."""
     opts = {key: False for key in ALL_FLAGS.values()}
     opts["version"] = False
     opts.update({key: None for key, _ in VALUE_FLAGS.values()})
-    words, bad, rest = [], None, False
-    args = iter(argv)
-    for arg in args:
+    words, bad, rest, at, bad_at = [], None, False, [], None
+    args = iter(enumerate(argv))
+    for i, arg in args:
         flag, eq, value = arg.partition("=")
         if rest or not arg.startswith("-") or arg == "-":
             words.append(arg)
+            at.append(i)
         elif arg == "--":
             rest = True
         elif flag in VALUE_FLAGS:
-            value = value if eq else next(args, None)
+            value = value if eq else next(args, (None, None))[1]
             if flag == "--prefix" and (value is None or value.startswith("-")):
                 value = ""  # a flag, or nothing, is no folder: install-cli refuses it (ak2b review 1)
             if value is None and bad is None:
-                bad = flag
+                bad, bad_at = flag, i
             elif value is not None:
                 opts[VALUE_FLAGS[flag][0]] = value
         elif arg == "--version":
@@ -103,15 +128,73 @@ def parse(argv):
         elif arg in ALL_FLAGS:
             opts[ALL_FLAGS[arg]] = True
         elif bad is None:
-            bad = arg
-    return opts, words, bad
+            bad, bad_at = arg, i
+    return opts, words, bad, at, bad_at
+
+
+def _flag_fault(opts, words, verb):
+    """The first flag `_dispatch` refuses for `verb`, past the parse, or None."""
+    if opts["version"] and (words or opts["help"]):
+        return "--version"
+    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + ISSUE_FLAGS:
+        if opts[key] and (long, short, key) not in VERB_FLAGS.get(verb, ()):
+            return long
+    for flag, (key, owner) in VALUE_FLAGS.items():
+        if opts[key] is not None and owner != verb:
+            return flag
+    return None
+
+
+def _takes(verb, o, nouns):
+    """True where `verb` takes these flags and words: each verb's refusals that read no file, in
+    the order the verb raises them (cli.py, config.py, install.py, status.py)."""
+    if verb == "help":
+        return len(nouns) <= 1 and all(n in VERBS for n in nouns)
+    if verb in ("version", "doctor"):
+        return not nouns
+    if verb == "install-cli":
+        return not nouns and o["prefix"] != ""
+    if verb == "setup":
+        return all(NOUN.match(n) for n in nouns)
+    if verb == "status":
+        return not (nouns and o["check"])
+    if verb == "describe":
+        return o["json"] and (len(nouns) <= 2 if nouns[:1] == ["sources"] else
+                              not nouns or (nouns[0] == "config" and len(nouns) <= 2))
+    if verb == "config":
+        name, dot, key = config.path(nouns).partition(".")
+        both = o["changed"] and o["user_files"]
+        return not both and not (nouns and (o["changed"] or o["user_files"])) and \
+            (not nouns or bool(name) and not (dot and not key))
+    return False
+
+
+def _door_takes(line):
+    """True where the door, bin/agentik, hands `line` on: a name first, `help` with at most one
+    name after it, or `--version` alone (packet ak2 R2)."""
+    if line[:1] and line[0] in ("help", "-h", "--help"):
+        return len(line) == 1 or len(line) == 2 and bool(NOUN.match(line[1]))
+    return line == ["--version"] or not line or bool(NOUN.match(line[0]))
+
+
+def refused(line):
+    """True where the suite refuses `line`, the words after its name, before it reads a file:
+    the parse, the verb, `_dispatch`'s flags and the verb's own words (sc4 review 1)."""
+    opts, words, bad = _parse(line)[:3]
+    if bad is not None:
+        return True
+    verb = words[0] if words else "version" if opts["version"] and not opts["help"] else "help"
+    if verb not in VERBS or _flag_fault(opts, words, verb):
+        return True
+    return not opts["help"] and not _takes(verb, opts, words[1:])
 
 
 class Command:
-    Usage, VERBS = Usage, VERBS
+    Usage, Refusal, VERBS = Usage, Refusal, VERBS
 
     def __init__(self, argv, env, out, err):
-        self.opts, self.words, self.bad = parse(argv)
+        self.argv = list(argv)
+        self.opts, self.words, self.bad, self.at, self.bad_at = _parse(self.argv)
         self.env = env
         self.lib = _lib()
         self.tool = _tool(self.lib)
@@ -132,6 +215,56 @@ class Command:
         with the full path where the screen shows `~`."""
         return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
                           full=self.opts["json"])
+
+    def again(self, swap, tail=()):
+        """The line as typed, each argv index in `swap` replaced by its words, then `tail`; the
+        switches of the answer's form (--json, -q, --no-color) left out, so a screen and its
+        --json name one command (row sc4 R4)."""
+        line = []
+        for i, word in enumerate(self.argv):
+            if i in swap:
+                line.extend(swap[i])
+            elif word not in SWITCHES:
+                line.append(word)
+        return self.offer(line + list(tail))
+
+    def mend(self, at, *words):
+        return self.again({at: list(words)})
+
+    def offer(self, line):
+        """The command for `line`, the words after the suite's name, where the suite would run it
+        and it does no more than the typed line asked; else the help line of its verb. A line
+        is not offered that the suite refuses, that holds a flag answering a question for the
+        person, that holds more flags than the person typed, that would write (a verb that
+        writes is offered with --dry-run alone), or that the door it starts with refuses (sc4
+        review 1)."""
+        opts, words = _parse(line)[:2]
+        verb = words[0] if words and words[0] in VERBS else self.verb
+        flags = sum(1 for w in line if w.startswith("-") and w != "-")
+        typed = sum(1 for w in self.argv if w.startswith("-") and w not in SWITCHES + ("-",))
+        writes = verb in WRITES and not opts["dry_run"] and not opts["help"]
+        door = prog.form(self.env, self.tool)[0] != "typed"
+        if refused(line) or set(line) & set(SKIPS) or flags > typed or writes or \
+                door and not _door_takes(line):
+            return self.say("help", verb) if verb and verb != "help" else self.say("help")
+        return self.say(*line)
+
+    def _tool_line(self, near, path, rest, asked_help):
+        """The line for the tool `near` the person meant, its file at `path`: through the door
+        where one reaches the suite, else that file through sc2's `prog.shown` (review 1 F5);
+        the words after the typed one, or its help where none follow, since a tool run bare is a
+        usage error (R4). A plugin with no command here gets the suite's help for it (F6). Words
+        that hold a flag answering a question or a word of NEVER_MENDED pass the gate a suite line
+        does in `offer`: the tool's help, by either form (review 2 F1)."""
+        if any(w.partition("=")[0] in SKIPS or w in NEVER_MENDED for w in rest):
+            rest = []
+        if path is None:
+            return self.say("help", near)
+        if prog.form(self.env, self.tool)[0] != "typed":
+            return self.say(*([near] + rest if rest and not asked_help else ["help", near]))
+        shown = prog.shown(path, self.env.get("HOME"), self.opts["json"])
+        words = rest if rest and not asked_help else ["--help"]
+        return " ".join([shown] + [shlex.quote(w) for w in words])
 
     def slots(self):
         """The catalogue's slots for a command, one a verb, `{prog}` with none, and `{tool}`, the
@@ -156,51 +289,66 @@ class Command:
             self.verb = words[0]
             if self.verb not in VERBS:
                 self.verb = None
-                self._not_a_verb(words[0])
+                self._not_a_verb(words[0], self.at[0])
         else:
             self.verb = "version" if o["version"] and not o["help"] else "help"
         nouns = words[1:]
         if self.bad is not None:
             self._bad_flag(self.bad)
-        if o["version"] and (words or o["help"]):
-            self._bad_flag("--version")
-        for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + ISSUE_FLAGS:
-            if o[key] and (long, short, key) not in VERB_FLAGS.get(self.verb, ()):
-                self._bad_flag(long)
-        for flag, (key, verb) in VALUE_FLAGS.items():
-            if o[key] is not None and verb != self.verb:
-                self._bad_flag(flag)
+        fault = _flag_fault(o, words, self.verb)
+        if fault:
+            self._bad_flag(fault)
         if o["help"] and self.verb != "help":
             return self.help_verb(self.verb)
         return getattr(self, "do_" + self.verb.replace("-", "_"))(nouns)
 
-    def _not_a_verb(self, word, asked_help=False):
-        """Packet ak2 R3: a plugin's name with no agentik-<word> on PATH exits 3; any other word
-        exits 2, naming the nearest of the verbs and the plugins' names."""
-        names = tools.plugin_names(self.env, self.lib)
+    def _not_a_verb(self, word, at, asked_help=False):
+        """Packet ak2 R3, row sc4 R6: a plugin's name with no agentik-<word> on PATH exits 3; a
+        tool's name is a tool, not a verb; any other word exits 2, the near verb or tool mended
+        into the line as typed."""
         own = self.tool[len("agentik-"):]
-        if word in names and word != own and not any(
-                f["name"] == "agentik-" + word for f in self._on_path()):
-            raise Usage("not_installed", "err.verb.plugin", self.say("setup", "--dry-run", word),
-                        exit_code=3, word=word, **self.slots())
+        found = {f["name"][len("agentik-"):]: f["path"] for f in self._on_path()}
+        found[own] = os.path.abspath(prog.files(self.lib, self.tool)[0])
+        if word in found:
+            run = prog.shown(found[word], self.env.get("HOME"), self.opts["json"]) + " --help"
+            raise Refusal("unknown_verb", "err.verb.own", run, word=word)
+        if word in tools.plugin_names(self.env, self.lib):
+            if word in tools.installed(self.env):
+                raise Refusal("not_installed", "err.verb.plugin", self.say("config", word),
+                              exit_code=3, word=word)
+            raise Refusal("not_installed", "err.verb.missing", self.say("setup", word),
+                          exit_code=3, word=word)
+        names = sorted(set(found) | set(tools.plugin_names(self.env, self.lib)))
         near = difflib.get_close_matches(word, [w for w in VERBS + tuple(names) if w != word],
-                                         n=1, cutoff=0.6)
-        if near:
-            # a plugin's name as the remedy never succeeds here, so it gets --help (review 1 F3)
-            verb = near[0] in VERBS and not asked_help
-            remedy = self.say(near[0]) if verb else self.say("--help")
-            raise Usage("unknown_verb", "err.verb.near", remedy,
-                        word=word, near=near[0], **self.slots())
-        raise Usage("unknown_verb", "err.verb", self.say("--help"), word=word, **self.slots())
+                                         n=1, cutoff=NEAR)
+        if not near:
+            raise Refusal("unknown_verb", "err.verb.none", self.say("help"), word=word)
+        near = near[0]
+        if near in VERBS:  # never into a verb that writes from a word that is none (review 1 F2)
+            run = self.say("help") if near in NEVER_MENDED and not asked_help else self.mend(at, near)
+            raise Refusal("unknown_verb", "err.verb", run, word=word)
+        rest = [w for w in self.argv[at + 1:] if w not in SWITCHES]
+        if near == own and rest and not asked_help:  # the suite by its name: its own line
+            run = self.offer(rest)
+        else:
+            run = self._tool_line(near, found.get(near), rest, asked_help)
+        raise Refusal("unknown_verb", "err.verb.tool", run, word=word)
 
     def _bad_flag(self, flag):
-        known = list(ALL_FLAGS) + list(VALUE_FLAGS) + ["--version"]
-        near = difflib.get_close_matches(flag, known, n=1, cutoff=0.6)
-        where = self.say(self.verb) if self.verb and self.verb != "help" else self.say()
-        if near and near[0] != flag:
-            raise Usage("unknown_flag", "err.flag.near", "%s --help" % where,
-                        flag=flag, near=near[0], where=where)
-        raise Usage("unknown_flag", "err.flag", "%s --help" % where, flag=flag, where=where)
+        if flag == "--version":
+            raise Refusal("unknown_flag", "err.flag.version", self.say("--version"))
+        verb = self.verb if self.verb and self.verb != "help" else None
+        known = [f for long, short, _ in FLAGS + VERB_FLAGS.get(verb, ()) for f in (long, short) if f]
+        known += [f for f, (_, owner) in VALUE_FLAGS.items() if owner == verb]
+        known += [] if verb else ["--version"]
+        known = [f for f in known if f != flag and f not in SKIPS]  # never --yes (review 1 F1)
+        # a value flag typed rightly with no value after it is no other flag (review 1 F4)
+        near = [] if flag in VALUE_FLAGS else difflib.get_close_matches(flag, known, n=1, cutoff=NEAR)
+        mid = "err.flag.of" if verb else "err.flag"
+        if near and flag == self.bad:
+            raise Refusal("unknown_flag", mid, self.mend(self.bad_at, near[0]), flag=flag, verb=verb)
+        raise Refusal("unknown_flag", mid, self.say("help", *([verb] if verb else [])),
+                      flag=flag, verb=verb)
 
     def fail(self, u):
         if self.opts["json"]:
@@ -208,14 +356,13 @@ class Command:
                          "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
                                    "remedy": u.remedy}})
         else:
-            self.t.error(u.mid, **u.values)
+            self.t.error(u.mid, next_=u.remedy if u.paste else None, **u.values)
         return u.status
 
-    def _no_nouns(self, nouns):
+    def _no_nouns(self, nouns, one=False):
         if nouns:
-            where = self.say(self.verb)
-            raise Usage("extra_word", "err.extra", "%s --help" % where,
-                        word=nouns[0], where=where)
+            raise Refusal("extra_word", "err.extra.one" if one else "err.extra",
+                          self.say("help", self.verb), verb=self.verb, word=nouns[0])
 
     # ---- help -----------------------------------------------------------------------------
 
@@ -242,10 +389,10 @@ class Command:
 
     def do_help(self, nouns):
         if len(nouns) > 1:
-            self._no_nouns(nouns[1:])
+            self._no_nouns(nouns[1:], one=True)
         if nouns:
             if nouns[0] not in VERBS:
-                self._not_a_verb(nouns[0], asked_help=True)
+                self._not_a_verb(nouns[0], self.at[1], asked_help=True)
             return self.help_verb(nouns[0])
         found = self._on_path()
         if self.opts["json"]:
@@ -301,8 +448,8 @@ class Command:
         self._no_nouns(nouns)
         if self.version == "0.0.0-unknown":  # agentik_install.version's word for no manifest
             path = os.path.join(os.path.dirname(self.lib), ".claude-plugin", "plugin.json")
-            raise Usage("no_version", "err.version", "claude plugin install suite@agentik",
-                        **self.slots(), path=path)
+            raise Refusal("no_version", "err.version", "claude plugin install suite@agentik",
+                          tool=self.slots()["tool"], path=path)
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "version", "ok": True, "tool": self.tool,
                          "version": self.version})
@@ -318,8 +465,7 @@ class Command:
     def do_setup(self, nouns):
         for noun in nouns:
             if not NOUN.match(noun):
-                raise Usage("bad_name", "err.setup.name", self.say("setup", "--dry-run"),
-                            name=noun, **self.slots())
+                raise Refusal("bad_name", "err.setup.name", self.say("setup", "--dry-run"), name=noun)
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)

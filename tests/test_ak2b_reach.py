@@ -98,10 +98,10 @@ class InstallCliTest(Reach):
         self.assertEqual(self.install(PATH=on)[::2], (0, ""))
         self.assertEqual(self.install("-q")[::2], (0, ""))
         self.assertEqual(self.installed(PATH=on)["on_path"], True)
-        for args in (("install-cli", "extra"), ("install-cli", "--prefix")):
+        for args, lines in ((("install-cli", "extra"), 2), (("install-cli", "--prefix"), 1)):
             code, out, err = self.call([LAUNCHER, *args])
             self.assertEqual((code, out), (2, ""), args)
-            self.assertEqual(len(err.splitlines()), 1, err)
+            self.assertEqual(len(err.splitlines()), lines, err)  # cli.py's is two lines (row sc4 R3)
         code, out, err = self.call([LAUNCHER, "help"])
         self.assertRegex(out, r"(?m)^  install-cli  ")
         code, out, err = self.call([LAUNCHER, "help", "install-cli"])
