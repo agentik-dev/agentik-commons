@@ -31,6 +31,8 @@ LOG = 'echo "$*" >> "$HOME/ran.log"\n'
 MESSAGE = "line 3 of /opt/acme/murmur.yaml does not parse"
 REMEDY = "murmur-mend /opt/acme/murmur.yaml"
 PLAIN = "next: the FAIL rows above say what failed: mend each, then "
+# review 2's F2: a direction mark, a zero-width character, a soft hyphen and a lone surrogate
+MARKS = ("\u200e", "\u200f", "\u061c", "\u200b", "\ufeff", "\u00ad", "\ud800")
 
 
 def described(tool=T, reads=("config", "doctor")):
@@ -276,6 +278,45 @@ class NameTest(Copy):
             code, out, err = self.cli(h, "config", T, path=path)
             self.assertIn("gave no answer that reads", out + err)
 
+    def no_remedy(self, remedy):
+        """`config T` closes as for a null remedy, and `config --json` carries none."""
+        h = self.home("hD")
+        h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
+        code, out, err = self.cli(h, "config", T)
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("its settings read failed: " + MESSAGE, out + err)
+        self.assertNotIn("murmur prune", out + err)
+        self.assertNotIn("mend", out + err)
+        self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])
+        code, out, err = self.cli(h, "config", "--json")
+        row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
+        self.assertEqual(row["error"], {"code": "bad_file", "message": MESSAGE, "remedy": None})
+
+    def test_17_a_remedy_past_the_cap_is_no_remedy(self):
+        """Review 2's F3: a remedy is never cut; past the cap, its outer spaces gone, it is none."""
+        head, tail = "murmur prune ~/.cache/murmur/", " --dry-run"
+        long = head + "a" * (tools.LINE_CAP + 1 - len(head) - len(tail)) + tail
+        self.assertEqual(len(long), tools.LINE_CAP + 1)
+        self.no_remedy(long)
+        self.no_remedy("  " + long + "  ")
+        at_cap = long[:len(head)] + long[len(head) + 1:]
+        self.assertEqual(len(at_cap), tools.LINE_CAP)
+        for remedy, whole in ((at_cap, at_cap), ("  " + at_cap + " ", at_cap),
+                              ("  murmur-mend /opt/acme/murmur.yaml  ", REMEDY)):
+            h = self.home("hD")
+            h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
+            code, out, err = self.cli(h, "config", T)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual((out + err).splitlines()[-1], "next: " + whole)
+            code, out, err = self.cli(h, "config", "--json")
+            row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
+            self.assertEqual(row["error"]["remedy"], whole)
+
+    def test_18_a_remedy_with_a_mark_that_cannot_be_seen_is_no_remedy(self):
+        """Review 2's F2: a character of category Cf or Cs makes no remedy on R4's path."""
+        for mark in MARKS:
+            self.no_remedy("mend %sx" % mark)
+
 
 class DoctorTest(Checks):
     def starts(self, name=T):
@@ -407,6 +448,25 @@ class DoctorTest(Checks):
         self.assertIn(("ok", T, "its doctor passed"), [MARK.match(l).groups() for l in out.splitlines()
                                                        if MARK.match(l)])
         self.assertEqual(self.starts(T), ["describe --json", "doctor --json", "doctor"])
+
+    def test_18_a_doctor_remedy_with_a_mark_that_cannot_be_seen_is_no_remedy(self):
+        """Review 2's F2: a check of R5's read, or its `ok` false answer, whose remedy holds a
+        character of category Cf or Cs has no `fix:` line, and the close names no command of it."""
+        path = self.ready()
+        for mark in MARKS:
+            bad = "mend %sx" % mark
+            for answer in (doctor_answer([check("c0", "ok"), check("f1", "fail", remedy=bad)]),
+                           {"schema": "agentik.doctor/1", "ok": False,
+                            "error": {"code": "c", "message": "it broke", "remedy": bad}}):
+                self.murmur(stub(describe=described(reads=("doctor",)), checks=answer))
+                code, out, err = self.screen(PATH=path)
+                self.assertEqual(code, 1, out + err)
+                self.assertNotIn("mend", out + err, ascii(mark))
+                self.assertNotIn("fix:", "\n".join(self.group(out)))
+                self.assertTrue(err.splitlines()[-1].startswith(PLAIN), err)
+                _, _, obj = self.json_of(PATH=path)
+                group = [g for g in obj["tools"] if g["name"] == T][0]
+                self.assertEqual([c["remedy"] for c in group["checks"] if c["status"] == "fail"], [None])
 
 
 class TableTest(unittest.TestCase):
