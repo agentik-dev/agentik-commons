@@ -3,15 +3,17 @@
 The suite's checks, in order: the door (the first `agentik` on PATH that is a regular executable
 file, its VERSION against the door this command ships), a shadow (an `agentik-<word>` on PATH
 whose word the door would hand to it in place of the suite's verb), the user settings file, and
-the setup plan's steps 1 to 6, one check a row. Then each listed tool's own checks: every one
-first asked `describe --json` (the cache and the describe wall, row ak9b R5): one whose counted answer
-names a read of kind `doctor` runs that read's words, once; every other is asked `doctor --json`,
-and one whose answer is not the contract's (§5) plain `doctor` in a second round, all under one
-deadline of DEADLINE seconds (row sc10). A counted answer's group shows its fail checks, then its
-warn checks, then one row for the rest (R6); a failing one whose fails name no command the close
-may run closes on the plain line (R7). A check
-is {name, status, detail, remedy}; the status is ok, note, warn or fail; exit 1 when one is fail,
-else 0. The screen is a line a group, a row for each check that fails or warns, and a close that
+the setup plan's steps 1 to 6, one check a row. Then each listed tool's own checks. Every one is
+first asked `describe --json`, under the describe wall (tools.WALL; the cache answers for a file
+it has seen), row ak9b R5. Then, under one deadline of DEADLINE seconds, a tool whose counted
+answer names a read of kind `doctor` runs that read's words, once (`read_own`); every other is
+asked `doctor --json` and, where its answer is not the contract's (§5), plain `doctor` in a second
+round (row sc10, `read_answer`). So the worst case is the wall and the deadline, one after the
+other. Only an answer of R5's read gets ak9b's form: its fail checks, then its warn checks, then
+one row for the rest (R6), its detail one line of at most 300 characters, and the plain close
+where its fails name no command the close may run (R7); a tool on sc10's path keeps sc10's rows,
+order, close and JSON (review 1 F1). A check is {name, status, detail, remedy}; the status is
+ok, note, warn or fail; exit 1 when one is fail, else 0. The screen is a line a group, a row for each check that fails or warns, and a close that
 names at most one command. It runs no `claude` and writes nothing itself but the describe cache;
 a tool's own doctor may write its state.
 
@@ -278,7 +280,36 @@ def read_answer(out, failed):
     """The checks of a `doctor --json` answer that counts (R1), else None: one object whose
     schema is SCHEMA and whose checks are the contract's shape; the exit, `failed` and `warned`
     are not read. Such an object with ok false is one fail check, `doctor`, with the error's
-    message (else `failed`) and remedy."""
+    message (else `failed`) and remedy. sc10's read, the pin's to the byte (ak9b review 1 F1)."""
+    try:
+        obj = json.loads(out.decode("utf-8", "replace"))
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(obj, dict) or obj.get("schema") != SCHEMA:
+        return None
+    if obj.get("ok") is False:
+        error = obj.get("error") if isinstance(obj.get("error"), dict) else {}
+        message, remedy = error.get("message"), error.get("remedy")
+        return [_check("doctor", "fail", message if isinstance(message, str) and message else failed,
+                       remedy if isinstance(remedy, str) and remedy else None)]
+    checks = obj.get("checks")
+    if not isinstance(checks, list):
+        return None
+    found = []
+    for c in checks:
+        if not (isinstance(c, dict) and isinstance(c.get("name"), str) and c.get("status") in STATUSES
+                and isinstance(c.get("detail"), str)
+                and (c.get("remedy") is None or isinstance(c.get("remedy"), str))):
+            return None
+        found.append({k: c.get(k) for k in KEYS})
+    return found
+
+
+def read_own(out, failed):
+    """The checks of an answer of R5's doctor read that counts (row ak9b R5), else None: one
+    object whose schema is `agentik.doctor/N`, N at most 1, `ok` true and checks of the contract's
+    shape; `ok` false is sc10's one fail check. Each detail and message is one line of at most
+    300 characters (R6)."""
     try:
         obj = json.loads(out.decode("utf-8", "replace"))
     except (ValueError, RecursionError):
@@ -343,7 +374,7 @@ def own_doctors(cmd, entries):
         code, out, state = result
         if round_ == 2 or state != "ran":
             return ()
-        got = read_answer(out, t.text("doctor.tool.failed"))
+        got = (read_own if round_ == "read" else read_answer)(out, t.text("doctor.tool.failed"))
         if got is None:  # a doctor read that does not count gets no second round (R8)
             return [((name, 2), [exes[name], "doctor"])] if round_ == 1 else ()
         answers[name] = got
@@ -362,8 +393,10 @@ def own_doctors(cmd, entries):
         if not e["exe"]:
             group.update(nocmd=True, checks=lead + [_check("doctor", "note", t.text("doctor.tool.nocmd"))])
             continue
-        if name in answers:
-            group.update(one=False, checks=lead + answers[name], own=answers[name])
+        if name in answers:  # `own` marks R5's read alone: R6 and R7 reach no other (review 1 F1)
+            group.update(one=False, checks=lead + answers[name])
+            if name in reads:
+                group["own"] = answers[name]
             continue
         again = tool_doctor(cmd, name, e["exe"])
         if name in reads:

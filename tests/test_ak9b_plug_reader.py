@@ -374,10 +374,10 @@ class DoctorTest(Checks):
         answer = self.answer_of(T, NO_READ)
         self.tool(T, answer)  # no describe: sc10's stub exits 9
         self.assertEqual(self.no_read(), PIN_9)
-        self.assertEqual(self.starts(T)[-2:], ["describe --json", "doctor --json"])
+        self.assertEqual(Checks.starts(self, T)[-2:], ["describe --json", "doctor --json"])  # counts/
         self.murmur(stub(describe=described(reads=("config",)), doctor_json=json.loads(answer)))
         self.assertEqual(self.no_read(), PIN_9)
-        self.assertEqual(self.starts(T)[-2:], ["describe --json", "doctor --json"])
+        self.assertEqual(self.starts(T), ["describe --json", "doctor --json", "doctor --json"])  # cached
 
     def test_14_a_doctor_remedy_with_a_control_byte_is_no_remedy(self):
         """Review 1's lead 2: a check of R5's read whose remedy holds a control byte or a newline
