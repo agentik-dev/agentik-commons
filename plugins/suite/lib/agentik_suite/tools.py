@@ -70,8 +70,11 @@ def plugin_names(env, lib):
 
 
 def _end(job):
-    """Kill the process group and close the parent's end of the pipe. Never wait for EOF: a
-    child that left the group may hold the pipe open."""
+    """Kill the process group and close the parent's end of the pipe, once. Never wait for EOF:
+    a child that left the group may hold the pipe open."""
+    if job.get("ended"):
+        return
+    job["ended"] = True
     try:
         os.killpg(job["proc"].pid, signal.SIGKILL)
     except OSError:
@@ -87,6 +90,15 @@ def _reap(proc):
         proc.wait(timeout=REAP)
     except (subprocess.TimeoutExpired, OSError):
         pass
+
+
+def _end_all(live):
+    """Every live job's group killed first, then each reaped, each wait bounded by REAP."""
+    for job in live.values():
+        _end(job)
+    for job in live.values():
+        _reap(job["proc"])
+        _keep_err(job, None, None)
 
 
 def _drain(job):
@@ -112,7 +124,8 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
     out` (still running at the deadline, or not started by it) or `unreadable` (it could not
     start, or its stdout passed CAP). `then(key, result)` names more jobs, started at once under
     the same deadline. A job ends when its process exits; its group is then killed, so no
-    process of a group outlives the run.
+    process of a group outlives the run. That holds on every way out: an exception from `then`
+    or an interrupt kills and reaps every live group before it leaves (packet su2-read, review 1).
 
     Three optional keywords (packet su2-read R4); without them the call is as it was. `walls`,
     {key: seconds}: each job runs under its own wall from its own start (WALL for a key it does
@@ -130,6 +143,25 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
             times[key] = time.monotonic() - t0
         queue.extend(then(key, result) if then else ())
 
+    try:
+        _run(queue, live, finish, env, deadline, walls, errs)
+    except BaseException:
+        _end_all(live)
+        live.clear()
+        raise
+    for job in live.values():
+        _end(job)
+    for key, job in live.items():
+        _reap(job["proc"])
+        _keep_err(job, key, errs)
+        results[key] = (None, b"", "timed out")
+    for key, _ in queue:
+        results[key] = (None, b"", "timed out")
+    return results
+
+
+def _run(queue, live, finish, env, deadline, walls, errs):
+    """run_all's loop: it starts, drains and ends jobs until none is live or the walls pass."""
     while True:
         while queue:
             key, argv = queue.pop(0)
@@ -147,6 +179,8 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
                 proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out,
                                         stderr=subprocess.DEVNULL if eout is None else eout,
                                         env=dict(env), start_new_session=True)
+                live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True,
+                             "end": end, "efd": efd, "err": b""}
             except (OSError, ValueError):
                 os.close(fd)
                 if efd is not None:
@@ -161,14 +195,12 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
             os.set_blocking(fd, False)
             if efd is not None:
                 os.set_blocking(efd, False)
-            live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True, "end": end,
-                         "efd": efd, "err": b""}
         now = time.monotonic()
         for key, job in list(live.items()):
             if job["end"] is not None and job["end"] <= now and walls is not None:
-                del live[key]
                 _end(job)
                 _reap(job["proc"])
+                del live[key]
                 _keep_err(job, key, errs)
                 finish(key, (None, b"", "timed out"))
         if queue:
@@ -200,22 +232,13 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
                 continue
             if not over and job["open"]:
                 over = _drain(job) == "cap"
-            del live[key]
             _drain_err(job)
             _end(job)
             _reap(proc)
+            del live[key]
             _keep_err(job, key, errs)
             finish(key, (None, b"", "unreadable") if over
                    else (proc.returncode, b"".join(job["chunks"]), "ran"))
-    for job in live.values():
-        _end(job)
-    for key, job in live.items():
-        _reap(job["proc"])
-        _keep_err(job, key, errs)
-        results[key] = (None, b"", "timed out")
-    for key, _ in queue:
-        results[key] = (None, b"", "timed out")
-    return results
 
 
 def _drain_err(job):
@@ -235,15 +258,14 @@ def _drain_err(job):
 
 
 def _keep_err(job, key, errs):
-    if errs is None:
-        return
     if job["efd"] is not None:
         try:
             os.close(job["efd"])
         except OSError:
             pass
         job["efd"] = None
-    errs[key] = job["err"]
+    if errs is not None:
+        errs[key] = job["err"]
 
 
 def _object(code, out, pattern):
