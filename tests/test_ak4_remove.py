@@ -483,11 +483,12 @@ class Remove(Base):
     def test_g_steps_1_and_4_only_at_the_users_scope(self):
         h, kept = self.x()
         root = h.table["x@agentik"][0]["installPath"]
-        h.table["x@agentik"] = [{"scope": "project", "version": "1.0.0", "installPath": root, "projectPath": h.home}]
+        h.table["x@agentik"] = [{"scope": "managed", "version": "1.0.0", "installPath": root}]
         h.write()
         code, out, err = h.go("remove", "x", "--yes")
         self.assertEqual(code, 0, out + err)
         self.assertEqual(h.claude(), [])
+        self.assertIn("managed", out)
         self.assertTrue(os.path.isfile(os.path.join(h.bindir, "agentik-x")))
         h2, _ = self.x(name="h2")
         h2.install("suite@agentik", "0.7.0", launcher=False)
