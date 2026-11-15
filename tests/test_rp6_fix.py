@@ -464,11 +464,11 @@ class Phase2Test(FixHome):
                 (("send", "--yes"), "send takes no --yes: you read the issue on your terminal and type send", "help issue"),
                 (("send", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
                 (("discard", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
-                (("send",), "send needs a terminal to type in; this process has none", "help issue")):
+                (("send",), "send needs a terminal; this process has none, so send from your own terminal", "help issue")):
             self.refusal(args, cause, tail)
         self.gh_answer("issue_list", json.dumps([{"number": 7, "title": "x", "state": "OPEN",
                                                    "url": URL[:-2] + "7"}]))
-        self.refusal(("send",), "an open issue holds this failure: %s; add there, or --not-a-duplicate"
+        self.refusal(("send",), "an open issue holds this failure: %s; add to it, or pass --not-a-duplicate"
                      % (URL[:-2] + "7"), "help issue", exit_code=1)
         self.assertEqual(self.gh_calls("issue create"), [])
 

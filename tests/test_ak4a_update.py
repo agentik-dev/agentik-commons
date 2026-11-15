@@ -310,7 +310,7 @@ class UpdateTest(Base):
 
     def test_7_the_suite_from_a_checkout_is_left_as_it_is(self):
         for listed, hint in ((("murmur", "suite"), "claude plugin install suite@agentik"),
-                             (("murmur",), "to move it: pull that checkout, run install-cli of its bin/agentik-suite")):
+                             (("murmur",), "pull that checkout, run install-cli of plugins/suite/bin/agentik-suite")):
             h = self.home(listed, name="h-" + str(len(listed[1:])))
             h.install("murmur@agentik", "1.0.0", "1.1.0")
             checkout = os.path.join(self.tmp, "checkout-" + str(len(listed)))  # review 1 lead d

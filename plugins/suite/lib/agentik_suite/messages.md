@@ -45,7 +45,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
 - `verb.install_cli`: Place the suite's command and the agentik command on the terminal's PATH.
-- `verb.doctor`: Check this machine: the agentik command, the user file and each tool.
+- `verb.doctor`: Check this machine: the agentik command, user file, setup plan, each tool.
 - `verb.inbox`: List what waits on you in each checkout: questions, and what needs a hand.
 - `verb.issue`: Draft a scrubbed report of a problem; it is sent only when you type send.
 - `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
@@ -59,7 +59,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
 - `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
-- `usage.issue`: usage: `{issue}` [new|show|strike|drop|edit|reword|send|discard] [flags]
+- `usage.issue`: usage: `{issue}` [new|show|strike WORD|drop SECTION|edit|reword FILE|send|discard]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
@@ -90,7 +90,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `install.door.unversioned`: The agentik command `{door}` holds no version to compare, so it stays.
 - `install.pruned`: `{line}`
 - `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
-- `err.install.prefix`: --prefix needs a folder: `{install}` --prefix <folder>, or leave it out.
+- `err.install.prefix`: --prefix needs a folder: `{install}` --prefix <folder>, or omit it for ~/.local.
 - `err.install`: install-cli stopped: `{why}`. Mend that, then run `{install}` again.
 
 ## Errors
@@ -341,21 +341,21 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
 - `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`; run `{update}` again
 - `err.update.step.silent`: Update stopped: `{command}` exited `{exit}`, no output; run `{update}` again
-- `err.update.wall`: `{command}` ran past its `{wall}` s limit, last line `{last}`; run `{update}` again
-- `err.update.wall.silent`: `{command}` ran past its `{wall}` s limit, no output; run `{update}` again
+- `err.update.wall`: Update stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{update}` again
+- `err.update.wall.silent`: Update stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{update}` again
 - `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
 - `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
 - `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
-- `hint.update.suite.pull`: to move it: pull that checkout, run install-cli of its bin/agentik-suite
+- `hint.update.suite.pull`: pull that checkout, run install-cli of plugins/suite/bin/agentik-suite
 
 ## Remove
 
-- `verb.remove`: Take tools off this machine, or with --all the suite too; config is kept.
+- `verb.remove`: Take tools off this machine, or with --all the suite; config, state stay.
 - `usage.remove`: usage: `{remove}` <plugin>... | --all [flags]
-- `flag.remove_all`: Take off every tool, the marketplace, the suite and the agentik command.
+- `flag.remove_all`: Take off all tools, the marketplace, the suite, the agentik command, cache.
 - `remove.plan`: Remove plan for `{names}`.
 - `remove.plan.dry`: Remove plan for `{names}`. Nothing is written.
 - `remove.plugin`: Claude Code uninstalls it and keeps its data and cache folders
@@ -390,18 +390,18 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.remove.held`: next: `{command}` once it has ended
 - `err.remove.yes`: Remove ran nothing, since it cannot ask here; run `{remove}` --yes
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
-- `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, which `claude plugin` writes
+- `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, written by `claude plugin`; use a terminal
 - `err.remove.gate_unread`: Remove ran nothing: `{path}` is unreadable (`{why}`); run `{remove}` in a terminal
 - `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`; run `{remove}` again
 - `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}`, no output; run `{remove}` again
-- `err.remove.wall`: `{command}` ran past its `{wall}` s limit, last line `{last}`; run `{remove}` again
-- `err.remove.wall.silent`: `{command}` ran past its `{wall}` s limit, no output; run `{remove}` again
+- `err.remove.wall`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{remove}` again
+- `err.remove.wall.silent`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{remove}` again
 - `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`; run `{remove}` again
 - `err.remove.interrupted.idle`: Remove was interrupted between steps; run `{remove}` again to go on
 - `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`); run `{remove}` again
 - `err.remove.red`: Remove finished, but `{paths}` is not as it said; see what else wrote there
 - `err.remove.stands`: Remove finished, but `{paths}` still stands; it is yours to delete
-- `err.remove.cache.partly`: `{path}` was partly removed (`{why}`); that folder is yours to delete
+- `err.remove.cache.partly`: Remove stopped: `{path}` is partly removed (`{why}`); the suite is off, so delete it
 - `err.remove.journal`: Remove could not log to `{path}`, since `{why}`; the report above holds
 
 ## Status
@@ -682,7 +682,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Issue
 
-- `issue.screen.head`: The issue as it is filed, byte for byte; its first line is the title.
+- `issue.screen.head`: The issue exactly as send files it; its first line is the title.
 - `issue.screen.text`: `{text}`
 - `issue.screen.end`: The issue ends above this line.
 - `issue.screen.repo`: It goes to github.com/`{repo}` as a new issue.
@@ -696,7 +696,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.send.web.token`: `{name}` is set and overrides gh's account, so the issue goes by the browser
 - `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
 - `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
-- `err.issue.send.tty`: send needs a terminal to type in; this process has none
+- `err.issue.send.tty`: send needs a terminal; this process has none, so send from your own terminal
 - `err.issue.send.inside`: send files nothing from inside Claude Code; send from your own terminal
 - `err.issue.send.parent`: send files nothing from a process Claude Code started; use your terminal
 - `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it
@@ -714,7 +714,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.small`: the terminal is too small for the issue and its question; nothing was sent
 - `err.issue.send.nogh`: gh could not start, so nothing was filed; install gh or use the browser
 - `err.issue.send.yes`: send takes no --yes: you read the issue on your terminal and type send
-- `err.issue.send.open`: an open issue holds this failure: `{url}`; add there, or --not-a-duplicate
+- `err.issue.send.open`: an open issue holds this failure: `{url}`; add to it, or pass --not-a-duplicate
 - `err.issue.sent`: this draft was already filed: `{url}`
 - `err.issue.sent.unkept`: the issue was filed, but the draft `{id}` could not record that
 - `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
@@ -740,9 +740,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.new.weak`: `{kinds}` is a common word, so the scan leaves it; strike it if it names you
 - `issue.new.went`: To stay under the ceiling the draft left out: `{went}`.
 - `issue.new.size`: size `{size}` of `{ceiling}` bytes
-- `issue.new.over`: The draft is `{size}` bytes, `{over}` over: `{drop}` SECTION or `{strike}` WORD
+- `issue.new.over`: The draft is `{size}` bytes, `{over}` over the limit, so send refuses it: `{drop}` SECTION or `{strike}` WORD
 - `issue.new.repo`: to `{repo}`
-- `issue.new.warning`: The scan misses unlisted names; read every line: a filed issue is public
+- `issue.new.warning`: The scan knows shapes and the names on this machine's lists. It cannot know that a project's name, a customer's name or a branch's name is private. Read every line. What you file is public at once and may be copied before it can be removed.
 - `hint.issue.new`: next: `{strike}` WORD, `{drop}` SECTION or `{edit}`, then `{send}` it
 - `hint.issue.mend`: next: mend the line with `{strike}` WORD or `{edit}`, then `{send}` again
 - `issue.count.word`: 1 word
@@ -771,9 +771,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.unreadable`: `{path}` cannot be read as a regular file
 - `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
 - `err.issue.io`: a file of the drafts could not be read, written or removed
-- `err.issue.unsafe`: the draft `{id}` is a link, no folder, or open to others; nothing was done
-- `err.issue.unsafe.file`: `{name}` of draft `{id}` is a link, no file, or open to others; nothing sent
-- `err.issue.unsafe.root`: the drafts folder is a link, no folder, or open to others; nothing was done
+- `err.issue.unsafe`: the draft `{id}` is a link, not a folder, or open to others; nothing was done
+- `err.issue.unsafe.file`: `{name}` of draft `{id}` is a link, not a file, or open to others; nothing sent
+- `err.issue.unsafe.root`: the drafts folder is a link, not a folder, or open to others; nothing done
 - `err.issue.strike`: strike takes the words to strike
 - `err.issue.drop`: `{section}` is no part of the draft; one of `{sections}`
 - `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`

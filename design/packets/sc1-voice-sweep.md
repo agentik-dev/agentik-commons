@@ -21,7 +21,7 @@
 
 ## Measure
 
-Width: the text after the id, backticks dropped, each placeholder counted as written (braces kept), which is longer than a value-free count; a message that fits so fits both ways.
+Width: the text after the id, backticks dropped, each placeholder counted as nothing (the value is not there yet). Review 1 moved this from the first build's strict count (placeholders as written), which could not hold the facts the review asked back. One id is exempt by name in the test: `issue.new.warning`, a privacy caution, main's text whole.
 
 ## Choices inside the rulings
 
@@ -30,6 +30,7 @@ Width: the text after the id, backticks dropped, each placeholder counted as wri
 - `Would place` and `would be an hq` (the dry runs of install and init) read `Plan: ...`, in the present, since V4 gives the exception to a title only and these are lines.
 - `config.state.noread` keeps its sense with `keys`; design/23's `lists no keys yet` is its code row's.
 - `usage.issue` lists the actions only, as `[new|show|...]`; their arguments are in `help issue`.
-- `err.remove.gated` reads `` `{remove}` ran nothing: the gate list names `{path}`, which `claude plugin` writes``, the cause alone: the span `claude plugin` must stay (verify-edit), and the remedy sentence had no room.
+- Review 1 (20 ids): each proposed line of the review is taken, shortened only where the width gave out: `verb.doctor` drops `and`, `usage.issue` drops `[TOOL]` and `[flags]` (its arguments WORD, SECTION and FILE stay), `flag.remove_all` and `verb.remove` are tightened, the four `wall` lines read `past {wall} s limit`, `err.remove.gated` ends `use a terminal`, `err.remove.cache.partly` reads `is partly removed ... so delete it`, `err.issue.unsafe.root` ends `nothing done`, `hint.update.suite.pull` drops `to move it:`. `issue.new.warning` is main's text again.
+- `err.remove.gated` (first build) reads `` `{remove}` ran nothing: the gate list names `{path}`, which `claude plugin` writes``, the cause alone: the span `claude plugin` must stay (verify-edit), and the remedy sentence had no room.
 - `stands as typed` read `stands unchanged` and `may or may not` was dropped, since the voice scanner refuses both (`copula_avoidance`, `hedging`).
 - Where a message gave a second sentence of advice and the width could not hold it, the cause and the one command stay; the advice dropped is the list `Mend that, then`, V2's own.

@@ -223,7 +223,7 @@ class FormTest(Sc4Home):
         code, out, err = self.run_cli("install-cli", "--prefix")
         self.assertEqual((code, out), (2, ""))
         self.assertEqual(err, "FAIL  --prefix needs a folder: agentik install-cli --prefix <folder>, "
-                              "or leave it out.\n")
+                              "or omit it for ~/.local.\n")
         code, out, err = self.run_cli("setup")
         lines = err.splitlines()
         self.assertEqual(code, 2, err)
