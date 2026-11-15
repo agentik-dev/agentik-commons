@@ -572,5 +572,89 @@ class Uninstall(Base):
         self.assertEqual(os.listdir(self.bin().parent), [])
 
 
+    # ---- the fix of review 2 ----
+
+    def test_a_write_only_lock_installs(self):    # G2
+        plugin = self.plugin()
+        self.install(plugin)
+        lock = self.share() / ".lock"
+        self.under_temp(lock)
+        os.chmod(str(lock), 0o200)
+        code, out, err = self.run_tool(plugin / "bin" / "agentik-x", "install-cli")
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertEqual(self.run_tool(self.bin(), "--version")[:2], (0, "1.0.0\n"))
+
+    def test_a_launcher_with_a_hidden_tree_is_kept(self):    # G1
+        forms = {"spaces": "\n  TREE=%s", "a tab": "\n\tTREE=%s", "export": "\nexport TREE=%s",
+                 "one line": "; TREE=%s", "after another": "\nX=1 ; TREE=%s"}
+        for kind, form in forms.items():
+            with self.subTest(kind=kind):
+                self.setUp()
+                self.install(self.plugin())
+                tree, out = self.tree(), self.outside()
+                text = self.bin().read_text()
+                self.bin().write_text(re.sub(r"(?m)^(TREE=.*)$", lambda m: m.group(1) + form % out, text, count=1))
+                before = snapshot(self.prefix())
+                rows = self.un()
+                self.assertEqual(rows[0], (str(self.bin()), "launcher", "kept: not the launcher install-cli wrote"))
+                self.assertEqual({r[2] for r in rows}, {"kept: not the launcher install-cli wrote"}, rows)
+                self.assertEqual(snapshot(self.prefix()), before)
+                self.assertTrue(tree.is_dir())
+        with self.subTest(kind="a space in the prefix"):
+            self.setUp()
+            self.home = self.home / "a b"
+            self.home.mkdir()
+            self.env["HOME"] = str(self.home)
+            self.install(self.plugin())
+            self.assertIn("TREE='", self.bin().read_text())
+            rows = self.un()
+            self.assertEqual({r[2] for r in rows}, {"removed"}, rows)
+            self.assertFalse(os.path.lexists(self.share()))
+
+    def after_the_plan(self, hook, then=""):
+        """The stub `ps`: on its first call, after the plan and before the lock, runs `hook`; on
+        each later call prints `then`."""
+        count = os.path.join(self.root, "ps-count")
+        self.stub('if [ -e %s ]; then %s; else : > %s; %s; fi' % (count, then or ":", count, hook))
+
+    def test_a_lock_swapped_after_the_plan_keeps_all(self):    # G3
+        def alarm(signum, frame):
+            raise TimeoutError("uninstall hung on the .lock")
+        for kind in ("link", "fifo"):
+            with self.subTest(kind=kind):
+                self.setUp()
+                self.install(self.plugin())
+                tree, out = self.tree(), self.outside()
+                lock, target = self.share() / ".lock", out / "made"
+                self.under_temp(lock)
+                swap = "ln -s '%s' '%s'" % (target, lock) if kind == "link" else "mkfifo '%s'" % lock
+                self.after_the_plan("rm -f '%s'; %s" % (lock, swap))
+                theirs = snapshot(out)
+                old = signal.signal(signal.SIGALRM, alarm)
+                signal.alarm(10)
+                try:
+                    rows = self.un()
+                finally:
+                    signal.alarm(0)
+                    signal.signal(signal.SIGALRM, old)
+                self.assertFalse(os.path.lexists(target), "a file was made outside the share")
+                self.assertEqual(snapshot(out), theirs)
+                self.assertTrue(rows)
+                self.assertTrue(all(r[2].startswith("kept: the lock, ") for r in rows), rows)
+                self.assertTrue(self.bin().is_file() and tree.is_dir())
+
+    def test_a_live_tree_added_after_the_plan_holds(self):    # G3
+        self.install(self.plugin())
+        tree = self.tree()
+        added = self.share() / "fedcba9876543210fedcba9876543210fedcba98"
+        self.under_temp(added)
+        self.after_the_plan("mkdir '%s'; echo 'print(2)' > '%s/run.py'" % (added, added),
+                            'echo "4242 /usr/bin/python3 -I %s/run.py status"' % added)
+        rows = self.un()
+        self.assertTrue(rows)
+        self.assertTrue(all(r[2].startswith("kept: held, ") for r in rows), rows)
+        self.assertTrue(self.bin().is_file() and tree.is_dir())
+        self.assertTrue((added / "run.py").is_file(), "the tree added after the plan was removed")
+
 if __name__ == "__main__":
     unittest.main()
