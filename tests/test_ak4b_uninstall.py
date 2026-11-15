@@ -346,10 +346,12 @@ class Uninstall(Base):
         os.symlink("agentik-y", str(self.share("agentik-x")))
         helper = self.bin("y-helper")
         os.symlink(os.path.join("..", "share", "agentik-y", tree.name, "agentik-y"), str(helper))
+        os.symlink("agentik-x", str(self.bin("agentik-oldx")))
         before = snapshot(self.prefix())
         rows = self.un()
         self.assertEqual(snapshot(self.prefix()), before)
-        self.assertIn((str(helper), "link", self.SHARE_BAD), rows)
+        self.assertNotIn(str(helper), [r[0] for r in rows])
+        self.assertIn((str(self.bin("agentik-oldx")), "link", self.SHARE_BAD), rows)
         self.assertEqual({r[2] for r in rows}, {self.SHARE_BAD}, rows)
 
     def test_a_linked_share_keeps_a_live_launcher(self):    # F3
