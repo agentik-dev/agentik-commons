@@ -14,9 +14,9 @@ from pathlib import Path
 CATALOGUE = Path(__file__).resolve().parents[1] / "plugins/suite/lib/agentik_suite/messages.md"
 WIDTH = 76
 # sc8: setup.*, err.setup.*, hint.setup.*; sc10: doctor.*, hint.doctor.*; sc4: the errors of
-# design/23 section 7's table; sc11: install.done; sc12: the Pick section.
+# design/23 section 7's table; sc12: the Pick section.
 OTHERS_OWN = ("setup.", "err.setup.", "hint.setup.", "doctor.", "hint.doctor.", "err.verb", "err.flag",
-              "err.extra", "err.next", "install.done", "pick.", "err.pick", "hint.pick")
+              "err.extra", "err.next", "pick.", "err.pick", "hint.pick")
 PROMPTS = ("issue.render.contract",)
 # issue.new.warning is the privacy caution of a filed issue (public at once, copied before it can
 # be removed, with its examples): main's text whole, over the width by the review's ruling.

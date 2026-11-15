@@ -2,13 +2,15 @@
 
 `install-cli [--prefix P] [--dry-run]` runs agentik_install.install, never its install_cli, and
 says what it did through term: the result on stdout in one line, the door's fate when it stays,
-each line of the prune, and on stderr one hint with the PATH line when <prefix>/bin is off PATH.
-An OSError, KeyError or ValueError from the install is exit 1 with one line; a --prefix
-with no folder after it is exit 2.
+the prune's lines where a tree went or it failed, and on stderr one hint with the PATH line
+when <prefix>/bin is off PATH. An OSError, KeyError or ValueError from the install is exit 1
+with one line; a --prefix with no folder after it is exit 2.
 """
 import os
 
 import agentik_install
+
+from . import plan
 
 SCHEMA = "agentik.install-cli/1"
 KEYS = ("launcher", "tree", "version", "door", "door_fate", "on_path")
@@ -16,6 +18,7 @@ KEYS = ("launcher", "tree", "version", "door", "door_fate", "on_path")
 
 def do_install_cli(cmd, nouns):
     o, t = cmd.opts, cmd.t
+    home = cmd.env.get("HOME")
     cmd._no_nouns(nouns)
     again = cmd.say("install-cli")
     if o["prefix"] == "":   # none given, a flag after it, or '': never HOME's by default
@@ -34,10 +37,11 @@ def do_install_cli(cmd, nouns):
     if o["dry_run"]:
         t.line("install.dry", launcher=done["launcher"], version=done["version"])
     else:
-        t.line("install.done", launcher=done["launcher"], version=done["version"], tree=done["tree"])
+        t.line("install.done", launcher=plan.shown(done["launcher"], home), version=done["version"],
+               door=plan.shown(done["door"], home))
     if done["door_fate"] != "write":
-        t.line("install.door." + done["door_fate"], door=done["door"])
-    for line in done["pruned"]:
+        t.line("install.door." + done["door_fate"], door=plan.shown(done["door"], home))
+    for line in agentik_install.prune_news(done["pruned"]):
         if not line.startswith("the door "):    # the module's own word for the fate said above
             t.line("install.pruned", line=line)
     if not done["on_path"]:
