@@ -116,7 +116,7 @@ class Remove(Base):
         return RHome(os.path.join(self.tmp, name), listed)
 
     def x(self, **kw):
-        h = self.home()
+        h = self.home(("murmur", "paint", "x"))
         h.real_tool(**kw)
         return h, h.kept_folders()
 

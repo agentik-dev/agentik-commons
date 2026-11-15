@@ -33,6 +33,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.help_tool`: that tool's own help
 - `help.eg.update`: every installed tool and its command, after one question
 - `help.eg.update_dry`: the plan; nothing is written
+- `help.eg.remove_names`: those plugins and their commands, after one question
+- `help.eg.remove_all`: the plan for every tool, the marketplace and the suite; nothing is written
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
@@ -345,6 +347,51 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.left`: Update left `{subject}` undone at step 3, as its row above says. Run `{command}`, then run `{update}` again.
 - `err.update.left.none`: Update left `{subject}` undone at step 3, as its row above says. Mend that, then run `{update}` again.
 - `hint.update.suite.pull`: to move it: pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite
+
+## Remove
+
+- `verb.remove`: Take tools off this machine: each plugin and its command, or with --all the suite too. Config and state are kept.
+- `usage.remove`: usage: `{remove}` <plugin>... | --all [flags]
+- `flag.remove_all`: Take off every tool setup placed, then the marketplace, the suite, the door and the agentik cache.
+- `remove.plan`: Remove plan for `{names}`.
+- `remove.plan.dry`: Remove plan for `{names}`. Nothing is written.
+- `remove.plugin`: Claude Code uninstalls it and keeps its data and cache folders
+- `remove.row`: `{what}`: `{fate}`
+- `remove.market`: the marketplace setup added; Claude Code forgets it
+- `remove.kept.market`: an agentik marketplace from `{source}`, not the one setup adds, so remove keeps it
+- `remove.suite`: the suite's own plugin; Claude Code uninstalls it and keeps its data
+- `remove.cache`: the agentik cache folder; remove deletes it
+- `remove.cache.home`: kept: the cache home is the home folder or the root, so remove deletes nothing there
+- `remove.cache.link`: kept: it is a link or no folder, so remove follows it nowhere
+- `remove.cache.place`: kept: it does not lie at its own place in the cache home
+- `remove.keep.config`: kept: your settings
+- `remove.keep.state`: kept: its state
+- `remove.keep.data`: kept: Claude Code's data folder for it
+- `remove.keep.cache`: kept: Claude Code's cache of its plugin
+- `remove.kept.folder`: kept: `{name}` comes from a folder, so remove leaves it and its command
+- `remove.kept.plugin`: kept: `{name}` is installed as `{id}`, not by setup, so remove leaves it and its command
+- `remove.kept.scope`: kept: `{name}` is installed at the `{scope}` scope, not by setup, so remove leaves it and its command
+- `remove.kept.undecided`: kept: `{name}` has more than one entry in Claude Code, so remove leaves it and its command
+- `remove.kept.suite`: the suite goes with `{remove}` --all, which takes every tool off first
+- `remove.nothing`: There is nothing to take off, so nothing was written.
+- `remove.close`: What remove took off, and what it kept:
+- `remove.ran`: ran: `{command}`
+- `remove.removed`: removed
+- `err.remove.usage`: `{remove}` takes the plugins to take off, or --all for every one, and never both
+- `err.remove.held`: held remove: `{what}`
+- `hint.remove.held`: next: `{command}` once it has ended
+- `err.remove.yes`: Remove ran nothing, since it cannot ask you here. Run `{remove}` --yes to run the lines above.
+- `err.remove.declined`: Remove ran nothing, since the answer was not yes. Run `{remove}` again when you are ready.
+- `err.remove.gated`: Remove ran nothing: your gate list names `{path}`, which `claude plugin` writes. Run `{remove}` from a terminal to approve it.
+- `err.remove.gate_unread`: Remove ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{remove}` from a terminal.
+- `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{remove}` again.
+- `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{remove}` again.
+- `err.remove.wall`: Remove stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{remove}` again to retry it.
+- `err.remove.wall.silent`: Remove stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{remove}` again to retry it.
+- `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`. Mend that, then run `{remove}` again.
+- `err.remove.interrupted.idle`: Remove was interrupted between steps, with no command running. Run `{remove}` again to go on.
+- `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`). Mend that, then run `{remove}` again.
+- `err.remove.journal`: Remove could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
 
 ## Status
 
