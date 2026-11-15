@@ -72,11 +72,20 @@ def held_of(rows):
 
 def guarded(env, home, keep=()):
     """What the cache folder's walk may never reach (review 1's F1): the config home and the state
-    home as the suite resolves them, Claude Code's folder, and each path R7 keeps."""
+    home as the suite resolves them, Claude Code's folder (`CLAUDE_CONFIG_DIR` and `~/.claude`
+    both, review 2's G1), and each path of `keep`."""
     config = env.get("XDG_CONFIG_HOME") or ""
     found = [config if os.path.isabs(config) else os.path.join(home, ".config"),
-             os.path.dirname(os.path.dirname(apply.journal_path(env, home))), sources.config_dir(env)]
+             os.path.dirname(os.path.dirname(apply.journal_path(env, home))), sources.config_dir(env),
+             os.path.join(home, ".claude") if home else ""]
     return [p for p in found + list(keep) if p]
+
+
+def user_path(home, user):
+    """A catalogue entry's `user_file` as a path, `~/` read as the home; None where it names none."""
+    if not isinstance(user, str) or not user:
+        return None
+    return os.path.join(home, user[2:]) if user.startswith("~/") else user
 
 
 def cache_fate(env, home, guard=()):
@@ -174,9 +183,9 @@ class Remove:
         state = os.path.dirname(os.path.dirname(apply.journal_path(self.env, self.home)))
         base = os.path.dirname(os.path.dirname(settings.user_path(self.env)))
         found = [(os.path.join(base, name), "remove.keep.config")]
-        user = entry.get("user_file")
-        if isinstance(user, str) and user:
-            found.append((os.path.join(self.home, user[2:]) if user.startswith("~/") else user, "remove.keep.config"))
+        user = user_path(self.home, entry.get("user_file"))
+        if user:
+            found.append((user, "remove.keep.config"))
         found.append((os.path.join(state, "agentik-" + name), "remove.keep.state"))
         old = self.old_state(name, row)
         if old and "/" not in old:
@@ -236,6 +245,8 @@ class Remove:
             steps += self.rows_steps(5, self.suite_rows)
             state = os.path.dirname(apply.journal_path(self.env, self.home))
             self.guard += [settings.user_path(self.env), state]
+            self.guard += [p for p in (user_path(self.home, e.get("user_file"))  # every tool's, taken off or not (G1)
+                                       for e in tools.fallback(self.cmd.lib).values()) if p]
             self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
             self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
             path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards())
