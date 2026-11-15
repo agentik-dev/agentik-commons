@@ -618,8 +618,8 @@ class Uninstall(Base):
         self.stub('if [ -e %s ]; then %s; else : > %s; %s; fi' % (count, then or ":", count, hook))
 
     def test_a_lock_swapped_after_the_plan_keeps_all(self):    # G3
-        def alarm(signum, frame):
-            raise TimeoutError("uninstall hung on the .lock")
+        def alarm(signum, frame):    # no OSError, which uninstall would keep as the lock's why
+            raise AssertionError("uninstall hung on the .lock")
         for kind in ("link", "fifo"):
             with self.subTest(kind=kind):
                 self.setUp()

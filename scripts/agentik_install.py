@@ -417,7 +417,8 @@ def _sweep(share):
 
 def _lock(share, wait=True, make=True):
     """The install's one lock, `<share>/.lock` held open for the process's turn; None when
-    another holds it and `wait` is off. It follows no link and never blocks on the open: a link,
+    another holds it and `wait` is off. It opens for writing alone, since `flock` needs neither
+    bit. It follows no link and never blocks on the open: a link,
     a FIFO or a folder there is an OSError. Once it holds the lock it checks that the path still
     names the file it holds, and takes it again where it does not, so a waiter on a `.lock` an
     uninstall removed never holds a lock no one else can see. `make` off: the share is not made."""
@@ -428,7 +429,7 @@ def _lock(share, wait=True, make=True):
     while True:
         if make:
             os.makedirs(share, exist_ok=True)
-        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o666)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK, 0o666)
         try:
             held = os.fstat(fd)
             if not stat.S_ISREG(held.st_mode):
@@ -674,17 +675,26 @@ def _launcher_form(path, name):
 
 
 def _ours(path, name, share):
-    """The launcher install-cli wrote for `name`: its form, exactly one `TREE=` and one `VERSION=`
-    line as the template writes, and its TREE under the share, both made real paths."""
+    """The launcher install-cli wrote for `name`: its form; the text `TREE=` and the text
+    `VERSION=` each exactly once in the whole file, as the template writes them, so no indented,
+    exported or second assignment hides; the `TREE=` line, whole, `TREE=` and its value quoted as
+    the template quotes it, nothing after; and that TREE under the share, both made real paths."""
+    import shlex
     if not _launcher_form(path, name):
         return False
     data = read_regular(path, LAUNCHER_MAX)
     text = data.decode("utf-8", "surrogateescape") if data is not None else ""
-    if len(re.findall(r"(?m)^TREE=", text)) != 1 or len(re.findall(r"(?m)^VERSION=", text)) != 1:
+    if text.count("TREE=") != 1 or text.count("VERSION=") != 1:
         return False
-    found = read_launcher(path)
-    tree = found and found["tree"]
-    return bool(tree) and os.path.realpath(tree).startswith(os.path.realpath(share).rstrip("/") + "/")
+    line = re.search(r"(?m)^TREE=(.*)$", text)
+    try:
+        words = shlex.split(line.group(1)) if line else []
+    except ValueError:
+        return False
+    if len(words) != 1 or shlex.quote(words[0]) != line.group(1):
+        return False
+    tree = words[0]
+    return os.path.realpath(tree).startswith(os.path.realpath(share).rstrip("/") + "/")
 
 
 def _door_why(path, bin_dir, name, own=()):
