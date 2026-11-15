@@ -102,7 +102,7 @@ class Generic(Base):
     def test_freezes_and_the_launcher_runs_version(self):
         plugin = self.plugin()
         out = self.install(plugin)
-        self.assertIn("installed %s -> " % self.bin(), out)
+        self.assertTrue(out.startswith("Placed ~/.local/bin/agentik-x 1.0.0 and ~/.local/bin/agentik."), out)
         self.assertNotIn("links to it", out)
         tree = self.share() / self.trees()[0]
         self.assertTrue(re.fullmatch(r"[0-9a-f]{40}", tree.name))

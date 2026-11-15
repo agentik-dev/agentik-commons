@@ -84,7 +84,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Install
 
-- `install.done`: Placed `{launcher}` at version `{version}`, running the code frozen at `{tree}`.
+- `install.done`: Placed `{launcher}` `{version}` and `{door}`.
 - `install.dry`: Plan: place `{launcher}` at version `{version}`. Nothing is written.
 - `install.door.keep`: The agentik command `{door}` is current or newer, so it stays as it is.
 - `install.door.link`: The agentik command `{door}` is a link, so it stays as it is.
