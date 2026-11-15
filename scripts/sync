@@ -4,7 +4,7 @@
 #   scripts/sync <repo>
 #
 # Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene,
-# scripts/recordlint, scripts/bounded, scripts/plugin-version-check and
+# scripts/recordlint, scripts/readme-top, scripts/bounded, scripts/plugin-version-check and
 # scripts/plugin-description-bytes to <repo>/scripts/, then
 # writes <repo>/scripts/vendored.sha256 in `shasum -a 256 -c` form, its paths
 # from the repo's root; the repo's `make check` runs that check, and runs
@@ -93,11 +93,12 @@ place() { # source under this repo, destination under the target, mode
 place bin/agentik scripts/agentik 755
 place scripts/hygiene scripts/hygiene 755
 place scripts/recordlint scripts/recordlint 755
+place scripts/readme-top scripts/readme-top 755
 place scripts/bounded scripts/bounded 755
 place scripts/plugin-version-check scripts/plugin-version-check 755
 place scripts/plugin-description-bytes scripts/plugin-description-bytes 755
-listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/bounded scripts/plugin-version-check scripts/plugin-description-bytes"
-said="agentik, hygiene, recordlint, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
+listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/readme-top scripts/bounded scripts/plugin-version-check scripts/plugin-description-bytes"
+said="agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
 if [ -n "$tool" ]; then
 	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
 	place scripts/plugin-launcher "plugin/bin/$tool" 755
