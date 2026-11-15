@@ -24,7 +24,7 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n172 | S4 | `plugins/suite` the refresh at SessionStart | the refresh at SessionStart moves only a launcher whose tree its own plugin froze: not held by fk2-plan, so an enabled copy numerically newer can still replace a fork's launcher | hq design/25 §3 item 16, R1-F2 | 2026-11-14, fk2-plan build 1 |
 | n179 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f2_twenty_slow_tools_add_nothing_past_the_wall` | n171's 3.0 s bound in a second test: `config` took 3.02 s at load 8 beside another check, and was green alone three times at the same head; one bound for both tests, widened or measured against an idle baseline | gate 20261114-061401-1894 | 2026-11-14, fh13-relay-plan build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
-| n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:92; review 1 F1's repro | 2026-11-14, ak9d review 1 |
+| n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
 
