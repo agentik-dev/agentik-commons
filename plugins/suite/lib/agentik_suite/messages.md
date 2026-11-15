@@ -629,7 +629,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.sitting`: `{charter}`, `{age}`: `{word}`
 - `inbox.sitting.nopart`: `{charter}`, `{age}`, with no Waits part: `{word}`
 - `inbox.sitting.closed`: `{charter}`, closed `{age}`: `{word}`
-- `inbox.decided`: `{count}` decided without asking, the newest on `{newest}`
+- `inbox.decided`: `{count}` without asking, the newest on `{newest}`
 - `inbox.age.min`: `{n}` min ago
 - `inbox.age.h`: `{n}` h ago
 - `inbox.age.d`: `{n}` d ago

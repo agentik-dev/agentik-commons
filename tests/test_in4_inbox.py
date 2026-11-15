@@ -90,7 +90,7 @@ FIG = """warn  fig-hq  1 waits
    hand        The fence wire is on order and the owner collects it
                no command is given; see history/sittings/2026-11-11-2.md:18
    sitting     2026-11-11-2, 2 d ago: Wait for the wire.
-   decided     2 decided without asking, the newest on 2026-11-12
+   decided     2 without asking, the newest on 2026-11-12
 """
 CHECK = """pear-hq: question 1: Which barn holds the hay; recommended: The red barn
 pear-hq: hand: Start the first run; run: lampd run --first
