@@ -419,7 +419,7 @@ class Remove(Base):
         self.assertNotIn("Traceback", err)
         self.assertFalse(os.path.lexists(door))
         self.assertIn(h.cache + "/agentik", err.replace("\n", " "))
-        self.assertIn("yours to delete", err)
+        self.assertIn("so delete it", err)
         self.assertNotIn("again", err)
         self.assertTrue(os.path.isfile(os.path.join(locked, "f")))
         h2, _ = self.x(name="h2")
@@ -432,7 +432,7 @@ class Remove(Base):
         code, out, err = h2.go("remove", "--all", "--yes", "--json", exe=os.path.join(h2.bindir, "agentik"))
         error = json.loads(out)["error"]
         self.assertEqual((code, error["remedy"]), (1, None), out + err)
-        self.assertIn("yours to delete", error["message"])
+        self.assertIn("so delete it", error["message"])
 
     def test_f6_a_marketplace_folder_that_stands_is_red(self):
         h, kept = self.x()
