@@ -1,0 +1,66 @@
+{
+ "schema": "agentik.charter/1",
+ "ok": true,
+ "skipped": [],
+ "repos": [
+  {
+   "repo": "/srv/acme/acme-hq",
+   "file": null,
+   "name": "2026-11-12-1",
+   "date": "2026-11-12",
+   "n": 1,
+   "mtime": 1794500000,
+   "closed": false,
+   "title": "a made-up sitting",
+   "parts": [],
+   "refusals": [],
+   "next_act": "the next act",
+   "waits": [
+    {
+     "line": 20,
+     "what": "- a made-up wait 0",
+     "command": null
+    },
+    {
+     "line": 21,
+     "what": "- a made-up wait 1",
+     "command": null
+    }
+   ]
+  },
+  {
+   "repo": "/srv/acme/acme-lamp",
+   "file": null,
+   "name": "2026-11-12-1",
+   "date": "2026-11-12",
+   "n": 1,
+   "mtime": 1794500000,
+   "closed": false,
+   "title": "a made-up sitting",
+   "parts": [],
+   "refusals": [],
+   "next_act": "the next act",
+   "waits": [
+    {
+     "line": 20,
+     "what": "- a made-up wait 0",
+     "command": null
+    }
+   ]
+  },
+  {
+   "repo": "/srv/acme/acme-fern",
+   "file": null,
+   "name": "2026-11-12-1",
+   "date": "2026-11-12",
+   "n": 1,
+   "mtime": 1794500000,
+   "closed": false,
+   "title": "a made-up sitting",
+   "parts": [],
+   "refusals": [],
+   "next_act": "the next act",
+   "waits": null
+  }
+ ]
+}

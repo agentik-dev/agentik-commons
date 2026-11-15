@@ -1,0 +1,59 @@
+{
+ "schema": "agentik.rows/1",
+ "ok": true,
+ "root": "/srv/acme/acme-hq/history/rows",
+ "home": "/srv/acme/acme-hq",
+ "skipped": [],
+ "rows": [
+  {
+   "row": "kb2-lamp",
+   "repo": "lamp",
+   "level": "S3",
+   "from": "HANDOFF 7",
+   "depends_on": [],
+   "waits": [],
+   "state": "building",
+   "stale": [],
+   "branch": "kb2-lamp",
+   "worktree": "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp",
+   "tip": null,
+   "dirty": null,
+   "past": null,
+   "record": null,
+   "head": null,
+   "gate": null,
+   "ruling": null,
+   "owed": 2,
+   "next": {
+    "text": null,
+    "command": "agentik session gate status"
+   },
+   "cut": null
+  },
+  {
+   "row": "kb3-fern",
+   "repo": "lamp",
+   "level": "S2",
+   "from": "HANDOFF 7",
+   "depends_on": [],
+   "waits": [],
+   "state": "briefed",
+   "stale": [],
+   "branch": "kb3-fern",
+   "worktree": null,
+   "tip": null,
+   "dirty": null,
+   "past": null,
+   "record": null,
+   "head": null,
+   "gate": null,
+   "ruling": null,
+   "owed": 2,
+   "next": {
+    "text": "history/rows/kb3-fern/brief.md",
+    "command": null
+   },
+   "cut": null
+  }
+ ]
+}
