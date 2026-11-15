@@ -57,3 +57,29 @@ Measured at 182eab6 in a temp HOME under `env -i`: `agentik-suite remove x --dry
 ## 6. Choices
 
 Listed in the charter's handover as they are made.
+
+## 7. The fix of review 1
+
+Review 1 (an adversary, at 59c1069) found six things; the coordinator ruled F1 to F3 blocking and F4 to F6 riding, in one round on this branch, with four test gaps. The suite stays 0.7.16: the stamp commit is reverted and made again, alone and last under `plugins/`. `agentik_install.py` stays unedited.
+
+- The cache folder (F1, F2). `<cache home>/agentik` is removed only where its real path is not, does not lie under and does not contain the config home and the state home (as the suite resolves them), Claude Code's folder (`CLAUDE_CONFIG_DIR`, else `~/.claude`) or any path R7 keeps; and is not and does not contain the home folder (lying under it is its place, `~/.cache/agentik`). R5's checks stand beside these. A relative or empty `XDG_CACHE_HOME` is ignored for `~/.cache`. Else `kept`, naming the path it would have reached.
+- The close (F1). Each kept path is read again by `lstat`; one that is gone is a red row and exit 1.
+- The door (F3). The plan's door row reads `would remove` where every entry that keeps it stands has a `would remove` row in the same plan.
+- A hold mid-run (F4). Each tool's `uninstall(dry=True)` is read again right before its step 1: held with nothing yet done, it is R2's hold, exit 2; else the run stops, exit 1. Where step 2 still meets `kept: held` after step 1 ran, the run stops, exit 1, the journal's entry says exit 1, and the close names what holds and the line to run again once it ends.
+- After step 5 (F5). A failed step 6 names the folder and says it is the person's to delete; the JSON remedy is null.
+- The marketplace folder (F6). Listed as removed only where it stood before step 3 and an `lstat` finds it gone after; where it stands, a red row and exit 1.
+
+| # | test (in `tests/test_ak4_remove.py`) | red at 59c1069, or under |
+|---|---|---|
+| F1 | `test_f1_a_cache_home_in_the_config_or_claudes_folder_is_kept`, `test_f1_a_kept_path_gone_is_red` | 59c1069 |
+| F2 | `test_f2_a_home_named_agentik_under_the_cache_home_stays` | 59c1069 |
+| F3 | `test_f3_the_door_the_run_removes_reads_would_remove` | 59c1069 |
+| F4 | `test_f4_a_hold_that_starts_after_the_plan_stops` | 59c1069 |
+| F5 | `test_f5_a_cache_walk_failed_after_the_door_names_the_folder` | 59c1069 |
+| F6 | `test_f6_a_marketplace_folder_that_stands_is_red` | 59c1069 |
+| gaps | `test_g_spare_with_a_ps_that_lists_the_caller` (spare returns `[]`), `test_g_a_failed_claude_step_stops` (a failed `claude` ignored), `test_g_a_tree_partly_removed_is_exit_1` (partly never stops), `test_g_steps_1_and_4_only_at_the_users_scope` (step 1 or step 4 at any scope) | their mutants |
+
+| item | value |
+|---|---|
+| may touch | `plugins/suite/lib/agentik_suite/remove.py`; `plugins/suite/lib/agentik_suite/messages.md` (`## Remove`); `tests/test_ak4_remove.py`; `design/voice/checked.sha256`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-18.md` |
+| leads not built | steps 3 and 4 against a real `claude`; the 32-ancestor spare |
