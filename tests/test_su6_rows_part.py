@@ -2,8 +2,8 @@
 for its worktree, and counts what waits on the owner from two reads.
 
 Each run is su2-read's ReadHome with its stand-in `agentik-demo` removed and two stand-ins in its
-place, `agentik-decisions` and `agentik-session`, answering from tests/fixtures/su6 and recording
-every call. The checkout is a made-up hq, `acme-hq`, named on the command line. Made-up names
+place, the fallback table's tools that give the gate read and the rows read, each answering from
+tests/fixtures/su6 and recording every call. The checkout is a made-up hq, `acme-hq`, named on the command line. Made-up names
 only; nothing here writes outside its temp folders.
 """
 import json
@@ -23,6 +23,15 @@ from agentik_suite import tools  # noqa: E402
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su6")
 WT = "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp"
 GATE_ID = "20261112-101500-0042"
+TABLE = json.loads((LIB / "fallback.json").read_text())
+
+
+def giver(read):
+    """The table's tool whose `status` list holds `read`."""
+    return next(n for n, row in TABLE.items() if any(r["name"] == read for r in row.get("status") or ()))
+
+
+GATE, ROWS = giver("gate"), giver("rows")
 
 
 def fix(name):
@@ -37,8 +46,8 @@ class RowsHome(ReadHome):
         self.hq = os.path.join(self.side, "acme-hq")
         os.makedirs(os.path.join(self.hq, ".git"))
         self.write(os.path.join(self.hq, ".claude", "agentik", "config.yaml"), "suite:\n  kind: hq\n")
-        self.sess, _ = self.tool("session")
-        self.dec, _ = self.tool("decisions")
+        self.sess, _ = self.tool(GATE)
+        self.dec, _ = self.tool(ROWS)
         self.answer(self.sess, **{
             "gate status --json --repo " + WT: {"file": os.path.join(FIX, "gate-wt.json")},
             "gate status --json": "gate.json",
@@ -86,16 +95,16 @@ class RowsPartTest(RowsHome):
         self.assertIn("kb2-lamp", part[0])
         self.assertIn("S3", part[0])
         self.assertIn("building", part[0])
-        self.assertIn("agentik session gate status", part[0])
+        self.assertIn("lampctl check", part[0])
         self.assertIn(GATE_ID, part[0])
         self.assertIn("passed", part[0])
         self.assertIn("kb3-fern", part[1])
         self.assertIn("briefed", part[1])
         self.assertIn("history/rows/kb3-fern/brief.md", part[1])
         self.assertNotIn("20261112-", part[1])
-        calls = self.logged("session")
+        calls = self.logged(GATE)
         self.assertEqual([c for c in calls if "--repo" in c], ["gate status --json --repo " + WT])
-        self.assertIn("rows --json --root " + os.path.join(self.hq, "history", "rows"), self.logged("decisions"))
+        self.assertIn("rows --json --root " + os.path.join(self.hq, "history", "rows"), self.logged(ROWS))
 
     def test_b_a_closed_row_is_not_drawn(self):
         obj = fix("rows.json")
@@ -107,7 +116,7 @@ class RowsPartTest(RowsHome):
         part = self.part_lines(lines, "rows")
         self.assertEqual(len(part), 2, lines)
         self.assertFalse([l for l in lines if "kb1-moss" in l or "kb0-pebble" in l])
-        self.assertFalse([c for c in self.logged("session") if "acme-moss" in c])
+        self.assertFalse([c for c in self.logged(GATE) if "acme-moss" in c])
         got = self.read(self.hq)["rows"]["rows"]
         self.assertEqual([(r["row"], r["closed"]) for r in got],
                          [("kb2-lamp", False), ("kb3-fern", False), ("kb1-moss", True), ("kb0-pebble", True)])
@@ -166,7 +175,7 @@ class FailingTest(RowsHome):
 
         def short(lib):
             table = real(lib)
-            for read in table["decisions"]["status"]:
+            for read in table[ROWS]["status"]:
                 if read["name"] == "rows":
                     read["wall_s"] = 0.5
             return table
@@ -181,7 +190,7 @@ class FailingTest(RowsHome):
         for pid in map(int, text(pids).split()):
             with self.assertRaises(OSError):
                 os.kill(pid, 0)
-        self.assertGreater([r for r in real(str(LIB))["decisions"]["status"] if r["name"] == "rows"][0]["wall_s"],
+        self.assertGreater([r for r in real(str(LIB))[ROWS]["status"] if r["name"] == "rows"][0]["wall_s"],
                            3.8)
 
 
@@ -192,7 +201,7 @@ class CapTest(RowsHome):
         self.rows_answer(obj)
         part = self.part_lines(self.screen(), "rows")
         self.assertEqual(len(part), 5, part)
-        self.assertIn("and 4 more", part[-1])
+        self.assertIn("and 3 more", part[-1])
 
 
 if __name__ == "__main__":

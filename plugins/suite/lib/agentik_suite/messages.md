@@ -510,6 +510,21 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.fault.listing`: the process listing could not be trusted, so no watcher is checked
 - `status.fault.listing.parts`: sessions, gate and runs are read in part
 - `status.fault.unknown`: the read gave a fault not known here, `{fault}`
+- `status.label.rows`: rows
+- `status.label.owner`: owner
+- `status.rows.none`: none in flight
+- `status.rows.nohq`: not read: no hq among the checkouts read
+- `status.rows.next`: next: `{next}`
+- `status.rows.gate.passed`: gate `{id}` passed
+- `status.rows.gate.failed`: gate `{id}` failed
+- `status.rows.gate.unknown`: gate `{id}` ?
+- `status.rows.gate.unread`: gate not read
+- `status.owner.hands`: `{n}` hand lines in charters
+- `status.owner.hands.one`: 1 hand line in a charter
+- `status.owner.hands.uncounted`: hand lines in charters not counted
+- `status.owner.steps`: `{n}` build order rows waiting on the owner
+- `status.owner.steps.one`: 1 build order row waiting on the owner
+- `status.owner.steps.uncounted`: build order rows not counted
 
 ## Doctor
 

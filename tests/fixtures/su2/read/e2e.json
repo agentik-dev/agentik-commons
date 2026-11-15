@@ -133,6 +133,15 @@
   "shown": [],
   "aged": 1
  },
+ "rows": {
+  "state": "not read",
+  "rows": null
+ },
+ "owner": {
+  "state": "partial",
+  "hands": null,
+  "steps": 0
+ },
  "hand": [],
  "sources": [
   {
@@ -209,6 +218,21 @@
    "fields": null
   },
   {
+   "name": "charter",
+   "tool": "session",
+   "argv": [
+    "charter",
+    "show",
+    "--json"
+   ],
+   "state": "not installed",
+   "ms": null,
+   "exit": null,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
    "name": "weather",
    "tool": "demo",
    "argv": [
@@ -224,7 +248,6 @@
   }
  ],
  "not_read": [
-  "owner",
   "rows"
  ]
 }

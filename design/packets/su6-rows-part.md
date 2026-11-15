@@ -29,7 +29,7 @@ Measured at abb9b36: the object's `not_read` is always `["owner", "rows"]` (`sta
 
 - `fallback.json`: `decisions` gains `{"name": "rows", "argv": ["rows", "--json"], "wall_s": 6}`, `session` gains `{"name": "charter", "argv": ["charter", "show", "--json"]}`. The reads run as `rows --json --root <hq>/history/rows` and `charter show --json <checkout>...`; with no hq the rows read is not run, under rule none the charter read is not run (the backlog's rule).
 - The object gains two parts after `runs`, in `PARTS` and on the screen: `rows` {`state`, `rows`: each `row`, `repo`, `level`, `state`, `next`, `worktree`, `closed`, `gate` ({`id`, `exit`, `seconds`} or null), `gate_read` (`ok`, `timed out`, `unreadable`, `not installed` or null)} and `owner` {`state`, `hands`, `steps`} (a count, or null for not counted). Each join runs under the gate read's wall.
-- The screen draws a part the object does not hold and its `not_read` names as that word alone, so an object of the old shape draws as it did.
+- The screen does not draw the rows or the owner part where the object does not hold it, so an object of su2's shape draws as it did, its `not_read` saying both.
 
 ## 5. Acceptance
 

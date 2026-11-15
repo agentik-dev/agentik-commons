@@ -20,7 +20,8 @@ from agentik_suite import cli, covers, status, status_read, tools  # noqa: E402
 
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su2", "read")
 SAVED = {"sessions": "sessions.json", "gate": "gate.json", "backlog": "backlog.json",
-         "run": "run-old.json", "unattended": "unattended-none.json"}
+         "run": "run-old.json", "unattended": "unattended-none.json",
+         "rows": "../../su6/rows.json", "charter": "../../su6/charter.json"}  # su6: rows runs only with an hq
 # The stand-in tool: a map from an argv prefix to {file, exit, err, sleep, child}.
 STUB = """#!/usr/bin/python3
 import json, os, subprocess, sys, time
@@ -307,7 +308,7 @@ class TableTest(ReadHome):
                 self.answer(answers, **{" ".join(read["argv"]): SAVED[read["name"]]})
         obj = self.read()
         drawn = [s for s in obj["sources"] if s["state"] != "not drawn"]
-        self.assertEqual([s["state"] for s in drawn], ["ok"] * 5)
+        self.assertEqual([s["state"] for s in drawn], ["ok"] * 6)
         for calls in stubs:
             self.assertNotIn("describe --json", text(calls) if os.path.exists(calls) else "")
         for name in table:
@@ -315,8 +316,8 @@ class TableTest(ReadHome):
         start = time.monotonic()
         obj = self.read()
         self.assertLess(time.monotonic() - start, 0.5)
-        self.assertEqual([s["state"] for s in obj["sources"]], ["not installed"] * 5)
-        self.assertEqual([obj[p]["state"] for p in status_read.PARTS[1:]], ["not read"] * 4)
+        self.assertEqual([s["state"] for s in obj["sources"]], ["not installed"] * 6)
+        self.assertEqual([obj[p]["state"] for p in status_read.PARTS[1:]], ["not read"] * 6)
 
 
 class OnPartTest(ReadHome):

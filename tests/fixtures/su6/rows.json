@@ -26,7 +26,7 @@
    "owed": 2,
    "next": {
     "text": null,
-    "command": "agentik session gate status"
+    "command": "lampctl check"
    },
    "cut": null
   },

@@ -1,24 +1,27 @@
 """The screen of status (packet su2-screen): one agentik.status/1 object drawn through term.
 
-Five parts in a fixed order, always all five, then the sources and what was not read, then one
+Seven parts in a fixed order, then the sources and what was not read, then one
 hint on stderr where a hand is needed or a source gave no answer. A part reads its own part of
 the object, `at`, `covers`, `hand`, `fault` and its own sources only, so it may be drawn while
 the later parts are still absent. Nothing here runs a tool, reads a file or reads the clock: a time is the
 object's `at` less a value of it. A value the object does not give is drawn `?`. A command of the
-suite's own is named by `slots`, the command's `cmd.slots()` (row sc2).
+suite's own is named by `slots`, the command's `cmd.slots()` (row sc2). The rows part and the
+owner's, where the object does not hold them, are not drawn, so an object of su2's shape draws as
+it did and its `not_read` says them (packet su6-rows-part).
 """
 import os
 import time
 
-PARTS = ("watchers", "sessions", "gate", "backlog", "runs")
+PARTS = ("watchers", "sessions", "gate", "backlog", "runs", "rows", "owner")
 SOURCES = {"watchers": (), "sessions": ("sessions",), "gate": ("gate",), "backlog": ("backlog",),
-           "runs": ("unattended", "run")}
+           "runs": ("unattended", "run"), "rows": ("rows",), "owner": ("charter",)}
 READ = ("ok", "changed")
 STATES = ("ok", "hand", "partial", "not read")  # a part's; only `ok` is read whole
 GAVE_NOTHING = ("timed out", "unreadable", "changed")
 CAP = 5  # rows under a part's first, before `and {n} more`
 HELPER_ORDER = ("busy", "quiet", "done")
 DIM = "hint"
+SU6 = ("rows", "owner")  # the two parts an object of su2's shape does not hold
 
 
 class Wrong(ValueError):
@@ -333,6 +336,43 @@ def _runs(t, obj, part, hand, sources, slots):
     return rows
 
 
+def _rows(t, obj, part, hand, sources, slots):
+    """One line a row in flight: its name, level, word, next step and the gate's newest result
+    for its worktree; a closed row is not drawn."""
+    found = []
+    for r in seq(part.get("rows")):
+        r = mapping(r)
+        if r.get("closed"):
+            continue
+        said = []
+        nxt = mapping(r.get("next")) if r.get("next") is not None else {}
+        step = nxt.get("command") or nxt.get("text")
+        if step:
+            said.append(t.text("status.rows.next", next=str(step)))
+        gate = mapping(r.get("gate")) if r.get("gate") is not None else {}
+        if gate:
+            code = gate.get("exit")
+            mid = "unknown" if code is None else "passed" if code == 0 else "failed"
+            said.append(t.text("status.rows.gate." + mid, id=shown(gate.get("id"))))
+        elif r.get("gate_read") not in (None, "ok"):
+            said.append(t.text("status.rows.gate.unread"))
+        found.append(row([shown(r.get("row")), shown(r.get("level")), shown(r.get("state")), "; ".join(said)]))
+    if not found:
+        return [row(t.text("status.rows.none"))]
+    return capped(t, found, _source(sources, "rows"))
+
+
+def _owner(t, obj, part, hand, sources, slots):
+    """One line: each half's count, or `not counted`."""
+    said = []
+    for half in ("hands", "steps"):
+        n = part.get(half)
+        if n is not None and not isinstance(n, int):
+            raise Wrong(n)
+        said.append(t.text("status.owner.%s.uncounted" % half) if n is None else one(t, "status.owner." + half, n))
+    return [row("; ".join(said))]
+
+
 def _gone(gone, r):
     """The `run_gone` entry of `hand` for this run: its id and its tool together, the tool read
     from the entry's `tool` and matched to the run's `by` where the entry gives one. A run the
@@ -369,12 +409,15 @@ def _gave_nothing(t, sources, whole):
     return rows
 
 
-BUILD = {"sessions": _sessions, "gate": _gate, "backlog": _backlog, "runs": _runs}
+BUILD = {"sessions": _sessions, "gate": _gate, "backlog": _backlog, "runs": _runs, "rows": _rows,
+         "owner": _owner}
 
 
 def part(t, obj, name, slots):
     """One of the five parts: its mark, its label and its rows, behind one guard, so a value of
     the wrong kind or a time out of range makes this part read not read and the others draw."""
+    if name in SU6 and not (isinstance(obj, dict) and name in obj):
+        return
     label = t.text("status.label." + name)
     try:
         mark, rows = _part(t, obj, name, slots, label)
@@ -394,6 +437,8 @@ def _part(t, obj, name, slots, label):
     note = state in ("partial", "not read")
     if name == "backlog" and mapping(obj.get("covers")).get("rule") == "none":
         rows, note = [row(t.text("status.backlog.nowhere", status=slots["status"]))], True
+    elif name == "rows" and state == "not read" and not sources and not mapping(obj.get("covers")).get("hq"):
+        rows = [row(t.text("status.rows.nohq"))]
     elif name not in obj:
         rows = [row(t.text("status.part.absent", part=label))]
     elif state is None:
