@@ -450,7 +450,15 @@ class Remove:
                     break
             if self.all and failure is None:
                 folder = os.path.join(self.config, "plugins", "marketplaces", plan.MARKETPLACE)
-                for s in [s for s in steps if s["n"] in (3, 4) and s["state"] == "todo"]:
+                claude = [s for s in steps if s["n"] in (3, 4) and s["state"] == "todo"]
+                again = self.door_fate(self.uninstall("agentik-suite", door=True)) if claude else []
+                if held_of(again) and not ran and not removed:  # the suite's hold read again before step 3 (G2)
+                    return self.held(held_of(again))
+                if held_of(again):
+                    self.suite_rows = again
+                    failure = self.take(again, removed, kept)
+                    claude = []
+                for s in claude:
                     stood = os.path.lexists(folder)
                     failure = self.execute(s["command"], s["n"], ran, wrote)
                     if failure:
