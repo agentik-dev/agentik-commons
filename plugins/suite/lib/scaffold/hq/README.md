@@ -11,7 +11,7 @@ This repo is an hq: the top of a tree of repos. It holds what spans the repos be
    `git add README.md CLAUDE.md DECISIONS.md OPEN-QUESTIONS.md HANDOFF.md NICE_TO_HAVE.md Makefile .gitignore .claude scripts history`,
    then `git commit -m "The hq, as agentik init wrote it"`.
 3. Give this page its tree's name, and list the tree's repos under "The repos" below. That is row 1 of `HANDOFF.md`.
-4. Keep the tree's repos beside this one, in the same folder. An hq stands for the git checkouts in its folder.
+4. Keep the tree's repos beside this one, in the same folder. An hq stands for the git checkouts in its folder. `agentik inbox` and `agentik status` are the reads that take every checkout beside this repo.
 5. Start `claude` in this folder for the first sitting. `agentik session charter open "<the goal>"` writes its charter in `history/sittings/`.
 
 ## What each file holds
