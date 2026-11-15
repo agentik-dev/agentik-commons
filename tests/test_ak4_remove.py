@@ -96,7 +96,7 @@ class RHome(Home):
         top = self.top
         for key in ("HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR"):
             if env.get(key):
-                real = os.path.realpath(env[key])
+                real = os.path.realpath(os.path.join(self.home, env[key]))  # a relative one, as `go`'s cwd reads it
                 assert real.startswith(top + os.sep), (key, real)
                 assert real != LIVE and not LIVE.startswith(real + os.sep), (key, real)
 
@@ -445,6 +445,8 @@ class Remove(Base):
         self.assertTrue(self.red(out, "~/.claude/plugins/marketplaces/agentik"), out)
         self.assertNotIn("~/.claude/plugins/marketplaces/agentik  removed", out)
         self.assertNotIn(folder, h.journal()["wrote"])
+        self.assertIn("still stands: ~/.claude/plugins/marketplaces/agentik", err.replace("\n", " "))  # G5
+        self.assertNotIn("would stand does not", err)
 
     # ---- the gaps review 1 named: each red under its mutant (packet §7) ----------------------------
 
@@ -497,6 +499,140 @@ class Remove(Base):
         code, out, err = h2.go("remove", "--all", "--yes")
         self.assertEqual(code, 0, out + err)
         self.assertEqual(h2.claude(), [UNINSTALL, "claude plugin marketplace remove agentik"])
+
+    # ---- the fix of review 2 (packet §8) -------------------------------------------------------
+
+    def plan6(self, out, subject=None):
+        """The dry run's rows for `subject`, else step 6's, as (n, state, detail)."""
+        return [(s["n"], s["state"], s["detail"]) for s in json.loads(out)["steps"]
+                if (s["subject"] == subject if subject else s["n"] == 6)]
+
+    def test_h1_every_settings_file_and_both_claude_folders_are_kept(self):
+        h, _ = self.x()  # the session tool's settings file, CLAUDE_CONFIG_DIR elsewhere, the cache home ~/.claude
+        prof = h.file(os.path.join(h.home, ".claude", "agentik", "profiles.yaml"), "mine\n")
+        os.makedirs(os.path.join(h.home, "cw"))
+        more = {"XDG_CACHE_HOME": os.path.join(h.home, ".claude"), "CLAUDE_CONFIG_DIR": os.path.join(h.home, "cw")}
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(prof))
+        h2, _ = self.x(name="h2")  # a tool not taken off: its settings file, the config home elsewhere
+        relay = h2.file(os.path.join(h2.home, ".config", "agentik", "relay", "config.yaml"), "mine\n")
+        more = {"XDG_CACHE_HOME": os.path.join(h2.home, ".config"), "XDG_CONFIG_HOME": os.path.join(self.tmp, "cfg2")}
+        code, out, err = h2.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        self.assertIn("~/.config/agentik/relay/config.yaml", self.plan6(out)[0][2])
+        code, out, err = h2.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(relay))
+        h3, _ = self.x(name="h3")  # ~/.claude itself, CLAUDE_CONFIG_DIR elsewhere, no settings file in reach
+        mine = h3.file(os.path.join(h3.plugins, "agentik", "keep.txt"), "mine\n")
+        os.makedirs(os.path.join(h3.home, "cw"))
+        more = {"XDG_CACHE_HOME": h3.plugins, "CLAUDE_CONFIG_DIR": os.path.join(h3.home, "cw")}
+        code, out, err = h3.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        code, out, err = h3.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(mine))
+
+    def test_h2_a_hold_on_the_suite_begun_mid_run_stops_before_step_3(self):
+        h, kept = self.x()
+        h.place(str(LAUNCHER))
+        h.install("suite@agentik", "0.7.0", launcher=False)
+        h.stub('    edit("installed_plugins.json"',
+               "    open(os.path.join(home, 'ps.txt'), 'a').write('79 /usr/bin/python3 %s/agentik-suite status\\n')"
+               " if a[2] == 'x@agentik' else None\n"
+               '    edit("installed_plugins.json"' % h.tree("suite"))
+        code, out, err = h.go("remove", "--all", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(h.claude(), [UNINSTALL])
+        with open(os.path.join(h.plugins, "known_marketplaces.json")) as fh:
+            self.assertIn("agentik", json.load(fh))
+        with open(os.path.join(h.plugins, "installed_plugins.json")) as fh:
+            self.assertIn("suite@agentik", json.load(fh)["plugins"])
+        self.assertTrue(os.path.isdir(h.tree("suite")))
+        self.assertIn("pid 79", err)
+        self.assertIn("remove --all", err)
+        self.assertEqual(h.journal()["exit"], 1)
+
+    def test_h4_a_cache_home_in_the_bin_folder_gives_the_door_one_fate(self):
+        h, kept = self.x()
+        h.place(str(LAUNCHER))
+        door = os.path.join(h.bindir, "agentik")
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", XDG_CACHE_HOME=h.bindir)
+        self.assertEqual([r[:2] for r in self.plan6(out, "~/.local/bin/agentik")], [(5, "todo")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", XDG_CACHE_HOME=h.bindir)
+        self.assertEqual(code, 0, out + err)
+        self.assertFalse(os.path.lexists(door))
+        self.assertFalse(self.red(out, "~/.local/bin/agentik"), out)
+        h2, _ = self.x(name="h2")  # a cache home in the share folder: kept, and its folder stands
+        share = os.path.join(h2.home, ".local", "share")
+        mine = h2.file(os.path.join(share, "agentik", "keep.txt"), "mine\n")
+        code, out, err = h2.go("remove", "--all", "--dry-run", "--json", XDG_CACHE_HOME=share)
+        rows = self.plan6(out)
+        self.assertEqual([r[:2] for r in rows], [(6, "ok")], out + err)
+        self.assertIn("~/.local/share", rows[0][2])
+        code, out, err = h2.go("remove", "--all", "--yes", XDG_CACHE_HOME=share)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(mine))
+
+    # ---- G3: one test per guard term, the other terms out of reach ---------------------------------
+
+    def test_h3_the_home_check_alone_keeps_a_home_named_agentik(self):
+        w = os.path.join(self.tmp, "w")
+        h = RHome(os.path.join(w, "agentik"), ("murmur", "paint", "x"), top=self.tmp)
+        outside = {}
+        for name in (".claude", ".config", ".local"):  # every home-relative guard resolves outside the home
+            to = outside[name] = os.path.join(self.tmp, "out" + name)
+            if os.path.isdir(os.path.join(h.home, name)):
+                shutil.move(os.path.join(h.home, name), to)
+            os.makedirs(to, exist_ok=True)
+            os.symlink(to, os.path.join(h.home, name))
+        h.real_tool()
+        thesis = h.file(os.path.join(h.home, "Documents", "thesis.txt"), "mine\n")
+        st = os.path.join(self.tmp, "st")
+        os.makedirs(st)
+        more = {"XDG_CACHE_HOME": w, "XDG_CONFIG_HOME": outside[".config"], "XDG_STATE_HOME": st,
+                "CLAUDE_CONFIG_DIR": outside[".claude"]}
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(thesis))
+
+    def test_h3_the_config_home_alone(self):
+        h, _ = self.x()  # the config home's own folder: it lies under it
+        git = h.file(os.path.join(h.home, ".config", "git", "agentik", "keep.txt"), "mine\n")
+        more = {"XDG_CACHE_HOME": os.path.join(h.home, ".config", "git")}
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(git))
+
+    def test_h3_claude_codes_folder_alone(self):
+        h, _ = self.x()  # CLAUDE_CONFIG_DIR as the cache home, inside the home but no ~/.claude
+        ccd = os.path.join(h.home, "ccd")
+        mine = h.file(os.path.join(ccd, "agentik", "z", "keep.txt"), "mine\n")
+        more = {"XDG_CACHE_HOME": ccd, "CLAUDE_CONFIG_DIR": ccd}
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", **more)
+        self.assertEqual([r[:2] for r in self.plan6(out)], [(6, "ok")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", **more)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(mine))
+
+    def test_h3_a_relative_cache_home_is_not_used(self):
+        h, _ = self.x()
+        mine = h.file(os.path.join(h.home, "rel", "agentik", "keep.txt"), "mine\n")
+        os.makedirs(os.path.join(h.home, ".cache", "agentik"))
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", XDG_CACHE_HOME="rel")
+        self.assertEqual([r[:2] for r in self.plan6(out, "~/.cache/agentik")], [(6, "todo")], out + err)
+        code, out, err = h.go("remove", "--all", "--yes", XDG_CACHE_HOME="rel")
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(mine))
+        self.assertFalse(os.path.lexists(os.path.join(h.home, ".cache", "agentik")))
+
 
 if __name__ == "__main__":
     unittest.main()
