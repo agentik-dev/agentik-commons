@@ -25,6 +25,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n179 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f2_twenty_slow_tools_add_nothing_past_the_wall` | n171's 3.0 s bound in a second test: `config` took 3.02 s at load 8 beside another check, and was green alone three times at the same head; one bound for both tests, widened or measured against an idle baseline | gate 20261114-061401-1894 | 2026-11-14, fh13-relay-plan build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
+| n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
+| n206 | S4 | `agentik_install.py` `_lock` | the re-check loop (`while True`) has no bound: it spins while something replaces `.lock` on every turn, which neither install-cli nor uninstall does | review 2's lead; read, not reproduced | 2026-11-14, ak4b-uninstall review 2 |
+| n207 | S4 | `agentik_install.py` `_plan` | one share under two prefixes: where `<prefix>/share` links to another prefix's share, uninstall removes that prefix's trees and share and leaves its launcher naming a gone tree; as at 93e3eb0 | review 2's lead, `share-parent-link-to-A-share` | 2026-11-14, ak4b-uninstall review 2 |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
 
@@ -32,19 +35,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
 
-## From packet rp3-gather (review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n126 | S4 | commits | each commit's author line carries the account's git identity; the repo's practice, not one slice's | review 1's note | 2026-11-13, rp3 review 1 |
-
 ## From packet rp4-form (review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n127 | S4 | `plugins/suite` `form.py` `nothing_new` | the known words come from `build`'s bytes, where a cell's pipe is written escaped, so a render quoting a check's detail that holds a pipe misses on a word the draft holds and falls back to the template; read the escape back first | review 1's R1-F4, probe p5 | 2026-11-13, rp4 review 1 |
-| n128 | S4 | `plugins/suite` `form.py` | GitHub's own drawing of the form is not verified: pandoc's GFM stands in; a placeholder inside a code span, a title's `#12` or backticks on GitHub are the look the row owes | review 1's note 1, probe p2 | 2026-11-13, rp4 review 1 |
-| n129 | S4 | `plugins/suite` `form.py` | a bidi control (U+202E) in a value is accepted and drawn inside `<code>`, its reordering of the labels after it in a browser unverified; NUL, ESC and other C0 controls read back, NUL drawn as U+FFFD; their removal is rp2's and rp5's | review 1's note 2 | 2026-11-13, rp4 review 1 |
 | n130 | S4 | `plugins/suite` `form.py` `title` | the title is cut on a code point, not a grapheme: a flag pair is split, a ZWJ sequence left ending in ZWJ, a combining accent dropped from its letter; R5's character edge is met | review 1's note 3, probe p7 | 2026-11-13, rp4 review 1 |
 | n131 | S4 | `plugins/suite` `form.py` `title` | the verb is compared case-sensitively: `title("doctor", "Doctor: failing")` gives `doctor: Doctor: failing` | review 1's note 4 | 2026-11-13, rp4 review 1 |
 | n132 | S4 | `plugins/suite` `form.py` `subject` | digits leave a check's name too, so `py39` and `py312` give one fingerprint (design item 11); no command and no row of the tool gives `check:<tool>::`; a `ran` of spaces gets a check subject while the form writes `(empty)` | review 1's note 5, probe p4 | 2026-11-13, rp4 review 1 |
