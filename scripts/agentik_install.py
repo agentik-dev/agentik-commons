@@ -5,7 +5,8 @@ byte-identical in every tool, under vendored.sha256. What differs by tool is rea
 lib/agentik-tool.conf beside it, the one per-tool place; see names(). It freezes the code this
 module runs from, whichever plugin or frozen tree that is, under
 <prefix>/share/<tool>/<content hash>/, writes <prefix>/bin/<tool>, its old name's link only where
-one stands and the `agentik` door, each by a temp file and a rename, and prunes. Stdlib, 3.9, and
+one stands and the `agentik` door, each by a temp file and a rename, and prunes; `uninstall` takes
+back only what reads as that install's. Stdlib, 3.9, and
 light at import: a hook imports it for `restore_parent_env`, and no import here reads a file.
 
 The prune: a launcher already running keeps its tree for its whole life, which for a respawn chain
@@ -388,14 +389,20 @@ def _door(path, door):
     return None
 
 
-def _clear_marker(env, conf):
+def _marker(env, conf):
+    """The launcher's `install-needed` marker: the tool's state folder, or its old one where only
+    that exists."""
     state = env.get("XDG_STATE_HOME") or os.path.join(env.get("HOME", ""), ".local", "state")
     folder = os.path.join(state, conf["tool_name"])
     old = conf["old_state"]
     if old and not os.path.exists(folder) and os.path.exists(os.path.join(state, old)):
         folder = os.path.join(state, old)
+    return os.path.join(folder, "install-needed")
+
+
+def _clear_marker(env, conf):
     try:
-        os.unlink(os.path.join(folder, "install-needed"))
+        os.unlink(_marker(env, conf))
     except OSError:
         pass
 
@@ -593,6 +600,257 @@ def prune(share, new, keep=KEEP, ps="ps", ps_timeout=60):
                  % (removed, len(entries) - removed, len(seen), keep,
                     ", %d failed" % failed if failed else ""))
     return 0, lines
+
+
+# ---- the uninstall: install-cli reversed ---------------------------------------------------
+
+PS = "ps"                         # what `uninstall` reads the process list with; a test's stub
+LAUNCHER_MAX = 65536              # a launcher install-cli wrote is under this many bytes
+_TREE_NAME = re.compile(r"^[0-9a-f]{40}$")    # _freeze's name for a tree: _hash()[:40]
+DOOR_LINE = "# agentik: the front door"
+NOT_OURS = "not the launcher install-cli wrote"
+
+
+def _homes(env):
+    """The home folder's real path, by the env and by the user database."""
+    found = set()
+    if env.get("HOME"):
+        found.add(os.path.realpath(env["HOME"]))
+    try:
+        import pwd
+        found.add(os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir))
+    except (ImportError, KeyError, OSError):
+        pass
+    return found
+
+
+def _real_dir(path):
+    import stat
+    try:
+        return stat.S_ISDIR(os.lstat(path).st_mode)
+    except OSError:
+        return False
+
+
+def _under(path, root):
+    return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+def _launcher_form(path, name):
+    """R3's first three tests: a regular file and no link, under LAUNCHER_MAX bytes, whose second
+    line is LAUNCHER's for `name` (the one form that line has had). It reads a regular file only."""
+    import stat
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not stat.S_ISREG(st.st_mode) or st.st_size >= LAUNCHER_MAX:
+        return False
+    data = read_regular(path, LAUNCHER_MAX)
+    if data is None:
+        return False
+    lines = data.decode("utf-8", "surrogateescape").split("\n")
+    return len(lines) > 1 and lines[1] == LAUNCHER.split("\n")[1].replace("__NAME__", name)
+
+
+def _ours(path, name, share):
+    """The launcher install-cli wrote for `name`: its form, and its TREE under the share, both
+    made real paths."""
+    if not _launcher_form(path, name):
+        return False
+    found = read_launcher(path)
+    tree = found and found["tree"]
+    return bool(tree) and os.path.realpath(tree).startswith(os.path.realpath(share).rstrip("/") + "/")
+
+
+def _door_why(path, bin_dir, name):
+    """None where the door at `path` may go (R7), else why it stays."""
+    import stat
+    try:
+        mode = os.lstat(path).st_mode
+    except OSError as e:
+        return e.strerror or str(e)
+    if stat.S_ISLNK(mode):
+        return "a link"
+    if not stat.S_ISREG(mode):
+        return "not a regular file"
+    data = read_regular(path, LAUNCHER_MAX)
+    lines = data.decode("utf-8", "surrogateescape").split("\n") if data is not None else []
+    if len(lines) < 2 or not lines[1].startswith(DOOR_LINE) or not re.search(r"(?m)^VERSION=", "\n".join(lines)):
+        return "not the agentik door"
+    try:
+        entries = sorted(os.listdir(bin_dir))
+    except OSError as e:
+        return e.strerror or str(e)
+    for entry in entries:
+        if entry not in (DOOR, name) and _launcher_form(os.path.join(bin_dir, entry), entry):
+            return "%s's launcher stands" % entry
+    return None
+
+
+def _held(share, trees, spare):
+    """None, or what holds the uninstall: a process list that cannot be read, or a process,
+    not in `spare`, that names a tree."""
+    text, why = processes(PS)
+    if text is None:
+        return why
+    spare = {str(p) for p in spare}
+    for line in text.splitlines():
+        parts = line.split(None, 1)
+        if not parts or parts[0] in spare:
+            continue
+        live = named(line, share, trees)
+        if live:
+            return "pid %s names %s" % (parts[0], sorted(live)[0])
+    return None
+
+
+def _bounded(path, allowed):
+    """R8: before each removal, the path, its folder made real, inside what may go."""
+    real = os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path))
+    if not allowed(real):
+        raise AssertionError("uninstall: %s lies outside what it may remove" % _ascii(path))
+
+
+def _take(path, allowed):
+    """`path` removed by a walk that follows no link: a folder's entries, then the folder."""
+    import stat
+    if stat.S_ISDIR(os.lstat(path).st_mode):
+        for name in os.listdir(path):
+            _take(os.path.join(path, name), allowed)
+        _bounded(path, allowed)
+        os.rmdir(path)
+    else:
+        _bounded(path, allowed)
+        os.unlink(path)
+
+
+def _plan(tool_name, prefix, env, door):
+    """[(path, what, None to remove, or why it stays)], in the order to act, and the share's
+    trees."""
+    bin_dir = os.path.join(prefix, "bin")
+    launcher = os.path.join(bin_dir, tool_name)
+    share = os.path.join(prefix, "share", tool_name)
+    plan, foreign, trees = [], None, []
+    if os.path.lexists(launcher):
+        foreign = None if _ours(launcher, tool_name, share) else NOT_OURS
+        plan.append((launcher, "launcher", foreign))
+    try:
+        entries = sorted(os.listdir(bin_dir))
+    except OSError:
+        entries = []
+    real_share = os.path.realpath(share)
+    for entry in entries:
+        path = os.path.join(bin_dir, entry)
+        if entry in (DOOR, tool_name) or not os.path.islink(path):
+            continue
+        try:
+            text = os.readlink(path)
+        except OSError:
+            continue
+        if text == tool_name or os.path.realpath(path).startswith(real_share.rstrip("/") + "/"):
+            plan.append((path, "link", foreign))
+    if os.path.lexists(share):
+        if not _real_dir(share) or real_share != _share_real(prefix, tool_name):
+            plan.append((share, "share", foreign or "not a real folder"))
+        else:
+            import stat
+            names_ = sorted(os.listdir(share))
+            trees = [n for n in names_ if _TREE_NAME.match(n)]
+            temps = [n for n in names_ if n.startswith(".tmp-")]
+            lock = [n for n in names_ if n == ".lock" and stat.S_ISREG(os.lstat(os.path.join(share, n)).st_mode)]
+            others = [n for n in names_ if n not in trees and n not in temps and n not in lock]
+            for n in trees + temps:
+                plan.append((os.path.join(share, n), "tree", foreign))
+            for n in others:
+                plan.append((os.path.join(share, n), "share", "not install-cli's"))
+            for n in lock:
+                plan.append((os.path.join(share, n), "share", foreign))
+            plan.append((share, "share", foreign or ("holds what install-cli did not write" if others else None)))
+    home = env.get("HOME")
+    if home and os.path.realpath(prefix) == os.path.realpath(os.path.join(home, ".local")):
+        old = ""
+        try:
+            conf = names()
+            old = conf["old_state"] if conf["tool_name"] == tool_name else ""
+        except (OSError, ValueError):
+            pass
+        marker = _marker(env, {"tool_name": tool_name, "old_state": old})
+        if os.path.lexists(marker):
+            plan.append((marker, "marker", foreign))
+    if door:
+        path = os.path.join(bin_dir, DOOR)
+        if os.path.lexists(path):
+            plan.append((path, "door", foreign or _door_why(path, bin_dir, tool_name)))
+    return plan, trees
+
+
+def _share_real(prefix, tool_name):
+    return os.path.join(os.path.realpath(os.path.join(prefix, "share")), tool_name)
+
+
+def uninstall(tool_name, prefix=None, door=False, dry=False, spare=()):
+    """install-cli reversed: <prefix>/bin/<tool_name> where it reads as the launcher install-cli
+    wrote, the links to it or into its share, the frozen trees, the share, the default prefix's
+    `install-needed` marker, and with `door` the `agentik` door where no other launcher stands.
+    It removes only what the code can show install-cli wrote; a launcher it did not write keeps
+    everything, a process naming a tree (not in `spare`) or a process list it cannot read holds
+    everything, and with `dry` it reads alone. [(path, what, fate)] in the order acted on, `what`
+    launcher, link, tree, share, marker or door, `fate` removed, would remove or `kept: <why>`;
+    it prints nothing. A ValueError for a name that is no `agentik-<tool>`, before any read of the
+    disk, and for a prefix that is `/` or the home folder's parent."""
+    if not isinstance(tool_name, str) or "\n" in tool_name or not _TOOL.match(tool_name):
+        raise ValueError("uninstall: %s is not agentik-<tool>" % _ascii(repr(tool_name)))
+    env = os.environ
+    if prefix == "~" or (prefix or "").startswith("~/"):
+        prefix = env["HOME"] + prefix[1:]
+    prefix = os.path.abspath(os.path.expanduser(prefix or os.path.join(env["HOME"], ".local")))
+    real = os.path.realpath(prefix)
+    if real == "/" or real in {os.path.dirname(h) for h in _homes(env)}:
+        raise ValueError("uninstall: %s is no prefix to remove from" % _ascii(prefix))
+    share = os.path.join(prefix, "share", tool_name)
+    plan, trees = _plan(tool_name, prefix, env, door)
+    if not any(why is None for _, _, why in plan):
+        return [(path, what, "kept: " + why) for path, what, why in plan]
+    share_ok = _real_dir(share) and os.path.realpath(share) == _share_real(prefix, tool_name)
+    lock = _lock(share) if share_ok and not dry else None
+    try:
+        if lock is not None:
+            plan, trees = _plan(tool_name, prefix, env, door)    # again, under the lock
+        held = _held(share, trees, spare)
+        if held:
+            return [(path, what, "kept: held, " + _ascii(held)) for path, what, _ in plan]
+        bin_real = os.path.realpath(os.path.join(prefix, "bin"))
+        root = _share_real(prefix, tool_name) if share_ok else None
+        marks = [m for m, what, _ in plan if what == "marker"]
+        mark = os.path.join(os.path.realpath(os.path.dirname(marks[0])), os.path.basename(marks[0])) if marks else None
+
+        def allowed(path):
+            return (os.path.dirname(path) == bin_real or (root is not None and _under(path, root))
+                    or path == mark)
+        rows = []
+        for path, what, why in plan:
+            if why is not None:
+                rows.append((path, what, "kept: " + why))
+            elif dry:
+                rows.append((path, what, "would remove"))
+            else:
+                try:
+                    if what == "tree":
+                        _take(path, allowed)
+                    elif what == "share" and path == share:
+                        _bounded(path, allowed)
+                        os.rmdir(path)
+                    else:
+                        _bounded(path, allowed)
+                        os.unlink(path)
+                    rows.append((path, what, "removed"))
+                except OSError as e:
+                    rows.append((path, what, "kept: %s" % _ascii(e.strerror or e)))
+        return rows
+    finally:
+        if lock is not None:
+            lock.close()
 
 
 # ---- the forward refresh (design/04 §3, §5) ------------------------------------------------
