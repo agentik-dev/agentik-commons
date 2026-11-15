@@ -12,7 +12,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_sc3_table import LAUNCHER, pty_run  # noqa: E402
+from test_sc3_table import LAUNCHER, draw, pty_run  # noqa: E402
+from agentik_suite import term  # noqa: E402  (test_sc3_table puts the suite's lib on the path)
 from test_sc6_config import ANSI, loom_home  # noqa: E402
 
 LONG = ("How much tension the nib keeps against the page while it writes, in a made-up unit, "
@@ -163,6 +164,65 @@ class Search(unittest.TestCase):
         self.assertEqual((obj["word"], [(m["tool"], m["key"]) for m in obj["matches"]], obj["silent"]),
                          ("tension", [("loom", "spool.tension"), ("quill", "nib.grip")], []))
         self.assertEqual(obj["matches"][1]["summary"], LONG)
+
+
+class CutRoom(unittest.TestCase):
+    """Review 1's F1 and F2: the cut cell on a terminal at 40, 64 and 80 columns. It is cut only
+    where it does not fit, from where the row's text really ends, and no line passes the width."""
+
+    FITS = "A long value without spaces."  # 28 columns: whole under its row at every width here
+    LONG = "The turns this sitting is metered against, a summary that fits nowhere on a row."
+
+    def row(self, key, value, summary):
+        return (None, [term.name(key), value, term.cut(summary)], None)
+
+    def assertWithin(self, lines, width):
+        for line in lines:
+            self.assertLessEqual(term.columns(line), width, (width, line, lines))
+
+    def test_f1_a_summary_that_fits_under_its_row_has_no_mark(self):
+        for width in (40, 64, 80):
+            third = width // 3  # a key and a value of a third each leave the summary under 24 columns
+            lines = draw([self.row("k" * third, "v" * third, self.FITS)], width)
+            self.assertEqual(lines[1:], [" " * 6 + self.FITS], (width, lines))
+            self.assertWithin(lines, width)
+
+    def test_f1_a_summary_that_does_not_fit_under_its_row_is_cut_to_the_width(self):
+        for width in (40, 64, 80):
+            third = width // 3
+            lines = draw([self.row("k" * third, "v" * third, self.LONG)], width)
+            self.assertEqual(len(lines), 2, lines)
+            self.assertTrue(lines[1].endswith("…"), lines)
+            self.assertEqual(term.columns(lines[1]), width, lines)
+
+    def test_f2_a_key_past_a_third_pushes_the_row_and_the_cut_follows_it(self):
+        key = "session.ceilings.turns"  # 22 columns: past a third of 64, and of 40
+        for width in (40, 64, 80):
+            lines = draw([self.row(key, "400", self.LONG), self.row("a.b", "1", self.LONG)], width)
+            self.assertWithin(lines, width)
+            first = lines[0]
+            self.assertTrue(first.startswith("  " + key + "  400"), lines)
+            self.assertEqual(sum(self.LONG[:8] in line for line in lines), 2, lines)
+            self.assertTrue(all("…" in line for line in lines if self.LONG[:8] in line), lines)
+        lines = draw([self.row(key, "400", self.LONG)], 64)  # acceptance 2's shape: 31 columns in, 33 left
+        self.assertEqual(term.columns(lines[0]), 64, lines)
+        self.assertEqual(len(lines), 1, lines)
+
+    def test_f2_a_value_past_a_third_pushes_the_row_and_the_cut_follows_it(self):
+        for width, value in ((40, "x" * 20), (64, "~/.local/state/example/turns.log"), (80, "y" * 32)):
+            lines = draw([self.row("log.turns", value, self.LONG)], width)
+            self.assertWithin(lines, width)
+            self.assertIn(value, lines[0])
+            self.assertTrue(lines[-1].endswith("…"), lines)
+
+    def test_f2_a_room_under_24_columns_puts_the_summary_under_the_row(self):
+        for width, key, value in ((40, "session.ceilings.turns", "400"), (64, "k" * 21, "v" * 25),
+                                  (80, "k" * 30, "v" * 22)):
+            lines = draw([self.row(key, value, self.LONG)], width)
+            self.assertEqual(len(lines), 2, (width, lines))
+            self.assertNotIn("…", lines[0])
+            self.assertTrue(lines[1].startswith(" " * 6 + self.LONG[:10]), lines)
+            self.assertWithin(lines, width)
 
 
 if __name__ == "__main__":

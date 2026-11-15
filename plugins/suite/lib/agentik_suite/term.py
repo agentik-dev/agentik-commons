@@ -66,6 +66,11 @@ def _wrap(text, room):
     return lines + [now]
 
 
+def _cut_to(text, room):
+    """The text whole where it fits the room, else cut to it with `…` (row sc7 F1)."""
+    return text if columns(text) <= room else fit(text, room, "…")
+
+
 def fit(text, room, mark):
     """The text cut so that it and its mark take at most `room` columns; a combining mark stays
     with the character it follows."""
@@ -270,13 +275,16 @@ class Term:
         dim = STYLE_SGR["hint"]
         for cells, after in grid:
             blocks, under, rest = [], [], False
+            at = indent  # where the next cell starts on the row's first line, as laid
             for i, (text, style) in enumerate(cells):
                 last = i == len(cells) - 1
                 room = width - starts[i] if last else widths[i]
+                if style == "cut" and last:  # from where the row's text really ends (sc7 F2)
+                    room = width - at
                 if rest and not (marked and i == mark_at):  # after a path that kept its place
                     blocks.append([""])
-                    if style == "cut" and columns(text) > width - len(fixed):
-                        under.append(fit(text, width - len(fixed), "…"))
+                    if style == "cut":
+                        under.append(_cut_to(text, width - len(fixed)))
                     else:
                         under.extend(_wrap(text, width - len(fixed)) if text.strip() else [])
                 elif marked and i == mark_at or columns(text) <= room:
@@ -289,7 +297,7 @@ class Term:
                     under.append(text)
                 elif style == "cut" and last and i and room < LAST_ROOM:  # under its row, cut there
                     blocks.append([""])
-                    under.append(fit(text, width - len(fixed), "…"))
+                    under.append(_cut_to(text, width - len(fixed)))
                 elif style == "cut":  # it ends at its room (row sc7 R2)
                     blocks.append([fit(text, room, "…")])
                 elif last and i and (room < LAST_ROOM or max(map(columns, text.split()), default=0) > room):
@@ -297,6 +305,7 @@ class Term:
                     under.extend(_wrap(text, width - len(fixed)))
                 else:
                     blocks.append(_wrap(text, room))
+                at += max(widths[i], columns(blocks[i][0])) + len(GAP)
             for k in range(max(len(b) for b in blocks)):
                 shown = " " * indent
                 for i, (text, style) in enumerate(cells):
