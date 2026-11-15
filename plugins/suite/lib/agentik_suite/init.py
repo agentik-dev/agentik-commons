@@ -2,10 +2,11 @@
 
 `init --kind KIND DIR [--dry-run] [--yes]` copies the scaffold `lib/scaffold/KIND` into DIR, a
 folder that is absent or holds nothing but `.git` and `.DS_Store`, and runs `git init` there
-where DIR holds no `.git`. It stages nothing and commits nothing. Its two answers, the kind and
-the folder, come from `_answers` alone (R12): nothing is asked in this build. A refusal is exit 2
-with one line and nothing written (R4); a failed write or `git init` is exit 1, DIR left as it
-was (R5).
+where DIR holds no `.git`; a `.git` counts only where git reads it as a repository. It stages
+nothing and commits nothing. Its two answers, the kind and the folder, come from `_answers`
+alone (R12): nothing is asked in this build. A refusal is exit 2 with one line and nothing
+written (R4); a failed write or `git init` is exit 1, DIR left as it was (R5), but for a file
+another program put there, which init never removes.
 """
 import os
 import shlex
@@ -98,11 +99,11 @@ def _mode(path):
         return 0o755 if fh.read(2) == b"#!" else 0o644
 
 
-def _git(git, stage, env):
-    """(exit, what git said) for `git init -q -b main <stage>`, stdin closed, under WALL."""
+def _call(git, args, env):
+    """(exit, what git said) for `git ARGS`, stdin closed, no `GIT_*` variable, under WALL."""
     env = {k: v for k, v in env.items() if not k.startswith("GIT_")}  # no GIT_DIR from a hook
     try:
-        p = subprocess.Popen([git, "init", "-q", "-b", "main", stage], stdin=subprocess.DEVNULL,
+        p = subprocess.Popen([git] + list(args), stdin=subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     except OSError as e:
         return 1, e.strerror or str(e)
@@ -115,13 +116,37 @@ def _git(git, stage, env):
     return p.returncode, (err or out).decode("utf-8", "replace") if p.returncode else ""
 
 
-def _undo(moved):
-    for path in reversed(moved):
-        if os.path.isdir(path) and not os.path.islink(path):
-            shutil.rmtree(path, ignore_errors=True)
-        elif os.path.lexists(path):
+def _git(git, stage, env):
+    """`git init -q -b main <stage>` by `_call`."""
+    return _call(git, ["init", "-q", "-b", "main", stage], env)
+
+
+def _is_repo(git, path, env):
+    """True where `git -C DIR rev-parse --git-dir` exits 0, under init's own env and wall (review
+    1 F2): a `.git` git cannot read is no repository, so it is not kept."""
+    return _call(git, ["-C", path, "rev-parse", "--git-dir"], env)[0] == 0
+
+
+def _made(stage):
+    """{top entry: its paths under it, the deepest first, each (path under stage, is a folder)}:
+    what init wrote in the stage, so an undo removes that alone (review 1 F1)."""
+    made = {}
+    for here, dirs, names in os.walk(stage):
+        for n in dirs + names:
+            rel = os.path.relpath(os.path.join(here, n), stage)
+            full = os.path.join(here, n)
+            folder = os.path.isdir(full) and not os.path.islink(full)
+            made.setdefault(rel.split(os.sep)[0], []).append((rel, folder))
+    return {top: sorted(paths, key=lambda p: -p[0].count(os.sep)) for top, paths in made.items()}
+
+
+def _undo(moved, made, path):
+    """Remove what init moved into DIR, each path it wrote and no other: a file is unlinked, a
+    folder removed only where it is empty, so another program's file in it stays (review 1 F1)."""
+    for top in reversed(moved):
+        for rel, folder in made.get(top, []):
             try:
-                os.unlink(path)
+                (os.rmdir if folder else os.unlink)(os.path.join(path, rel))
             except OSError:
                 pass
 
@@ -137,7 +162,8 @@ def do_init(cmd, nouns):
     path = os.path.abspath(os.path.join(cmd.cwd, typed))
     parent = os.path.dirname(path)
     parent_shown = os.path.dirname(typed.rstrip("/")) or "."
-    if not os.path.isdir(parent):
+    as_typed = os.path.dirname(os.path.join(cmd.cwd, typed.rstrip("/") or typed))  # F5: `nope/..`
+    if not os.path.isdir(parent) or not os.path.isdir(as_typed):
         raise cmd.Usage("no_parent", "err.init.parent", None, parent=parent_shown, **slots)
     if os.path.lexists(path) and not os.path.isdir(path):
         raise cmd.Usage("not_a_folder", "err.init.notdir", None, **slots)
@@ -150,14 +176,14 @@ def do_init(cmd, nouns):
     except OSError as e:
         raise cmd.Usage("write_failed", "err.init.write", None, exit_code=1, path=typed,
                         why=e.strerror or str(e), **slots)
-    extra = [e for e in entries if e not in KEPT]
+    kept = ".git" in entries and _is_repo(git, path, cmd.env)
+    extra = [e for e in entries if e not in KEPT or (e == ".git" and not kept)]
     if extra and _is_kind(path, kind):
         raise cmd.Usage("already", "err.init.already", None, **slots)
     if extra:
         raise cmd.Usage("not_empty", "err.init.full", None, found=_found(extra), **slots)
     source = os.path.join(scaffold(cmd.lib), kind)
     listed = files(source)
-    kept = ".git" in entries
     if not o["dry_run"]:
         said = _write(cmd, source, listed, path, parent, there, kept, git, slots, parent_shown)
         if said is not None:
@@ -184,7 +210,7 @@ def _write(cmd, source, listed, path, parent, there, kept, git, slots, parent_sh
     except OSError as e:
         raise cmd.Usage("write_failed", "err.init.write", None, exit_code=1, path=parent_shown,
                         why=e.strerror or str(e), **slots)
-    moved = []
+    moved, made = [], {}
     try:
         os.chmod(stage, 0o755)
         for rel in listed:
@@ -202,13 +228,17 @@ def _write(cmd, source, listed, path, parent, there, kept, git, slots, parent_sh
         if not there:
             os.rename(stage, path)
             return None
+        made = _made(stage)
         for name in sorted(os.listdir(stage)):
             to = os.path.join(path, name)
+            if os.path.lexists(to):  # review 1 F1: another program made it since DIR was read
+                _undo(moved, made, path)
+                raise cmd.Usage("not_empty", "err.init.full", None, found=name, **slots)
             os.rename(os.path.join(stage, name), to)
-            moved.append(to)
+            moved.append(name)
         return None
     except OSError as e:
-        _undo(moved)
+        _undo(moved, made, path)
         where = e.filename if isinstance(e.filename, str) else path
         if where == stage or where.startswith(stage + os.sep):
             where = os.path.join(slots["dir"], os.path.relpath(where, stage))

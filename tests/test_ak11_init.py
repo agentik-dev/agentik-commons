@@ -317,6 +317,82 @@ class InitTest(Home):
         self.assertIn("init needs --kind", shown)
         self.assertFalse(os.path.lexists(self.at("ask")))
 
+    def test_23_another_writer_s_file_survives_the_move(self):
+        """Review 1 F1: a file another program makes in DIR while `git init` runs stops the move as
+        `not_empty` (shape G), also where a later rename would fail (shape G2), and the undo removes
+        only what init wrote, never a file another program put in a folder init moved in (G3)."""
+        from agentik_suite import init
+        real_git, real_rename = init._git, os.rename
+        mine = b"MY OWN NOTES\n"
+
+        def writer(d):
+            def slow_git(git, stage, env):
+                said = real_git(git, stage, env)
+                with open(os.path.join(d, "README.md"), "wb") as fh:
+                    fh.write(mine)
+                return said
+            return slow_git
+
+        def fails_on_scripts(a, b):
+            if os.path.basename(a) == "scripts":
+                raise OSError(28, "No space left on device", a)
+            return real_rename(a, b)
+
+        for shape, rename in (("g", real_rename), ("g2", fails_on_scripts)):
+            d = self.at(shape)
+            os.mkdir(d)
+            with mock.patch.object(init, "_git", writer(d)), mock.patch.object(init.os, "rename", rename):
+                code, out, err = self.inproc("init", "--kind", "hq", d)
+            self.assertEqual((shape, code, out), (shape, 2, ""), err)
+            self.assertIn("is not empty: it holds README.md.", err)
+            self.assertEqual(os.listdir(d), ["README.md"], shape)
+            with open(os.path.join(d, "README.md"), "rb") as fh:
+                self.assertEqual(fh.read(), mine, shape)
+        d = self.at("g3")
+        os.mkdir(d)
+        theirs = os.path.join(d, ".claude", "notes.txt")
+
+        def writes_then_fails(a, b):
+            if os.path.basename(a) == "scripts":
+                with open(theirs, "wb") as fh:
+                    fh.write(mine)
+                raise OSError(28, "No space left on device", a)
+            return real_rename(a, b)
+
+        with mock.patch.object(init.os, "rename", writes_then_fails):
+            code, out, err = self.inproc("init", "--kind", "hq", d)
+        self.assertEqual((code, out), (1, ""), err)
+        self.assertIn("No space left on device", err)
+        self.assertEqual(sorted(tree(d, skip=())), [".claude/notes.txt"])
+        self.assertEqual(sorted(os.listdir(d)), [".claude"])
+        with open(theirs, "rb") as fh:
+            self.assertEqual(fh.read(), mine)
+
+    def test_24_a_git_that_is_no_repository_is_not_kept(self):
+        """Review 1 F2: an empty file `.git` is no repository, so DIR is not empty: exit 2, nothing
+        written; an empty `.git` folder, which git cannot read either, is refused the same way."""
+        for name, make in (("fake", lambda p: open(p, "w").close()), ("hollow", os.mkdir)):
+            os.mkdir(self.at(name))
+            make(self.at(name, ".git"))
+            code, out, err = self.go("init", "--kind", "hq", name)
+            self.assertEqual((code, out, err), (2, "", FULL.replace("full", name, 1) % ".git"))
+            self.assertEqual(os.listdir(self.at(name)), [".git"])
+            if name == "fake":
+                self.assertEqual(os.path.getsize(self.at(name, ".git")), 0)
+            else:
+                self.assertEqual(os.listdir(self.at(name, ".git")), [])
+
+    def test_25_a_parent_as_typed_that_is_not_there(self):
+        """Review 1 F5: `nope/..` with no `nope` is `no_parent`, though as text it names the cwd."""
+        os.mkdir(self.at("e"))
+        code, out, err = self.go("init", "--kind", "hq", "nope/..", cwd=self.at("e"))
+        self.assertEqual((code, out, err), (2, "", "FAIL  nope is not a folder, so init cannot make nope/.. "
+                                                   "in it. Make nope first.\n"))
+        self.assertEqual(os.listdir(self.at("e")), [])
+        code, out, err = self.go("init", "--kind", "hq", "nope/../x", "--json", cwd=self.at("e"))
+        self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "no_parent"))
+        self.assertEqual(os.listdir(self.at("e")), [])
+
 
 if __name__ == "__main__":
     unittest.main()
