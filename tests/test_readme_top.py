@@ -111,14 +111,14 @@ class Findings(Case):
         self.check(top(link=link), 1, ["no link to https://github.com/agentik-dev"])
 
     def test_three_faults_print_three_lines_in_order(self):
-        text = top(extra=("A.", "B.", "C."), use="", link="Part of agentik.")
+        text = top(extra=("A.", "B.", "C.", "D."), use="", link="Part of agentik.")
         self.check(text, 1, ["11 lines of text before the first ##; the form allows 10",
                              'no line starts "Use it when"',
                              "no link to https://github.com/agentik-dev"])
 
     def test_all_five_in_order(self):
-        text = top(extra=("A.", "B.", "C.", "D."), block=("one",), use="", link="Part of agentik.")
-        self.check(text, 1, ["13 lines of text before the first ##; the form allows 10",
+        text = top(extra=("A.", "B.", "C.", "D.", "E.", "F."), block=("one",), use="", link="Part of agentik.")
+        self.check(text, 1, ["12 lines of text before the first ##; the form allows 10",
                              "the fenced block holds 1 line; the form has exactly two",
                              'no line starts "Use it when"',
                              "no link to https://github.com/agentik-dev"])
