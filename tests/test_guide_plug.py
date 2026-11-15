@@ -13,11 +13,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "GUIDE.md"
 sys.path.insert(0, str(ROOT / "plugins" / "suite" / "lib"))
-from agentik_suite import doctor, tools  # noqa: E402
+from agentik_suite import doctor, plan, tools  # noqa: E402
 
 HEAD = "## §11 "
 FENCE = re.compile(r"^```json\n(.*?)^```[ \t]*$", re.S | re.M)
@@ -47,6 +48,19 @@ def examples(path):
     if len(found) != 4:
         raise AssertionError("§11 holds %d json fences, not 4" % len(found))
     return dict(zip(("error", "describe", "config", "doctor"), (f.encode("utf-8") for f in found)))
+
+
+def answering(out):
+    """A stand-in for `tools.run_all` that answers each job with exit 0 and `out`, as a describe
+    that ran, so the reader's own describe_all, cache and count run and no process starts."""
+    def run_all(jobs, env, then=None, deadline=None, **_):
+        results, queue = {}, list(jobs)
+        while queue:
+            key, _argv = queue.pop(0)
+            results[key] = (0, out, "ran")
+            queue.extend((then(key, results[key]) if then else None) or ())
+        return results
+    return run_all
 
 
 def check_describe(out):
@@ -95,6 +109,27 @@ class GuidePlug(unittest.TestCase):
             Path(copy).write_text(text.replace(out, json.dumps(obj) + "\n"), encoding="utf-8")
             with self.assertRaises(AssertionError):
                 check_describe(examples(copy)["describe"])
+
+    def test_reads_first_words_are_verbs(self):
+        """Review 1 F8: each read's first word is a verb of the example's own `verbs`."""
+        answer = check_describe(examples(GUIDE)["describe"])
+        verbs = {v["name"] for v in answer["verbs"]}
+        firsts = [r["argv"][0] for r in answer["reads"] if r["argv"]]
+        self.assertEqual([w for w in firsts if w not in verbs], [])
+
+    def test_example_not_in_place(self):
+        """Review 1 F2: setup's launcher step (`plan.in_place`) does not take the example's tool to
+        run in place, since its `verbs` list `install-cli`."""
+        out = examples(GUIDE)["describe"]
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = os.path.join(tmp, "agentik-demo")
+            Path(exe).write_text("#!/bin/sh\n", encoding="utf-8")
+            env = {"HOME": tmp, "XDG_CACHE_HOME": os.path.join(tmp, "cache"), "PATH": "/usr/bin:/bin"}
+            with mock.patch.object(tools, "run_all", answering(out)):
+                found, _ = tools.describe_all([{"name": "demo", "exe": exe}], env)
+                self.assertEqual(found["demo"][0], "answers")
+                os.remove(os.path.join(tools.cache_dir(env), "demo.json"))
+                self.assertEqual(plan.in_place({"demo": exe}, env), set())
 
     def test_config_counts(self):
         cfg = tools.counted_config(0, examples(GUIDE)["config"])
