@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SYNC = ROOT / "scripts" / "sync"
 COPIES = {"scripts/agentik": "bin/agentik", "scripts/hygiene": "scripts/hygiene",
           "scripts/recordlint": "scripts/recordlint",
+          "scripts/readme-top": "scripts/readme-top",
           "scripts/bounded": "scripts/bounded",
           "scripts/plugin-version-check": "scripts/plugin-version-check",
           "scripts/plugin-description-bytes": "scripts/plugin-description-bytes"}
@@ -56,7 +57,7 @@ class SyncTest(unittest.TestCase):
         # nothing else is written, no scratch file is left
         self.assertEqual(sorted(os.listdir(Path(self.repo, "scripts"))),
                          ["agentik", "bounded", "hygiene", "plugin-description-bytes", "plugin-version-check",
-                          "recordlint",
+                          "readme-top", "recordlint",
                           "vendored.sha256"])
 
     def test_recordlint_lands_beside_hygiene_at_755_and_is_listed(self):
@@ -71,6 +72,18 @@ class SyncTest(unittest.TestCase):
         self.assertIn("%s  scripts/recordlint" % digest, rows)
         names = [r.split("  ", 1)[1] for r in rows]
         self.assertEqual(names.index("scripts/recordlint"), names.index("scripts/hygiene") + 1)
+
+    def test_readme_top_lands_at_755_and_is_listed(self):
+        # packet fh3-top-check R6: the README top check is vendored; no Makefile line is added
+        code, out, err = sync(self.repo)
+        self.assertEqual((code, err), (0, ""))
+        placed = Path(self.repo, "scripts", "readme-top")
+        self.assertEqual(placed.read_bytes(), Path(ROOT, "scripts", "readme-top").read_bytes())
+        self.assertEqual(placed.stat().st_mode & 0o777, 0o755)
+        rows = Path(self.repo, "scripts", "vendored.sha256").read_text().splitlines()
+        digest = hashlib.sha256(placed.read_bytes()).hexdigest()
+        self.assertIn("%s  scripts/readme-top" % digest, rows)
+        self.assertFalse(os.path.exists(os.path.join(self.repo, "Makefile")))
 
     def test_rerun_refreshes_a_drifted_copy(self):
         sync(self.repo)
@@ -108,7 +121,7 @@ class SyncTest(unittest.TestCase):
     def test_no_plugin_is_todays_set_byte_for_byte(self):
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
-        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, "
                          "plugin-description-bytes, vendored.sha256\n" % os.path.realpath(self.repo))
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
@@ -194,7 +207,7 @@ class PluginTest(unittest.TestCase):
         self.manifest.write_text(json.dumps({"name": "relay", "version": "1.2.3"}))
         code, out, err = sync(self.repo)
         self.assertEqual((code, err), (0, ""))
-        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, bounded, plugin-version-check, "
+        self.assertEqual(out, "sync: %s/scripts: agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, "
                          "plugin-description-bytes, vendored.sha256\n" % self.repo)
         expected = "".join("%s  %s\n" % (hashlib.sha256(Path(ROOT, COPIES[c]).read_bytes()).hexdigest(), c)
                            for c in COPIES)
