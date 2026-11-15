@@ -1,6 +1,6 @@
 """`remove` (row ak4-remove): setup's plan reversed, a tool taken off and every path it kept named.
 
-The hold comes first, update's (R2): a relay run or an unattended run, or a process list that
+The hold comes first, update's (R2): a runner's live run or an unattended run, or a process list that
 cannot be read, holds the run, exit 2, nothing written; then each chosen tool's
 `agentik_install.uninstall(dry=True)`, where a row `kept: held` holds it the same way, before any
 `claude` command runs. A tool is taken off where the finder's row is `own` at the user's scope,
@@ -17,12 +17,9 @@ memory and each slot is filled before it, and after it nothing is read from the 
 import datetime
 import json
 import os
-import pwd  # noqa: F401  agentik_install's lazy imports, loaded before step 5 (R6)
-import secrets  # noqa: F401
 import shlex
 import shutil
 import signal
-import stat
 import subprocess
 import sys
 
@@ -48,9 +45,15 @@ def spare(env, pid=None):
     here = os.getppid()
     while ps and here > 1 and len(found) < PARENTS:
         try:
-            out = subprocess.run([ps, "-o", "ppid=", "-p", str(here)], capture_output=True, text=True,
-                                 timeout=update.PS_WALL, stdin=subprocess.DEVNULL).stdout.split()
-        except (OSError, subprocess.SubprocessError):
+            p = subprocess.Popen([ps, "-o", "ppid=", "-p", str(here)], stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except (OSError, ValueError):
+            break
+        try:
+            out = p.communicate(timeout=update.PS_WALL)[0].decode("ascii", "replace").split()
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.communicate()
             break
         if len(out) != 1 or not out[0].isdigit():
             break
@@ -73,11 +76,7 @@ def cache_fate(env, home):
         return path, "", root
     if real == "/" or real in agentik_install._homes(env):
         return path, "remove.cache.home", root
-    try:
-        real_dir = stat.S_ISDIR(os.lstat(path).st_mode)
-    except OSError:
-        real_dir = False
-    if not real_dir:
+    if not agentik_install._real_dir(path):
         return path, "remove.cache.link", root
     if os.path.realpath(path) != root:
         return path, "remove.cache.place", root
@@ -361,6 +360,7 @@ class Remove:
         ran, wrote, removed, kept, failure = [], [], [], [], None
         journal = apply.journal_path(self.env, self.home)
         texts = {mid: self.t.text(mid) for mid in set(why for _, why in self.keep)}
+        agentik_install._homes(self.env)  # its lazy import, loaded before step 5 can take the tree (R6)
         try:
             for e in self.tools:
                 if e["plugin"]:
