@@ -32,7 +32,7 @@ import agentik_install
 from . import apply, plan, prog, settings, sources, status, tools
 
 DEADLINE = 30.0
-RESERVED = ("remove", "update", "init", "completion", "inbox")
+RESERVED = ("update", "init", "completion", "inbox")
 STATE = {"ok": "ok", "todo": "warn", "blocked": "fail"}
 STATUSES = ("ok", "note", "warn", "fail")
 SCHEMA = "agentik.doctor/1"

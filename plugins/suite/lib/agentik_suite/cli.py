@@ -33,17 +33,20 @@ import time
 
 import agentik_install
 
-from . import apply, config, doctor, inbox, install, issue, plan, prog, status, term, tools, update
+from . import apply, config, doctor, inbox, install, issue, plan, prog, remove, status, term, tools, update
 
-VERBS = ("help", "version", "setup", "update", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
+VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
 KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
-WRITES = ("setup", "update", "install-cli", "issue")
+WRITES = ("setup", "update", "remove", "install-cli", "issue")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"))
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
+# remove's --all, a key of its own so doctor's keeps its gloss (row ak4-remove R1); the parse sets
+# both keys, ALL_FLAGS keeps doctor's, and a verb's flags are checked by the flag's spelling
+REMOVE_FLAGS = (("--all", None, "remove_all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
                ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
@@ -51,6 +54,7 @@ VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
 VERB_FLAGS["inbox"] = STATUS_FLAGS
 VERB_FLAGS["doctor"] = DOCTOR_FLAGS
+VERB_FLAGS["remove"] = WRITE_FLAGS + REMOVE_FLAGS
 VERB_FLAGS["issue"] = WRITE_FLAGS + ISSUE_FLAGS
 VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hooks: flag, key, verb
                "--prefix": ("prefix", "install-cli"),
@@ -62,14 +66,15 @@ ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS +
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
 SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
-NEVER_MENDED = WRITES + ("remove",)  # a word that is no verb is never mended into one of these
+NEVER_MENDED = WRITES  # a word that is no verb is never mended into one of these
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
-         ("install", ("install-cli",)), ("issue", ("issue",)), ("update", ("update",)))
+         ("install", ("install-cli",)), ("issue", ("issue",)), ("update", ("update",)),
+         ("remove", ("remove",)))
 FIRST = ("setup", "doctor", "config", "status")  # the first screen's rows above help's (row sc5 R2)
 TOOL_ROW = "<tool>"
 # help <verb>'s examples (R5): the words after the suite's name, a tail printed as it is, the gloss;
@@ -81,7 +86,9 @@ EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run")
                        (("config", OWN), ".kind", "help.eg.config_key")),
             "help": ((("help",), "", "help.eg.help"), (("help", "config"), "", "help.eg.help_verb"),
                      (("help",), " <tool>", "help.eg.help_tool")),
-            "update": ((("update",), "", "help.eg.update"), (("update", "--dry-run"), "", "help.eg.update_dry"))}
+            "update": ((("update",), "", "help.eg.update"), (("update", "--dry-run"), "", "help.eg.update_dry")),
+            "remove": ((("remove",), " <plugin>...", "help.eg.remove_names"),
+                       (("remove", "--all", "--dry-run"), "", "help.eg.remove_all"))}
 ROWS = {"setup": "help.row.setup", "doctor": "help.row.doctor", "config": "help.row.config",
         "status": "help.row.status", "help": "help.row.help"}
 
@@ -148,6 +155,7 @@ def _parse(argv):
             opts[ALL_FLAGS[arg]] = True
         elif bad is None:
             bad, bad_at = arg, i
+    opts["remove_all"] = opts["all"]
     return opts, words, bad, at, bad_at
 
 
@@ -155,8 +163,9 @@ def _flag_fault(opts, words, verb):
     """The first flag `_dispatch` refuses for `verb`, past the parse, or None."""
     if opts["version"] and (words or opts["help"]):
         return "--version"
-    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + ISSUE_FLAGS:
-        if opts[key] and (long, short, key) not in VERB_FLAGS.get(verb, ()):
+    takes = {f[0] for f in VERB_FLAGS.get(verb, ())}
+    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + REMOVE_FLAGS + ISSUE_FLAGS:
+        if opts[key] and long not in takes:
             return long
     for flag, (key, owner) in VALUE_FLAGS.items():
         if opts[key] is not None and owner != verb:
@@ -175,6 +184,8 @@ def _takes(verb, o, nouns):
         return not nouns and o["prefix"] != ""
     if verb in ("setup", "update"):
         return all(NOUN.match(n) for n in nouns)
+    if verb == "remove":  # names or --all, never both, never neither (row ak4-remove R1)
+        return all(NOUN.match(n) for n in nouns) and bool(nouns) != bool(o["remove_all"])
     if verb == "status":
         return not (nouns and o["check"])
     if verb == "inbox":  # a number and --check are two answers (row in4-inbox R2)
@@ -687,6 +698,11 @@ class Command:
 
     def do_update(self, nouns):
         return update.do_update(self, nouns)
+
+    # ---- remove ---------------------------------------------------------------------------
+
+    def do_remove(self, nouns):
+        return remove.do_remove(self, nouns)
 
     # ---- config and describe ----------------------------------------------------------------
 

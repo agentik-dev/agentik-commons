@@ -147,18 +147,18 @@ class RunTest(Claims):
 
     def test_4_the_suites_words_and_the_kept_words(self):
         h = self.blank()
-        place(h, "quill", body(claiming("quill", "doctor", "remove", "rows")))
-        for word in ("remove", "rows"):
+        place(h, "quill", body(claiming("quill", "doctor", "init", "rows")))
+        for word in ("init", "rows"):
             code, out, err = self.cli(h, word)
             self.assertEqual(code, 2, out + err)
             self.assertIn("%s is not a verb" % word, err)
         code, out, err = self.cli(h, "doctor", "--json")
         self.assertEqual(json.loads(out)["schema"], "agentik.doctor/1")
-        self.assertFalse([l for l in ran(h) if l.startswith(("[remove]", "[rows]"))], ran(h))
+        self.assertFalse([l for l in ran(h) if l.startswith(("[init]", "[rows]"))], ran(h))
         code, out, err = self.cli(h, "config", "quill")
-        said = {w: [l for l in out.splitlines() if "claims %s;" % w in l] for w in ("doctor", "remove", "rows")}
+        said = {w: [l for l in out.splitlines() if "claims %s;" % w in l] for w in ("doctor", "init", "rows")}
         self.assertIn("the suite keeps that word", said["doctor"][0])
-        self.assertIn("the suite keeps that word", said["remove"][0])
+        self.assertIn("the suite keeps that word", said["init"][0])
         self.assertIn("for another tool", said["rows"][0])
         d, keeper = self.blank(), tools.kept(None, ("rows",))["rows"]  # kept.json's tool
         self.assertTrue(keeper)
