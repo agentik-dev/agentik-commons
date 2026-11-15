@@ -444,7 +444,7 @@ class Remove:
     def run(self, steps):
         """R4 and R5 in order; a failed step stops, with no rollback (R8). Before step 5 the
         journal's path, the slots and every text the close needs are in memory (R6)."""
-        ran, wrote, removed, kept, red, failure = [], [], [], [], [], None
+        ran, wrote, removed, kept, red, stands, failure = [], [], [], [], [], [], None
         journal = apply.journal_path(self.env, self.home)
         texts = {mid: self.t.text(mid) for mid in set(why for _, why in self.keep)}
         gone = self.t.text("remove.gone")
@@ -483,7 +483,7 @@ class Remove:
                     if failure:
                         break
                     if s["n"] == 3 and os.path.lexists(folder):  # removed only where an lstat finds it gone (F6)
-                        red.append((folder, self.t.text("remove.market.stands")))
+                        stands.append((folder, self.t.text("remove.market.stands")))  # to go, and stands (G5)
                     elif s["n"] == 3 and stood:
                         removed.append(folder)
                 if failure is None:
@@ -501,10 +501,10 @@ class Remove:
             red += [] if os.path.lexists(self.cache[0]) else [(self.cache[0], gone)]
         red += [(p, gone) for p, why in self.keep if not os.path.lexists(p)]  # by lstat, before the journal (F1)
         kept = [(p, why) for p, why in kept if p not in {r[0] for r in red}]
-        code = code or (1 if red else 0)
+        code = code or (1 if red or stands else 0)
         wrote = wrote + [p for p in removed if p not in wrote]
         wrote = self.journal(journal, ran, wrote, code)
-        return self.close(code, failure, ran, removed, kept, wrote, steps, red)
+        return self.close(code, failure, ran, removed, kept, wrote, steps, red, stands)
 
     def drop_cache(self, removed, kept):
         path, why, reach = self.cache
@@ -542,18 +542,21 @@ class Remove:
             return wrote
         return wrote + [path]
 
-    def close(self, code, failure, ran, removed, kept, wrote, steps, red=()):
+    def close(self, code, failure, ran, removed, kept, wrote, steps, red=(), stands=()):
+        """`red`: what was to stand and is gone; `stands`: what was to go and stands (G5)."""
         t, commands = self.t, [r["command"] for r in ran]
         message = None
+        lines = [(mid, ", ".join(self.shown(p) for p, _ in found))
+                 for mid, found in (("err.remove.red", red), ("err.remove.stands", stands)) if found]
         if failure:
             mid = FAILS.get(failure[0], failure[0])
             message = t.text(mid, **dict(self.slots, **failure[1]))
         if self.o["json"]:
             remedy = None if failure and failure[0] == "err.remove.cache.partly" else self.remedy  # F5: no verb is left
             error = {"code": "step_failed", "message": message, "remedy": remedy} if failure else None
-            if red and not error:
-                error = {"code": "red", "message": t.text("err.remove.red", paths=", ".join(
-                    self.shown(p) for p, _ in red)), "remedy": None}
+            if lines and not error:
+                error = {"code": "red", "message": " ".join(t.text(mid, paths=paths) for mid, paths in lines),
+                         "remedy": None}
             obj = {"schema": SCHEMA, "ok": code == 0, "held": None, "dry_run": False,
                    "tools": [{"name": e["name"], "plugin": e["plugin"],
                               "rows": [{"path": p, "what": w, "fate": f} for p, w, f in e.get("rows", ())]}
@@ -568,14 +571,15 @@ class Remove:
         rows = [("ok", [t.text("remove.ran", command=c)], None) for c in commands]
         rows += [("ok", [self.shown(p), t.text("remove.removed")], None) for p in removed]
         rows += [("note", [self.shown(p), why], None) for p, why in kept]
-        rows += [("fail", [self.shown(p), why], None) for p, why in red]
+        rows += [("fail", [self.shown(p), why], None) for p, why in list(red) + list(stands)]
         t.table(rows)
         if failure:
             t.flush()
             t.error(FAILS.get(failure[0], failure[0]), **dict(self.slots, **failure[1]))
-        elif red:
+        elif lines:
             t.flush()
-            t.error("err.remove.red", paths=", ".join(self.shown(p) for p, _ in red))
+            for mid, paths in lines:
+                t.error(mid, paths=paths)
         return code
 
 

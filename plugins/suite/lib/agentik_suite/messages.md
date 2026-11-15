@@ -397,6 +397,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.interrupted.idle`: Remove was interrupted between steps, with no command running. Run `{remove}` again to go on.
 - `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`). Mend that, then run `{remove}` again.
 - `err.remove.red`: Remove finished, but what it said would stand does not: `{paths}`. Look at what else wrote there.
+- `err.remove.stands`: Remove finished, but what it said would go still stands: `{paths}`. It is yours to delete.
 - `err.remove.cache.partly`: Remove stopped: `{path}` was partly removed (`{why}`). The suite is off now, so that folder is yours to delete.
 - `err.remove.journal`: Remove could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
 
