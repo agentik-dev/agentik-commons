@@ -43,7 +43,7 @@ DESCRIBE = {"schema": "agentik.describe/1", "ok": True, "tool": "murmur", "versi
 SHARED = "--json  -q/--quiet  --no-color"
 # The pin's (2fd5a80) ids a ruling keeps byte for byte (R7): sc1-voice-sweep owns them.
 KEPT = re.compile(r"^(verb|flag|usage)\.")
-PIN_KEPT = (42, "4591236ea548727477a0142bf3ee46a060ff9b6b24daa42387cb7f28695ba275")  # 3a1a2ed's 34, ak4a's verb.update and usage.update, ak4-remove's verb.remove, usage.remove and flag.remove_all, then ak11-init's verb.init, usage.init and flag.kind, and flag.yes reworded
+PIN_KEPT = (42, "0e54bfcf247e25889b9065e57495282e5c2c5e2f29f5157a6e710133a59e6339")  # re-pinned by sc1-voice-sweep (verb.setup, verb.config, verb.install_cli, verb.doctor, verb.inbox, verb.issue, usage.issue, flag.changed, flag.check, flag.render, verb.remove, flag.remove_all); 3a1a2ed's 34, ak4a's verb.update and usage.update, ak4-remove's verb.remove, usage.remove and flag.remove_all, then ak11-init's verb.init, usage.init and flag.kind, and flag.yes reworded
 NEW = ("help.row.setup", "help.row.doctor", "help.row.config", "help.row.status", "help.row.help",
        "help.row.tool", "help.row.tool.none", "help.row.help.all", "help.more", "help.usage.tool",
        "help.tools", "help.tools.none", "help.tool.bare", "help.eg.setup", "help.eg.setup_dry",

@@ -302,7 +302,7 @@ class UpdateTest(Base):
         code, out, err = h.run("update")
         self.assertEqual(code, 2, out + err)
         self.assertIn("Update plan for", out)
-        self.assertIn("cannot ask you here", err)
+        self.assertIn("cannot ask here", err)
         self.assertEqual(h.ran(), [])
         code, out, err = h.run("update", "nosuch")
         self.assertEqual(code, 2, out + err)
@@ -310,7 +310,7 @@ class UpdateTest(Base):
 
     def test_7_the_suite_from_a_checkout_is_left_as_it_is(self):
         for listed, hint in ((("murmur", "suite"), "claude plugin install suite@agentik"),
-                             (("murmur",), "pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite")):
+                             (("murmur",), "pull that checkout, run install-cli of plugins/suite/bin/agentik-suite")):
             h = self.home(listed, name="h-" + str(len(listed[1:])))
             h.install("murmur@agentik", "1.0.0", "1.1.0")
             checkout = os.path.join(self.tmp, "checkout-" + str(len(listed)))  # review 1 lead d
@@ -321,7 +321,7 @@ class UpdateTest(Base):
             code, out, err = h.run("update", "--yes",
                                    exe=os.path.join(checkout, "plugins", "suite", "bin", "agentik-suite"))
             self.assertEqual(code, 0, out + err)
-            self.assertRegex(out, r"agentik-suite \S+ was placed from a checkout, so this command leaves it as it is")
+            self.assertRegex(out, r"agentik-suite \S+ was placed from a checkout, so update leaves it")
             self.assertIn(hint, err)
             self.assertEqual(h.ran("git.log"), [])
             self.assertEqual(h.snapshot(checkout), before)
@@ -476,7 +476,7 @@ class ReviewOneTest(Base):
         h = self.two_behind()
         code, out, err = h.run("update")
         self.assertEqual(code, 2, out + err)
-        self.assertIn("Update ran nothing, since it cannot ask you here.", err)
+        self.assertIn("Update ran nothing, since it cannot ask here", err)
         self.assertNotIn("Setup", out + err)
         h.file(os.path.join(h.home, "fail"), "paint@agentik")
         code, out, err = h.run("update", "--yes")

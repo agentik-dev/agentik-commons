@@ -331,8 +331,8 @@ note  quince-hq  nothing readable waits
         self.assertEqual(err, DOCTOR % self.L)
         self.how("charter", print=json.dumps({"schema": "agentik.charter/2", "ok": True}))
         code, out, err = self.inbox(self.pear, self.quince)
-        self.assertIn("note  not read  charter: agentik-bench charter show --json answers in a shape this "
-                      "version does not know\n", out)
+        self.assertIn("note  not read  charter: agentik-bench charter show --json answers in a shape "
+                      "the suite does not know\n", out)
         self.assertTrue(out.startswith("Waiting on you: at least 2,"), out)
         self.assertEqual((code, err), (0, DOCTOR % self.L))
         self.how("charter", sleep=10)
@@ -361,7 +361,7 @@ note  quince-hq  nothing readable waits
         self.save()
         code, out, err = self.inbox(self.pear, self.fig)
         self.assertEqual(code, 0)
-        shape = "agentik-ledger backlog --json answers in a shape this version does not know"
+        shape = "agentik-ledger backlog --json answers in a shape the suite does not know"
         self.assertTrue(out.startswith("Waiting on you: at least 4, in 2 checkouts (from the command line).\n"
                                        "note  not read  backlog in pear-hq: %s\n\n" % shape), out)
         self.assertIn("   row 3       oils the hinge\n               waits on it: The gate's hinge\n", out)
@@ -459,8 +459,8 @@ class CoversTest(InboxHome):
         self.assertEqual(code, 0, err)
         self.assertEqual(out, SCREEN.replace("(from the command line)", "(from your checkouts list)"))
         notes = [l for l in err.splitlines() if "rel/x" in l]
-        self.assertEqual(notes, ["note  rel/x in %s is not read: a checkout is an absolute path, "
-                                 "or one under ~/." % USER])
+        self.assertEqual(notes, ["note  rel/x in %s is not read: a checkout is an absolute path "
+                                 "or under ~/" % USER])
         self.user("checkouts:\n\t- %s\n" % self.pear)
         code, out, err = self.inbox()
         self.assertEqual((code, out), (2, ""))
@@ -543,7 +543,7 @@ class CallTest(InboxHome):
 
 
 class HelpTest(InboxHome):
-    WORDS = "Print one line for each thing that needs a hand, and exit 1 when there is one."
+    WORDS = "Print a line for each thing that needs a hand, and exit 1 when one does."
 
     def test_18_help(self):
         code, out, err = self.run_cli("help")
@@ -599,7 +599,7 @@ class Review1Test(InboxHome):
     it (F1, F2, F3, F8); one folder is one checkout (F4, F5); an interrupt ends the verb as status
     ends (F10)."""
 
-    SHAPE = "agentik-ledger questions --json answers in a shape this version does not know"
+    SHAPE = "agentik-ledger questions --json answers in a shape the suite does not know"
 
     def run_both(self, *args, **more):
         found = []
@@ -652,7 +652,7 @@ class Review1Test(InboxHome):
         for code, out, err in self.run_both("--check", self.pear):
             self.assertNotIn("{'x'", out)
             self.assertEqual(out.splitlines()[0], "not read: charter: agentik-bench charter show --json answers "
-                                                  "in a shape this version does not know")
+                                                  "in a shape the suite does not know")
 
     def test_f2_one_checkouts_bad_item_costs_that_checkout_alone(self):
         good = dict(self.world["questions"][self.fig], repo=self.fig)

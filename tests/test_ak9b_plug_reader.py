@@ -205,10 +205,10 @@ class NameTest(Copy):
         h.commands(stub(describe=described(), config=config_error()))
         code, out, err = self.cli(h, "config")
         line = [l for l in out.splitlines() if T in l][0]
-        self.assertIn("its settings read failed", line)
+        self.assertIn("reading its keys failed", line)
         code, out, err = self.cli(h, "config", T)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("murmur answers, but its settings read failed: " + MESSAGE, out + err)
+        self.assertIn("murmur answers, but reading its keys failed: " + MESSAGE, out + err)
         self.assertEqual((out + err).splitlines()[-1], "next: " + REMEDY)
         code, out, err = self.cli(h, "config", T + ".key")
         self.assertNotEqual(code, 0)
@@ -221,7 +221,7 @@ class NameTest(Copy):
         bare = self.home("hD")
         bare.commands(stub(describe=described(), config=config_error(remedy=None), config_exit=0))
         code, out, err = self.cli(bare, "config", T)
-        self.assertIn("its settings read failed: " + MESSAGE, out + err)
+        self.assertIn("reading its keys failed: " + MESSAGE, out + err)
         self.assertNotIn("next: " + REMEDY, out + err)
         self.assertFalse([l for l in (out + err).splitlines() if l.startswith("next: murmur")])
 
@@ -230,7 +230,7 @@ class NameTest(Copy):
         h.commands(stub(describe=described(), config=config_error(message="red \x1b[31mpart\nsecond")))
         code, out, err = self.cli(h, "config", T)
         self.assertNotIn(ESC, out + err)
-        self.assertIn("its settings read failed: red [31mpart second", out + err)
+        self.assertIn("reading its keys failed: red [31mpart second", out + err)
         code, out, err = self.cli(h, "config", "--json")
         row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
         self.assertEqual(row["error"]["message"], "red [31mpart second")
@@ -250,7 +250,7 @@ class NameTest(Copy):
             lines = (out + err).splitlines()
             self.assertIn(remedy, [l.strip() for l in lines], out + err)
             self.assertFalse([l for l in lines if l.startswith("next:") and remedy in l], out + err)
-            self.assertRegex(lines[-1], r"^next: \S*agentik\S* config murmur reads its settings again")
+            self.assertRegex(lines[-1], r"^next: \S*agentik\S* config murmur reads its keys again")
 
     def test_14_a_remedy_with_a_control_byte_is_no_remedy(self):
         """Review 1's lead 2: no second line of the tool's joins a line a person pastes."""
@@ -260,7 +260,7 @@ class NameTest(Copy):
             h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
             code, out, err = self.cli(h, "config", T)
             self.assertEqual(code, 0, out + err)
-            self.assertIn("its settings read failed: " + MESSAGE, out + err)
+            self.assertIn("reading its keys failed: " + MESSAGE, out + err)
             self.assertNotIn("mend", out + err)
             self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])
             code, out, err = self.cli(h, "config", "--json")
@@ -284,7 +284,7 @@ class NameTest(Copy):
         h.commands(stub(describe=described(), config=config_error(remedy=remedy)))
         code, out, err = self.cli(h, "config", T)
         self.assertEqual(code, 0, out + err)
-        self.assertIn("its settings read failed: " + MESSAGE, out + err)
+        self.assertIn("reading its keys failed: " + MESSAGE, out + err)
         self.assertNotIn("murmur prune", out + err)
         self.assertNotIn("mend", out + err)
         self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])

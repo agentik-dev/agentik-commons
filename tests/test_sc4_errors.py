@@ -222,8 +222,8 @@ class FormTest(Sc4Home):
     def test_l7_setup_and_install_keep_one_line(self):
         code, out, err = self.run_cli("install-cli", "--prefix")
         self.assertEqual((code, out), (2, ""))
-        self.assertEqual(err, "FAIL  --prefix needs a folder after it, and got none. Run agentik "
-                              "install-cli --prefix <folder>, or leave it out for ~/.local.\n")
+        self.assertEqual(err, "FAIL  --prefix needs a folder: agentik install-cli --prefix <folder>, "
+                              "or omit it for ~/.local.\n")
         code, out, err = self.run_cli("setup")
         lines = err.splitlines()
         self.assertEqual(code, 2, err)

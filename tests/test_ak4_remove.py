@@ -419,7 +419,7 @@ class Remove(Base):
         self.assertNotIn("Traceback", err)
         self.assertFalse(os.path.lexists(door))
         self.assertIn(h.cache + "/agentik", err.replace("\n", " "))
-        self.assertIn("yours to delete", err)
+        self.assertIn("so delete it", err)
         self.assertNotIn("again", err)
         self.assertTrue(os.path.isfile(os.path.join(locked, "f")))
         h2, _ = self.x(name="h2")
@@ -432,7 +432,7 @@ class Remove(Base):
         code, out, err = h2.go("remove", "--all", "--yes", "--json", exe=os.path.join(h2.bindir, "agentik"))
         error = json.loads(out)["error"]
         self.assertEqual((code, error["remedy"]), (1, None), out + err)
-        self.assertIn("yours to delete", error["message"])
+        self.assertIn("so delete it", error["message"])
 
     def test_f6_a_marketplace_folder_that_stands_is_red(self):
         h, kept = self.x()
@@ -445,7 +445,7 @@ class Remove(Base):
         self.assertTrue(self.red(out, "~/.claude/plugins/marketplaces/agentik"), out)
         self.assertNotIn("~/.claude/plugins/marketplaces/agentik  removed", out)
         self.assertNotIn(folder, h.journal()["wrote"])
-        self.assertIn("still stands: ~/.claude/plugins/marketplaces/agentik", err.replace("\n", " "))  # G5
+        self.assertIn("~/.claude/plugins/marketplaces/agentik still stands", err.replace("\n", " "))  # G5
         self.assertNotIn("would stand does not", err)
 
     # ---- the gaps review 1 named: each red under its mutant (packet §7) ----------------------------
