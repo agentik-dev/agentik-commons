@@ -58,3 +58,32 @@ Each line is a test of `python3 -m unittest tests.test_ak4b_uninstall`, on `test
 ## 6. Choices
 
 Listed in the charter's handover as they are made.
+
+## 7. The fix of review 1
+
+Review 1 (an adversary, at b321b58) found eleven things and one lead on the door; the coordinator ruled all of them fixed in one round, on this branch, each with a test red at 93e3eb0 (F11's are green there and red against the mutant they name). The suite stays 0.7.15: the stamp commit is reverted and made again, last under `plugins/`.
+
+- The share first (F2, F3). Where `<prefix>/share/<tool_name>` exists and fails R5 (not a real folder at its own place), nothing of the tool is removed: the launcher, every link, the marker and the door are each `kept: the share is not a real folder`. R4's "resolves inside the share" is read only against a share that passed R5, by `_share_real`; a link into another tool's share through a linked share stays (F2), and a launcher whose TREE is reached through a linked share stays while a process runs from it (F3).
+- The lock (F1, F5, F7, F4). Before the lock is taken, `.lock` is absent or a regular file by `lstat`; else every row is `kept: the lock is not a regular file` and nothing is opened. `_lock` opens with `O_NOFOLLOW` and `O_NONBLOCK` and checks the open file is regular, so a link, a FIFO or a folder there never hangs, raises out of `uninstall` or writes outside the share (F1, F5): `uninstall` keeps every row on such an `OSError`, and `install_cli` exits 1 with it. The hold is read once before the lock and again under it; a call that removes nothing leaves the disk as it was, a `.lock` it made included, and a `.lock` it made is never a row (F7). Once it holds the lock, `_lock` checks that the path still names the file it holds (device and inode by `lstat`) and takes it again where it does not, so a waiter on a removed `.lock` never holds a lock no one else can see (F4). The limit: an older copy of the module in another tool lacks that re-check until its next sync, so an `install-cli` of such a tool that waits while an `uninstall` removes `.lock` can still hold the old file.
+- The hold (F3, F10). A process that names any path under the share's real path holds every row: every entry of the share is passed to `named`, a `.tmp-*` included.
+- A true row (F6). A tree whose walk fails after it removed something is `kept: partly removed, <the error>`; the walk goes in sorted order, the order of rows stands, and a second call finishes.
+- F8. A launcher is install-cli's only with exactly one `TREE=` line and one `VERSION=` line, as the template writes.
+- F9. A tree is a real folder by `lstat` with `_freeze`'s name; a file or a link of that name is `kept: not install-cli's`, and the share stays.
+- The door (the lead). With `door=True` the door is kept where any other entry named `agentik-<word>` stands in `<prefix>/bin`, a file or a link, since a tool placed by a link uses the door too; the tool's own links that this call removes do not count.
+- F11. Two tests: a link inside a tree to a folder outside the prefix is unlinked and the folder's file stays (red when the walk follows links); and a plan that names a path outside makes `uninstall` raise `AssertionError` with the file still there (red when `_bounded` does nothing).
+- `GUIDE.md` §10's sentences on `uninstall` say the above as the code does.
+
+| # | test (in `tests/test_ak4b_uninstall.py`) |
+|---|---|
+| F1 | `test_a_lock_link_writes_nothing_outside` |
+| F2 | `test_a_linked_share_keeps_another_tools_link` |
+| F3 | `test_a_linked_share_keeps_a_live_launcher` |
+| F4 | `test_a_waiter_on_a_removed_lock_takes_it_again` |
+| F5 | `test_a_lock_fifo_or_folder_keeps_all` |
+| F6 | `test_a_tree_partly_removed_says_so` |
+| F7 | `test_a_call_that_removes_nothing_makes_no_lock`, `test_the_hold_is_read_again_under_the_lock` |
+| F8 | `test_a_launcher_with_two_tree_lines_is_kept` |
+| F9 | `test_a_file_with_a_trees_name_stays` |
+| F10 | `test_a_live_temp_holds_everything` |
+| F11 | `test_the_walk_follows_no_link`, `test_the_bound_refuses_a_path_outside` |
+| door | `test_the_door_stays_beside_a_linked_launcher` |
