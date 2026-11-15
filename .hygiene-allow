@@ -68,3 +68,7 @@ history/sittings/2026-11-14-11.md: lan
 
 # the first hour's page names the tools a newcomer types
 docs/first-hour.md: sibling
+
+# the hq scaffold names the ledger's tool, which a new hq runs (row ak11-init R10)
+plugins/suite/lib/scaffold/hq/*: sibling
+plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed

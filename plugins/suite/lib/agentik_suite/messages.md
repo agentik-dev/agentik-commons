@@ -48,6 +48,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
 - `verb.inbox`: List what waits on you in each checkout: open questions, and what needs your hand.
 - `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private. It is sent only when you type send.
+- `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -59,12 +60,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.doctor`: usage: `{doctor}` [flags]
 - `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
 - `usage.issue`: usage: `{issue}` [new [TOOL] | show | strike WORD... | drop SECTION... | edit | reword FILE | send | discard] [flags]
+- `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
-- `flag.yes`: Run setup's lines without asking first.
+- `flag.yes`: Write without asking first.
 - `flag.changed`: List every setting that differs from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.all`: Print every check, the ok ones too.
@@ -73,6 +75,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.render`: Render the Happened and Expected lines by the narrator's script. A render that adds a word is dropped.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
+- `flag.kind`: What to write. The one kind is hq.
 
 ## Version
 
@@ -640,6 +643,27 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.inbox.tools`: no command on PATH gives a read the inbox needs
 - `err.inbox.number`: no checkout read here holds a question `{n}`
 - `err.inbox.both`: --check and a question's number are two answers
+
+## Init
+
+- `init.title.made`: `{dir}` is now an hq: `{count}` files, in a new git repository.
+- `init.title.kept`: `{dir}` is now an hq: `{count}` files, in the git repository already there.
+- `init.title.dry`: `{dir}` would be an hq: `{count}` files. Nothing is written.
+- `init.said`: `{text}`
+- `hint.init`: next: `{command}`. README.md there has the steps after it.
+- `hint.init.dry`: next: run it again without --dry-run to write them.
+- `err.init.kind.none`: init needs --kind, one of: `{kinds}`. Run `{tool}` init --kind `{first}` <dir>.
+- `err.init.kind`: `{kind}` is not a kind. The kinds are: `{kinds}`. Run `{tool}` init --kind `{first}` <dir>.
+- `err.init.dir`: init needs the folder to write in. Run `{tool}` init --kind `{kind}` <dir>.
+- `err.init.extra`: init writes one folder, and got a second, `{word}`. Run `{tool}` init once for each.
+- `err.init.git`: init needs git, and git is not on PATH. It wrote nothing. Install git, then run `{tool}` init again.
+- `err.init.parent`: `{parent}` is not a folder, so init cannot make `{dir}` in it. Make `{parent}` first.
+- `err.init.notdir`: `{dir}` is a file, and init writes a folder. Give it a folder that is empty or not there yet.
+- `err.init.inside`: `{dir}` is inside the git repository at `{top}`. A new `{kind}` is a repository of its own, so init wrote nothing. Give it a folder outside `{top}`.
+- `err.init.already`: `{dir}` is already set up as kind `{kind}`, so init wrote nothing. Run make check there to see that it holds.
+- `err.init.full`: `{dir}` is not empty: it holds `{found}`. init writes into an empty folder only, so it wrote nothing. Give it a folder that is empty or not there yet.
+- `err.init.write`: init could not write `{path}`: `{why}`. `{dir}` is as it was.
+- `err.init.gitfail`: git init failed in `{dir}`, so init wrote nothing. What git said is below.
 
 ## Issue
 
