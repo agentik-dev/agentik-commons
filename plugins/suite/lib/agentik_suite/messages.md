@@ -364,6 +364,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `remove.cache.home`: kept: the cache home is the home folder or the root, so remove deletes nothing there
 - `remove.cache.link`: kept: it is a link or no folder, so remove follows it nowhere
 - `remove.cache.place`: kept: it does not lie at its own place in the cache home
+- `remove.cache.guard`: kept: its walk would reach `{reach}`, which remove keeps, so remove deletes nothing there
+- `remove.gone`: gone: remove was to keep it, and it no longer stands
 - `remove.keep.config`: kept: your settings
 - `remove.keep.state`: kept: its state
 - `remove.keep.data`: kept: Claude Code's data folder for it
@@ -391,6 +393,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`. Mend that, then run `{remove}` again.
 - `err.remove.interrupted.idle`: Remove was interrupted between steps, with no command running. Run `{remove}` again to go on.
 - `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`). Mend that, then run `{remove}` again.
+- `err.remove.red`: Remove finished, but what it said would stand does not: `{paths}`. Look at what else wrote there.
 - `err.remove.journal`: Remove could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
 
 ## Status

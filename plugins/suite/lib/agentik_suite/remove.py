@@ -62,10 +62,21 @@ def spare(env, pid=None):
     return list(dict.fromkeys(found))
 
 
-def cache_fate(env, home):
+def guarded(env, home, keep=()):
+    """What the cache folder's walk may never reach (review 1's F1): the config home and the state
+    home as the suite resolves them, Claude Code's folder, and each path R7 keeps."""
+    config = env.get("XDG_CONFIG_HOME") or ""
+    found = [config if os.path.isabs(config) else os.path.join(home, ".config"),
+             os.path.dirname(os.path.dirname(apply.journal_path(env, home))), sources.config_dir(env)]
+    return [p for p in found + list(keep) if p]
+
+
+def cache_fate(env, home, guard=()):
     """(the agentik cache folder, None where it goes or the reason it stays, the root its walk may
-    remove under). It goes only where it is a real folder, no link, at the cache home's real path
-    plus `agentik`, and the cache home is neither `/` nor the home folder (R5)."""
+    remove under, the guarded path it would have reached or None). It goes only where it is a real
+    folder, no link, at the cache home's real path plus `agentik`, the cache home is neither `/`
+    nor the home folder (R5), its real path is no home and holds none, and it is not, does not lie
+    under and does not hold any path of `guard` (F1, F2). A relative `XDG_CACHE_HOME` is ignored."""
     base = env.get("XDG_CACHE_HOME") or ""
     if not os.path.isabs(base):
         base = os.path.join(home, ".cache")
@@ -73,14 +84,22 @@ def cache_fate(env, home):
     real = os.path.realpath(base)
     root = os.path.join(real, "agentik")
     if not os.path.lexists(path):
-        return path, "", root
-    if real == "/" or real in agentik_install._homes(env):
-        return path, "remove.cache.home", root
+        return path, "", root, None
+    homes = agentik_install._homes(env)
+    if real == "/" or real in homes:
+        return path, "remove.cache.home", root, None
     if not agentik_install._real_dir(path):
-        return path, "remove.cache.link", root
+        return path, "remove.cache.link", root, None
     if os.path.realpath(path) != root:
-        return path, "remove.cache.place", root
-    return path, None, root
+        return path, "remove.cache.place", root, None
+    for found in sorted(homes):
+        if agentik_install._under(found, root):
+            return path, "remove.cache.guard", root, found
+    for found in guard:
+        real_found = os.path.realpath(found)
+        if agentik_install._under(root, real_found) or agentik_install._under(real_found, root):
+            return path, "remove.cache.guard", root, found
+    return path, None, root, None
 
 
 class Remove:
@@ -95,6 +114,7 @@ class Remove:
         self.slots = dict(cmd.slots(), setup=cmd.say("remove"))
         self.tools, self.others, self.extra, self.keep = [], [], [], []
         self.spare, self.suite_rows, self.cache, self.cache_root = (), [], (None, ""), None
+        self.guard = []  # every path R7 names, standing or not: the cache walk reaches none (F1)
         self.remedy = cmd.say("remove")  # every word the close prints, filled before step 5 (R6)
 
     # ---- which tools (R3), what they keep (R7) ------------------------------------------------
@@ -155,6 +175,7 @@ class Remove:
             found.append((os.path.join(state, old), "remove.keep.state"))
         found += [(os.path.join(self.config, "plugins", "data", name + "@agentik"), "remove.keep.data"),
                   (os.path.join(self.config, "plugins", "cache", "agentik", name), "remove.keep.cache")]
+        self.guard += [p for p, _ in found]
         return [(p, why) for p, why in dict(found).items() if os.path.lexists(p)]
 
     # ---- the plan (R4, R5) ---------------------------------------------------------------------
@@ -205,15 +226,16 @@ class Remove:
                                         "claude plugin uninstall %s@%s --keep-data" % (SUITE, plan.MARKETPLACE)))
             self.suite_rows = self.uninstall("agentik-suite", door=True)
             steps += self.rows_steps(5, self.suite_rows)
-            path, why, self.cache_root = cache_fate(self.env, self.home)
-            self.cache = (path, why)
+            state = os.path.dirname(apply.journal_path(self.env, self.home))
+            self.guard += [settings.user_path(self.env), state]
+            self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
+            self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
+            path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards())
+            self.cache = (path, why, reach)
             if why is None:
                 steps.append(plan._step(6, "cache", "todo", self.shown(path), "remove.cache"))
             elif why:
-                steps.append(plan._step(6, "cache", "ok", self.shown(path), why))
-            self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
-            state = os.path.dirname(apply.journal_path(self.env, self.home))
-            self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
+                steps.append(plan._step(6, "cache", "ok", self.shown(path), why, reach=self.shown(reach or "")))
         steps += [plan._step(7, "keep", "ok", self.shown(p), why) for p, why in self.keep]
         rows = [r for e in self.tools for r in e["rows"]] + (self.suite_rows if self.all else [])
         for _, _, fate in rows:
@@ -221,6 +243,9 @@ class Remove:
                 held = fate[len("kept: held, "):] or fate
                 break
         return steps, held
+
+    def guards(self):
+        return guarded(self.env, self.home, self.guard)
 
     def todo(self, steps):
         return [s for s in steps if s["state"] == "todo"]
@@ -357,9 +382,10 @@ class Remove:
     def run(self, steps):
         """R4 and R5 in order; a failed step stops, with no rollback (R8). Before step 5 the
         journal's path, the slots and every text the close needs are in memory (R6)."""
-        ran, wrote, removed, kept, failure = [], [], [], [], None
+        ran, wrote, removed, kept, red, failure = [], [], [], [], [], None
         journal = apply.journal_path(self.env, self.home)
         texts = {mid: self.t.text(mid) for mid in set(why for _, why in self.keep)}
+        gone = self.t.text("remove.gone")
         agentik_install._homes(self.env)  # its lazy import, loaded before step 5 can take the tree (R6)
         try:
             for e in self.tools:
@@ -390,19 +416,24 @@ class Remove:
         apply._ignore()
         code = (failure[2] if len(failure) > 2 else 1) if failure else 0
         kept += [(p, texts[why]) for p, why in self.keep]
+        if self.cache[0] and self.cache[1]:
+            red += [] if os.path.lexists(self.cache[0]) else [(self.cache[0], gone)]
+        red += [(p, gone) for p, why in self.keep if not os.path.lexists(p)]  # by lstat, before the journal (F1)
+        kept = [(p, why) for p, why in kept if p not in {r[0] for r in red}]
+        code = code or (1 if red else 0)
         wrote = wrote + [p for p in removed if p not in wrote]
         wrote = self.journal(journal, ran, wrote, code)
-        return self.close(code, failure, ran, removed, kept, wrote, steps)
+        return self.close(code, failure, ran, removed, kept, wrote, steps, red)
 
     def drop_cache(self, removed, kept):
-        path, why = self.cache
+        path, why, reach = self.cache
         if why:
-            kept.append((path, self.t.text(why)))
+            kept.append((path, self.t.text(why, reach=self.shown(reach or ""))))
         if why is not None:
             return None
-        again = cache_fate(self.env, self.home)
+        again = cache_fate(self.env, self.home, self.guards())
         if again[1] is not None or again[2] != self.cache_root:
-            kept.append((path, self.t.text(again[1] or "remove.cache.place")))
+            kept.append((path, self.t.text(again[1] or "remove.cache.place", reach=self.shown(again[3] or ""))))
             return None
         root, done = self.cache_root, [0]
         try:
@@ -430,7 +461,7 @@ class Remove:
             return wrote
         return wrote + [path]
 
-    def close(self, code, failure, ran, removed, kept, wrote, steps):
+    def close(self, code, failure, ran, removed, kept, wrote, steps, red=()):
         t, commands = self.t, [r["command"] for r in ran]
         message = None
         if failure:
@@ -438,6 +469,9 @@ class Remove:
             message = t.text(mid, **dict(self.slots, **failure[1]))
         if self.o["json"]:
             error = {"code": "step_failed", "message": message, "remedy": self.remedy} if failure else None
+            if red and not error:
+                error = {"code": "red", "message": t.text("err.remove.red", paths=", ".join(
+                    self.shown(p) for p, _ in red)), "remedy": None}
             obj = {"schema": SCHEMA, "ok": code == 0, "held": None, "dry_run": False,
                    "tools": [{"name": e["name"], "plugin": e["plugin"],
                               "rows": [{"path": p, "what": w, "fate": f} for p, w, f in e.get("rows", ())]}
@@ -452,10 +486,14 @@ class Remove:
         rows = [("ok", [t.text("remove.ran", command=c)], None) for c in commands]
         rows += [("ok", [self.shown(p), t.text("remove.removed")], None) for p in removed]
         rows += [("note", [self.shown(p), why], None) for p, why in kept]
+        rows += [("fail", [self.shown(p), why], None) for p, why in red]
         t.table(rows)
         if failure:
             t.flush()
             t.error(FAILS.get(failure[0], failure[0]), **dict(self.slots, **failure[1]))
+        elif red:
+            t.flush()
+            t.error("err.remove.red", paths=", ".join(self.shown(p) for p, _ in red))
         return code
 
 
