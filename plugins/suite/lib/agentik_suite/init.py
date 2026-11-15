@@ -172,7 +172,7 @@ def do_init(cmd, nouns):
     if o["dry_run"]:
         t.hint("hint.init.dry")
     else:
-        t.hint("hint.init", dir=shlex.quote(typed))
+        t.hint("hint.init", command="cd %s && make check" % shlex.quote(typed))  # the command a slot: sc4 R2 F6
     return 0
 
 
