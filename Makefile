@@ -24,6 +24,7 @@ lint:
 	sh -n bin/agentik
 	sh -n scripts/sync
 	sh -n setup
+	scripts/readme-top
 	@n=$$(wc -l < bin/agentik); [ "$$n" -lt $(FRONT_DOOR_MAX_LINES) ] || \
 		{ echo "bin/agentik: $$n lines, the bound is under $(FRONT_DOOR_MAX_LINES)" >&2; exit 1; }
 
@@ -65,7 +66,7 @@ install:
 help:
 	@echo 'make check              test, lint, hygiene, recordlint, marketplace-check and voice-check'
 	@echo 'make test               the stdlib unittest suite'
-	@echo 'make lint               sh -n on the front door, sync and setup, the front door line bound'
+	@echo 'make lint               sh -n on the front door, sync and setup, the front door line bound, the README top'
 	@echo 'make hygiene            the hygiene scan of this repo'
 	@echo 'make recordlint         HANDOFF.md and NICE_TO_HAVE.md against their tables'
 	@echo 'make marketplace-check  the shape of .claude-plugin/marketplace.json'
