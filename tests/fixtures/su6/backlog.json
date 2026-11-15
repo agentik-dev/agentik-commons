@@ -1,0 +1,97 @@
+{
+ "schema": "agentik.backlog/1",
+ "ok": true,
+ "skipped": [],
+ "repos": [
+  {
+   "repo": "/srv/acme/acme-hq",
+   "nice": null,
+   "handoff": "/srv/acme/acme-hq/HANDOFF.md",
+   "order": [],
+   "items": [],
+   "closed": [],
+   "steps": [
+    {
+     "n": 4,
+     "line": 10,
+     "title": "the lamp's dimmer",
+     "done": false,
+     "repo": "lamp",
+     "level": "S3",
+     "state": {
+      "cell": "waiting: the owner: picks a colour",
+      "word": "waiting",
+      "rest": "the owner: picks a colour",
+      "on": "the owner",
+      "n": null,
+      "text": "picks a colour"
+     }
+    },
+    {
+     "n": 5,
+     "line": 11,
+     "title": "the fern's water",
+     "done": false,
+     "repo": "lamp",
+     "level": "S3",
+     "state": {
+      "cell": "waiting: owner 12",
+      "word": "waiting",
+      "rest": "owner 12",
+      "on": "owner",
+      "n": 12,
+      "text": ""
+     }
+    },
+    {
+     "n": 6,
+     "line": 12,
+     "title": "the moss's light",
+     "done": false,
+     "repo": "lamp",
+     "level": "S3",
+     "state": {
+      "cell": "waiting: row 4",
+      "word": "waiting",
+      "rest": "row 4",
+      "on": "row",
+      "n": 4,
+      "text": ""
+     }
+    },
+    {
+     "n": 7,
+     "line": 13,
+     "title": "the stone's shelf",
+     "done": false,
+     "repo": "lamp",
+     "level": "S3",
+     "state": {
+      "cell": "open",
+      "word": "open",
+      "rest": "",
+      "on": null,
+      "n": null,
+      "text": ""
+     }
+    },
+    {
+     "n": 3,
+     "line": 9,
+     "title": "the old pot",
+     "done": true,
+     "repo": "lamp",
+     "level": "S3",
+     "state": {
+      "cell": "waiting: the owner",
+      "word": "waiting",
+      "rest": "the owner",
+      "on": "the owner",
+      "n": null,
+      "text": ""
+     }
+    }
+   ]
+  }
+ ]
+}

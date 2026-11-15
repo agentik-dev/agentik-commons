@@ -1,10 +1,15 @@
-"""`status --json`: the five sources read at once into one `agentik.status/1` object.
+"""`status --json`: the sources read at once into one `agentik.status/1` object.
 
 A read comes from the fallback table's `status` list of a tool that has a row (never asked
 `describe`), else from the `status` reads of any other `agentik-*` on PATH, asked through ak1b's
 describe cache. Every read, every describe and one `ps` run in one `tools.run_all` call, each
 under its own wall. A read is held to its pins: a missing one is `changed` and its values null,
 the rest drawn. The object holds no sentence; the screen says every word (packet su2-read).
+
+Two parts more (packet su6-rows-part): `rows`, the hq's rows in flight from `rows --json`, each
+row with a worktree joined to the gate's newest result for that path by one `gate status --repo`
+call a worktree, the calls started together once the rows read answers; and `owner`, the count of
+what waits on the owner from `charter show --json`'s `waits` and the backlog's waiting steps.
 """
 import datetime
 import json
@@ -14,14 +19,16 @@ import time
 
 from . import covers as covering, status, tools
 
-PARTS = ("watchers", "sessions", "gate", "backlog", "runs")
+PARTS = ("watchers", "sessions", "gate", "backlog", "runs", "rows", "owner")
 READS = {"sessions": "sessions", "gate": "gate", "backlog": "backlog", "run": "runs",
-         "unattended": "runs"}
+         "unattended": "runs", "rows": "rows", "charter": "owner"}
 LISTED = ("watchers", "sessions", "gate", "runs")  # the parts held against the listing
 WALL = 1.0
 STDERR_MAX = 300
 TEXT_MAX = 80  # a word an answer gives that the object holds as text: a run, a row, a reason
-NOT_READ = ["owner", "rows"]
+NOT_READ = ("owner", "rows")  # the words of the parts that may read nothing, in the line's order
+CLOSED = ("closed", "done")  # a row's state that is not in flight
+OWNER_ON = re.compile(r"(the owner|owner(\s+[0-9]+)?)\Z")  # a waiting step's `on`
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z")
 SCHEMA = re.compile(r".*/([0-9]+)\Z")
 CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")  # C0, DEL and C1 (U+009B, CSI, among them)
@@ -322,6 +329,110 @@ def _runs(srcs, procs, uid, now, hand):
     return part
 
 
+def _plain(text):
+    """A value read as text whole: its control characters removed, its ends trimmed, never cut."""
+    return CONTROL.sub("", text).strip() if isinstance(text, str) else text
+
+
+def _closed(r):
+    return r.get("state") in CLOSED or bool(r.get("done"))
+
+
+def _worktrees(answer):
+    """The worktrees of the open rows of a rows answer, each once, in the answer's order."""
+    found = []
+    for r in answer.get("rows") if isinstance(answer, dict) and isinstance(answer.get("rows"), list) else ():
+        wt = r.get("worktree") if isinstance(r, dict) else None
+        if isinstance(wt, str) and wt and not _closed(r) and wt not in found:
+            found.append(wt)
+    return found
+
+
+def _newest(result):
+    """(gate_read, gate) of one `gate status --repo` call: its newest `done` entry."""
+    code, out, state = result
+    if state == "timed out":
+        return "timed out", None
+    try:
+        answer = json.loads(out.decode("utf-8", "replace")) if state == "ran" and code == 0 else None
+    except (ValueError, RecursionError):
+        answer = None
+    if not isinstance(answer, dict) or not isinstance(answer.get("done"), list):
+        return "unreadable", None
+    done = answer["done"]
+    if not done:
+        return "ok", None
+    e = done[0] if isinstance(done[0], dict) else {}
+    got = {"id": e.get("id"), "exit": e.get("exit"), "seconds": e.get("seconds")}
+    if not (_kind_ok(got["id"], (TEXT, NUM)) and _kind_ok(got["exit"], (NUM, NONE))
+            and _kind_ok(got["seconds"], (NUM, NONE))):
+        return "unreadable", None
+    got["id"] = _clean(got["id"]) if isinstance(got["id"], str) else got["id"]
+    return "ok", got
+
+
+def _rows(srcs, joins):
+    part = {"state": None, "rows": None}
+    read = [s for s in srcs if s["answer"] is not None]
+    if not read:
+        return part
+    src = read[0]
+    pin, answer = Pins(src), src["answer"]
+    found = []
+    for r in pin.get(answer, "rows", LIST) or ():
+        nxt = pin.get(r, "next", MAP, NONE)
+        got = {"row": _clean(pin.get(r, "row", TEXT)), "repo": _clean(pin.get(r, "repo", TEXT, NONE)),
+               "level": _clean(pin.get(r, "level", TEXT, NONE)), "state": _clean(pin.get(r, "state", TEXT, NONE)),
+               "next": None if nxt is None else {
+                   "text": _plain(pin.get(nxt, "text", TEXT, NONE)),
+                   "command": _plain(pin.get(nxt, "command", TEXT, NONE))},
+               "worktree": pin.get(r, "worktree", TEXT, NONE),
+               "closed": _closed(r) if isinstance(r, dict) else False, "gate": None, "gate_read": None}
+        wt = got["worktree"]
+        if isinstance(wt, str) and wt and not got["closed"]:
+            j = joins.get(wt)
+            got["gate_read"], got["gate"] = ("not installed", None) if j is None else (j["state"], j["gate"])
+        found.append(got)
+    part["rows"] = found
+    return part
+
+
+def _owner(charters, backlogs):
+    """{state, hands, steps}: the charters' `waits` lines and the backlog's steps waiting on the
+    owner, each a count, or None where its read gave nothing or a shape this does not know."""
+    part = {"state": None, "hands": None, "steps": None}
+    read = [s for s in charters if s["answer"] is not None]
+    if read:
+        pin = Pins(read[0])
+        hands = 0
+        for repo in pin.get(read[0]["answer"], "repos", LIST) or ():
+            hands += len(pin.get(repo, "waits", LIST, NONE) or ())
+        part["hands"] = hands
+    read = [s for s in backlogs if s["answer"] is not None]
+    if read:
+        answer, seen, steps = read[0]["answer"], set(), 0
+        for repo in answer.get("repos") if isinstance(answer.get("repos"), list) else ():
+            if not isinstance(repo, dict) or not isinstance(repo.get("steps"), list):
+                steps = None
+                break
+            for step in repo["steps"]:
+                st = step.get("state") if isinstance(step, dict) else None
+                if not isinstance(step, dict) or not (st is None or isinstance(st, dict)):
+                    steps = None
+                    break
+                key = (repo.get("handoff"), step.get("n"))
+                if step.get("done") or key in seen:
+                    continue
+                seen.add(key)
+                on = st.get("on") if st else None
+                if st and st.get("word") == "waiting" and isinstance(on, str) and OWNER_ON.match(on):
+                    steps += 1
+            if steps is None:
+                break
+        part["steps"] = steps
+    return part
+
+
 def _watchers(watchers, procs, now, env, uid, hand):
     found = [status.check(w, procs, now, env, uid) for w in watchers]
     for r in found:
@@ -359,9 +470,13 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     srcs, absent, given = [], [], set()
     jobs, keys = [], {}
 
+    def unread(name):
+        """A read not run here: backlog and charter under rule none, rows with no hq."""
+        return name in ("backlog", "charter") and cov["rule"] == "none" or name == "rows" and not cov["hq"]
+
     def add(src):
-        """List a read: drawn and started, or `not drawn`; None for backlog under rule none."""
-        if src["name"] == "backlog" and cov["rule"] == "none":
+        """List a read: drawn and started, or `not drawn`; none at all for a read `unread` names."""
+        if unread(src["name"]):
             return []
         srcs.append(src)
         if src["name"] not in READS or src["name"] in given:
@@ -374,6 +489,10 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             if handoff and os.path.isfile(handoff):
                 argv += ["--order", handoff]
             argv += cov["checkouts"]
+        elif src["name"] == "charter":
+            argv += cov["checkouts"]
+        elif src["name"] == "rows":
+            argv += ["--root", os.path.join(cov["hq"], "history", "rows")]
         key = ("read", len(srcs) - 1)
         keys[key] = src
         return [(key, argv)]
@@ -419,8 +538,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
                                              entry["exe"])))
         if all(e["settled"] for e in asked):
             for src in absent:
-                if src["name"] in READS and src["name"] not in given and not (
-                        src["name"] == "backlog" and cov["rule"] == "none"):
+                if src["name"] in READS and src["name"] not in given and not unread(src["name"]):
                     given.add(src["name"])
                     srcs.append(dict(src, state="not installed", settled=True))
             del absent[:]
@@ -438,6 +556,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     parts, hand, done = {}, [], []
     walls = {key: keys[key]["wall_s"] if key[0] == "read" else WALL for key, _ in jobs}
     errs, times = {}, {}
+    joins = {}  # a worktree's gate join: {key, state, gate}, `state` None until it answers
 
     def part_srcs(name):
         return [s for s in srcs if READS.get(s["name"]) == name and s["state"] != "not drawn"]
@@ -447,6 +566,8 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             return False
         if not all(e["settled"] for e in asked) and any(
                 n not in given for n, p in READS.items() if p == name):
+            return False
+        if name == "rows" and any(j["state"] is None for j in joins.values()):
             return False
         return all(s["settled"] for s in part_srcs(name))
 
@@ -461,6 +582,10 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             parts[name] = _gate(ss, procs, uid, mine)
         elif name == "backlog":
             parts[name] = _backlog(ss)
+        elif name == "rows":
+            parts[name] = _rows(ss, joins)
+        elif name == "owner":
+            parts[name] = _owner(ss, part_srcs("backlog"))
         else:
             parts[name] = _runs(ss, procs, uid, now, mine)
         for s in ss:
@@ -468,12 +593,18 @@ def compose(cmd, paths, now, ps_text, on_part=None):
                 s["state"] = "changed"
         if name != "watchers":
             read = any(s["state"] in ("ok", "changed") for s in ss)
-            if mine:
+            if name == "owner":
+                p = parts[name]
+                state = "not read" if p["hands"] is None and p["steps"] is None else \
+                    "partial" if p["hands"] is None or p["steps"] is None else "ok"
+            elif mine:
                 state = "hand"
             elif not read:
                 state = "not read"
             elif any(s["state"] in ("timed out", "unreadable", "changed") for s in ss) or (
                     name in LISTED and procs is None):
+                state = "partial"
+            elif name == "rows" and any(r["gate_read"] not in (None, "ok") for r in parts[name]["rows"] or ()):
                 state = "partial"
             else:
                 state = "ok"
@@ -489,6 +620,20 @@ def compose(cmd, paths, now, ps_text, on_part=None):
         while len(done) < len(PARTS) and settled(PARTS[len(done)]):
             build(PARTS[len(done)])
             done.append(PARTS[len(done)])
+
+    def join(src):
+        """The gate joins of a rows read that answered: one call a worktree, started together,
+        each under the gate read's wall, through the tool that gives the gate read."""
+        gate = next((s for s in srcs if s["name"] == "gate" and s["exe"] and s["state"] != "not drawn"), None)
+        if gate is None:
+            return []
+        found = []
+        for wt in _worktrees(src["answer"]):
+            k = ("join", len(joins))
+            joins[wt] = {"key": k, "state": None, "gate": None}
+            walls[k] = gate["wall_s"]
+            found.append((k, [gate["exe"]] + gate["argv"] + ["--repo", wt]))
+        return found
 
     def then(key, result):
         more = []
@@ -511,8 +656,13 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             more = release()
             for k, _ in more:
                 walls[k] = keys[k]["wall_s"]
+        elif key[0] == "join":
+            j = next(j for j in joins.values() if j["key"] == key)
+            j["state"], j["gate"] = _newest(result)
         else:
             _settle(keys[key], result, errs.get(key), times.get(key))
+            if keys[key]["name"] == "rows" and keys[key]["state"] == "ok":
+                more = join(keys[key])
         advance()
         return more
 
@@ -522,6 +672,9 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     for key, src in keys.items():  # a read the run never settled (it cannot: each has a wall)
         if not src["settled"]:
             _settle(src, (None, b"", "timed out"), None, None)
+    for j in joins.values():
+        if j["state"] is None:
+            j["state"] = "timed out"
     for entry in asked:
         entry["settled"] = True
     release()
@@ -536,7 +689,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     ranked = sorted(enumerate(srcs), key=lambda p: (
         p[1]["state"] == "not drawn", order.get(READS.get(p[1]["name"]), 99), p[0]))
     obj["sources"] = [_shown(s) for _, s in ranked]
-    obj["not_read"] = list(NOT_READ)
+    obj["not_read"] = [w for w in NOT_READ if parts[w]["state"] == "not read"]
     return obj
 
 

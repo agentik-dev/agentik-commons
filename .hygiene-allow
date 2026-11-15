@@ -39,6 +39,9 @@ tests/test_voice.py: sibling
 # the launcher step test's first commit named a sibling tool; the file now uses a made-up one
 tests/test_sp1_launcher_step.py: sibling
 
+# commit 04cf99b named the suite's public tools in this test and 1a621df took them out
+tests/test_su6_rows_part.py: sibling
+
 # a packet names its read-only sources by path
 design/packets/*.md: sibling,home
 

@@ -241,7 +241,7 @@ class OrderTest(JoinHome):
         p.stdout.close()
         self.assertEqual(p.wait(timeout=10), 0, p.stderr.read())
         p.stderr.close()
-        self.assertEqual(list(at)[:5], list(status_read.PARTS))
+        self.assertEqual(list(at)[:len(status_read.PARTS)], list(status_read.PARTS))
         self.assertGreaterEqual(at["runs"] - at["backlog"], 0.5)
 
 
@@ -251,7 +251,8 @@ class WayOutTest(JoinHome):
     def slow_row(self):
         """The table's row with the longest wall, as a stub whose read sleeps 10 s with a child."""
         table = json.loads((LIB / "fallback.json").read_text())
-        name, read = max(((n, r) for n, row in table.items() for r in row.get("status") or ()),
+        name, read = max(((n, r) for n, row in table.items() for r in row.get("status") or ()
+                          if r["name"] != "rows"),  # su6: the rows read runs only with an hq
                          key=lambda p: p[1].get("wall_s") or 0)
         self.assertGreater(read.get("wall_s") or 0, 2.0)
         answers, _ = self.tool(name)

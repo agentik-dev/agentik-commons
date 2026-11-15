@@ -1,0 +1,25 @@
+{
+ "schema": "agentik.session.gate/1",
+ "ok": true,
+ "repo": "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp",
+ "running": [],
+ "queued": [],
+ "done": [
+  {
+   "id": "20261112-101500-0042",
+   "repo": "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp",
+   "exit": 0,
+   "seconds": 61.5,
+   "cut": null
+  },
+  {
+   "id": "20261112-090000-0041",
+   "repo": "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp",
+   "exit": 2,
+   "seconds": 40.0,
+   "cut": null
+  }
+ ],
+ "runner": null,
+ "est": {}
+}

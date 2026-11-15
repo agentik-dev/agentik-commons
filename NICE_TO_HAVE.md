@@ -41,7 +41,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n138 | S4 | `scripts/hygiene` `lan`, `email` | quadratic on a long dashed run with a `.`: 0.55 s at 10 KB, 13.1 s at 40 KB; nearly every text holds a `.`, so the scrub's gate rarely skips `lan` | review 1's notes; 0.60 s at 10 KB on the fix | 2026-11-13, rp2 review 1 |
 | n139 | S4 | `plugins/suite` `scrub.py` `_reach` | counts quotes from the line's start for each path: one line of 10,000 paths takes 9.3 s, 66,000 paths on their own lines 1.9 s | review 1's notes | 2026-11-13, rp2 review 1 |
 | n140 | S4 | `plugins/suite` `scrub.py` `_assign` | a password glued to its flag (`-p<value>`, as mysql takes it) is no flag, so its value stays | review 1's T3 | 2026-11-13, rp2 review 1 |
 | n141 | S4 | `plugins/suite` `scrub.py` `_emails` | an email whose domain runs on into more text holding a digit keeps its local part; found only in a fuzz of glued pieces | review 1's notes, its fuzz | 2026-11-13, rp2 review 1 |
@@ -140,3 +139,5 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n211 | S4 | `plugins/suite` `init.py` `parent_shown`, `--dry-run` | DIR `.` in a parent init cannot write: `--dry-run` exits 0, then the write exits 1 naming `.`, not its parent; name the real parent, and have the dry run check that it can write there | ak11-init review 1, F3 | 2026-11-15, ak11-init review 1 |
 | n212 | S3 | `plugins/suite` `init.py` `_write` | a SIGTERM while `git init` runs leaves the whole stage beside DIR as `tmpXXXXXXXX` (exit 143), and a `KeyboardInterrupt` in the move leaves part of the scaffold, as the undo runs on `OSError` alone; a stage named for DIR, SIGTERM handled, an undo on `BaseException`, re-raised | ak11-init review 1, F4 | 2026-11-15, ak11-init review 1 |
 | n213 | S4 | `plugins/suite` `init.py` wording | a dangling link at DIR is called a file (`not_a_folder`), and a failed rename of the whole stage names `<dir>/.` (`pear/.`); a line of its own for a link, and DIR as typed | ak11-init review 1, F6 | 2026-11-15, ak11-init review 1 |
+| n214 | S4 | `plugins/suite` `status.py` rows part | `pushed` rows with owed lines lead the part: sort the rows by stage, `building` first, so the work in flight shows before the work that waits | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
+| n215 | S4 | `plugins/suite` `status.py` rows read | the rows read is the slowest status source and grows with the rows (3.8 s for 38 rows, under a 6 s wall); read only the rows not closed, or cache the read | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
