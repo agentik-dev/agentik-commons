@@ -365,7 +365,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `remove.cache.link`: kept: it is a link or no folder, so remove follows it nowhere
 - `remove.cache.place`: kept: it does not lie at its own place in the cache home
 - `remove.cache.guard`: kept: its walk would reach `{reach}`, which remove keeps, so remove deletes nothing there
-- `remove.cache.acted`: kept: its walk would reach `{reach}`, where remove takes off launchers and trees by their own rows, so the walk deletes nothing there
+- `remove.cache.acted`: kept: its walk would reach `{reach}`, which steps 2 and 5 act on, so it deletes nothing there
 - `remove.market.stands`: stands: `claude plugin marketplace remove` exited 0 and left it
 - `remove.gone`: gone: remove was to keep it, and it no longer stands
 - `remove.keep.config`: kept: your settings
