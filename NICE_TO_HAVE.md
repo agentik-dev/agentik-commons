@@ -37,34 +37,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
 
-## From packet rp2-scrub (review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n139 | S4 | `plugins/suite` `scrub.py` `_reach` | counts quotes from the line's start for each path: one line of 10,000 paths takes 9.3 s, 66,000 paths on their own lines 1.9 s | review 1's notes | 2026-11-13, rp2 review 1 |
-| n140 | S4 | `plugins/suite` `scrub.py` `_assign` | a password glued to its flag (`-p<value>`, as mysql takes it) is no flag, so its value stays | review 1's T3 | 2026-11-13, rp2 review 1 |
-| n141 | S4 | `plugins/suite` `scrub.py` `_emails` | an email whose domain runs on into more text holding a digit keeps its local part; found only in a fuzz of glued pieces | review 1's notes, its fuzz | 2026-11-13, rp2 review 1 |
-| n142 | S4 | `plugins/suite` `scrub.py` `strike` | `strike` and `spans` assume a text with no plane-15 private-use character: `scrub` cleans first, but `strike` on a hand-edited draft holding one indexes past its seals | review 1's notes, not run | 2026-11-13, rp2 review 1 |
-| n143 | S4 | rp4 the form | GitHub renders an unfenced `<path-1>` as an unknown HTML tag, so a placeholder may vanish on the page | review 1's notes, not verified | 2026-11-13, rp2 review 1 |
-
-## From packet rp2-scrub (review 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n144 | S4 | `plugins/suite` `scrub.py` `MAC` | six parts of one or two hex digits joined by colons are a MAC now: `a:b:c:d:e:f flags` and `ratio 1:2:3:4:5:6` give `<address-1>` | review 2's own10 M10 | 2026-11-13, rp2 review 2 |
-| n145 | S4 | `plugins/suite` `scrub.py` `MAC` | a dotted date or build number of three groups of four hex digits, `build 2024.1113.1230`, is the dotted MAC and gives `<address-1>` | review 2's own10 M11 | 2026-11-13, rp2 review 2 |
-| n146 | S4 | `plugins/suite` `scrub.py` `_emails` | the walk back to a colon takes prose and half a time: `12:30:45 INFO mail sent to <x>` gives `12:30:<name-1> <email-1>` | review 2's own10 N4, N5 | 2026-11-13, rp2 review 2 |
-| n147 | S4 | `plugins/suite` `scrub.py` `_auth` | a plain word after an `authorization:` name is taken: `authorization: denied` gives `authorization: <secret>`, and the rest of the line goes with it | review 2's own10 Z4 | 2026-11-13, rp2 review 2 |
-
-## From packet rp5-send (review 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n148 | S4 | `tests/test_rp5_send.py` `DoorTest` | the line-11 walk matches a starter by its name and reads `str` constants alone, so a second create through an alias (`_P = subprocess.Popen`) or a bytes argv passes; flag a name bound to a starter, read `bytes` as words | review 2's R2-F3, two mutants `OK` | 2026-11-13, rp5 review 2 |
-| n149 | S4 | `plugins/suite` `send.py` `BLANK` | outside item 4(e)'s list, these pass `check` and the screen and are filed: U+16FE4, U+1D159, U+FFFC, a combining flood, U+0488, a lone U+1F3FB, trailing spaces; a run of U+16FE4 could carry a count unseen | review 2's notes, `probes/p1.py` | 2026-11-13, rp5 review 2 |
-| n150 | S4 | `plugins/suite` `send.py` `unseen` | the `nfkc` kind refuses every line NFKC changes, `…`, `™`, `µ` and `½` among them; if the form puts one in a fixed line or a title, every draft is refused. Measured at phase 2: the form's fixed lines hold none, and a clean draft of each public tool checks clean | review 2's notes | 2026-11-13, rp5 review 2 |
-| n151 | S4 | `plugins/suite` `send.py` `_issue` | an approval can still be made by a direct call in the same process, `send._issue(data, repo, login)`, with no screen; Python has no private names | review 2's notes | 2026-11-13, rp5 review 2 |
-
 ## From packet sc4-errors (build 1 and review 2)
 
 | id | level | area | finding | evidence | from |
@@ -141,3 +113,15 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n213 | S4 | `plugins/suite` `init.py` wording | a dangling link at DIR is called a file (`not_a_folder`), and a failed rename of the whole stage names `<dir>/.` (`pear/.`); a line of its own for a link, and DIR as typed | ak11-init review 1, F6 | 2026-11-15, ak11-init review 1 |
 | n214 | S4 | `plugins/suite` `status.py` rows part | `pushed` rows with owed lines lead the part: sort the rows by stage, `building` first, so the work in flight shows before the work that waits | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
 | n215 | S4 | `plugins/suite` `status.py` rows read | the rows read is the slowest status source and grows with the rows (3.8 s for 38 rows, under a 6 s wall); read only the rows not closed, or cache the read | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
+
+## From packet sc6-config (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n216 | S4 | `plugins/suite` `config.py` step 1's `next:` | step 1's `next:` counts a tool with 0 keys: on a tie it names `emptytool` over `loom`; prefer a tool with `n > 0` (R2's tie rule holds) | `emptytool` (0 keys) beside `loom` (24), none changed, suite silent: `next: config emptytool`, a screen with no `next:` | 2026-11-15, sc6-config review 1 |
+| n217 | S4 | `plugins/suite` `config.py` states | step 1 says `failtool  did not answer` while step 2 says `failtool answers, but the answer of its keys cannot be read.`: the two screens give one state two accounts (`config.state.read_unreadable` and its kin) | `config` then `config failtool`, a stub whose `describe config --json` exits 1 | 2026-11-15, sc6-config review 1 |
+| n218 | S4 | `plugins/suite` `config.py` prefix form `--json` | `config loom.ink --json` prints the whole-tool object cut to the prefix's keys, with no prefix field and unfiltered warnings (`inq.weight` stays), which the text form filters; the pin refused it | `config loom.ink --json \| grep inq.weight` finds it; `config loom.ink` does not show it | 2026-11-15, sc6-config review 1 |
+| n219 | S4 | `plugins/suite` `settings.read`, R5's line | one duplicate key makes `settings.read` fault, so every key of that file shows the bare path; a child of a flow mapping (`ink: {weight: bold}`) shows the path alone too; both within R5's letter | a file with `mode` set twice: `mode`, `ink.weight` and `page.width` all print the path with no `:line` | 2026-11-15, sc6-config review 1 |
+| n220 | S4 | `plugins/suite` `config.py` groups | a key that is also a group's head (`ink` beside `ink.colour`) shows as `ink` in the `ink` group row, and `config loom.ink` prints that key's card, not the group flat | a loom with `ink` and `ink.colour` keys: `config loom` shows the `ink` group row; `config loom.ink` prints one card | 2026-11-15, sc6-config review 1 |
+| n221 | S4 | `plugins/suite` `config.py` refusal | `config loom ink ''` is refused as `loom has no key ink.` with `next: config loom.ink.dry`; now that `loom.ink` is a prefix, `next: config loom.ink` is the better hint | `agentik-suite config loom ink ''` prints the refusal and the `.dry` next | 2026-11-15, sc6-config review 1 |
+| n222 | S4 | `plugins/suite` `config.py` step 1 after-line | on an 80-column terminal the row of a suite whose user file does not read has an after-line of 103 columns (`... cannot be read at line 1: a tab; the subset indents with spaces`); not compared with the pin | a user config file that opens with a tab, `config` on a pty at 80 columns | 2026-11-15, sc6-config review 1 |
