@@ -16,6 +16,7 @@ null: the source's folder stands under `source` alone (R1).
 import difflib
 import json
 import os
+import re
 import time
 
 from . import doctor, plan, settings, sources, term, tools
@@ -264,6 +265,8 @@ def do_config(cmd, nouns):
         raise Refusal("unknown_tool", "err.config.noname", cmd.say("config"))
     names = [e["name"] for e in entries]
     if name not in names:
+        if not dot:  # one word that is no tool's name: a search, and a tool's name wins (sc7 R1)
+            return _find(cmd, r, entries, name)
         near = _nearest(name, names)
         raise Refusal("unknown_tool", "err.config.tool", _again(cmd, near and near + dot + key),
                       name=name)
@@ -653,6 +656,60 @@ def _source_card(cmd, r, name, source, key=None):
     rows.append((None, [label("holds"), t.text("config.live")], None))
     t.table(rows)
     t.hint("hint.config.card", **cmd.slots())
+    return 0
+
+
+def _words(text):
+    """The words of a summary, case folded: each run of letters, digits or `_` (sc7 R1)."""
+    return re.findall(r"\w+", str(text or "").casefold())
+
+
+def _no_answer(row):
+    """Step 1's marked row: a file that does not parse, a describe that failed or ran past its
+    wall, or a read that did."""
+    return bool(row["fault"] or row["read_state"] or row["state"] in ("timed out", "unreadable"))
+
+
+def _find(cmd, r, entries, word):
+    """`config <word>` (sc7 R1 to R3): every key of every tool that answers whose dotted segment
+    or summary word is the word, case folded; one row a match, then one `!` line a tool that did
+    not answer. No match is the refusal of an unknown tool, its `next:` the near tool, else the
+    near key."""
+    t, folded = cmd.t, word.casefold()
+    rows = r.survey(entries)
+    matches, segments = [], {}
+    for row in rows:
+        for s in (row["config"] or {}).get("settings") or ():
+            key = str(s.get("key"))
+            parts = key.casefold().split(".")
+            for part in parts:  # the first key that holds each segment, for R3's near key
+                segments.setdefault(part, row["name"] + "." + key)
+            if folded in parts or folded in _words(s.get("summary")):
+                matches.append((row["name"], key, s))
+    silent = [row["name"] for row in rows if row["config"] is None and _no_answer(row)]
+    if not matches:
+        if not cmd.opts["json"]:  # the refusal explained (R2)
+            for name in silent:
+                t.table([("warn", [t.text("config.find.silent", name=name)], None)], err=True, indent=0)
+        near = _nearest(word, [e["name"] for e in entries])
+        if not near:
+            seg = _nearest(folded, list(segments))
+            near = segments[seg] if seg else None
+        raise cmd.Refusal("unknown_tool", "err.config.tool", _again(cmd, near), name=word)
+    if cmd.opts["json"]:
+        t.json({"schema": "agentik.config/1", "ok": True, "word": word,
+                "matches": [{"tool": name, "key": key, "value": s.get("value"), "summary": s.get("summary")}
+                            for name, key, s in matches],
+                "silent": silent})
+        return 0
+    t.line("config.find.title", word=word, count=len(matches))
+    t.blank()
+    t.table([(None, [term.name(name + "." + key), shown_value(s.get("value")),
+                     term.cut(str(s.get("summary") or ""))], None)
+             for name, key, s in matches])
+    for name in silent:
+        t.table([("warn", [t.text("config.find.silent", name=name)], None)], indent=0)
+    t.hint("hint.config.tool", command=cmd.say("config", matches[0][0] + "." + matches[0][1]))
     return 0
 
 

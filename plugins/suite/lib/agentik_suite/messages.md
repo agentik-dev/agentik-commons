@@ -207,6 +207,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.files.none`: No tool that gave keys names a user file that travels.
 - `config.was`: default `{default}`
 - `config.file`: `{path}`
+- `config.find.title`: Keys that match `{word}`: `{count}`.
+- `config.find.silent`: `{name}` did not answer, so its keys are not in this list
 - `hint.config`: next: `{command}`
 - `hint.config.tool`: next: `{command}`
 - `hint.config.card`: next: `{config}` --changed lists every key changed from its default.
