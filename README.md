@@ -37,6 +37,7 @@ A clone and its `setup` set a machine up, the steps above included: `git clone h
 | `docs/sibling.md` | the paragraph each README carries under "Conventions shared with the sibling plugins" |
 | `scripts/hygiene` | the canonical hygiene scan, its `renamed` group included |
 | `scripts/recordlint [FILE...]` | holds `HANDOFF.md` and `NICE_TO_HAVE.md` to their tables (GUIDE §9): one `path:line: rule: detail` line per finding, exit 2; a file without its header is skipped |
+| `scripts/readme-top [FILE...]` | holds a README's top, the lines before its first `## `, to the ten-line form of GUIDE §10: at most ten lines of text, one fenced block of two lines, one "Use it when" line and a link to `https://github.com/agentik-dev`; one `<file>: top: <what>` line per finding, exit 1; `README.md` when no file is named |
 | `scripts/bounded` | the breaker `make check` runs under in each tool repo |
 | `scripts/plugin-version-check` | run from a plugin repo's root: exit 1, one line per file, when `plugin/` changed after the commit that last changed `plugin.json`'s version, or the branch changed `plugin/` since a merge base with `main` (else `origin/main`; every base of a criss-cross) and its version is not above that base's (GUIDE §7) |
 | `scripts/plugin-description-bytes [--max BYTES] [PLUGIN_DIR]` | a plugin's loaded description bytes, one line per command, skill and agent type, a command or skill that sets `disable-model-invocation: true` listed `hidden` and not counted; exit 1 over 1,024 B or on a counted file with no description (GUIDE §1) |
@@ -46,7 +47,7 @@ A clone and its `setup` set a machine up, the steps above included: `git clone h
 | `scripts/door-probe` | run by hand, never by `make check`: clones, at main, each checkout beside this one that writes the `agentik` door (a plugin launcher's `install-cli`, or the door's line of `make -n install`) into a temp folder and asks whether each leaves a newer door in place: `kept` and `absent` pass or fail; a FIFO, a non-UTF-8 version line and a race against a newer clone are notes |
 | `scripts/agentik_install.py` | the canonical `install-cli`: freeze, launcher, prune and forward refresh, generic by name, stdlib at Python 3.9 (GUIDE §10) |
 | `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/readme-top`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
 
 ## The agentik-suite command
 
@@ -84,7 +85,7 @@ A rule matches the words as typed, so a flag before the word (`agentik issue -q 
 
 ## Make targets
 
-- `make check`: the tests, `sh -n` and the line bound on the front door, the hygiene scan of this repo, the records lint (`scripts/recordlint` on `HANDOFF.md` and `NICE_TO_HAVE.md`), the marketplace check, and `voice-check`, the suite command's catalogue against `design/voice/checked.sha256`.
+- `make check`: the tests, `sh -n` and the line bound on the front door, `scripts/readme-top` on this README, the hygiene scan of this repo, the records lint (`scripts/recordlint` on `HANDOFF.md` and `NICE_TO_HAVE.md`), the marketplace check, and `voice-check`, the suite command's catalogue against `design/voice/checked.sha256`.
 - `make voice`: the catalogue through the voice scanner, found by `RESPEAK_ROOT` or in Claude Code's plugin cache; on its pass it writes `design/voice/checked.sha256`. Not part of `make check`; with no scanner it exits 2 and writes nothing.
 - `make help`: the targets, one line each.
 - `make local-marketplace`: writes the marketplace with `file://` urls (one checkout per tool under `AGENTIK_CODE`, default this repo's parent folder) into `AGENTIK_MARKETPLACE_DIR` (default `~/.local/share/agentik/marketplace`), then checks it with `marketplace-check --local`. The published file names public repos only; the local file leaves out `suite` (this Mac installs the tools by name) and adds, after the five, the entries of the overlay `AGENTIK_MARKETPLACE_OVERLAY` (default `~/.config/agentik/marketplace-local.json`, kept outside every repo), a JSON object whose `plugins` are in the published form, for a plugin whose repo is not public. An absent overlay adds nothing; one that cannot be read, is not JSON or has no `plugins` list fails the target, which then writes nothing. `scripts/local-marketplace` does the merge.
