@@ -88,12 +88,14 @@ def user_path(home, user):
     return os.path.join(home, user[2:]) if user.startswith("~/") else user
 
 
-def cache_fate(env, home, guard=()):
+def cache_fate(env, home, guard=(), acted=()):
     """(the agentik cache folder, None where it goes or the reason it stays, the root its walk may
     remove under, the guarded path it would have reached or None). It goes only where it is a real
     folder, no link, at the cache home's real path plus `agentik`, the cache home is neither `/`
     nor the home folder (R5), its real path is no home and holds none, and it is not, does not lie
-    under and does not hold any path of `guard` (F1, F2). A relative `XDG_CACHE_HOME` is ignored."""
+    under and does not hold any path of `guard` (F1, F2), nor of `acted`, the bin and share folders
+    steps 2 and 5 act on (G4), which is read before the link check, since the door is a link or a
+    file. A relative `XDG_CACHE_HOME` is ignored."""
     base = env.get("XDG_CACHE_HOME") or ""
     if not os.path.isabs(base):
         base = os.path.join(home, ".cache")
@@ -105,6 +107,10 @@ def cache_fate(env, home, guard=()):
     homes = agentik_install._homes(env)
     if real == "/" or real in homes:
         return path, "remove.cache.home", root, None
+    for found in acted:
+        real_found = os.path.realpath(found)
+        if agentik_install._under(root, real_found) or agentik_install._under(real_found, root):
+            return path, "remove.cache.acted", root, found
     if not agentik_install._real_dir(path):
         return path, "remove.cache.link", root, None
     if os.path.realpath(path) != root:
@@ -249,7 +255,9 @@ class Remove:
                                        for e in tools.fallback(self.cmd.lib).values()) if p]
             self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
             self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
-            path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards())
+            path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards(), self.acted())
+            if why == "remove.cache.acted" and self.a_row(path):
+                why = ""  # a row of step 2 or 5, the door say: that row is its one fate (G4)
             self.cache = (path, why, reach)
             if why is None:
                 steps.append(plan._step(6, "cache", "todo", self.shown(path), "remove.cache"))
@@ -281,6 +289,17 @@ class Remove:
 
     def guards(self):
         return guarded(self.env, self.home, self.guard)
+
+    def acted(self):
+        """The folders steps 2 and 5 act on: the prefix's bin and share (G4)."""
+        return [self.bindir, os.path.join(self.prefix, "share")]
+
+    def a_row(self, path):
+        """Whether `path` is a row of step 2 or 5, each read with its folder's real path."""
+        def same(p):
+            return os.path.join(os.path.realpath(os.path.dirname(p)), os.path.basename(p))
+        rows = [r for e in self.tools for r in e["rows"]] + list(self.suite_rows)
+        return same(path) in {same(p) for p, _, _ in rows}
 
     def todo(self, steps):
         return [s for s in steps if s["state"] == "todo"]
@@ -493,7 +512,7 @@ class Remove:
             kept.append((path, self.t.text(why, reach=self.shown(reach or ""))))
         if why is not None:
             return None
-        again = cache_fate(self.env, self.home, self.guards())
+        again = cache_fate(self.env, self.home, self.guards(), self.acted())
         if again[1] is not None or again[2] != self.cache_root:
             kept.append((path, self.t.text(again[1] or "remove.cache.place", reach=self.shown(again[3] or ""))))
             return None
