@@ -4,3 +4,6 @@ style:
   budgets:
     max_sentence_words: 20
     avg_sentence_words: 12
+# The width of design/23 V1, 76 characters before a message's values, is not a budget here: the
+# scanner reads only the four keys above and holds no list of ids. It is held by
+# tests/test_sc1_voice_width.py, for every id but the ones other rows own (packet sc1-voice-sweep R4).
