@@ -250,7 +250,7 @@ class NameTest(Copy):
             lines = (out + err).splitlines()
             self.assertIn(remedy, [l.strip() for l in lines], out + err)
             self.assertFalse([l for l in lines if l.startswith("next:") and remedy in l], out + err)
-            self.assertRegex(lines[-1], r"^next: \S*agentik\S* config murmur reads its keys again")
+            self.assertRegex(lines[-1], r"^next: \S*agentik\S* config murmur$")
 
     def test_14_a_remedy_with_a_control_byte_is_no_remedy(self):
         """Review 1's lead 2: no second line of the tool's joins a line a person pastes."""
@@ -262,7 +262,7 @@ class NameTest(Copy):
             self.assertEqual(code, 0, out + err)
             self.assertIn("reading its keys failed: " + MESSAGE, out + err)
             self.assertNotIn("mend", out + err)
-            self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])
+            self.assertRegex((out + err).splitlines()[-1], r"^next: \S*agentik\S* config$")
             code, out, err = self.cli(h, "config", "--json")
             row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
             self.assertEqual(row["error"], {"code": "bad_file", "message": MESSAGE, "remedy": None})
@@ -287,7 +287,7 @@ class NameTest(Copy):
         self.assertIn("reading its keys failed: " + MESSAGE, out + err)
         self.assertNotIn("murmur prune", out + err)
         self.assertNotIn("mend", out + err)
-        self.assertIn("lists every tool and its state", (out + err).splitlines()[-1])
+        self.assertRegex((out + err).splitlines()[-1], r"^next: \S*agentik\S* config$")
         code, out, err = self.cli(h, "config", "--json")
         row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
         self.assertEqual(row["error"], {"code": "bad_file", "message": MESSAGE, "remedy": None})
