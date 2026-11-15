@@ -33,11 +33,11 @@ import time
 
 import agentik_install
 
-from . import apply, config, doctor, inbox, install, issue, plan, prog, remove, status, term, tools, update
+from . import apply, config, doctor, inbox, init, install, issue, plan, prog, remove, status, term, tools, update
 
-VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue")
+VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue", "init")
 KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
-WRITES = ("setup", "update", "remove", "install-cli", "issue")
+WRITES = ("setup", "update", "remove", "install-cli", "issue", "init")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
          ("--help", "-h", "help"))
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
@@ -60,7 +60,8 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
                "--prefix": ("prefix", "install-cli"),
                "--ran": ("ran", "issue"), "--exit": ("exit", "issue"), "--output": ("output", "issue"),
                "--expected": ("expected", "issue"), "--as": ("as_login", "issue"),
-               "--draft": ("draft", "issue")}
+               "--draft": ("draft", "issue"),
+               "--kind": ("kind", "init")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              + ISSUE_FLAGS
              for f in (long, short) if f}
@@ -731,6 +732,11 @@ class Command:
 
     def do_issue(self, nouns):
         return issue.do_issue(self, nouns)
+
+    # ---- init -----------------------------------------------------------------------------
+
+    def do_init(self, nouns):
+        return init.do_init(self, nouns)
 
 
 def main(argv=None, env=None, out=None, err=None):
