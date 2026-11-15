@@ -438,12 +438,16 @@ class Remove:
                 if failure:
                     break
             if self.all and failure is None:
+                folder = os.path.join(self.config, "plugins", "marketplaces", plan.MARKETPLACE)
                 for s in [s for s in steps if s["n"] in (3, 4) and s["state"] == "todo"]:
+                    stood = os.path.lexists(folder)
                     failure = self.execute(s["command"], s["n"], ran, wrote)
                     if failure:
                         break
-                    if s["n"] == 3:
-                        removed.append(os.path.join(self.config, "plugins", "marketplaces", plan.MARKETPLACE))
+                    if s["n"] == 3 and os.path.lexists(folder):  # removed only where an lstat finds it gone (F6)
+                        red.append((folder, self.t.text("remove.market.stands")))
+                    elif s["n"] == 3 and stood:
+                        removed.append(folder)
                 if failure is None:
                     self.suite_rows = self.uninstall("agentik-suite", door=True, dry=False)  # R6: the tree may go
                     failure = self.take(self.suite_rows, removed, kept)
@@ -480,7 +484,7 @@ class Remove:
         except OSError as e:
             why = term.clean(e.strerror or str(e))
             kept.append((path, ("kept: partly removed, " if done[0] else "kept: ") + why))
-            return ("err.remove.partly", {"path": self.shown(path), "why": why}) if done[0] else None
+            return ("err.remove.cache.partly", {"path": self.shown(path), "why": why}) if done[0] else None
         removed.append(path)
         return None
 
@@ -507,7 +511,8 @@ class Remove:
             mid = FAILS.get(failure[0], failure[0])
             message = t.text(mid, **dict(self.slots, **failure[1]))
         if self.o["json"]:
-            error = {"code": "step_failed", "message": message, "remedy": self.remedy} if failure else None
+            remedy = None if failure and failure[0] == "err.remove.cache.partly" else self.remedy  # F5: no verb is left
+            error = {"code": "step_failed", "message": message, "remedy": remedy} if failure else None
             if red and not error:
                 error = {"code": "red", "message": t.text("err.remove.red", paths=", ".join(
                     self.shown(p) for p, _ in red)), "remedy": None}
