@@ -381,6 +381,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `remove.removed`: removed
 - `err.remove.usage`: `{remove}` takes the plugins to take off, or --all for every one, and never both
 - `err.remove.held`: held remove: `{what}`
+- `err.remove.held.run`: Remove stopped: `{what}`, so `{name}`'s command and trees stand. Run `{command}` once that process has ended.
 - `hint.remove.held`: next: `{command}` once it has ended
 - `err.remove.yes`: Remove ran nothing, since it cannot ask you here. Run `{remove}` --yes to run the lines above.
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes. Run `{remove}` again when you are ready.

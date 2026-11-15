@@ -62,6 +62,14 @@ def spare(env, pid=None):
     return list(dict.fromkeys(found))
 
 
+def held_of(rows):
+    """What holds the first `kept: held` row of uninstall's rows, or None."""
+    for _, _, fate in rows:
+        if fate.startswith("kept: held"):
+            return fate[len("kept: held, "):] or fate
+    return None
+
+
 def guarded(env, home, keep=()):
     """What the cache folder's walk may never reach (review 1's F1): the config home and the state
     home as the suite resolves them, Claude Code's folder, and each path R7 keeps."""
@@ -238,11 +246,7 @@ class Remove:
                 steps.append(plan._step(6, "cache", "ok", self.shown(path), why, reach=self.shown(reach or "")))
         steps += [plan._step(7, "keep", "ok", self.shown(p), why) for p, why in self.keep]
         rows = [r for e in self.tools for r in e["rows"]] + (self.suite_rows if self.all else [])
-        for _, _, fate in rows:
-            if fate.startswith("kept: held"):
-                held = fate[len("kept: held, "):] or fate
-                break
-        return steps, held
+        return steps, held_of(rows)
 
     def door_fate(self, rows):
         """The suite's dry rows, the door's `kept: <entry> stands` read `would remove` where every
@@ -290,13 +294,17 @@ class Remove:
             obj["error"] = error
         self.t.json(obj)
 
+    def again(self, dry=False):
+        """The line that runs this remove again."""
+        words = self.nouns + (["--all"] if self.all else []) + (["--dry-run"] if dry and self.o["dry_run"] else [])
+        return self.cmd.say("remove", *words)
+
     def held(self, what, steps=()):
         if self.o["json"]:
             self.json(False, list(steps), held=what)
         else:
             self.t.error("err.remove.held", what=what)
-            words = self.nouns + (["--all"] if self.all else []) + (["--dry-run"] if self.o["dry_run"] else [])
-            self.t.hint("hint.remove.held", command=self.cmd.say("remove", *words))
+            self.t.hint("hint.remove.held", command=self.again(dry=True))
         return 2
 
     def title(self):
@@ -387,8 +395,9 @@ class Remove:
             return apply._failure(command, result)
         return None
 
-    def take(self, rows, removed, kept):
-        """uninstall's rows into the close; the first `kept: partly removed`, or None."""
+    def take(self, rows, removed, kept, name=SUITE):
+        """uninstall's rows into the close; the first `kept: partly removed` or `kept: held` (F4),
+        each a stop, or None."""
         partly = None
         for path, what, fate in rows:
             if fate == "removed":
@@ -397,6 +406,9 @@ class Remove:
                 kept.append((path, fate))
                 if fate.startswith("kept: partly removed") and partly is None:
                     partly = ("err.remove.partly", {"path": self.shown(path), "why": fate})
+                elif fate.startswith("kept: held") and partly is None:
+                    partly = ("err.remove.held.run", {"what": held_of([(path, what, fate)]), "name": name,
+                                                      "command": self.again()})
         return partly
 
     def run(self, steps):
@@ -410,12 +422,19 @@ class Remove:
         try:
             for e in self.tools:
                 if e["plugin"]:
+                    again = self.uninstall("agentik-" + e["name"])  # the hold read again, right before step 1 (F4)
+                    if held_of(again) and not ran and not removed:
+                        return self.held(held_of(again))
+                    if held_of(again):
+                        e["rows"] = again
+                        failure = self.take(again, removed, kept, e["name"])
+                        break
                     failure = self.execute("claude plugin uninstall %s --keep-data" % shlex.quote(e["plugin"]),
                                            1, ran, wrote)
                     if failure:
                         break
                 e["rows"] = self.uninstall("agentik-" + e["name"], dry=False)
-                failure = self.take(e["rows"], removed, kept)
+                failure = self.take(e["rows"], removed, kept, e["name"])
                 if failure:
                     break
             if self.all and failure is None:
