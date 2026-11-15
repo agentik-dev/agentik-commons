@@ -24,7 +24,6 @@ NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
 
 SUITE_READ = {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}
 GROUP_PAST = 20
-STATUS = {"answers": "ok", "timed out": "warn", "unreadable": "warn", "no command": "note"}
 # Why a tool gives no settings (`why`), and the line for it at the tool's level and a key's.
 STATE_LINE = {"timed out": "config.state.timed_out", "unreadable": "config.state.unreadable",
               "no command": "config.state.no_command", "noread": "config.state.noread",
@@ -39,6 +38,7 @@ WARNED = {"unreadable": "config.warn.unreadable", "ignored": "config.warn.ignore
 CLAIM = {"suite": "config.claim.suite", "kept": "config.claim.kept", "market": "config.claim.market"}  # R4
 READ_CELL = {"timed out": "config.read.timed_out", "unreadable": "config.read.unreadable",
              "error": "config.read.error"}
+ANSWER_CELL = {"timed out": "config.answer.timed_out", "unreadable": "config.answer.unreadable"}  # sc6 R2
 SUITE_SUMMARIES = ("checkouts", "kind", "watcher.match", "watcher.start", "watcher.beat",
                    "watcher.writer", "sources")
 
@@ -89,6 +89,7 @@ class Reader:
         self.suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
         self.home = self.env.get("HOME") or ""
         self.deadline = None
+        self.lines = {}  # each file's lines by dotted path, read once a run (R5)
 
     # ---- the suite itself -------------------------------------------------------------------
 
@@ -292,6 +293,9 @@ def do_config(cmd, nouns):
     if not found:
         whole = r.suite_config() if row["name"] == r.suite else r.read_one(row, None)
         keys = [s["key"] for s in (whole or {}).get("settings") or ()]
+        if any(k.startswith(key + ".") for k in keys):  # a prefix: its group, flat (R3)
+            return _tool(cmd, r, name, whole, _from(row["source"], r.home), row["claims"], row["source"],
+                         prefix=key)
         near = _nearest(key, keys)
         raise Refusal("unknown_key", "err.config.key", _again(cmd, name + "." + near if near else name),
                       name=name, key=key)
@@ -334,30 +338,30 @@ def _list(cmd, r, rows):
             out.append(item)
         t.json({"schema": "agentik.config/1", "ok": True, "tools": out})
         return 0
-    t.line("config.title", count=len(rows))
+    counted = [(row, *_counts(row)) for row in rows]
+    t.line("config.title", changed=sum(d for _, n, d in counted if n is not None),
+           total=sum(n for _, n, _ in counted if n is not None))
+    t.blank()
+    keys = {row["name"]: t.text("config.count.one" if n == 1 else "config.count", n=n)
+            for row, n, _ in counted if n}
+    room = max(map(term.columns, keys.values()), default=0)
     lines = []
-    for row in rows:
-        n, d = _counts(row)
-        after = row["fault"]
-        if n is not None:
-            cells = [term.name(row["name"]), row["state"],
-                     t.text("config.count.one" if n == 1 else "config.count", n=n),
-                     t.text("config.differ", n=d)]
+    for row, n, d in counted:
+        after, status, cells = row["fault"], None, [term.name(row["name"])]
+        if n:  # its keys and how many changed, the counts aligned down the rows (R2)
+            cells.append(keys[row["name"]] + " " * (room - term.columns(keys[row["name"]])) + "  "
+                         + t.text("config.differ", n=d))
             user = r.user_file(row["config"])
-            if user:
-                cells.append(term.path(plan.shown(user, r.home)))
-        elif row["read_state"]:
-            cells = [term.name(row["name"]), row["state"], t.text(READ_CELL[row["read_state"]])]
-        elif row["name"] in table and row["state"] != "answers":
-            words = words if words is not None else tools.descriptions(cmd.env)
-            cells = [term.name(row["name"]), row["state"], t.text("config.from_table"), "",
-                     term.path(str(table[row["name"]].get("user_file") or ""))]
-            after = words.get(row["name"])
-        else:
-            cells = [term.name(row["name"]), row["state"]]
-        if row["reason"]:  # beside the state (R3)
-            cells.insert(2, reason(t, row))
-        status = "warn" if row["read_state"] else STATUS.get(row["state"], "warn")
+            cells.append(term.path(plan.shown(user, r.home)) if user else "")
+        elif row["fault"] or row["read_state"] or row["state"] in ("timed out", "unreadable"):
+            status = "warn"  # a mark only where something is wrong (R2)
+            note = t.text(READ_CELL[row["read_state"]]) if row["read_state"] else reason(t, row) or \
+                (t.text(ANSWER_CELL[row["state"]]) if row["state"] in ANSWER_CELL else None)
+            known = (table.get(row["name"]) or {}).get("user_file")  # the suite's table, where it has one
+            cells += [t.text("config.silent"), term.path(plan.shown(str(known), r.home)) if known else note or ""]
+        else:  # it answers with none, names no read, or ships no command: its file still shows
+            user = r.user_file(row["config"]) or (table.get(row["name"]) or {}).get("user_file")
+            cells += [t.text("config.nokeys"), term.path(plan.shown(str(user), r.home)) if user else ""]
         source, extra = row["source"], None
         if source and source["kind"] == "undecided":
             status, extra = "warn", t.text("config.undecided", count=len(_ids(source)))
@@ -366,9 +370,12 @@ def _list(cmd, r, rows):
         lines.append((status, cells, after, extra))
     # the source's words end a row, in a column after every other row's cells (R6)
     wide = max(len(cells) for _, cells, _, _ in lines)
+    marked = any(status for status, _, _, _ in lines)
     t.table([(status, cells + ([""] * (wide - len(cells)) + [extra] if extra else []), after)
-             for status, cells, after, extra in lines])
-    t.hint("hint.config", **cmd.slots())
+             for status, cells, after, extra in lines], indent=0 if marked else 2)
+    top = max((c for c in counted if c[1] is not None), key=lambda c: c[2], default=None)
+    if top:  # the tool with the most changed keys, the first on a tie (R2)
+        t.hint("hint.config", command=cmd.say("config", top[0]["name"]))
     return 0
 
 
@@ -431,8 +438,12 @@ def _claims(cmd, name, claims, source):
             cmd.t.line(CLAIM[c["reason"]], name=name, verb=c["verb"], run=cmd.say(c["verb"]))
 
 
-def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None):
+def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None, prefix=None):
+    """Step 2 (R3): the changed keys first, each where it is set; past GROUP_PAST keys on a
+    terminal one line a group, else, off one, with --all or for a prefix, every key flat."""
     t, rows = cmd.t, cfg["settings"]
+    if prefix:
+        rows = [s for s in rows if s["key"].startswith(prefix + ".")]
     if cmd.opts["json"]:
         obj = {"schema": "agentik.config/1", "ok": True, "tool": name, "layers": cfg["layers"],
                "settings": rows, "warnings": cfg.get("warnings") or []}
@@ -440,27 +451,50 @@ def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None):
             obj["claims"] = list(claims)
         t.json(obj)
         return 0
-    changed = sum(1 for s in rows if differs(s))
-    _titled(cmd, "config.tool.title", origin, name=name, changed=changed,
+    changed = [s for s in rows if differs(s)]
+    named = {s["source"].get("layer") for s in rows} | {v.get("layer") for s in rows for v in s.get("values") or ()}
+    layers = [layer["name"] for layer in cfg.get("layers") or ()
+              if isinstance(layer.get("name"), str) and (layer.get("present") or layer["name"] in named)]
+    layers = layers if "default" in layers else ["default"] + layers  # the lowest, always (R3)
+    _titled(cmd, "config.tool.title" if changed else "config.tool.title.none", origin,
+            name=name + "." + prefix if prefix else name, changed=len(changed),
+            layers=", ".join(layers),
             settings=t.text("config.count.one" if len(rows) == 1 else "config.count", n=len(rows)))
+    t.blank()
 
-    def row(s, key):
-        cells = [term.name(key), shown_value(s.get("value")),
-                 str(s["source"].get("layer") or "default")]
-        if differs(s):
-            cells.append(t.text("config.changed"))
-        return ("ok" if differs(s) else None, cells, None)
+    def row(s):
+        layer = str(s["source"].get("layer") or "default")
+        where = _set_at(r, name, s) if layer != "default" else None
+        return (None, (["*" if differs(s) else ""] if changed else [])
+                + [term.name(s["key"]), shown_value(s.get("value")), layer, term.path(where) if where else ""],
+                None)
 
-    if len(rows) > GROUP_PAST:
-        groups = {}
-        for s in rows:
-            groups.setdefault(s["key"].split(".", 1)[0], []).append(s)
-        for head, members in groups.items():
-            t.line("config.group", group=head, style="name")
-            t.table([row(s, s["key"]) for s in members], indent=4)
+    indent = 0 if changed else 2
+    if prefix or cmd.opts["config_all"] or not t.out.tty or len(rows) <= GROUP_PAST:
+        t.table([row(s) for s in changed] + [row(s) for s in rows if not differs(s)], indent=indent)
     else:
-        t.table([row(s, s["key"]) for s in rows])
+        if changed:
+            t.table([row(s) for s in changed], indent=indent)
+            t.blank()
+        heads = {}
+        for s in rows:
+            heads.setdefault(s["key"].split(".", 1)[0], []).append(s)
+        groups = [(term.name(head), members) for head, members in heads.items()
+                  if len(members) > 1 or "." in members[0]["key"]]
+        rest = [members[0] for head, members in heads.items() if len(members) == 1 and "." not in members[0]["key"]]
+        if rest:
+            groups.append((t.text("config.group.rest"), rest))
+
+        def word(s, head):
+            short = s["key"][len(head) + 1:] if head and s["key"].startswith(head + ".") else s["key"]
+            return short + ("*" if differs(s) else "")
+
+        t.table([(None, [label, str(len(members)),
+                         " ".join(word(s, label[0] if isinstance(label, tuple) else "") for s in members)], None)
+                 for label, members in groups])
     for w in cfg.get("warnings") or ():
+        if prefix and not str(w.get("key") or "").startswith(prefix + "."):
+            continue
         # a file skipped, a key not taken from it (row ak9c R7); a reason that is no string reads
         # as an unknown key, as at the pin (review 1 F2)
         if isinstance(w.get("reason"), str) and w["reason"] in WARNED:
@@ -474,7 +508,8 @@ def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None):
                            term.path("%s:%s" % (plan.shown(str(w.get("path")), r.home), w.get("line")))],
                   None)])
     _claims(cmd, name, claims, source)
-    t.hint("hint.config.tool", **cmd.slots(), name=name)
+    if rows:  # the first changed key, else the first key (R3)
+        t.hint("hint.config.tool", command=cmd.say("config", name + "." + (changed or rows)[0]["key"]))
     return 0
 
 
@@ -489,47 +524,101 @@ def _where(row, home):
     return "%s:%s" % (shown, line) if isinstance(line, int) and not isinstance(line, bool) else shown
 
 
+def _a_line(n):
+    return isinstance(n, int) and not isinstance(n, bool) and n > 0
+
+
+def _line_in(r, path, keys):
+    """The 1-based line of the first of `keys` (dotted paths) in the file at `path`, read in the
+    strict subset; None where the file is absent, does not parse, or holds none of them (R5)."""
+    cache = r.lines
+    if path not in cache:
+        try:
+            cache[path] = settings.read(path)[2]
+        except (settings.Fault, OSError, ValueError, UnicodeError):
+            cache[path] = {}
+    return next((cache[path][k] for k in keys if k in cache[path]), None)
+
+
+def _set_at(r, name, s):
+    """`path:line` of the file a key's value comes from, its source's or, where that names none,
+    its layer's value's: the line the tool gives, else the line of its dotted path in that file
+    (`<tool>.<key>` first in the repo and local layers, whose file holds a section a tool), else
+    the path alone; None where the tool names no file (R5)."""
+    src = s["source"]
+    path, line = src.get("path"), src.get("line")
+    if not isinstance(path, str) or not path:  # the file of the value its layer gives (ak9c R8)
+        held = [v for v in s.get("values") or () if v.get("layer") == src.get("layer")
+                and isinstance(v.get("path"), str) and v["path"]]
+        if not held:
+            return None
+        path, line = held[-1]["path"], held[-1].get("line")
+    if not _a_line(line):
+        line = _line_in(r, path, ([name + "." + s["key"]] if src.get("layer") in ("repo", "local") else [])
+                        + [s["key"]])
+    shown = tools.one_line(plan.shown(path, r.home))
+    return "%s:%d" % (shown, line) if _a_line(line) else shown
+
+
+def _edit_at(r, s, change):
+    """`path:line` of the file a hand edit goes to: the line of the block's last key in it, else
+    the path alone (R5)."""
+    path = str(change["path"])
+    try:
+        found = settings.parse(str(change.get("block") or ""))[1]
+    except (settings.Fault, ValueError):
+        found = {}
+    keys = [max(found, key=found.get)] if found else [s["key"]]
+    line = _line_in(r, path, keys)
+    shown = tools.one_line(plan.shown(path, r.home))
+    return "%s:%d" % (shown, line) if _a_line(line) else shown
+
+
 def _card(cmd, r, name, cfg, s):
+    """Step 3 (R4): the key, its value and default; the summary; where it is set, each layer's
+    value, the choices, the one change and when it applies. No `next:`: `change` is the step."""
     t, src, change = cmd.t, s["source"], s["change"]
     if cmd.opts["json"]:
         t.json({"schema": "agentik.config/1", "ok": True, "tool": name, "key": s["key"],
                 "layers": cfg["layers"], "setting": s})
         return 0
-    t.line("config.card.title", name=name, key=s["key"])
-    label = lambda mid: term.name(t.text("config.label." + mid))  # noqa: E731
-    rows = [(None, [label("value"), shown_value(s.get("value"))], None)]
-    if s.get("summary"):
-        rows.append((None, [label("summary"), str(s["summary"])], None))
     if s.get("default") is not None:
-        rows.append((None, [label("default"), shown_value(s["default"])], None))
-    if s.get("choices"):
-        rows.append((None, [label("choices"), ", ".join(shown_value(c) for c in s["choices"])], None))
-    if src.get("path"):
-        where = "%s:%s" % (plan.shown(str(src["path"]), r.home), src.get("line")) \
-            if src.get("line") else plan.shown(str(src["path"]), r.home)
-        rows.append((None, [label("set_by"), t.text("config.set_by", layer=src.get("layer"), where=where)],
-                     None))
+        t.line("config.card.key.default", name=name, key=s["key"], value=shown_value(s.get("value")),
+               default=shown_value(s["default"]))
     else:
-        rows.append((None, [label("set_by"), str(src.get("layer") or "default")], None))
-    for v in s.get("values") or ():
-        where = _where(v, r.home)  # a layer of several files: the one that holds this value (R8)
-        rows.append((None, [label("layer"), t.text("config.layer.at" if where else "config.layer",
-                                                     layer=v.get("layer"), where=where,
-                                                     value=shown_value(v.get("value")))], None))
+        t.line("config.card.key", name=name, key=s["key"], value=shown_value(s.get("value")))
+    if s.get("summary"):
+        t.line("config.card.summary", summary=str(s["summary"]))
+    t.blank()
+    label = lambda mid: term.name(t.text("config.label." + mid))  # noqa: E731
+    layer = str(src.get("layer") or "default")
+    where = _set_at(r, name, s)
+    rows = [(None, [label("set_in"), term.path(t.text("config.set_in", where=where, layer=layer))
+                    if where else layer], None)]
+    values = [(v.get("layer"), v.get("value")) for v in s.get("values") or ()]
+    if s.get("default") is not None and "default" not in [v[0] for v in values]:
+        values.insert(0, ("default", s["default"]))
+    if values:
+        rows.append((None, [label("layers"), ", ".join(t.text("config.layers.item", layer=v[0],
+                                                               value=shown_value(v[1])) for v in values)], None))
+    if s.get("choices"):
+        rows.append((None, [label("choices"), " ".join(shown_value(c) for c in s["choices"])], None))
     kind = change.get("kind")
-    if kind in ("command", "launch") and change.get("command"):
-        rows.append((None, [label(kind), str(change["command"])], None))
+    if kind == "command" and change.get("command"):
+        rows.append((None, [label("change"), str(change["command"])], None))
+    elif kind == "launch" and change.get("command"):
+        rows.append((None, [label("change"), t.text("config.change.launch", command=str(change["command"]))], None))
     elif kind == "edit" and change.get("path"):
-        rows.append((None, [label("edit"), term.path(plan.shown(str(change["path"]), r.home))], None))
+        rows.append((None, [label("change"), term.path(t.text("config.change.edit", where=_edit_at(r, s, change)))],
+                     None))
         for line in str(change.get("block") or "").splitlines():
             rows.append((None, ["", line], None))
     else:
-        rows.append((None, [label("fixed"), str(change.get("note") or t.text("config.fixed"))], None))
-    if kind != "fixed" and change.get("note"):
+        rows.append((None, [label("change"), t.text("config.change.fixed")], None))
+    if change.get("note"):
         rows.append((None, [label("note"), str(change["note"])], None))
-    rows.append((None, [label("holds"), t.text("config.live" if s.get("live") else "config.later")], None))
+    rows.append((None, [label("applies"), t.text("config.live" if s.get("live") else "config.later")], None))
     t.table(rows)
-    t.hint("hint.config.card", **cmd.slots())
     return 0
 
 

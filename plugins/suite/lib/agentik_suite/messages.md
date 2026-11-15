@@ -69,6 +69,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.yes`: Write without asking first.
 - `flag.changed`: List every key changed from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
+- `flag.config_all`: Print every key flat, one a line.
 - `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Print a line for each thing that needs a hand, and exit 1 when one does.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
@@ -132,11 +133,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Config
 
-- `config.title`: Tools in the suite: `{count}`, each with its state and its keys.
+- `config.title`: Keys by tool: `{changed}` of `{total}` changed from their defaults.
 - `config.count`: `{n}` keys
 - `config.count.one`: 1 key
 - `config.differ`: `{n}` changed
-- `config.from_table`: from the suite's table
+- `config.nokeys`: lists no keys yet
+- `config.silent`: did not answer
 - `config.from`: from `{source}`
 - `config.titled`: `{title}`, from `{source}`
 - `config.undecided`: `{count}` plugins of this name; no source is declared
@@ -147,9 +149,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.source.none`: no plugin of this name is installed
 - `config.fault`: `{path}` cannot be read at line `{line}`: `{why}`
 - `config.fault.noline`: `{path}` cannot be read: `{why}`
-- `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed from the default.
-- `config.group`: `{group}`
-- `config.changed`: changed
+- `config.tool.title`: `{name}`: `{settings}`, `{changed}` changed (*). Layers, lowest first: `{layers}`.
+- `config.tool.title.none`: `{name}`: `{settings}`, none changed. Layers, lowest first: `{layers}`.
+- `config.group.rest`: the rest
 - `config.unknown`: unknown key `{key}`
 - `config.badvalue`: `{key}` holds `{value}`, which is not one of its choices
 - `config.warn.unreadable`: `{name}` skipped this file: it could not be read
@@ -158,23 +160,26 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.claim.kept`: `{name}` claims `{verb}`; `{run}` does not run it: another tool has that word
 - `config.claim.market`: `{name}` claims `{verb}`, which `{run}` does not run: `{name}` is not agentik's
 - `config.card.title`: `{name}`.`{key}`
-- `config.label.value`: value
-- `config.label.summary`: about
-- `config.label.default`: default
+- `config.card.key`: `{name}`.`{key}` = `{value}`
+- `config.card.key.default`: `{name}`.`{key}` = `{value}`   (default `{default}`)
+- `config.card.summary`: `{summary}`
+- `config.label.set_in`: set in
+- `config.label.layers`: layers
+- `config.label.change`: change
+- `config.label.applies`: applies
+- `config.set_in`: `{where}`   (`{layer}`)
+- `config.layers.item`: `{layer}` `{value}`
+- `config.change.launch`: at launch: `{command}`
+- `config.change.edit`: edit `{where}`
+- `config.change.fixed`: fixed: no command changes it
 - `config.label.choices`: choices
-- `config.label.set_by`: set by
-- `config.label.layer`: layer
-- `config.label.command`: run
-- `config.label.launch`: at launch
 - `config.label.edit`: edit
-- `config.label.fixed`: fixed
 - `config.label.note`: note
 - `config.label.holds`: takes hold
 - `config.label.run`: run
 - `config.label.file`: user file
 - `config.label.needs`: needs
 - `config.label.seen`: seen
-- `config.fixed`: no verb changes it
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
 - `config.table.title`: The suite's table shows where `{name}` keeps its keys.
@@ -190,6 +195,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.read.timed_out`: reading its keys ran past 2 s
 - `config.read.unreadable`: the answer of its keys cannot be read
 - `config.read.error`: reading its keys failed
+- `config.answer.timed_out`: its answer ran past 2 s
+- `config.answer.unreadable`: its answer cannot be read
 - `config.reason.other`: its command answers under another tool's name
 - `config.reason.unread`: its command gave no answer that reads
 - `config.remedy`: `{remedy}`
@@ -199,12 +206,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.files.silent`: These tools gave no keys, so their user files are not here: `{names}`.
 - `config.files.none`: No tool that gave keys names a user file that travels.
 - `config.was`: default `{default}`
-- `config.set_by`: `{layer}` at `{where}`
-- `config.layer`: `{layer}`: `{value}`
-- `config.layer.at`: `{layer}`: `{value}` at `{where}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{config}` TOOL lists one tool's keys.
-- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one key: where it is set, how to change it.
+- `hint.config`: next: `{command}`
+- `hint.config.tool`: next: `{command}`
 - `hint.config.card`: next: `{config}` --changed lists every key changed from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
 - `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.

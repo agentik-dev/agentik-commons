@@ -825,12 +825,13 @@ class ConfigTest(ConfigHome):
         code, out, err = self.cfg("config")
         self.assertLess(time.monotonic() - start, 3.0)
         self.assertEqual(code, 0, err)
-        rows = {l.split()[1]: l for l in out.splitlines()[1:] if l.strip()}
+        # a mark only where something is wrong, the state in a person's words (sc6-config R2)
+        rows = {[w for w in l.split() if w != "warn"][0]: l for l in out.splitlines()[1:] if l.strip()}
         self.assertEqual(sorted(rows), ["demo", "mute", "plain", "slow", "suite"])
-        self.assertRegex(rows["demo"], r"answers +3 keys +1 changed +~/\.config/demo/config\.yaml")
-        self.assertIn("timed out", rows["slow"])
-        self.assertIn("unreadable", rows["mute"])
-        self.assertIn("no command", rows["plain"])
+        self.assertRegex(rows["demo"], r"^ +demo +3 keys +1 changed +~/\.config/demo/config\.yaml")
+        self.assertRegex(rows["slow"], r"^warn +slow +did not answer")
+        self.assertRegex(rows["mute"], r"^warn +mute +did not answer")
+        self.assertRegex(rows["plain"], r"^ +plain +lists no keys yet")
         with open(self.pid) as fh:
             pid = int(fh.read())
         for _ in range(50):
@@ -843,27 +844,31 @@ class ConfigTest(ConfigHome):
             self.fail("the slow stub's pid %d still runs" % pid)
         code, out2, err2 = self.cfg("config", "demo")
         self.assertEqual(code, 0, err2)
-        keys = [[w for w in l.split() if w != "ok"][0] for l in out2.splitlines()[1:]]
+        # the changed key first, marked `*` (sc6-config R3)
+        keys = [[w for w in l.split() if w != "*"][0] for l in out2.splitlines()[1:] if l.strip()]
         self.assertEqual(keys, ["colour", "width", "mode"])
-        self.assertEqual([l.split()[0] for l in out2.splitlines()[1:] if "changed" in l.split()], ["ok"])
+        self.assertEqual([l.split()[1] for l in out2.splitlines()[1:] if l.startswith("*")], ["colour"])
         code, out3, err3 = self.cfg("config", "demo.colour")
         self.assertEqual(code, 0, err3)
-        for part in ("value", "dark", "about", "default", "light", "set by",
-                     "user at ~/.config/demo/config.yaml:2", "default: light", "user: dark",
-                     "run", "agentik-demo set colour VALUE", "takes hold", "next start"):
+        for part in ("demo.colour = dark", "(default light)", "set in", "~/.config/demo/config.yaml:2",
+                     "(user)", "layers", "default light, user dark", "change",
+                     "agentik-demo set colour VALUE", "applies", "next start"):
             self.assertIn(part, out3)
-        for text, hint in ((out + err, err), (out2 + err2, err2), (out3 + err3, err3)):
+        for text in (out + err, out2 + err2, out3 + err3):
             self.assertNotIn(ESC, text)
-            self.assertIn("next:", hint)
-        self.assertIn("config TOOL", err)
-        self.assertIn("config demo.KEY", err2)
+        self.assertTrue(err.startswith("next: ") and err.endswith(" config demo\n"), err)
+        self.assertTrue(err2.startswith("next: ") and err2.endswith(" config demo.colour\n"), err2)
+        self.assertNotIn("next:", err3)  # the card's `change` is the next step (R4)
 
     def test_a2_pty(self):
         for args in (("config",), ("config", "demo"), ("config", "demo.colour")):
             code, text = self.run_pty(*args)
             self.assertEqual(code, 0, text)
             self.assertIn(ESC + "[", text)
-            self.assertIn(ESC + "[2mnext: ", text)  # the hint, dim and with no mark (row sc4 R1)
+            if args[-1] == "demo.colour":  # a card has no `next:` (sc6-config R4)
+                self.assertNotIn("next: ", text)
+            else:
+                self.assertIn(ESC + "[2mnext: ", text)  # the hint, dim and with no mark (row sc4 R1)
             code, text = self.run_pty(*args, NO_COLOR="1")
             self.assertNotIn(ESC + "[", text)
 
@@ -896,7 +901,7 @@ class ConfigTest(ConfigHome):
         self.assertEqual(code, 0, err)
         self.assertIn("checkouts", out)
         code, out, err = self.cfg("config", "suite.checkouts")
-        self.assertIn("user at ~/.config/agentik/suite/config.yaml:2", out)
+        self.assertIn("set in   ~/.config/agentik/suite/config.yaml:2   (user)", out)  # sc6-config R4
         code, out, err = self.cfg("config", "suite.checkouts", "--json")
         self.assertEqual(json.loads(out)["setting"]["source"], {"layer": "user", "path": self.user, "line": 2})
         repo = os.path.join(self.home, "repo")
@@ -905,7 +910,7 @@ class ConfigTest(ConfigHome):
                    "other:\n  m: {k: v}\nsuite:\n  kind: hq\n")
         code, out, err = self.cfg("config", "suite.kind", cwd=os.path.join(repo))
         self.assertEqual(code, 0, err)
-        self.assertIn("repo at ~/repo/.claude/agentik/config.yaml:4", out)
+        self.assertIn("set in   ~/repo/.claude/agentik/config.yaml:4   (repo)", out)
 
     def test_a7_a_file_outside_the_subset_and_an_unknown_tool(self):
         self.write(self.user, "checkouts:\n\t- ~/work\n")
@@ -938,8 +943,9 @@ class ConfigTest(ConfigHome):
                    json.dumps({"agentik": {"installLocation": market}}))
         code, out, err = self.cfg("config")
         self.assertEqual(code, 0, err)
-        self.assertIn("from the suite's table", out)
-        self.assertIn("A made-up description.", out)
+        # sc6-config R2: it did not answer, and its file is the table's; no description
+        row = [l for l in out.splitlines() if l.split()[1:2] == [name]][0]
+        self.assertRegex(row, r"^warn +%s +did not answer +%s$" % (name, re.escape(str(table[name]["user_file"]))))
         code, out, err = self.cfg("config", name)
         self.assertEqual(code, 0, err)
         for line in table[name]["lines"]:
@@ -975,9 +981,13 @@ class ConfigTest(ConfigHome):
             "  w%d:\n    match: m\n    start: s\n    beat: 1m\n    writer: me\n" % i for i in range(6)))
         code, out, err = self.cfg("config", "suite")
         self.assertEqual(code, 0, err)
+        # sc6-config R3: in a pipe every key flat, one a line; on a terminal one line a group
         lines = out.splitlines()
-        self.assertIn("watchers", lines)
-        self.assertTrue(lines[lines.index("watchers") + 1].startswith("    "), out)
+        self.assertNotIn("watchers", [l.strip() for l in lines])
+        self.assertEqual(len([l for l in lines if l.split()[:1] and l.split()[0].startswith("watchers.")]), 24)
+        code, text = self.run_pty("config", "suite")
+        self.assertEqual(code, 0, text)
+        self.assertRegex(re.sub(r"\x1b\[[0-9;]*m", "", text), r"(?m)^  watchers +24 +w0\.match w0\.start ")
 
 
 LAG = """#!/bin/sh
@@ -1029,7 +1039,9 @@ class WallTest(ConfigHome):
         self.stub("agentik-lag", LAG % lag)
         for _ in range(2):  # the second run has lag's describe from the cache
             out = self.timed("config")
-            self.assertIn("timed out", next(l for l in out.splitlines() if " slow " in l + " "))
+            # sc6-config R2: it did not answer, and why
+            self.assertRegex(next(l for l in out.splitlines() if " slow " in l + " "),
+                             r"did not answer +its answer ran past 2 s$")
             self.groups_gone(self.pid, lag)
 
     def test_f2_twenty_slow_tools_add_nothing_past_the_wall(self):
@@ -1038,7 +1050,7 @@ class WallTest(ConfigHome):
             files.append(os.path.join(self.side, "slow%d.pid" % i))
             self.stub("agentik-slow%d" % i, '#!/bin/sh\necho $$ > "%s"\nsleep 10\n' % files[-1])
         out = self.timed("config")
-        self.assertEqual(out.count("timed out"), 20, out)
+        self.assertEqual(len(re.findall(r"did not answer +its answer ran past 2 s", out)), 20, out)  # sc6 R2
         self.groups_gone(*files)
 
     def test_f3_a_flood_is_cut_at_the_cap(self):
@@ -1046,7 +1058,8 @@ class WallTest(ConfigHome):
         self.py("agentik-spew", "import os, sys\nn, log = 0, open(sys.argv[1], 'a', buffering=1)\n"
                 "while True:\n    os.write(1, b'a' * 65536)\n    n += 65536\n    log.write('%d\\n' % n)", count)
         out = self.timed("config")
-        self.assertIn("unreadable", next(l for l in out.splitlines() if " spew " in l + " "))
+        self.assertRegex(next(l for l in out.splitlines() if " spew " in l + " "),
+                         r"did not answer +its answer cannot be read$")  # sc6-config R2
         with open(count) as fh:  # the last whole line: the bytes written when the cut came
             written = int([l for l in fh.read().split("\n")[:-1] if l][-1])
         cap = 1 << 20
@@ -1064,7 +1077,7 @@ class WallTest(ConfigHome):
                 'echo $$ > "%s"\nsleep 10\n') % (os.path.join(self.side, "pyc"), escaped[-1], groups[-1]))
         self.addCleanup(self.kill_escaped, escaped)
         out = self.timed("config")
-        self.assertEqual(out.count("timed out"), 5, out)
+        self.assertEqual(len(re.findall(r"did not answer +its answer ran past 2 s", out)), 5, out)  # sc6 R2
         self.groups_gone(*groups)
 
     def kill_escaped(self, files):
@@ -1150,7 +1163,7 @@ class AnswerTest(ConfigHome):
             out = self.clean("config", "odd.colour")
             self.assertNotIn("choices", out)
         self.odd()
-        self.assertIn("dark, light", self.clean("config", "odd.colour"))
+        self.assertRegex(self.clean("config", "odd.colour"), r"choices +dark light\n")  # sc6-config R4
 
     def test_f7_a_removed_cwd(self):
         dead = os.path.join(self.side, "dead")
@@ -1168,7 +1181,8 @@ class AnswerTest(ConfigHome):
     def test_only_describe_schema_one_counts(self):
         self.odd(schema="agentik.describe/0")
         out = self.clean("config")
-        self.assertIn("unreadable", next(l for l in out.splitlines() if " odd " in l + " "))
+        self.assertRegex(next(l for l in out.splitlines() if " odd " in l + " "),  # sc6-config R2
+                         r"did not answer +its command gave no answer that reads$")
 
 
 class LineTest(ConfigHome):
@@ -1188,7 +1202,7 @@ class LineTest(ConfigHome):
                                    ("bad", "the answer of its keys cannot be read", "the keys bad gave are unreadable")):
             code, out, err = self.cfg("config")
             row = next(l for l in out.splitlines() if " %s " % name in l + " ")
-            self.assertRegex(row, r"warn +%s +answers +%s" % (name, words))
+            self.assertRegex(row, r"warn +%s +did not answer +%s" % (name, words))  # sc6-config R2
             code, out, err = self.cfg("config", name)
             self.assertEqual(code, 0, err)
             self.assertIn("%s answers, but %s" % (name, words), out)

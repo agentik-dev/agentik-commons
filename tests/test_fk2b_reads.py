@@ -248,7 +248,7 @@ class Fk2bTest(Reads):
         h = self.made("hB")
         code, out, err = self.go(h, "config")
         row = [l for l in out.splitlines() if l.split()[1:2] == [T]][0]
-        self.assertTrue(row.startswith("  warn"), row)
+        self.assertTrue(row.startswith("warn  "), row)  # a marked table starts at the mark (sc6-config R2)
         self.assertIn("2 plugins of this name; no source is declared", row)
         for word in (T, "suite.sources." + T):
             code, out, err = self.go(h, "config", word)

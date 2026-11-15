@@ -332,12 +332,13 @@ class Review1Test(Sc4Home):
 
     def test_f7_each_hint_in_a_pipe_starts_next(self):
         self.assertEqual(self.run_cli("help", "config")[2], "")  # help <verb> has no hint (row sc5 R5)
-        for argv in (("help",), ("config",), ("config", "murmur"),
-                     ("config", "murmur.width"), ("setup", "--dry-run")):
+        for argv in (("help",), ("config",), ("config", "murmur"), ("setup", "--dry-run")):
             code, out, err = self.run_cli(*argv)
             self.assertEqual(code, 0, (argv, err))
             self.assertRegex(err, r"\Anext: [^\n]*\n\Z", argv)
             self.assertNotIn("next: next:", err, argv)
+        # a key's card has no `next:`: its `change` row is the next step (sc6-config R4)
+        self.assertEqual(self.run_cli("config", "murmur.width")[::2], (0, ""))
 
     def test_f8_line_and_direction_controls_never_reach_the_screen(self):
         marks = "  ‪‫‬‭‮⁦⁧⁨⁩"
@@ -413,7 +414,8 @@ class MergedVerbsTest(Sc4Home):
         (("setup", "--all"), "--all is not a flag of setup", "agentik help setup", "unknown_flag"),
         (("install-cli", "--all"), "--all is not a flag of install-cli", "agentik help install-cli",
          "unknown_flag"),
-        (("config", "--all"), "--all is not a flag of config", "agentik help config", "unknown_flag"),
+        # config takes --all since sc6-config R3: update's refusal stands in its place
+        (("update", "--all"), "--all is not a flag of update", "agentik help update", "unknown_flag"),
         (("--all",), "--all is not a flag", "agentik help", "unknown_flag"),
         (("status", "--chek"), "--chek is not a flag of status", "agentik status --check", "unknown_flag"),
         (("statsu", "--check"), "statsu is not a verb", "agentik status --check", "unknown_verb"),

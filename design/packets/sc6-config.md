@@ -38,6 +38,6 @@ Lines are counted as printed: a pty's output split at newlines, its escape bytes
 - The flat forms list each key once: the changed ones first, then the rest in the tool's order.
 - The step-2 table shows `path:line` for every key not at its default layer, changed or not; a key at its default shows no path.
 - The title's layers are those present or named by a key's value, lowest first, as the tool orders them.
-- At step 1 a tool whose describe fails, times out, or whose read fails is `did not answer`, its reason in the next cell where the pin gave one; a tool that answers and names no read, or ships no command, `lists no keys yet`, with its file from the suite's table.
+- At step 1 a tool whose describe fails or times out, or whose read fails, is `did not answer`; the next cell is its file from the suite's table where it has one, else why (the read's words, the reason the describe did not count, or `its answer ran past 2 s` / `cannot be read`). A tool that answers with no keys, names no read, or ships no command `lists no keys yet`, with its file. A table with a mark starts at the mark; one without at two spaces; the `!` lines of step 2 keep the pin's indent.
 - R6: no screen of this row puts a summary in a table cell (the card prints it on its own line), so `term.table` cuts nothing and is unchanged; the cut waits for the first table that holds a summary.
 - The source card (`config suite.sources.X`) keeps the pin's lines; only the key card is R4's.

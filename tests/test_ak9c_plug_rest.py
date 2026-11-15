@@ -233,9 +233,11 @@ class ScreenTest(Claims):
         place(h, "quill", body(claiming("quill", reads=("config",)), config=config_answer("quill", values=values)))
         code, out, err = self.cli(h, "config", "quill.pen.width")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(out.count("~/work/a.yaml:5"), 1, out)
-        self.assertEqual(out.count("~/.config/quill/u.yaml"), 1, out)
-        self.assertIn("  layer       default: 1\n", out)
+        # sc6-config R4: `set in` is the file of the value its layer gives; `layers` names each
+        # layer's value on one row, and no other file
+        self.assertEqual(out.count("~/work/a.yaml:5"), 0, out)
+        self.assertIn("  set in   ~/.config/quill/u.yaml   (user)\n", out)
+        self.assertIn("  layers   repo 3, user 2, default 1\n", out)
         self.assertNotIn(h.home, out)
         bare = self.blank()
         place(bare, "quill", body(claiming("quill", reads=("config",)),
@@ -245,10 +247,9 @@ class ScreenTest(Claims):
         self.assertEqual(out, PIN_8, out)
 
 
-# the pin's bytes, from 70dcd97's suite in this home
-PIN_8 = ("quill.pen.width\n  value       2\n  about       the pen's width\n  set by      user\n"
-         "  layer       user: 2\n  layer       default: 1\n  fixed       no verb changes it\n"
-         "  takes hold  at the next start of Claude Code\n")
+# the card's bytes in this home, as sc6-config R4 lays it out (70dcd97's moved with it)
+PIN_8 = ("quill.pen.width = 2\nthe pen's width\n\n  set in   user\n  layers   user 2, default 1\n"
+         "  change   fixed: no command changes it\n  applies  at the next start of Claude Code\n")
 
 
 class FixTest(Claims):
