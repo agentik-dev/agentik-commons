@@ -83,3 +83,25 @@ Review 1 (an adversary, at 59c1069) found six things; the coordinator ruled F1 t
 |---|---|
 | may touch | `plugins/suite/lib/agentik_suite/remove.py`; `plugins/suite/lib/agentik_suite/messages.md` (`## Remove`); `tests/test_ak4_remove.py`; `design/voice/checked.sha256`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-18.md` |
 | leads not built | steps 3 and 4 against a real `claude`; the 32-ancestor spare |
+
+## 8. The fix of review 2
+
+Review 2 (an adversary, at 75ebb50) found five things; the coordinator ruled G1 and G2 blocking and started one hardening round on this branch for G4, a regression of the fix (a run that ended exit 0 ended exit 1), with G1, G2, G3 and G5 in it. The suite stays 0.7.16: the stamp commit is reverted and made again, alone and last under `plugins/`. `agentik_install.py` stays unedited.
+
+- The settings files (G1). The cache walk's guard holds every catalogue tool's `user_file` (`fallback.json`), whether or not this run takes that tool off, and both `~/.claude` and `CLAUDE_CONFIG_DIR` where that is set.
+- The suite's hold (G2). Under `--all`, where step 3 or 4 is to run, `uninstall("agentik-suite", door=True, dry=True)` is read again right before the first of them; a hold there stops the run as F4's rule says (nothing yet done: R2's hold, exit 2; else exit 1, the journal's exit 1, the line to run again).
+- The bin and share folders (G4). The cache folder is also kept where it is, holds or lies under `<prefix>/bin` or `<prefix>/share`, the paths steps 2 and 5 act on. Where it is a row of step 2 or 5 (the door, say), step 6 gives it no row and the close no red check: the plan reads one fate for it, and the run ends exit 0.
+- The close's words (G5). A path that was to go and still stands is closed by its own line (`err.remove.stands`), not by "what it said would stand does not".
+- The guards' tests (G3). One test per guard term with the other terms out of reach, each red under its mutant: F2's home check (the XDG and Claude Code folders outside the home), the config home, Claude Code's folder, the "lies under" relation, and a relative `XDG_CACHE_HOME` used as given.
+
+| # | test (in `tests/test_ak4_remove.py`) | red at 75ebb50, or under |
+|---|---|---|
+| G1 | `test_h1_every_settings_file_and_both_claude_folders_are_kept` | 75ebb50 |
+| G2 | `test_h2_a_hold_on_the_suite_begun_mid_run_stops_before_step_3` | 75ebb50 |
+| G4 | `test_h4_a_cache_home_in_the_bin_folder_gives_the_door_one_fate` | 75ebb50 |
+| G5 | `test_f6_a_marketplace_folder_that_stands_is_red` (its line) | 75ebb50 |
+| G3 | `test_h3_the_home_check_alone_keeps_a_home_named_agentik`, `test_h3_the_config_home_alone`, `test_h3_claude_codes_folder_alone`, `test_h3_a_relative_cache_home_is_not_used` | their mutants |
+
+| item | value |
+|---|---|
+| may touch | `plugins/suite/lib/agentik_suite/remove.py`; `plugins/suite/lib/agentik_suite/messages.md` (`## Remove`); `tests/test_ak4_remove.py`; `tests/test_sc5_first_screen.py` (its pin, by the new id alone); `design/voice/checked.sha256`; `plugins/suite/.claude-plugin/plugin.json`; this packet; `history/sittings/2026-11-14-19.md` |
