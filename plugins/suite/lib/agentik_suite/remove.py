@@ -224,7 +224,7 @@ class Remove:
             if self.suite_listed():
                 steps.append(plan._step(4, "plugin", "todo", SUITE + "@" + plan.MARKETPLACE, "remove.suite",
                                         "claude plugin uninstall %s@%s --keep-data" % (SUITE, plan.MARKETPLACE)))
-            self.suite_rows = self.uninstall("agentik-suite", door=True)
+            self.suite_rows = self.door_fate(self.uninstall("agentik-suite", door=True))
             steps += self.rows_steps(5, self.suite_rows)
             state = os.path.dirname(apply.journal_path(self.env, self.home))
             self.guard += [settings.user_path(self.env), state]
@@ -243,6 +243,26 @@ class Remove:
                 held = fate[len("kept: held, "):] or fate
                 break
         return steps, held
+
+    def door_fate(self, rows):
+        """The suite's dry rows, the door's `kept: <entry> stands` read `would remove` where every
+        entry that keeps it has a `would remove` row in this plan: step 2 takes them first (F3)."""
+        going = {os.path.basename(p) for p, _, fate in [r for e in self.tools for r in e["rows"]] + list(rows)
+                 if fate == "would remove" and os.path.dirname(p) == self.bindir}
+        out = []
+        for path, what, fate in rows:
+            if what == "door" and fate.startswith("kept: ") and fate.endswith(" stands") \
+                    and not fate.startswith("kept: held"):
+                try:
+                    entries = sorted(os.listdir(self.bindir))
+                except OSError:
+                    entries = None
+                keeps = [n for n in entries or () if n not in (agentik_install.DOOR, "agentik-" + SUITE) and (
+                    agentik_install._TOOL.match(n) or agentik_install._launcher_form(os.path.join(self.bindir, n), n))]
+                if keeps and all(n in going for n in keeps):
+                    fate = "would remove"
+            out.append((path, what, fate))
+        return out
 
     def guards(self):
         return guarded(self.env, self.home, self.guard)
