@@ -827,7 +827,7 @@ class ConfigTest(ConfigHome):
         self.assertEqual(code, 0, err)
         rows = {l.split()[1]: l for l in out.splitlines()[1:] if l.strip()}
         self.assertEqual(sorted(rows), ["demo", "mute", "plain", "slow", "suite"])
-        self.assertRegex(rows["demo"], r"answers +3 settings +1 changed +~/\.config/demo/config\.yaml")
+        self.assertRegex(rows["demo"], r"answers +3 keys +1 changed +~/\.config/demo/config\.yaml")
         self.assertIn("timed out", rows["slow"])
         self.assertIn("unreadable", rows["mute"])
         self.assertIn("no command", rows["plain"])
@@ -1184,8 +1184,8 @@ class LineTest(ConfigHome):
         self.stub("agentik-lag", LAG % os.path.join(self.side, "lag.pid"))
         self.stub("agentik-bad", (LAG % os.path.join(self.side, "bad.pid")).replace(
             "sleep 10", "echo nope").replace('"tool": "lag"', '"tool": "bad"'))
-        for name, words in (("lag", "reading its settings ran past 2 s"),
-                            ("bad", "its settings answer cannot be read")):
+        for name, words, cause in (("lag", "reading its keys ran past 2 s", "lag ran past 2 s reading its keys"),
+                                   ("bad", "the answer of its keys cannot be read", "the keys bad gave are unreadable")):
             code, out, err = self.cfg("config")
             row = next(l for l in out.splitlines() if " %s " % name in l + " ")
             self.assertRegex(row, r"warn +%s +answers +%s" % (name, words))
@@ -1194,8 +1194,7 @@ class LineTest(ConfigHome):
             self.assertIn("%s answers, but %s" % (name, words), out)
             code, out, err = self.cfg("config", name + ".colour")
             self.assertEqual(code, 2)
-            keys = words.replace("its settings answer", "the answer of its keys").replace("settings", "keys")
-            self.assertIn("%s answers, but %s" % (name, keys), err)  # a cause says key (row sc4 R8)
+            self.assertIn("%s.colour cannot be read: %s" % (name, cause), err)  # a cause says key (row sc4 R8)
             for text in (out, err):
                 self.assertNotIn("describe", text)
 
@@ -1203,17 +1202,17 @@ class LineTest(ConfigHome):
         self.stub("agentik-mute", "#!/bin/sh\nexit 2\n")
         code, out, err = self.cfg("config", "--changed")
         self.assertEqual(code, 0, err)
-        self.assertIn("gave no settings, so their changes are not here: mute", out)
+        self.assertIn("gave no keys, so their changes are not here: mute", out)
         code, out, err = self.cfg("config", "--user-files")
         self.assertEqual((code, out), (0, os.path.join(self.home, ".config", "demo", "config.yaml") + "\n"))
-        self.assertIn("gave no settings, so their user files are not here: mute", err)
+        self.assertIn("gave no keys, so their user files are not here: mute", err)
         self.stub("agentik-demo", "#!/bin/sh\nexit 2\n")
         code, out, err = self.cfg("config", "--changed")
-        self.assertIn("Every setting that was read holds its default.", out)
+        self.assertIn("Every key that was read holds its default.", out)
         self.assertIn("not here: demo, mute", out)
         code, out, err = self.cfg("config", "--user-files")
         self.assertEqual((code, out), (0, ""))
-        self.assertIn("No tool that gave settings names a user file that travels.", err)
+        self.assertIn("No tool that gave keys names a user file that travels.", err)
         self.assertNotIn("next: no layer", err)
 
     def test_f11_a_known_key_with_a_value_outside_its_choices(self):

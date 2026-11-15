@@ -121,7 +121,7 @@ class RunTest(Claims):
             self.assertEqual(len(lines), 1 if said else 0, out)  # a bare file: --json alone
             self.assertNotIn("claims", err)
             for l in lines:
-                self.assertIn("quill is not from the agentik marketplace", l)
+                self.assertIn("quill is not agentik's", l)
             code, out, err = self.cli(h, "config", "quill", "--json")
             self.assertEqual(json.loads(out)["claims"],
                              [{"verb": W, "counts": False, "reason": "market"}])
@@ -159,7 +159,7 @@ class RunTest(Claims):
         said = {w: [l for l in out.splitlines() if "claims %s;" % w in l] for w in ("doctor", "completion", "rows")}
         self.assertIn("the suite keeps that word", said["doctor"][0])
         self.assertIn("the suite keeps that word", said["completion"][0])
-        self.assertIn("for another tool", said["rows"][0])
+        self.assertIn("another tool has that word", said["rows"][0])
         d, keeper = self.blank(), tools.kept(None, ("rows",))["rows"]  # kept.json's tool
         self.assertTrue(keeper)
         place(d, keeper, body(claiming(keeper, "rows")))

@@ -445,7 +445,7 @@ class Remove(Base):
         self.assertTrue(self.red(out, "~/.claude/plugins/marketplaces/agentik"), out)
         self.assertNotIn("~/.claude/plugins/marketplaces/agentik  removed", out)
         self.assertNotIn(folder, h.journal()["wrote"])
-        self.assertIn("still stands: ~/.claude/plugins/marketplaces/agentik", err.replace("\n", " "))  # G5
+        self.assertIn("~/.claude/plugins/marketplaces/agentik still stands", err.replace("\n", " "))  # G5
         self.assertNotIn("would stand does not", err)
 
     # ---- the gaps review 1 named: each red under its mutant (packet §7) ----------------------------

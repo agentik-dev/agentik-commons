@@ -39,15 +39,15 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
 - `verb.version`: Print the suite's version.
-- `verb.setup`: Set up the suite: run each step's line in order, or show the plan with --dry-run.
+- `verb.setup`: Set up the suite: run each step in order, or show the plan with --dry-run.
 - `verb.update`: Bring every installed tool and its command current.
-- `verb.config`: Show each tool's settings, then one tool's, then one setting and how to change it.
+- `verb.config`: Show each tool's keys, then one tool's, then one key and how to change it.
 - `verb.describe`: Print the suite's own answer, in JSON, for other tools to read.
 - `verb.status`: Show the watchers, sessions, gate, backlog and runs on one screen.
-- `verb.install_cli`: Place the suite's command and the agentik door on the terminal's PATH.
-- `verb.doctor`: Check this machine in one read: the door, the settings file, the setup plan and each tool's own doctor.
-- `verb.inbox`: List what waits on you in each checkout: open questions, and what needs your hand.
-- `verb.issue`: Draft a report of a problem with the suite, scrubbed of what is private. It is sent only when you type send.
+- `verb.install_cli`: Place the suite's command and the agentik command on the terminal's PATH.
+- `verb.doctor`: Check this machine: the agentik command, the user file and each tool.
+- `verb.inbox`: List what waits on you in each checkout: questions, and what needs a hand.
+- `verb.issue`: Draft a scrubbed report of a problem; it is sent only when you type send.
 - `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
@@ -59,7 +59,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
 - `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
-- `usage.issue`: usage: `{issue}` [new [TOOL] | show | strike WORD... | drop SECTION... | edit | reword FILE | send | discard] [flags]
+- `usage.issue`: usage: `{issue}` [new|show|strike|drop|edit|reword|send|discard] [flags]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
@@ -67,13 +67,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
 - `flag.yes`: Write without asking first.
-- `flag.changed`: List every setting that differs from its default.
+- `flag.changed`: List every key changed from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.all`: Print every check, the ok ones too.
-- `flag.check`: Print one line for each thing that needs a hand, and exit 1 when there is one.
+- `flag.check`: Print a line for each thing that needs a hand, and exit 1 when one does.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
-- `flag.render`: Render the Happened and Expected lines by the narrator's script. A render that adds a word is dropped.
+- `flag.render`: Render Happened and Expected by the narrator; added words drop the render.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 - `flag.kind`: What to write. The one kind is hq.
 
@@ -84,13 +84,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 ## Install
 
 - `install.done`: Placed `{launcher}` at version `{version}`, running the code frozen at `{tree}`.
-- `install.dry`: Would place `{launcher}` at version `{version}`. Nothing is written.
-- `install.door.keep`: The door `{door}` is at this version or newer, so it stays as it is.
-- `install.door.link`: The door `{door}` is a link, so it stays as it is.
-- `install.door.unversioned`: The door `{door}` holds no version to compare, so it stays as it is.
+- `install.dry`: Plan: place `{launcher}` at version `{version}`. Nothing is written.
+- `install.door.keep`: The agentik command `{door}` is current or newer, so it stays as it is.
+- `install.door.link`: The agentik command `{door}` is a link, so it stays as it is.
+- `install.door.unversioned`: The agentik command `{door}` holds no version to compare, so it stays.
 - `install.pruned`: `{line}`
 - `hint.install.path`: next: add `{line}` to your shell profile, then open a new terminal.
-- `err.install.prefix`: --prefix needs a folder after it, and got none. Run `{install}` --prefix <folder>, or leave it out for ~/.local.
+- `err.install.prefix`: --prefix needs a folder: `{install}` --prefix <folder>, or leave it out.
 - `err.install`: install-cli stopped: `{why}`. Mend that, then run `{install}` again.
 
 ## Errors
@@ -118,9 +118,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.config.nokey`: a key goes after the dot
 - `err.config.silent`: `{name}`.`{key}` cannot be read: `{name}` gave no keys (`{state}`)
 - `err.config.silent.command`: `{name}`.`{key}` cannot be read: `{name}` ships no command
-- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` answers, but names no way to read its keys
-- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` answers, but reading its keys ran past 2 s
-- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: `{name}` answers, but the answer of its keys cannot be read
+- `err.config.silent.noread`: `{name}`.`{key}` cannot be read: `{name}` names no way to read its keys
+- `err.config.read.timed_out`: `{name}`.`{key}` cannot be read: `{name}` ran past 2 s reading its keys
+- `err.config.read.unreadable`: `{name}`.`{key}` cannot be read: the keys `{name}` gave are unreadable
 - `err.config.read.error`: `{name}`.`{key}` cannot be read: `{message}`
 - `err.config.file`: `{fault}`
 - `err.status.now`: `{value}` is not an ISO 8601 time, such as 2026-11-13T12:00:00Z
@@ -132,9 +132,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Config
 
-- `config.title`: Tools in the suite: `{count}`, each with its state and its settings.
-- `config.count`: `{n}` settings
-- `config.count.one`: 1 setting
+- `config.title`: Tools in the suite: `{count}`, each with its state and its keys.
+- `config.count`: `{n}` keys
+- `config.count.one`: 1 key
 - `config.differ`: `{n}` changed
 - `config.from_table`: from the suite's table
 - `config.from`: from `{source}`
@@ -155,8 +155,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.warn.unreadable`: `{name}` skipped this file: it could not be read
 - `config.warn.ignored`: `{name}` does not take `{key}` from this file
 - `config.claim.suite`: `{name}` claims `{verb}`; `{run}` does not run it: the suite keeps that word
-- `config.claim.kept`: `{name}` claims `{verb}`; `{run}` does not run it: the suite keeps that word for another tool
-- `config.claim.market`: `{name}` claims `{verb}`; `{run}` does not run it: `{name}` is not from the agentik marketplace
+- `config.claim.kept`: `{name}` claims `{verb}`; `{run}` does not run it: another tool has that word
+- `config.claim.market`: `{name}` claims `{verb}`, which `{run}` does not run: `{name}` is not agentik's
 - `config.card.title`: `{name}`.`{key}`
 - `config.label.value`: value
 - `config.label.summary`: about
@@ -177,39 +177,39 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.fixed`: no verb changes it
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
-- `config.table.title`: The suite's table shows where `{name}` keeps its settings.
+- `config.table.title`: The suite's table shows where `{name}` keeps its keys.
 - `config.table.description`: `{description}`
-- `config.table.nocmd`: no command; the user file below holds the settings
-- `config.state.timed_out`: `{name}` gives no settings: its describe ran past 2 s, so it was stopped.
-- `config.state.unreadable`: `{name}` gives no settings: its describe answer cannot be read.
-- `config.state.no_command`: `{name}` is installed but ships no command, so it gives no settings.
-- `config.state.noread`: `{name}` answers, but names no way to read its settings.
-- `config.state.read_timed_out`: `{name}` answers, but reading its settings ran past 2 s, so it was stopped.
-- `config.state.read_unreadable`: `{name}` answers, but its settings answer cannot be read.
-- `config.state.read_error`: `{name}` answers, but its settings read failed: `{message}`
-- `config.read.timed_out`: reading its settings ran past 2 s
-- `config.read.unreadable`: its settings answer cannot be read
-- `config.read.error`: its settings read failed
+- `config.table.nocmd`: no command; the user file below holds the keys
+- `config.state.timed_out`: `{name}` gives no keys: its answer ran past 2 s, so it was stopped.
+- `config.state.unreadable`: `{name}` gives no keys: its answer cannot be read.
+- `config.state.no_command`: `{name}` is installed but ships no command, so it gives no keys.
+- `config.state.noread`: `{name}` answers, but names no way to read its keys.
+- `config.state.read_timed_out`: `{name}` answers, but reading its keys ran past 2 s, so it was stopped.
+- `config.state.read_unreadable`: `{name}` answers, but the answer of its keys cannot be read.
+- `config.state.read_error`: `{name}` answers, but reading its keys failed: `{message}`
+- `config.read.timed_out`: reading its keys ran past 2 s
+- `config.read.unreadable`: the answer of its keys cannot be read
+- `config.read.error`: reading its keys failed
 - `config.reason.other`: its command answers under another tool's name
 - `config.reason.unread`: its command gave no answer that reads
 - `config.remedy`: `{remedy}`
-- `config.changed.title`: Settings that differ from their defaults: `{count}`.
-- `config.changed.none`: Every setting that was read holds its default.
-- `config.changed.silent`: These tools gave no settings, so their changes are not here: `{names}`.
-- `config.files.silent`: These tools gave no settings, so their user files are not here: `{names}`.
-- `config.files.none`: No tool that gave settings names a user file that travels.
+- `config.changed.title`: Keys changed from their defaults: `{count}`.
+- `config.changed.none`: Every key that was read holds its default.
+- `config.changed.silent`: These tools gave no keys, so their changes are not here: `{names}`.
+- `config.files.silent`: These tools gave no keys, so their user files are not here: `{names}`.
+- `config.files.none`: No tool that gave keys names a user file that travels.
 - `config.was`: default `{default}`
 - `config.set_by`: `{layer}` at `{where}`
 - `config.layer`: `{layer}`: `{value}`
 - `config.layer.at`: `{layer}`: `{value}` at `{where}`
 - `config.file`: `{path}`
-- `hint.config`: next: `{config}` TOOL lists one tool's settings.
-- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one setting, where it is set and how to change it.
-- `hint.config.card`: next: `{config}` --changed lists every setting that differs from its default.
+- `hint.config`: next: `{config}` TOOL lists one tool's keys.
+- `hint.config.tool`: next: `{config}` `{name}`.KEY shows one key: where it is set, how to change it.
+- `hint.config.card`: next: `{config}` --changed lists every key changed from its default.
 - `hint.config.back`: next: `{config}` lists every tool and its state.
 - `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 - `hint.config.remedy`: next: `{remedy}`
-- `hint.config.again`: next: `{command}` reads its settings again, once the line above has run.
+- `hint.config.again`: next: `{command}` reads its keys again, once the line above has run.
 
 ## The suite's settings
 
@@ -324,7 +324,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.doctor`: the doctor reads every tool once the steps above have run
 - `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
 - `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
-- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so this command leaves it as it is.
+- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so update leaves it.
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.tool.gone`: `{name}` `{version}` is no longer installed
@@ -336,73 +336,73 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.update.held`: next: `{command}` once it has ended
 - `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
 - `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
-- `err.update.yes`: Update ran nothing, since it cannot ask you here. Run `{update}` --yes to run the lines above.
-- `err.update.declined`: Update ran nothing, since the answer was not yes. Run `{update}` again when you are ready.
-- `err.update.blocked`: Update ran nothing, since step 1 needs `{missing}`. Install it, then run `{update}` again.
-- `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{update}` again.
-- `err.update.step.silent`: Update stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{update}` again.
-- `err.update.wall`: Update stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{update}` again to retry it.
-- `err.update.wall.silent`: Update stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{update}` again to retry it.
-- `err.update.start`: Update stopped: `{command}` could not start, since `{last}`. Mend that, then run `{update}` again.
-- `err.update.todo`: Update stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{update}` --dry-run to see why.
-- `err.update.journal`: Update could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
-- `err.update.interrupted.idle`: Update was interrupted between steps, with no command running. Run `{update}` again to go on.
-- `err.update.left`: Update left `{subject}` undone at step 3, as its row above says. Run `{command}`, then run `{update}` again.
-- `err.update.left.none`: Update left `{subject}` undone at step 3, as its row above says. Mend that, then run `{update}` again.
-- `hint.update.suite.pull`: to move it: pull that checkout, then run install-cli of its plugins/suite/bin/agentik-suite
+- `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
+- `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
+- `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
+- `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`; run `{update}` again
+- `err.update.step.silent`: Update stopped: `{command}` exited `{exit}`, no output; run `{update}` again
+- `err.update.wall`: `{command}` ran past its `{wall}` s limit, last line `{last}`; run `{update}` again
+- `err.update.wall.silent`: `{command}` ran past its `{wall}` s limit, no output; run `{update}` again
+- `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
+- `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
+- `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
+- `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
+- `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
+- `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
+- `hint.update.suite.pull`: to move it: pull that checkout, run install-cli of its bin/agentik-suite
 
 ## Remove
 
-- `verb.remove`: Take tools off this machine: each plugin and its command, or with --all the suite too. Config and state are kept.
+- `verb.remove`: Take tools off this machine, or with --all the suite too; config is kept.
 - `usage.remove`: usage: `{remove}` <plugin>... | --all [flags]
-- `flag.remove_all`: Take off every tool setup placed, then the marketplace, the suite, the door and the agentik cache.
+- `flag.remove_all`: Take off every tool, the marketplace, the suite and the agentik command.
 - `remove.plan`: Remove plan for `{names}`.
 - `remove.plan.dry`: Remove plan for `{names}`. Nothing is written.
 - `remove.plugin`: Claude Code uninstalls it and keeps its data and cache folders
 - `remove.row`: `{what}`: `{fate}`
 - `remove.market`: the marketplace setup added; Claude Code forgets it
-- `remove.kept.market`: an agentik marketplace from `{source}`, not the one setup adds, so remove keeps it
+- `remove.kept.market`: an agentik marketplace from `{source}`, not setup's, so remove keeps it
 - `remove.suite`: the suite's own plugin; Claude Code uninstalls it and keeps its data
 - `remove.cache`: the agentik cache folder; remove deletes it
-- `remove.cache.home`: kept: the cache home is the home folder or the root, so remove deletes nothing there
+- `remove.cache.home`: kept: the cache home is the home folder or root, so nothing there is deleted
 - `remove.cache.link`: kept: it is a link or no folder, so remove follows it nowhere
 - `remove.cache.place`: kept: it does not lie at its own place in the cache home
-- `remove.cache.guard`: kept: its walk would reach `{reach}`, which remove keeps, so remove deletes nothing there
-- `remove.cache.acted`: kept: its walk would reach `{reach}`, which steps 2 and 5 act on, so it deletes nothing there
+- `remove.cache.guard`: kept: it reaches `{reach}`, which remove keeps, so nothing there is deleted
+- `remove.cache.acted`: kept: it reaches `{reach}`, which steps 2 and 5 act on, so nothing goes
 - `remove.market.stands`: stands: `claude plugin marketplace remove` exited 0 and left it
 - `remove.gone`: gone: remove was to keep it, and it no longer stands
-- `remove.keep.config`: kept: your settings
+- `remove.keep.config`: kept: your config
 - `remove.keep.state`: kept: its state
 - `remove.keep.data`: kept: Claude Code's data folder for it
 - `remove.keep.cache`: kept: Claude Code's cache of its plugin
 - `remove.kept.folder`: kept: `{name}` comes from a folder, so remove leaves it and its command
-- `remove.kept.plugin`: kept: `{name}` is installed as `{id}`, not by setup, so remove leaves it and its command
-- `remove.kept.scope`: kept: `{name}` is installed at the `{scope}` scope, not by setup, so remove leaves it and its command
-- `remove.kept.undecided`: kept: `{name}` has more than one entry in Claude Code, so remove leaves it and its command
+- `remove.kept.plugin`: kept: `{name}` is installed as `{id}`, not by setup, so remove leaves it
+- `remove.kept.scope`: kept: `{name}` is installed at the `{scope}` scope, not by setup, so it stays
+- `remove.kept.undecided`: kept: `{name}` has more than one entry in Claude Code, so it stays
 - `remove.kept.suite`: the suite goes with `{remove}` --all, which takes every tool off first
 - `remove.nothing`: There is nothing to take off, so nothing was written.
 - `remove.close`: What remove took off, and what it kept:
 - `remove.ran`: ran: `{command}`
 - `remove.removed`: removed
-- `err.remove.usage`: `{remove}` takes the plugins to take off, or --all for every one, and never both
+- `err.remove.usage`: `{remove}` takes plugin names or --all, and never both
 - `err.remove.held`: held remove: `{what}`
-- `err.remove.held.run`: Remove stopped: `{what}`, so `{name}`'s command and trees stand. Run `{command}` once that process has ended.
+- `err.remove.held.run`: Remove stopped: `{what}`, so `{name}` stands; run `{command}` once it ends
 - `hint.remove.held`: next: `{command}` once it has ended
-- `err.remove.yes`: Remove ran nothing, since it cannot ask you here. Run `{remove}` --yes to run the lines above.
-- `err.remove.declined`: Remove ran nothing, since the answer was not yes. Run `{remove}` again when you are ready.
-- `err.remove.gated`: Remove ran nothing: your gate list names `{path}`, which `claude plugin` writes. Run `{remove}` from a terminal to approve it.
-- `err.remove.gate_unread`: Remove ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{remove}` from a terminal.
-- `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{remove}` again.
-- `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{remove}` again.
-- `err.remove.wall`: Remove stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{remove}` again to retry it.
-- `err.remove.wall.silent`: Remove stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{remove}` again to retry it.
-- `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`. Mend that, then run `{remove}` again.
-- `err.remove.interrupted.idle`: Remove was interrupted between steps, with no command running. Run `{remove}` again to go on.
-- `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`). Mend that, then run `{remove}` again.
-- `err.remove.red`: Remove finished, but what it said would stand does not: `{paths}`. Look at what else wrote there.
-- `err.remove.stands`: Remove finished, but what it said would go still stands: `{paths}`. It is yours to delete.
-- `err.remove.cache.partly`: Remove stopped: `{path}` was partly removed (`{why}`). The suite is off now, so that folder is yours to delete.
-- `err.remove.journal`: Remove could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
+- `err.remove.yes`: Remove ran nothing, since it cannot ask here; run `{remove}` --yes
+- `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
+- `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, which `claude plugin` writes
+- `err.remove.gate_unread`: Remove ran nothing: `{path}` is unreadable (`{why}`); run `{remove}` in a terminal
+- `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`; run `{remove}` again
+- `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}`, no output; run `{remove}` again
+- `err.remove.wall`: `{command}` ran past its `{wall}` s limit, last line `{last}`; run `{remove}` again
+- `err.remove.wall.silent`: `{command}` ran past its `{wall}` s limit, no output; run `{remove}` again
+- `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`; run `{remove}` again
+- `err.remove.interrupted.idle`: Remove was interrupted between steps; run `{remove}` again to go on
+- `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`); run `{remove}` again
+- `err.remove.red`: Remove finished, but `{paths}` is not as it said; see what else wrote there
+- `err.remove.stands`: Remove finished, but `{paths}` still stands; it is yours to delete
+- `err.remove.cache.partly`: `{path}` was partly removed (`{why}`); that folder is yours to delete
+- `err.remove.journal`: Remove could not log to `{path}`, since `{why}`; the report above holds
 
 ## Status
 
@@ -412,7 +412,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `status.hung`: `{name}`: running but silent; start it: `{start}`
 - `status.unknown`: `{name}`: not checked: ps gave no listing
 - `status.unknown.listing`: `{name}`: not checked: `{path}` gave a listing that lacks this process
-- `hint.status.unchecked`: `{name}` is not checked, since it needs both match and start in `{path}`. next: add them, then run `{status}` --check.
+- `hint.status.unchecked`: `{name}` is not checked: add match and start in `{path}`, then `{status}` --check
 - `status.label.watchers`: watchers
 - `status.label.sessions`: sessions
 - `status.label.gate`: gate
@@ -637,7 +637,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.read.where`: `{read}` in `{name}`
 - `inbox.read.no_tool`: `{read}`: no command on PATH gives that read
 - `inbox.read.no_answer`: `{read}`: `{command}` exited `{exit}`
-- `inbox.read.unknown`: `{read}`: `{command}` answers in a shape this version does not know
+- `inbox.read.unknown`: `{read}`: `{command}` answers in a shape the suite does not know
 - `inbox.read.timed_out`: `{read}`: `{command}` gave no answer in `{wall}` s
 - `inbox.check.question`: `{name}`: question `{n}`: `{title}`; recommended: `{label}`
 - `inbox.check.hand`: `{name}`: hand: `{what}`; run: `{command}`
@@ -649,7 +649,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.open.line`: `{text}`
 - `inbox.open.answer`: To answer: type after "Your answer:" in the block at `{file}`:`{line}`.
 - `inbox.open.sitting`: Or start claude in `{name}` and ask for its open questions.
-- `inbox.note.entry`: `{entry}` in `{path}` is not read: a checkout is an absolute path, or one under ~/.
+- `inbox.note.entry`: `{entry}` in `{path}` is not read: a checkout is an absolute path or under ~/
 - `hint.inbox.open`: next: to read question `{n}` as it is written, run `{command}`
 - `hint.inbox.doctor`: next: to see which command is missing or behind its plugin, run `{doctor}`
 - `hint.inbox.checkouts`: next: to read every checkout at once, list them under checkouts: in `{path}`.
@@ -663,26 +663,26 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `init.title.made`: `{dir}` is now an hq: `{count}` files, in a new git repository.
 - `init.title.kept`: `{dir}` is now an hq: `{count}` files, in the git repository already there.
-- `init.title.dry`: `{dir}` would be an hq: `{count}` files. Nothing is written.
+- `init.title.dry`: Plan: an hq in `{dir}`, `{count}` files. Nothing is written.
 - `init.said`: `{text}`
 - `hint.init`: next: `{command}`, then read README.md there for the steps after it.
 - `hint.init.dry`: next: run the same command without --dry-run to write the files.
-- `err.init.kind.none`: init needs --kind, and none was given. It wrote nothing. The kinds are: `{kinds}`. Run `{tool}` init --kind `{first}` <dir>.
-- `err.init.kind`: `{kind}` is not a kind, so init wrote nothing. The kinds are: `{kinds}`. Run `{tool}` init --kind `{first}` <dir>.
-- `err.init.dir`: init needs the folder to write in, and got none. It wrote nothing. Run `{tool}` init --kind `{kind}` <dir>.
-- `err.init.extra`: init writes one folder, and got a second, `{word}`. It wrote nothing. Run `{tool}` init once for each.
-- `err.init.git`: init needs git, and git is not on PATH. It wrote nothing. Install git, then run `{tool}` init again.
-- `err.init.parent`: `{parent}` is not a folder, so init cannot make `{dir}` in it. It wrote nothing. Make `{parent}` first.
-- `err.init.notdir`: `{dir}` is a file, and init writes a folder. It wrote nothing. Give it a folder that is empty or not there yet.
-- `err.init.inside`: `{dir}` is inside the git repository at `{top}`. A new `{kind}` is a repository of its own, so init wrote nothing. Give it a folder outside `{top}`.
-- `err.init.already`: `{dir}` is already set up as kind `{kind}`, so init wrote nothing. Run make check there to see that it holds.
-- `err.init.full`: `{dir}` is not empty: it holds `{found}`. init writes into an empty folder only, so it wrote nothing. Give it a folder that is empty or not there yet.
-- `err.init.write`: init could not write `{path}`: `{why}`. `{dir}` is as it was. Fix that, then run init again.
-- `err.init.gitfail`: git init failed in `{dir}`, so init wrote nothing. What git said is below; fix that, then run init again.
+- `err.init.kind.none`: init needs --kind (`{kinds}`); try `{tool}` init --kind `{first}` <dir>
+- `err.init.kind`: `{kind}` is not one of `{kinds}`; try `{tool}` init --kind `{first}` <dir>
+- `err.init.dir`: init needs a folder: `{tool}` init --kind `{kind}` <dir>
+- `err.init.extra`: init writes one folder, not a second, `{word}`; run `{tool}` init for each
+- `err.init.git`: init needs git, which is not on PATH; install it, then run `{tool}` init
+- `err.init.parent`: `{parent}` is not a folder, so init cannot make `{dir}`; make `{parent}` first
+- `err.init.notdir`: `{dir}` is a file; init needs an empty folder or one not there yet
+- `err.init.inside`: `{dir}` is inside `{top}`; a `{kind}` needs its own folder, outside `{top}`
+- `err.init.already`: `{dir}` is already a `{kind}`, so init wrote nothing; run make check there
+- `err.init.full`: `{dir}` is not empty: it holds `{found}`; init needs an empty folder
+- `err.init.write`: init could not write `{path}` (`{why}`); `{dir}` is as it was
+- `err.init.gitfail`: git init failed in `{dir}`, so init wrote nothing; what git said is below
 
 ## Issue
 
-- `issue.screen.head`: The issue as it would be filed, byte for byte; its first line is the title.
+- `issue.screen.head`: The issue as it is filed, byte for byte; its first line is the title.
 - `issue.screen.text`: `{text}`
 - `issue.screen.end`: The issue ends above this line.
 - `issue.screen.repo`: It goes to github.com/`{repo}` as a new issue.
@@ -693,28 +693,28 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.screen.within`: Press Enter for the rest of this line of the issue.
 - `issue.send.ask`: Type send and press Enter to file it; any other answer keeps the draft.
 - `issue.send.kept`: Nothing was filed, and the draft is kept as it was.
-- `issue.send.web.token`: `{name}` is set and overrides the account gh stores, so the issue goes by the browser.
+- `issue.send.web.token`: `{name}` is set and overrides gh's account, so the issue goes by the browser
 - `issue.send.web.nogh`: gh is not on PATH, so the issue goes by the browser.
 - `issue.send.web.noaccount`: gh holds no github.com account, so the issue goes by the browser.
-- `err.issue.send.tty`: send needs a terminal to type in, and this process has none; send from your own terminal
+- `err.issue.send.tty`: send needs a terminal to type in; this process has none
 - `err.issue.send.inside`: send files nothing from inside Claude Code; send from your own terminal
-- `err.issue.send.parent`: send files nothing from a process that Claude Code started; send from your own terminal
+- `err.issue.send.parent`: send files nothing from a process Claude Code started; use your terminal
 - `err.issue.send.ps`: send cannot read the process list, so it cannot tell what started it
-- `err.issue.send.as`: gh holds `{count}` github.com accounts, so send needs --as LOGIN; gh auth switch --user LOGIN makes that login active
-- `err.issue.send.inactive`: `{login}` is not the active github.com account in gh; gh auth switch --user `{login}` makes it active
+- `err.issue.send.as`: gh holds `{count}` accounts: pass --as LOGIN, or gh auth switch --user LOGIN
+- `err.issue.send.inactive`: `{login}` is not gh's active account; run gh auth switch --user `{login}`
 - `err.issue.send.line`: line `{line}` of the draft fails the `{kind}` check, so nothing was sent
 - `err.issue.send.changed`: the approved issue changed after it was shown, so nothing was sent
-- `err.issue.send.unapproved`: this issue has no approval left, since an approval is used once, so nothing was sent
-- `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh
-- `err.issue.send.switched`: gh's active account is not `{login}`, so nothing was sent; gh auth switch --user `{login}` makes it active
+- `err.issue.send.unapproved`: this issue has no approval left, since each is used once; nothing was sent
+- `err.issue.send.token`: `{name}` is set and overrides gh's account, so nothing was sent through gh
+- `err.issue.send.switched`: not sent: gh's account is not `{login}`; gh auth switch --user `{login}`
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
-- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown
-- `err.issue.send.flood`: more input came right after the word, so nothing was sent; send again and type it once
-- `err.issue.send.early`: input came before the question showed, so nothing was sent; send again and answer once it shows
-- `err.issue.send.small`: the terminal is too small to show a line of the issue beside its question, so nothing was sent
-- `err.issue.send.nogh`: gh could not start, so nothing was filed; install gh, or file the issue by the browser
-- `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send
-- `err.issue.send.open`: an open issue already holds this failure: `{url}`; add to it there, or pass --not-a-duplicate to file another
+- `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped; check whether the issue was filed
+- `err.issue.send.flood`: input followed the word at once, so nothing was sent; send again
+- `err.issue.send.early`: input came before the question showed, so nothing was sent; send again
+- `err.issue.send.small`: the terminal is too small for the issue and its question; nothing was sent
+- `err.issue.send.nogh`: gh could not start, so nothing was filed; install gh or use the browser
+- `err.issue.send.yes`: send takes no --yes: you read the issue on your terminal and type send
+- `err.issue.send.open`: an open issue holds this failure: `{url}`; add there, or --not-a-duplicate
 - `err.issue.sent`: this draft was already filed: `{url}`
 - `err.issue.sent.unkept`: the issue was filed, but the draft `{id}` could not record that
 - `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
@@ -728,8 +728,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.list.unsent`: `{id}` unsent, for `{tool}`: `{title}`
 - `issue.list.sent`: `{id}` sent: `{url}`
 - `issue.check.waits`: `{id}` is a draft for `{tool}` that waits to be sent.
-- `hint.issue.read`: next: read the newest draft with `{show}`, then file it from your own terminal with `{send}`
-- `hint.issue.which`: `{count}` drafts wait, so this acts on the newest, `{id}`. Pass --draft ID for another.
+- `hint.issue.read`: next: read the draft with `{show}`, then `{send}` it from your terminal
+- `hint.issue.which`: `{count}` drafts wait, so this acts on the newest, `{id}`. --draft ID picks one
 - `issue.ask.tool`: Which tool failed? One of `{tools}`, or Enter for the suite:
 - `issue.ask.ran`: The command that failed, or Enter for none:
 - `issue.ask.expected`: What you expected it to do, or Enter to leave it out:
@@ -737,14 +737,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.new.mark`: line `{line}` holds `{marks}`
 - `issue.new.replaced`: replaced `{n}` `{kind}` on line `{lines}`
 - `issue.new.unsure`: unsure `{n}`
-- `issue.new.weak`: This machine's `{kinds}` is also a common word, so the scan leaves it. Strike it where it names you.
+- `issue.new.weak`: `{kinds}` is a common word, so the scan leaves it; strike it if it names you
 - `issue.new.went`: To stay under the ceiling the draft left out: `{went}`.
 - `issue.new.size`: size `{size}` of `{ceiling}` bytes
-- `issue.new.over`: The draft is `{size}` bytes, `{over}` over the ceiling, and send refuses it until `{drop}` SECTION or `{strike}` WORD takes it under.
+- `issue.new.over`: The draft is `{size}` bytes, `{over}` over: `{drop}` SECTION or `{strike}` WORD
 - `issue.new.repo`: to `{repo}`
-- `issue.new.warning`: The scan knows shapes and the names on this machine's lists. It cannot know that a project's name, a customer's name or a branch's name is private. Read every line. What you file is public at once and may be copied before it can be removed.
-- `hint.issue.new`: next: change the draft with `{strike}` WORD, `{drop}` SECTION or `{edit}`, then file it from your own terminal with `{send}`
-- `hint.issue.mend`: next: mend the line with `{strike}` WORD or `{edit}`, then send again with `{send}`
+- `issue.new.warning`: The scan misses unlisted names; read every line: a filed issue is public
+- `hint.issue.new`: next: `{strike}` WORD, `{drop}` SECTION or `{edit}`, then `{send}` it
+- `hint.issue.mend`: next: mend the line with `{strike}` WORD or `{edit}`, then `{send}` again
 - `issue.count.word`: 1 word
 - `issue.count.words`: `{n}` words
 - `issue.count.place`: 1 place
@@ -753,13 +753,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.strike.none`: Struck `{words}` in `{places}`; the draft is unchanged.
 - `issue.drop.done`: Dropped `{sections}` from the draft.
 - `issue.edit.done`: The edit reads back as the form, and the scan ran over it.
-- `issue.reword.kept`: The render brings in what the draft did not hold (`{kinds}`), so the template stands.
+- `issue.reword.kept`: The render adds what the draft lacked (`{kinds}`), so the template stands.
 - `issue.reword.done`: The two lines now read as the render gave them, and the scan ran over them.
 - `issue.reword.added`: Words the render added, each unsure: `{words}`
 - `issue.discard.done`: Discarded the draft `{id}`.
 - `err.issue.word.near`: `{word}` is not a word of issue; the nearest is `{near}`
 - `err.issue.word`: `{word}` is not a word of issue
-- `err.issue.dry`: --dry-run is send's alone: `{word}` would write, so nothing was done
+- `err.issue.dry`: --dry-run is send's alone: `{word}` writes, so nothing was done
 - `err.issue.check`: --check reads the drafts and takes no word
 - `err.issue.draft`: no draft is named `{id}`
 - `err.issue.none`: no draft waits
@@ -771,23 +771,23 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.unreadable`: `{path}` cannot be read as a regular file
 - `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
 - `err.issue.io`: a file of the drafts could not be read, written or removed
-- `err.issue.unsafe`: the draft `{id}` is a link, not a folder, or open to others, so nothing was done
-- `err.issue.unsafe.file`: `{name}` of the draft `{id}` is a link, not a file, or open to others, so nothing was sent
-- `err.issue.unsafe.root`: the drafts folder is a link, not a folder, or open to others, so nothing was done
+- `err.issue.unsafe`: the draft `{id}` is a link, no folder, or open to others; nothing was done
+- `err.issue.unsafe.file`: `{name}` of draft `{id}` is a link, no file, or open to others; nothing sent
+- `err.issue.unsafe.root`: the drafts folder is a link, no folder, or open to others; nothing was done
 - `err.issue.strike`: strike takes the words to strike
 - `err.issue.drop`: `{section}` is no part of the draft; one of `{sections}`
 - `err.issue.drop.none`: drop takes the parts to drop, of `{sections}`
 - `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal
 - `err.issue.edit.none`: neither VISUAL nor EDITOR names an editor that starts
-- `err.issue.edit.form`: the saved draft does not read back as the form at line `{line}`, so the draft is unchanged
+- `err.issue.edit.form`: the saved draft does not read back as a form at line `{line}`; it is unchanged
 - `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected
 - `err.issue.render`: --render renders a new draft, so it goes with new alone
-- `issue.render.none`: No narrator plugin with its render script is installed, so the template stands with the words as typed.
-- `issue.render.start`: The narrator's script could not start, so the template stands with the words as typed.
-- `issue.render.exit`: The narrator's script exited `{code}`, so the template stands with the words as typed.
-- `issue.render.wall`: The narrator's script ran past `{secs}` s and was stopped, so the template stands with the words as typed.
-- `issue.render.nofile`: The narrator's script wrote no answer, so the template stands with the words as typed.
-- `issue.render.shape`: The narrator's answer is not two lines, Happened and Expected, so the template stands with the words as typed.
-- `issue.render.stopped`: The render was stopped, so the template stands with the words as typed in draft `{id}`.
-- `issue.render.left`: The render's temporary folder `{path}` could not be removed, so remove it by hand.
+- `issue.render.none`: No narrator render script is installed, so the template stands unchanged.
+- `issue.render.start`: The narrator's script could not start, so the template stands unchanged.
+- `issue.render.exit`: The narrator's script exited `{code}`, so the template stands unchanged.
+- `issue.render.wall`: The narrator's script ran past `{secs}` s, so the template stands unchanged.
+- `issue.render.nofile`: The narrator's script wrote no answer, so the template stands unchanged.
+- `issue.render.shape`: The narrator's answer is not Happened and Expected, so the template stands.
+- `issue.render.stopped`: The render was stopped, so the template stands unchanged in draft `{id}`.
+- `issue.render.left`: The render's temporary folder `{path}` could not be removed; do it by hand.
 - `issue.render.contract`: Technical. Render only the Happened and Expected lines of this issue, two sentences a line at most. Keep each error text verbatim. Add nothing the issue does not say: no name, path, version or word of your own context. Answer with two lines and nothing else: `Happened: ...` and `Expected: ...`.

@@ -399,7 +399,7 @@ class DryRunTest(FixHome):
                 code, out, err = self.issue(*args)
                 self.assertEqual((code, out), (2, ""), (args, err))
                 lines = err.splitlines()
-                self.assertEqual(lines[0], "FAIL  --dry-run is send's alone: %s would write, so nothing "
+                self.assertEqual(lines[0], "FAIL  --dry-run is send's alone: %s writes, so nothing "
                                  "was done" % word, (args, err))
                 self.assertEqual(len(lines), 2, (args, err))
                 self.assertTrue(lines[1].startswith("next: ") and lines[1].endswith(" help issue"), err)
@@ -461,17 +461,15 @@ class Phase2Test(FixHome):
                 (("strike",), "strike takes the words to strike", "help issue"),
                 (("drop", "nothing"), "nothing is no part of the draft; one of "
                  + ", ".join(form.SECTIONS), "help issue"),
-                (("send", "--yes"), "send takes no --yes: an issue is filed only when you read it on "
-                 "your terminal and type send", "help issue"),
+                (("send", "--yes"), "send takes no --yes: you read the issue on your terminal and type send", "help issue"),
                 (("send", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
                 (("discard", "--dry-rn"), "--dry-rn is not a flag of issue", "help issue"),
-                (("send",), "send needs a terminal to type in, and this process has none; send from "
-                 "your own terminal", "help issue")):
+                (("send",), "send needs a terminal to type in; this process has none", "help issue")):
             self.refusal(args, cause, tail)
         self.gh_answer("issue_list", json.dumps([{"number": 7, "title": "x", "state": "OPEN",
                                                    "url": URL[:-2] + "7"}]))
-        self.refusal(("send",), "an open issue already holds this failure: %s; add to it there, or pass "
-                     "--not-a-duplicate to file another" % (URL[:-2] + "7"), "help issue", exit_code=1)
+        self.refusal(("send",), "an open issue holds this failure: %s; add there, or --not-a-duplicate"
+                     % (URL[:-2] + "7"), "help issue", exit_code=1)
         self.assertEqual(self.gh_calls("issue create"), [])
 
     def test_a_refusal_on_the_terminal_names_no_send_line(self):
