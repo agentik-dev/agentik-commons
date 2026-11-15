@@ -50,8 +50,9 @@ sys.exit(2)
 
 
 class RHome(Home):
-    def __init__(self, path, listed=("murmur", "paint")):
+    def __init__(self, path, listed=("murmur", "paint"), top=None):
         Home.__init__(self, path, listed)
+        self.top = os.path.realpath(top or os.path.dirname(os.path.realpath(path)))
         self.file(os.path.join(self.bin, "claude"), CLAUDE)
         self.cache = self.home + "-cache"
 
@@ -92,7 +93,7 @@ class RHome(Home):
     def under_temp(self, env=None):
         """R11: the home and every folder the verb may write under, inside the temp folder."""
         env = env or self.env()
-        top = os.path.dirname(os.path.realpath(self.home))
+        top = self.top
         for key in ("HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR"):
             if env.get(key):
                 real = os.path.realpath(env[key])
@@ -106,6 +107,21 @@ class RHome(Home):
                            cwd=self.home, stdin=subprocess.DEVNULL, timeout=120)
         return p.returncode, p.stdout, p.stderr
 
+    def stub(self, old, new):
+        """The `claude` stub with one line of its own changed."""
+        with open(os.path.join(self.bin, "claude")) as fh:
+            body = fh.read()
+        assert body.count(old) == 1, old
+        self.file(os.path.join(self.bin, "claude"), body.replace(old, new))
+
+    def tree(self, name="x"):
+        share = os.path.join(self.home, ".local", "share", "agentik-" + name)
+        return os.path.join(share, [n for n in os.listdir(share) if not n.startswith(".")][0])
+
+    def journal(self):
+        with open(os.path.join(self.home, ".local", "state", "agentik-suite", "setup.jsonl")) as fh:
+            return json.loads(fh.read().splitlines()[-1])
+
     def agentik(self):
         return sorted(n for n in os.listdir(self.bindir) if n.startswith("agentik"))
 
@@ -115,8 +131,8 @@ class Remove(Base):
     def home(self, listed=("murmur", "paint"), name="h"):
         return RHome(os.path.join(self.tmp, name), listed)
 
-    def x(self, **kw):
-        h = self.home(("murmur", "paint", "x"))
+    def x(self, name="h", **kw):
+        h = self.home(("murmur", "paint", "x"), name=name)
         h.real_tool(**kw)
         return h, h.kept_folders()
 
@@ -289,6 +305,197 @@ class Remove(Base):
         self.assertIn("gate list", err)
         self.assertEqual((h.claude(), snapshot(h.home)), ([], before))
 
+
+    # ---- the fix of review 1 (packet §7) -------------------------------------------------------
+
+    def red(self, out, path):
+        """The close's red row for `path`, off a terminal one line marked FAIL."""
+        return [l for l in out.splitlines() if l.lstrip().startswith("FAIL") and path in l]
+
+    def test_f1_a_cache_home_in_the_config_or_claudes_folder_is_kept(self):
+        h, kept = self.x()
+        cfg = os.path.join(h.home, ".config")
+        code, out, err = h.go("remove", "--all", "--yes", XDG_CACHE_HOME=cfg, XDG_CONFIG_HOME=cfg)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(os.path.join(cfg, "agentik", "x", "config.yaml")))
+        self.assertNotIn("~/.config/agentik  removed", out)
+        self.assertIn("~/.config", [l for l in out.splitlines() if l.split()[1:2] == ["~/.config/agentik"]][0]
+                      .split("~/.config/agentik", 1)[1])
+        h2, _ = self.x(name="h2")
+        cc = os.path.join(h2.plugins, "cache")
+        code, out, err = h2.go("remove", "--all", "--yes", XDG_CACHE_HOME=cc)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isdir(os.path.join(cc, "agentik", "x", "1.0.0")))
+        self.assertNotIn("~/.claude/plugins/cache/agentik  removed", out)
+        h3, _ = self.x(name="h3")  # a cache folder that holds the state home
+        state = os.path.join(h3.cache, "agentik", "state")
+        notes = h3.file(os.path.join(state, "agentik-x", "notes"), "kept\n")
+        code, out, err = h3.go("remove", "--all", "--yes", XDG_STATE_HOME=state)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(notes))
+
+    def test_f1_a_kept_path_gone_is_red(self):
+        h, kept = self.x()
+        h.stub('    edit("installed_plugins.json"',
+               '    shutil.rmtree(os.path.join(d, "data", a[2]), ignore_errors=True)\n    edit("installed_plugins.json"')
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertTrue(self.red(out, "~/.claude/plugins/data/x@agentik"), out)
+        self.assertEqual(h.journal()["exit"], 1)
+
+    def test_f2_a_home_named_agentik_under_the_cache_home_stays(self):
+        w = os.path.join(self.tmp, "w")
+        h = RHome(os.path.join(w, "agentik"), ("murmur", "paint", "x"), top=self.tmp)
+        h.real_tool()
+        h.kept_folders()
+        thesis = h.file(os.path.join(h.home, "Documents", "thesis.txt"), "mine\n")
+        code, out, err = h.go("remove", "--all", "--dry-run", XDG_CACHE_HOME=w)
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("remove deletes it", out)
+        code, out, err = h.go("remove", "--all", "--yes", XDG_CACHE_HOME=w)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(thesis))
+        self.assertTrue(os.path.isfile(os.path.join(h.home, ".config", "agentik", "x", "config.yaml")))
+
+    def test_f3_the_door_the_run_removes_reads_would_remove(self):
+        h, kept = self.x()
+        h.place(str(LAUNCHER))
+        door = os.path.join(h.bindir, "agentik")
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", exe=door)
+        rows = [s for s in json.loads(out)["steps"] if s["subject"] == "~/.local/bin/agentik"]
+        self.assertEqual([(s["n"], s["state"]) for s in rows], [(5, "todo")], rows)
+        self.assertIn("would remove", rows[0]["detail"])
+        code, out, err = h.go("remove", "--all", "--yes", exe=door)
+        self.assertEqual(code, 0, out + err)
+        self.assertFalse(os.path.lexists(door))
+        h2, _ = self.x(name="h2")  # an entry the plan does not take keeps the door, in the plan and the run
+        h2.place(str(LAUNCHER))
+        h2.file(os.path.join(h2.bindir, "agentik-other"), "#!/bin/sh\nexit 0\n")
+        door = os.path.join(h2.bindir, "agentik")
+        code, out, err = h2.go("remove", "--all", "--dry-run", "--json", exe=door)
+        rows = [s for s in json.loads(out)["steps"] if s["subject"] == "~/.local/bin/agentik"]
+        self.assertEqual([(s["state"], "agentik-other stands" in s["detail"]) for s in rows], [("ok", True)], rows)
+        code, out, err = h2.go("remove", "--all", "--yes", exe=door)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(door))
+
+    def test_f4_a_hold_that_starts_after_the_plan_stops(self):
+        h, kept = self.x()
+        h.stub('    edit("installed_plugins.json"',
+               "    open(os.path.join(home, 'ps.txt'), 'a').write('77 /usr/bin/python3 %s/agentik-x status\\n')\n"
+               '    edit("installed_plugins.json"' % h.tree())
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(h.claude(), [UNINSTALL])
+        self.assertTrue(os.path.isfile(os.path.join(h.bindir, "agentik-x")))
+        self.assertIn("pid 77", err)
+        self.assertIn("remove x", err)
+        self.assertEqual(h.journal()["exit"], 1)
+        h2 = self.home(("murmur", "paint", "x", "y"), name="h2")  # a hold on y begun by x's step 1
+        h2.real_tool()
+        h2.real_tool(name="y")
+        h2.stub('    edit("installed_plugins.json"',
+                "    open(os.path.join(home, 'ps.txt'), 'a').write('78 /usr/bin/python3 %s/agentik-y status\\n')\n"
+                '    edit("installed_plugins.json"' % h2.tree("y"))
+        code, out, err = h2.go("remove", "x", "y", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(h2.claude(), [UNINSTALL])
+        self.assertFalse(os.path.lexists(os.path.join(h2.bindir, "agentik-x")))
+        self.assertTrue(os.path.isfile(os.path.join(h2.bindir, "agentik-y")))
+        self.assertIn("pid 78", err)
+        self.assertEqual(h2.journal()["exit"], 1)
+
+    def test_f5_a_cache_walk_failed_after_the_door_names_the_folder(self):
+        h, kept = self.x()
+        h.place(str(LAUNCHER))
+        h.file(os.path.join(h.cache, "agentik", "a.txt"), "x\n")
+        locked = os.path.join(h.cache, "agentik", "zz")
+        h.file(os.path.join(locked, "f"), "x\n")
+        os.chmod(locked, 0o500)
+        self.addCleanup(os.chmod, locked, 0o700)
+        door = os.path.join(h.bindir, "agentik")
+        code, out, err = h.go("remove", "--all", "--yes", exe=door)
+        self.assertEqual(code, 1, out + err)
+        self.assertNotIn("Traceback", err)
+        self.assertFalse(os.path.lexists(door))
+        self.assertIn(h.cache + "/agentik", err.replace("\n", " "))
+        self.assertIn("yours to delete", err)
+        self.assertNotIn("again", err)
+        self.assertTrue(os.path.isfile(os.path.join(locked, "f")))
+        h2, _ = self.x(name="h2")
+        h2.place(str(LAUNCHER))
+        h2.file(os.path.join(h2.cache, "agentik", "a.txt"), "x\n")
+        locked = os.path.join(h2.cache, "agentik", "zz")
+        h2.file(os.path.join(locked, "f"), "x\n")
+        os.chmod(locked, 0o500)
+        self.addCleanup(os.chmod, locked, 0o700)
+        code, out, err = h2.go("remove", "--all", "--yes", "--json", exe=os.path.join(h2.bindir, "agentik"))
+        error = json.loads(out)["error"]
+        self.assertEqual((code, error["remedy"]), (1, None), out + err)
+        self.assertIn("yours to delete", error["message"])
+
+    def test_f6_a_marketplace_folder_that_stands_is_red(self):
+        h, kept = self.x()
+        folder = os.path.join(h.plugins, "marketplaces", "agentik")
+        os.makedirs(folder)
+        h.stub('    shutil.rmtree(os.path.join(d, "marketplaces", a[3]), ignore_errors=True)\n', '')
+        code, out, err = h.go("remove", "--all", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertTrue(os.path.isdir(folder))
+        self.assertTrue(self.red(out, "~/.claude/plugins/marketplaces/agentik"), out)
+        self.assertNotIn("~/.claude/plugins/marketplaces/agentik  removed", out)
+        self.assertNotIn(folder, h.journal()["wrote"])
+
+    # ---- the gaps review 1 named: each red under its mutant (packet §7) ----------------------------
+
+    def test_g_spare_with_a_ps_that_lists_the_caller(self):
+        h, kept = self.x()
+        h.place(str(LAUNCHER))
+        tree = h.tree("suite")
+        h.file(os.path.join(h.bin, "ps"), "#!/bin/sh\ncase \"$*\" in *ppid=*) echo 1; exit 0;; esac\n"
+               "echo \"1 /sbin/launchd\"\necho \"2 /bin/sh AGENTIK_PRUNE_PROBE=$AGENTIK_PRUNE_PROBE\"\n"
+               "echo \"$PPID /usr/bin/python3 -I %s/agentik-suite remove --all\"\n" % tree)
+        code, out, err = h.go("remove", "--all", "--yes", exe=os.path.join(h.bindir, "agentik"))
+        self.assertEqual(code, 0, out + err)
+        self.assertFalse(os.path.lexists(os.path.join(h.home, ".local", "share", "agentik-suite")))
+
+    def test_g_a_failed_claude_step_stops(self):
+        h, kept = self.x()
+        h.file(os.path.join(h.home, "fail"), "x@agentik\n")
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(h.claude(), [UNINSTALL])
+        self.assertIn("Remove stopped", err)
+        self.assertTrue(os.path.isfile(os.path.join(h.bindir, "agentik-x")))
+        self.assertEqual(h.journal()["exit"], 1)
+
+    def test_g_a_tree_partly_removed_is_exit_1(self):
+        h, kept = self.x()
+        locked = os.path.join(h.tree(), "zz")
+        h.file(os.path.join(locked, "f"), "x\n")
+        os.chmod(locked, 0o500)
+        self.addCleanup(os.chmod, locked, 0o700)
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("partly removed", out + err)
+        self.assertEqual(h.journal()["exit"], 1)
+
+    def test_g_steps_1_and_4_only_at_the_users_scope(self):
+        h, kept = self.x()
+        root = h.table["x@agentik"][0]["installPath"]
+        h.table["x@agentik"] = [{"scope": "project", "version": "1.0.0", "installPath": root, "projectPath": h.home}]
+        h.write()
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(h.claude(), [])
+        self.assertTrue(os.path.isfile(os.path.join(h.bindir, "agentik-x")))
+        h2, _ = self.x(name="h2")
+        h2.install("suite@agentik", "0.7.0", launcher=False)
+        h2.table["suite@agentik"][0].update(scope="project", projectPath=h2.home)
+        h2.write()
+        code, out, err = h2.go("remove", "--all", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(h2.claude(), [UNINSTALL, "claude plugin marketplace remove agentik"])
 
 if __name__ == "__main__":
     unittest.main()
