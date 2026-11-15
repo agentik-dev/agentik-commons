@@ -622,14 +622,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.kind.unread`: not read
 - `inbox.question.open`: recommended: `{label}`; asked `{age}`
 - `inbox.question.answered`: answered, not entered yet; its sitting enters it
-- `inbox.question.unreadable`: cannot be asked yet, since `{why}`; its sitting mends it
+- `inbox.question.unreadable`: cannot be asked yet, since `{why}`
 - `inbox.hand.run`: run: `{command}`
 - `inbox.hand.bare`: no command is given; see `{file}`:`{line}`
 - `inbox.row.holds`: waits on it: `{title}`
 - `inbox.sitting`: `{charter}`, `{age}`: `{word}`
 - `inbox.sitting.nopart`: `{charter}`, `{age}`, with no Waits part: `{word}`
 - `inbox.sitting.closed`: `{charter}`, closed `{age}`: `{word}`
-- `inbox.decided`: `{count}` without asking, the newest on `{newest}`
+- `inbox.decided`: `{count}` decided without asking, the newest on `{newest}`
 - `inbox.age.min`: `{n}` min ago
 - `inbox.age.h`: `{n}` h ago
 - `inbox.age.d`: `{n}` d ago
@@ -650,14 +650,14 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.open.answer`: To answer: type after "Your answer:" in the block at `{file}`:`{line}`.
 - `inbox.open.sitting`: Or start claude in `{name}` and ask for its open questions.
 - `inbox.note.entry`: `{entry}` in `{path}` is not read: a checkout is an absolute path, or one under ~/.
-- `hint.inbox.open`: next: `{command}` opens question `{n}` as it is written.
-- `hint.inbox.doctor`: next: `{doctor}` shows which command is missing or behind its plugin.
+- `hint.inbox.open`: next: to read question `{n}` as it is written, run `{command}`
+- `hint.inbox.doctor`: next: to see which command is missing or behind its plugin, run `{doctor}`
 - `hint.inbox.checkouts`: next: to read every checkout at once, list them under checkouts: in `{path}`.
 - `err.inbox.file`: `{fault}`
 - `err.inbox.nowhere`: there is no checkout to read: the cwd is in no repo, and `{path}` lists none
 - `err.inbox.tools`: no command on PATH gives a read the inbox needs
 - `err.inbox.number`: no checkout read here holds a question `{n}`
-- `err.inbox.both`: --check and a question's number are two answers
+- `err.inbox.both`: give --check or a question's number, not both
 
 ## Init
 
@@ -706,7 +706,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.changed`: the approved issue changed after it was shown, so nothing was sent
 - `err.issue.send.unapproved`: this issue has no approval left, since an approval is used once, so nothing was sent
 - `err.issue.send.token`: `{name}` is set and overrides the account gh stores, so nothing was sent through gh
-- `err.issue.send.switched`: gh's active account is not `{login}`, so nothing was sent; gh auth switch --user `{login}` mends it
+- `err.issue.send.switched`: gh's active account is not `{login}`, so nothing was sent; gh auth switch --user `{login}` makes it active
 - `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped, so whether the issue was filed is unknown
 - `err.issue.send.flood`: more input came right after the word, so nothing was sent; send again and type it once
@@ -716,7 +716,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.issue.send.yes`: send takes no --yes: an issue is filed only when you read it on your terminal and type send
 - `err.issue.send.open`: an open issue already holds this failure: `{url}`; add to it there, or pass --not-a-duplicate to file another
 - `err.issue.sent`: this draft was already filed: `{url}`
-- `err.issue.sent.unkept`: the issue was filed, and the draft `{id}` could not record it
+- `err.issue.sent.unkept`: the issue was filed, but the draft `{id}` could not record that
 - `issue.send.none`: No issue in `{repo}` holds `{fingerprint}`.
 - `issue.send.browser`: the account signed in to the browser
 - `issue.send.dry`: A dry run: the issue was shown and nothing was filed.
@@ -728,7 +728,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.list.unsent`: `{id}` unsent, for `{tool}`: `{title}`
 - `issue.list.sent`: `{id}` sent: `{url}`
 - `issue.check.waits`: `{id}` is a draft for `{tool}` that waits to be sent.
-- `hint.issue.read`: next: `{show}` prints the newest draft, and `{send}` files it from your own terminal.
+- `hint.issue.read`: next: read the newest draft with `{show}`, then file it from your own terminal with `{send}`
 - `hint.issue.which`: `{count}` drafts wait, so this acts on the newest, `{id}`. Pass --draft ID for another.
 - `issue.ask.tool`: Which tool failed? One of `{tools}`, or Enter for the suite:
 - `issue.ask.ran`: The command that failed, or Enter for none:
@@ -743,8 +743,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.new.over`: The draft is `{size}` bytes, `{over}` over the ceiling, and send refuses it until `{drop}` SECTION or `{strike}` WORD takes it under.
 - `issue.new.repo`: to `{repo}`
 - `issue.new.warning`: The scan knows shapes and the names on this machine's lists. It cannot know that a project's name, a customer's name or a branch's name is private. Read every line. What you file is public at once and may be copied before it can be removed.
-- `hint.issue.new`: next: `{strike}` WORD, `{drop}` SECTION or `{edit}` changes the draft, and `{send}` files it from your own terminal.
-- `hint.issue.mend`: next: `{strike}` WORD or `{edit}` mends the line, then run `{send}` again.
+- `hint.issue.new`: next: change the draft with `{strike}` WORD, `{drop}` SECTION or `{edit}`, then file it from your own terminal with `{send}`
+- `hint.issue.mend`: next: mend the line with `{strike}` WORD or `{edit}`, then send again with `{send}`
 - `issue.count.word`: 1 word
 - `issue.count.words`: `{n}` words
 - `issue.count.place`: 1 place

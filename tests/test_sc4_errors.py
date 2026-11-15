@@ -451,7 +451,7 @@ class MergedVerbsTest(Sc4Home):
         (("inbox", "--chek"), "--chek is not a flag of inbox", "agentik inbox --check", "unknown_flag"),
         (("inbx",), "inbx is not a verb", "agentik inbox", "unknown_verb"),
         (("inbxo", "--check"), "inbxo is not a verb", "agentik inbox --check", "unknown_verb"),
-        (("inbox", "--check", "1"), "--check and a question's number are two answers", "agentik inbox --check",
+        (("inbox", "--check", "1"), "give --check or a question's number, not both", "agentik inbox --check",
          "two_answers"),
         (("inbox", "--all"), "--all is not a flag of inbox", "agentik help inbox", "unknown_flag"),
         (("inbox", "--yes"), "--yes is not a flag of inbox", "agentik help inbox", "unknown_flag"),
