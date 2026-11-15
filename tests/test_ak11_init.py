@@ -25,7 +25,7 @@ LEDGER = "DECI" + "SIONS.md"
 FILES = ["README.md", ".claude/agentik/config.yaml", ".gitignore", "CLAUDE.md", LEDGER, "HANDOFF.md",
          "Makefile", "NICE_TO_HAVE.md", "OPEN-QUESTIONS.md", "history/sittings/.gitkeep",
          "scripts/recordlint", "scripts/recordlint.sha256"]
-SHA = {"README.md": "d4d3269541e978accba624f26640d86fb771fe69a0a553097fa620d1e6cd76bf",
+SHA = {"README.md": "d539d06ccfca113d0ae93653376011b6dec3bea212efaadd258f654b09f43117",
        "CLAUDE.md": "a4aafde9e50a063a2b5102ed6dab85680a7686f0282fa693cfce5e281f66431b",
        LEDGER: "ab59682f0d43b680ec398d66869a917ee5975ffb96fdf462032860b8ee9f0840",
        "OPEN-QUESTIONS.md": "ece4f53f34e21458e1e1b922c90726ff9b1cf44b49bd6e876b640e4292a85751",
@@ -34,7 +34,7 @@ SHA = {"README.md": "d4d3269541e978accba624f26640d86fb771fe69a0a553097fa620d1e6c
        "Makefile": "87d9ed611bf5dcb0ad229cec9ae3f78180bfb9c8adcc62b36766e00f1021d39e",
        ".gitignore": "ef0f379da339763579b140de87661351628d8bfd1aa09660850fe61e4ebf755d",
        ".claude/agentik/config.yaml": "78b28cace40194e8bf1b6c06d71c5ecab66a71c9444d77a654a940a747919e79"}
-HINT = "next: cd pear-hq && make check. README.md there has the steps after it.\n"
+HINT = "next: cd pear-hq && make check, then read README.md there for the steps after it.\n"
 ALREADY = "FAIL  pear-hq is already set up as kind hq, so init wrote nothing. Run make check there to see that it holds.\n"
 FULL = ("FAIL  full is not empty: it holds %s. init writes into an empty folder only, so it wrote nothing. "
         "Give it a folder that is empty or not there yet.\n")
@@ -191,21 +191,21 @@ class InitTest(Home):
         with open(self.at("afile"), "w") as fh:
             fh.write("x")
         code, out, err = self.go("init", "--kind", "hq", "afile")
-        self.assertEqual((code, out, err), (2, "", "FAIL  afile is a file, and init writes a folder. Give it a "
-                                                   "folder that is empty or not there yet.\n"))
+        self.assertEqual((code, out, err), (2, "", "FAIL  afile is a file, and init writes a folder. It wrote "
+                                                   "nothing. Give it a folder that is empty or not there yet.\n"))
         code, out, err = self.go("init", "--kind", "hq", "none/pear-hq")
         self.assertEqual((code, out, err), (2, "", "FAIL  none is not a folder, so init cannot make none/pear-hq "
-                                                   "in it. Make none first.\n"))
+                                                   "in it. It wrote nothing. Make none first.\n"))
         code, out, err = self.inproc("init", "--kind", "hq", self.at("bare"), env=self.env(PATH=self.stubs))
         self.assertEqual((code, out), (2, ""))
         self.assertIn("init needs git, and git is not on PATH. It wrote nothing.", err)
         self.assertEqual(sorted(os.listdir(self.T)), ["afile"])
 
     def test_11_the_words_and_flags(self):
-        for args, part in ((("init", "x"), "init needs --kind, one of: hq. Run "),
-                           (("init", "--kind", "barn", "x"), "barn is not a kind. The kinds are: hq. Run "),
-                           (("init", "--kind", "hq"), "init needs the folder to write in. Run "),
-                           (("init", "--kind", "hq", "x", "y"), "init writes one folder, and got a second, y."),
+        for args, part in ((("init", "x"), "init needs --kind, and none was given. It wrote nothing. The kinds are: hq. Run "),
+                           (("init", "--kind", "barn", "x"), "barn is not a kind, so init wrote nothing. The kinds are: hq. Run "),
+                           (("init", "--kind", "hq"), "init needs the folder to write in, and got none. It wrote nothing. Run "),
+                           (("init", "--kind", "hq", "x", "y"), "init writes one folder, and got a second, y. It wrote nothing. Run "),
                            (("setup", "--kind", "hq"), "--kind")):
             code, out, err = self.go(*args)
             self.assertEqual((code, out), (2, ""), args)
@@ -225,7 +225,7 @@ class InitTest(Home):
         self.assertEqual(code, 0, err)
         self.assertEqual(out, "%s would be an hq: 12 files. Nothing is written.\n" % self.at("dry")
                          + "".join("  %s\n" % f for f in FILES))
-        self.assertEqual(err, "next: run it again without --dry-run to write them.\n")
+        self.assertEqual(err, "next: run the same command without --dry-run to write the files.\n")
         code, out, err = self.go("init", "--kind", "hq", self.at("dry"), "--dry-run", "--json")
         obj = json.loads(out)
         self.assertEqual((code, obj["dry_run"], obj["files"]), (0, True, FILES))
@@ -253,6 +253,7 @@ class InitTest(Home):
         code, out, err = self.go("init", "--kind", "hq", self.at("ro", "pear-hq"))
         self.assertEqual((code, out, len(err.splitlines())), (1, "", 1), err)
         self.assertIn("FAIL  init could not write %s: Permission denied." % self.at("ro"), err)
+        self.assertIn("Fix that, then run init again.", err)
         self.assertEqual(os.listdir(self.at("ro")), [])
 
     def test_15_git_fails(self):
@@ -260,8 +261,8 @@ class InitTest(Home):
         env = self.env(PATH="%s:%s" % (os.path.join(self.stubs, "bad"), self.env()["PATH"]))
         code, out, err = self.inproc("init", "--kind", "hq", self.at("x"), env=env)
         self.assertEqual((code, out), (1, ""))
-        self.assertEqual(err, "FAIL  git init failed in %s, so init wrote nothing. What git said is below.\n"
-                              "fatal: no\n" % self.at("x"))
+        self.assertEqual(err, "FAIL  git init failed in %s, so init wrote nothing. What git said is below; "
+                              "fix that, then run init again.\nfatal: no\n" % self.at("x"))
         self.assertEqual(os.listdir(self.T), [])
         code, out, err = self.inproc("init", "--kind", "hq", self.at("x"), "--json", env=env)
         obj = json.loads(out)
@@ -387,7 +388,7 @@ class InitTest(Home):
         os.mkdir(self.at("e"))
         code, out, err = self.go("init", "--kind", "hq", "nope/..", cwd=self.at("e"))
         self.assertEqual((code, out, err), (2, "", "FAIL  nope is not a folder, so init cannot make nope/.. "
-                                                   "in it. Make nope first.\n"))
+                                                   "in it. It wrote nothing. Make nope first.\n"))
         self.assertEqual(os.listdir(self.at("e")), [])
         code, out, err = self.go("init", "--kind", "hq", "nope/../x", "--json", cwd=self.at("e"))
         self.assertEqual((code, json.loads(out)["error"]["code"]), (2, "no_parent"))
