@@ -18,6 +18,8 @@
 
 Measured at dfa537f in a temp HOME under `env -i`: `agentik-suite init --kind hq X` prints `init is not a verb or a tool` and `next: ... help`, exit 2, and makes no folder (the brief's baseline at d795d4a read `init is not a verb. Run agentik-suite --help for the list.`; main has moved). `cli.py` ends its tables with `issue`; `VALUE_FLAGS` ends with `--draft`; the class ends with `do_issue`. `help install-cli` shows `--prefix` in the usage line alone, its rows `--dry-run` and `--yes`. `flag.yes` reads `Run setup's lines without asking first.`, pinned by no test. A tool's text passes through inline (`err.setup.step`'s `{last}`). `_walk` freezes dotfiles and skips `.DS_Store`. No shared call asks a person a question: `update` and `remove` each keep an `ask` of their own. `doctor.RESERVED` holds `init`; `test_sc5_first_screen.PIN_KEPT` pins every `verb.`, `usage.` and `flag.` id (39).
 
+Review 1's ruling (2026-11-15), one fix round at 2fc5bce, the version kept at 0.7.17: F1, a target that appears in DIR before its rename stops the move as `not_empty`, and the undo removes only the paths init wrote; F2, a `.git` is kept only where `git -C DIR rev-parse --git-dir` exits 0 under init's env and wall, else `not_empty`; F5, a parent not there as typed (`nope/..`) is `no_parent`; each with a test red at 2fc5bce (23 to 25). F3, F4 and F6 are NICE rows n211 to n213.
+
 ## 3. Rulings (the brief's, in short)
 
 - R1: the packets before bind: the floor, `term` the one writer, the catalogue's voice, the streams, the `--json` object, the four exits, no tool's name in the package or its tests. New tests in `tests/test_ak11_init.py`.
