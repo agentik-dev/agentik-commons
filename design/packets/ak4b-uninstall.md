@@ -5,7 +5,7 @@
 | from | agentik-hq's brief ak4b-uninstall of 2026-11-14, R1 to R9, acceptance 1 to 10; level S3 |
 | pin | main at 1f043e8 (suite 0.7.14, ak9d-contract-guide landed); worktree `.claude/worktrees/ak4b-uninstall`, branch `ak4b-uninstall`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` started; `uninstall` is never called with the live home or `~/.local` as its prefix, `dry` included: every test's prefix, home and state folder lie under its temp folder, asserted before the call; no verb, flag or message; made-up names |
-| may touch | `scripts/agentik_install.py`; `plugins/suite/lib/agentik_install.py` (a byte-equal copy); `plugins/suite/.claude-plugin/plugin.json` (0.7.15, alone, last under `plugins/`); `tests/test_ak4b_uninstall.py`; `GUIDE.md` (§10's `install-cli` paragraph alone); this packet; `history/sittings/2026-11-14-16.md` |
+| may touch | `scripts/agentik_install.py`; `plugins/suite/lib/agentik_install.py` (a byte-equal copy); `plugins/suite/.claude-plugin/plugin.json` (0.7.15, alone, last under `plugins/`); `tests/test_ak4b_uninstall.py`; `GUIDE.md` (§10's `install-cli` paragraph alone); this packet; `history/sittings/2026-11-14-16.md`; for §8, `NICE_TO_HAVE.md` (its new rows) and `history/NICE-overflow.md` (the oldest S4 rows, appended) |
 | verify | `make check` once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 10 below |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
@@ -87,3 +87,18 @@ Review 1 (an adversary, at b321b58) found eleven things and one lead on the door
 | F10 | `test_a_live_temp_holds_everything` |
 | F11 | `test_the_walk_follows_no_link`, `test_the_bound_refuses_a_path_outside` |
 | door | `test_the_door_stays_beside_a_linked_launcher` |
+
+## 8. The fix of review 2
+
+Review 2 (an adversary, at 8845d6b) found G1 and G2, each S4 with a reproduction (G2 a regression), and G3, two tests missing; the coordinator ruled one small round on this branch. Every ruling of §7 holds as built. The suite stays 0.7.15: 8845d6b's stamp is reverted and made again, last under `plugins/`.
+
+- G2. `_lock` opens `.lock` for writing alone (`O_WRONLY`), as it did at 93e3eb0, since `flock` needs neither bit: a `.lock` of mode 0200 installs again. The test runs the real `install-cli` on such a `.lock` in a temp prefix, exit 0 wanted; red at 61321b6.
+- G1. A launcher is install-cli's only where the text `TREE=` stands exactly once in the whole file and `VERSION=` exactly once, and the `TREE=` line, whole, is `TREE=` and its value quoted as the template quotes it (`shlex.quote`), nothing after. An indented (spaces or a tab), exported or second assignment on one line, and `X=1 ; TREE=<out>` after the template's line, are each `kept: not the launcher install-cli wrote`; red at 61321b6. A prefix whose path holds a space still passes.
+- G3. Two tests, the share changed from the stub `ps`'s first call, after the plan and before the lock: `.lock` swapped for a link to outside and for a FIFO (nothing made outside, every row kept, nothing hangs), red where the open drops `O_NOFOLLOW` or `O_NONBLOCK`; and a tree added there that a process runs from (it stays, every row held), red where the plan is not read again under the lock. Both green at 61321b6.
+- The leads, to `NICE_TO_HAVE.md` at S4, not built: the share swapped for a link between the plan and the lock leaves a `.lock` in the other folder; `_lock`'s re-check loop has no bound; one share folder reached under two prefixes. The door beside `agentik-`, `agentik-Y` or `agentik-y.sh` stands as ruled.
+
+| # | test (in `tests/test_ak4b_uninstall.py`) |
+|---|---|
+| G2 | `test_a_write_only_lock_installs` |
+| G1 | `test_a_launcher_with_a_hidden_tree_is_kept` |
+| G3 | `test_a_lock_swapped_after_the_plan_keeps_all`, `test_a_live_tree_added_after_the_plan_holds` |
