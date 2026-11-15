@@ -5,7 +5,7 @@
 | from | agentik-hq's brief ak9d-contract-guide of 2026-11-14, R1 to R6, acceptance 1 to 8; level S3 |
 | pin | main at e268e58 (suite 0.7.14, ak9c-plug-rest landed); worktree `.claude/worktrees/ak9d-contract-guide`, branch `ak9d-contract-guide`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge, install or sync; no bare `make`; no relay verb or binary; no `claude` started; nothing under `plugins/` changes; no other line of `GUIDE.md` but §9's bullet; made-up names; the agentik-decisions checkout read only |
-| may touch | `GUIDE.md` (a new §11, last; §9's bullet "A row's records are a folder"); `tests/test_guide_plug.py`; `.hygiene-allow`; `NICE_TO_HAVE.md`; this packet; `history/sittings/2026-11-14-15.md` |
+| may touch | `GUIDE.md` (a new §11, last; §9's bullet "A row's records are a folder"); `tests/test_guide_plug.py`; `.hygiene-allow`; `NICE_TO_HAVE.md`; `history/NICE-overflow.md` (§7's move alone); this packet; `history/sittings/2026-11-14-15.md` |
 | verify | `make check` once, last, through the gate queue, `--strict` |
 | acceptance | 1 to 8 below |
 | budget | a commit per ruling group by explicit path, this packet first; about 90 tool calls; `claude-opus-5-5` |
@@ -47,3 +47,19 @@ Measured at e268e58: `grep -c '^## §11 ' GUIDE.md` 0 (the guide ends at §10, 2
 ## 6. Choices
 
 Listed in the charter's handover as they are made.
+
+## 7. The fix of review 1
+
+The coordinator's ruling of 2026-11-14: one round on this branch, the guide's text and the test alone, no code of the reader. Each mend says what the code does at this pin, held again at the line the finding names; where the code differs from a finding, the code wins and the charter says so.
+
+- F1 (S3): the status read, and the describe it asks, reach only a tool whose `agentik-<tool>` is on PATH (`status_read.py`, `on_path` from `cmd._on_path()`); §11.1 and §11.6 say so. That status never reads a plugin's own file is a NICE row at S3.
+- F2 (S3): the `verbs` row says what the suite reads of the names: a tool with `install-cli` lists it, setup's launcher step reads that name (`plan.in_place`), and a tool that lists none is taken to run in place. The describe example lists `install-cli`.
+- F3 to F10 (S4), mends of the words: a claimed word opens with a lowercase letter (`tools.NAME`); the claims ride `config <tool> --json`, not the list's; the doctor's second round comes only where the first answer ran and does not count, and a cut, a file that cannot start or the deadline is one `warn`; a status read still running at its wall reads `timed out`, with no stderr line; a drawn status read prints one object, or a bare `null` for `unattended` alone, else it reads `unreadable`; the describe example's `verbs` hold every first word of its reads' `argv`, and its status read takes one of the five drawn names; the doctor example's stale-launcher remedy is `/demo:install-cli`; the five names are the suite's own tools', whose keys the reader pins, so a read of another shape under one reads as changed.
+- The three leads, mended where the code bears them out: §9's sentence on `rows close` (the asking and `-y` cover `--withdrawn`; `row.md` alone where the done file holds the sha already); `agentik inbox` among the verbs that draw a status read; when the list's `version` is shown.
+- `NICE_TO_HAVE.md` gains the S3 row. The file stands 3 B under recordlint's bound, so its oldest S4 rows move whole to `history/NICE-overflow.md`, as its rule says.
+
+| # | line | at 52aab08 |
+|---|---|---|
+| 9 | `python3 -m unittest tests.test_guide_plug -k test_reads_first_words_are_verbs` | red: `describe` and `queue` are no verbs |
+| 10 | `python3 -m unittest tests.test_guide_plug -k test_example_not_in_place` (`plan.in_place`, its `tools.describe_all` stood in for, no process) | red: `{'demo'}` |
+| 11 | acceptance 7's list, `history/NICE-overflow.md` added | none |
