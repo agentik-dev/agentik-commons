@@ -110,7 +110,7 @@ To answer: type after "Your answer:" in the block at OPEN-QUESTIONS.md:5.
 Or start claude in pear-hq and ask for its open questions.
 """
 CHARTER_TWO = "note  not read  charter: agentik-bench charter show --json exited 2\n"
-DOCTOR = "next: %s doctor shows which command is missing or behind its plugin.\n"
+DOCTOR = "next: to see which command is missing or behind its plugin, run %s doctor\n"
 USER = "~/.config/agentik/suite/config.yaml"
 
 
@@ -255,7 +255,7 @@ class InboxHome(base.Home):
         return [c for c in found if c[1:] != ["describe", "--json"]]
 
     def hint_open(self, *paths):
-        return "next: %s inbox 1 %s opens question 1 as it is written.\n" % (self.L, " ".join(paths))
+        return "next: to read question 1 as it is written, run %s inbox 1 %s\n" % (self.L, " ".join(paths))
 
 
 class ListTest(InboxHome):
@@ -308,7 +308,7 @@ class ListTest(InboxHome):
         self.assertEqual(code, 0)
         self.assertTrue(out.startswith("Waiting on you: 2, in 1 checkout"), out)
         self.assertIn("warn  pear-hq  2 wait\n   question 1  Which barn holds the hay\n"
-                      "               cannot be asked yet, since no base line, or more than one; its sitting mends it\n",
+                      "               cannot be asked yet, since no base line, or more than one\n",
                       out)
         code, out, err = self.inbox("--check", self.pear)
         self.assertEqual(code, 1)
@@ -423,7 +423,7 @@ class CheckTest(InboxHome):
         self.assertEqual((code, out, err), (2, "", "FAIL  no checkout read here holds a question 7\n"
                                                    "next: %s inbox %s\n" % (self.L, self.pear)))
         code, out, err = self.inbox("--check", "1")
-        self.assertEqual((code, out, err), (2, "", "FAIL  --check and a question's number are two answers\n"
+        self.assertEqual((code, out, err), (2, "", "FAIL  give --check or a question's number, not both\n"
                                                    "next: %s inbox --check\n" % self.L))
         code, out, err = self.inbox("1", self.pear, self.fig)
         self.assertEqual(code, 0)
