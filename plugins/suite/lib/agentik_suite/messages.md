@@ -210,10 +210,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.config`: next: `{command}`
 - `hint.config.tool`: next: `{command}`
 - `hint.config.card`: next: `{config}` --changed lists every key changed from its default.
-- `hint.config.back`: next: `{config}` lists every tool and its state.
+- `hint.config.back`: next: `{command}`
 - `hint.config.changed`: next: `{config}` TOOL.KEY shows where one is set and how to change it.
 - `hint.config.remedy`: next: `{remedy}`
-- `hint.config.again`: next: `{command}` reads its keys again, once the line above has run.
+- `hint.config.again`: next: `{command}`
 
 ## The suite's settings
 

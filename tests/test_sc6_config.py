@@ -32,7 +32,7 @@ user = os.path.join(home, ".config", "loom", "config.yaml")
 repo = os.path.join(home, "work", ".claude", "agentik", "config.yaml")
 KEYS = %(keys)r
 SET = {"mode": ("fast", "user", user, 1), "ink.weight": ("bold", "user", user, 4),
-       "page.width": ("90", "user", user, None), "weave.twill": ("tight", "repo", repo, 3)}
+       "page.width": ("90", "user", user, None), "weave.twill": ("tight", "repo", repo, None)}
 CHANGE = {"mode": {"kind": "command", "command": "agentik-loom set mode <value>"},
           "ink.weight": {"kind": "edit", "path": user, "block": "ink:\\n  weight: bold"},
           "voice": {"kind": "launch", "command": "loom --voice <voice>"},
@@ -63,7 +63,8 @@ elif args[:3] == ["describe", "config", "--json"]:
         "layers": [{"name": "default", "path": None, "present": True, "travels": False},
                    {"name": "user", "path": user, "present": True, "travels": True},
                    {"name": "repo", "path": repo, "present": True, "travels": False}],
-        "warnings": [{"path": user, "line": 9, "key": "inq.weight", "reason": "unknown"}]}))
+        "warnings": [{"path": user, "line": 9, "key": "inq.weight", "reason": "unknown"},
+                     {"path": repo, "line": None, "key": None, "reason": "unreadable"}]}))
 elif args[:1] == ["doctor"]:
     sys.exit(0)
 else:
@@ -205,6 +206,43 @@ class Screens(unittest.TestCase):
         self.assertRegex(launch, r"applies +at the next start of Claude Code")
         fixed = self.pipe("config", TOOL + ".feed.rate").stdout
         self.assertRegex(fixed, r"change +fixed: no command changes it")
+
+
+    # ---- review 1 -------------------------------------------------------------------------
+
+    def test_f1_the_next_of_a_tool_that_did_not_answer_runs(self):
+        stub = os.path.join(self.home, "stubs", "agentik-failtool")
+        with open(stub, "w") as fh:
+            fh.write('#!/bin/sh\nif [ "$1 $2" = "describe --json" ]; then\n  echo \'{"schema": '
+                     '"agentik.describe/1", "ok": true, "tool": "failtool", "version": "1", "summary": "s", '
+                     '"repo": "r", "plugin": "failtool@agentik", "needs": [], "verbs": [], "reads": [{"kind": '
+                     '"config", "name": "settings", "argv": ["describe", "config", "--json"]}]}\'\n  exit 0\n'
+                     'fi\nexit 1\n')
+        os.chmod(stub, 0o755)
+        on_pty = self.next_line(self.pty("config", "failtool"))
+        p = self.pipe("config", "failtool")
+        self.assertEqual((p.returncode, self.next_line(p.stderr)), (0, on_pty))
+        ran = subprocess.run(["/bin/sh", "-c", on_pty], env=self.env, capture_output=True, text=True,
+                             cwd="/", stdin=subprocess.DEVNULL, timeout=60)
+        self.assertEqual(ran.returncode, 0, (on_pty, ran.stderr))
+
+    def test_f2_a_repo_key_is_looked_up_in_its_tools_section_only(self):
+        repo = os.path.join(self.home, "work", ".claude", "agentik", "config.yaml")
+        os.makedirs(os.path.dirname(repo))
+        shown = "~/work/.claude/agentik/config.yaml"
+        with open(repo, "w") as fh:
+            fh.write("weave:\n  twill: loose\nloom:\n  mode: slow\n")
+        row = [l for l in self.pipe("config", TOOL).stdout.splitlines() if " weave.twill " in l][0]
+        self.assertTrue(row.endswith(shown), row)  # weave's block is not loom's: the path alone
+        with open(repo, "w") as fh:
+            fh.write("other: 1\nloom:\n  weave:\n    twill: tight\n")
+        row = [l for l in self.pipe("config", TOOL).stdout.splitlines() if " weave.twill " in l][0]
+        self.assertTrue(row.endswith(shown + ":4"), row)
+
+    def test_f3_a_prefix_keeps_the_warnings_that_carry_no_key(self):
+        out = self.pipe("config", TOOL + ".weave").stdout
+        self.assertIn("loom skipped this file: it could not be read  ~/work/.claude/agentik/config.yaml", out)
+        self.assertNotIn("inq.weight", out)
 
 
 if __name__ == "__main__":

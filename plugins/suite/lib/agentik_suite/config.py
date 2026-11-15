@@ -407,7 +407,8 @@ def _silent(cmd, r, row, table):
     if held:  # the close names the read again (lead 1)
         close = ("hint.config.again", {"command": cmd.say("config", name)})
     else:
-        close = ("hint.config.remedy", {"remedy": remedy}) if remedy else ("hint.config.back", cmd.slots())
+        close = ("hint.config.remedy", {"remedy": remedy}) if remedy else \
+            ("hint.config.back", {"command": cmd.say("config")})  # a command alone (review 1 F1)
     if table:
         desc = tools.descriptions(cmd.env).get(name)
         t.line("config.table.title", name=name)
@@ -493,7 +494,7 @@ def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None, prefix=None):
                          " ".join(word(s, label[0] if isinstance(label, tuple) else "") for s in members)], None)
                  for label, members in groups])
     for w in cfg.get("warnings") or ():
-        if prefix and not str(w.get("key") or "").startswith(prefix + "."):
+        if prefix and w.get("key") and not str(w["key"]).startswith(prefix + "."):  # review 1 F3
             continue
         # a file skipped, a key not taken from it (row ak9c R7); a reason that is no string reads
         # as an unknown key, as at the pin (review 1 F2)
@@ -543,7 +544,7 @@ def _line_in(r, path, keys):
 def _set_at(r, name, s):
     """`path:line` of the file a key's value comes from, its source's or, where that names none,
     its layer's value's: the line the tool gives, else the line of its dotted path in that file
-    (`<tool>.<key>` first in the repo and local layers, whose file holds a section a tool), else
+    (`<tool>.<key>` alone in the repo and local layers, whose file holds a section a tool), else
     the path alone; None where the tool names no file (R5)."""
     src = s["source"]
     path, line = src.get("path"), src.get("line")
@@ -554,8 +555,8 @@ def _set_at(r, name, s):
             return None
         path, line = held[-1]["path"], held[-1].get("line")
     if not _a_line(line):
-        line = _line_in(r, path, ([name + "." + s["key"]] if src.get("layer") in ("repo", "local") else [])
-                        + [s["key"]])
+        # a repo or local file holds a section a tool: there only `<tool>.<key>` (review 1 F2)
+        line = _line_in(r, path, [name + "." + s["key"]] if src.get("layer") in ("repo", "local") else [s["key"]])
     shown = tools.one_line(plan.shown(path, r.home))
     return "%s:%d" % (shown, line) if _a_line(line) else shown
 
