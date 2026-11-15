@@ -99,6 +99,12 @@ def path(text):
     return (text, "path")
 
 
+def cut(text):
+    """A cell that, on a terminal, ends at its room with `…` where it does not fit (row sc7 R2):
+    a summary, never a key, a value, a path or a command. Off a terminal it prints whole."""
+    return (text, "cut")
+
+
 def colour_off(env, no_color):
     return bool(no_color or env.get("NO_COLOR") or env.get("TERM") == "dumb")
 
@@ -215,7 +221,7 @@ class Term:
         The status shows as a column at mark_at. `after` is a line under the row, set at the
         last column's start. Columns are measured and padded by `columns`. Off a terminal one row
         is one line (row sc3-table R9); on one the table is laid out to its width (`_laid`).
-        Nothing is cut."""
+        Nothing is cut but a `cut` cell on a terminal (row sc7 R2)."""
         stream = self._stream(err)
         if not rows:
             return
@@ -253,7 +259,8 @@ class Term:
         row at its indent plus 4, dim, wrapped to W (review 1 F1); a last path, or an `after`
         line, that does not fit goes whole there; a last cell with under 24 columns left, or with
         a word longer than its room, goes there too and wraps to W. Each line of a cell is
-        painted on its own; nothing is cut."""
+        painted on its own; nothing is cut but a `cut` cell, which ends at its room with `…`
+        (row sc7 R2)."""
         width = stream.width()
         widths = [min(w, width // 3) for w in widths]
         fixed = " " * (indent + 4)
@@ -268,7 +275,10 @@ class Term:
                 room = width - starts[i] if last else widths[i]
                 if rest and not (marked and i == mark_at):  # after a path that kept its place
                     blocks.append([""])
-                    under.extend(_wrap(text, width - len(fixed)) if text.strip() else [])
+                    if style == "cut" and columns(text) > width - len(fixed):
+                        under.append(fit(text, width - len(fixed), "…"))
+                    else:
+                        under.extend(_wrap(text, width - len(fixed)) if text.strip() else [])
                 elif marked and i == mark_at or columns(text) <= room:
                     blocks.append([text])
                 elif style == "path" and not last:  # it keeps the first line (review 1 F1)
@@ -277,6 +287,11 @@ class Term:
                 elif style == "path":
                     blocks.append([""])
                     under.append(text)
+                elif style == "cut" and last and i and room < LAST_ROOM:  # under its row, cut there
+                    blocks.append([""])
+                    under.append(fit(text, width - len(fixed), "…"))
+                elif style == "cut":  # it ends at its room (row sc7 R2)
+                    blocks.append([fit(text, room, "…")])
                 elif last and i and (room < LAST_ROOM or max(map(columns, text.split()), default=0) > room):
                     blocks.append([""])
                     under.extend(_wrap(text, width - len(fixed)))
