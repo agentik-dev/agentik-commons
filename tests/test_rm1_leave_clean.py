@@ -60,7 +60,7 @@ def agentik_left(h):
 
 
 class LauncherForm(unittest.TestCase):
-    """R1 at the module: the older second line is the session launcher's form, for that name alone."""
+    """R1 at the module: the older second line is a launcher's form, for the name it holds."""
 
     def test_the_older_second_line_is_a_session_launchers_form(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,9 +68,9 @@ class LauncherForm(unittest.TestCase):
             with open(path, "w") as fh:
                 fh.write(OLD_HEAD + "VERSION=1\nTREE=/nowhere\n")
             self.assertTrue(agentik_install._launcher_form(path, "agentik-session"))
-            other = os.path.join(tmp, "agentik-other")
+            other = os.path.join(tmp, "agentik-other")  # the line names the tool it is read for
             with open(other, "w") as fh:
-                fh.write(OLD_HEAD.replace("agentik-session", "agentik-other") + "VERSION=1\nTREE=/nowhere\n")
+                fh.write(OLD_HEAD + "VERSION=1\nTREE=/nowhere\n")
             self.assertFalse(agentik_install._launcher_form(other, "agentik-other"))
             with open(path, "w") as fh:  # a line near it is no form
                 fh.write(OLD_HEAD.replace("its old\n", "its old \n") + "VERSION=1\nTREE=/nowhere\n")

@@ -17,7 +17,7 @@ What the review met: with a session command written before the session tool's al
 
 ## 2. Rulings
 
-- R1, `_launcher_form` also takes the second line a session launcher carried before alpha.127, exactly as written (`` # agentik-session launcher, written by `agentik-session install-cli` (design/04 §2, §3); its old ``), for the name `agentik-session` alone. Everything else `_ours` tests stands; anything else not install-cli's is kept, as today.
+- R1, `_launcher_form` also takes the second line a session launcher carried before alpha.127, exactly as written (`` # agentik-session launcher, written by `agentik-session install-cli` (design/04 §2, §3); its old ``), as a form with the name it is read for (the canonical module names no tool: `test_the_canonical_forms_name_no_tool`), so for `agentik-session` it is that line exactly. Everything else `_ours` tests stands; anything else not install-cli's is kept, as today.
 - R2, the dry run's door reason names an entry that stays in the real run: the first, in sorted order, that no row of the plan removes. A test compares the dry run's rows with the run's, row by row.
 - R3, the door's closing line where the suite is gone: `next: <path>/agentik-commons/setup` where `agentik-commons/setup` is an executable file in the cwd (or the cwd is a folder named `agentik-commons` holding one), by its full path where that path is plain, else as relative from the cwd; the clone line only where none is found. The door moves to 0.3.1 so a placed 0.3.0 door is replaced.
 - R4, `remove --all` uninstalls each plugin, the suite's last, before the marketplace: the suite's plugin is step 3, the marketplace step 4. A second call after a cut finishes.
@@ -40,6 +40,7 @@ At the pin, 9 of the file's 13 tests are red; the 4 green hold today's behaviour
 
 ## 4. Choices
 
+- R1's older line is held as a form, `__NAME__` for the name, not as the session's literal line: the canonical module names no tool. Another tool's launcher in that form, its `TREE` in its own share, is taken too; none is known.
 - The door looks only in the cwd: the clone line itself runs in the cwd, so the cwd's clone is the one it collides with.
 - An existing door test inherited the test process's cwd; it now runs in its temp HOME, so a run from a checkout named `agentik-commons` reads the same.
 - The suite's cache row is listed only where it stands at the plan, and a gone one is dropped from the close, not marked red (the tools' own cache rows keep their red).
