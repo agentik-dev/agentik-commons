@@ -31,6 +31,7 @@ SUITE_UNINSTALL = "claude plugin uninstall suite@agentik --keep-data"
 MARKET_REMOVE = "claude plugin marketplace remove agentik"
 CLONE = "next: git clone https://github.com/agentik-dev/agentik-commons && agentik-commons/setup"
 SETUP = "#!/bin/sh\necho setup ran\n"
+CLOSE = "What remove took off, and what it kept:"
 
 
 def old_session(h, ver="2.0.0-alpha.118"):
@@ -202,8 +203,9 @@ class LeaveClean(Base):
         self.assertIn(cache, kept)
         code, out, err = h.go("remove", "--all", "--yes")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(out.count("~/.config/agentik/agents"), 1, out)
-        self.assertIn("~/.claude/plugins/cache/agentik/suite", out)
+        plan, close = out.split(CLOSE)
+        self.assertEqual((plan.count("~/.config/agentik/agents"), close.count("~/.config/agentik/agents")), (1, 1), out)
+        self.assertIn("~/.claude/plugins/cache/agentik/suite", close)
 
     def test_r5_the_suites_cache_gone_after_the_run_is_no_fault(self):
         h = self.home()
@@ -213,7 +215,8 @@ class LeaveClean(Base):
                '    shutil.rmtree(os.path.join(d, "cache", a[3], "suite"), ignore_errors=True)\n')
         code, out, err = h.go("remove", "--all", "--yes")
         self.assertEqual(code, 0, out + err)
-        self.assertNotIn("~/.claude/plugins/cache/agentik/suite", out)
+        self.assertIn("~/.claude/plugins/cache/agentik/suite", out.split(CLOSE)[0])
+        self.assertNotIn("~/.claude/plugins/cache/agentik/suite", out.split(CLOSE)[1])
 
 
 class DoorLine(unittest.TestCase):
