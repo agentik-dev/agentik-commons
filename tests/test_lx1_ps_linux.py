@@ -197,7 +197,9 @@ class Suite(Base):
         self.assertIn("%s exited 1: %s" % (h.ps_path, SAID), rows[0]["detail"])
         self.assertIn("update and remove", rows[0]["detail"])
         code, out, err = h.go("doctor")
-        self.assertIn("%s exited 1: %s" % (h.ps_path, SAID), out)
+        row = [l for l in out.splitlines() if l.split()[:2] == ["warn", "processes"]]
+        self.assertEqual(len(row), 1, out)
+        self.assertTrue(row[0].endswith("~/bin/ps exited 1: " + SAID), out)
 
 
 if __name__ == "__main__":
