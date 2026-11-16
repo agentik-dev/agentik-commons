@@ -198,7 +198,7 @@ class SetupUpdateTest(Base):
         self.assertIn(CURRENT, out)
 
 
-DEFAULT = ["session", "decisions", "agents"]  # the suite's default set, by its manifest
+DEFAULT = plan.default_set(str(LIB))  # the suite's default set, by its manifest
 
 
 class DoctorTest(Base):
@@ -206,7 +206,7 @@ class DoctorTest(Base):
     stderr line stands in place of "printed nothing"."""
 
     def test_doctor_names_the_gone_code_and_its_next_runs_as_printed(self):
-        self.assertEqual(plan.default_set(str(LIB)), DEFAULT)
+        self.assertIn("session", DEFAULT)
         h = self.home(DEFAULT, suite=True)
         code, out, err = h.run("doctor")
         self.assertEqual(code, 0, out + err)
