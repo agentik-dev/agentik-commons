@@ -212,8 +212,9 @@ def _terminal(cmd):
 
 
 def show(cmd, steps, upto=7, lines=True):
-    """The plan's table; with `lines` false a page row still holds its page, which the close
-    points to (row fh13 review 1 F1)."""
+    """The plan's table, the dry run's and the run's; with `lines` false a page row still holds its
+    page, which the close points to (row fh13 review 1 F1). A missing `claude` has the `get it:`
+    line under its row (row sm2 R2, in the run too by row ic1-close R3)."""
     t, rows, last = cmd.t, [], None
     for s in steps:
         if s["n"] > upto:
@@ -221,6 +222,8 @@ def show(cmd, steps, upto=7, lines=True):
         shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
         keep = lines or s["line"] == "page"
         after = t.text("setup." + s["line"], command=shown) if keep and shown else None
+        if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
+            after = t.text("setup.cmd.get")  # where Claude Code comes from
         n = str(s["n"]) if s["n"] != last else ""
         last = s["n"]
         subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
@@ -252,8 +255,8 @@ def _before(cmd, names, build, the_plan, home, config):
         if o["json"]:
             raise cmd.Usage("blocked", "err.setup.blocked", cmd.say("setup", "--dry-run"),
                             missing=", ".join(blocked), **cmd.slots())
-        the_plan(steps)
-        t.hint("hint.setup.blocked", missing=", ".join(blocked), **cmd.slots())
+        the_plan(steps)  # the close names the command typed, never a dry run (row ic1-close R3)
+        t.hint("hint.setup.next", command=cmd.say("setup", *dict.fromkeys(cmd.words[1:])))
         return 2
     if not runnable(steps):
         return report(cmd, names, steps, [], [], None, None, home)
@@ -271,6 +274,7 @@ def _before(cmd, names, build, the_plan, home, config):
         if not (terminal and not o["json"]):
             raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
         count = planned(steps)
+        t.flush()  # the plan whole above the question, where stdout is a pipe (row ic1-close R4)
         t.line("setup.ask.one" if count == 1 else "setup.ask", err=True, count=count)
         t.flush()
         try:
@@ -429,6 +433,8 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
         t.error(failure[0], **cmd.slots(), **failure[1])
     elif page_close(steps):  # fh13 R7
         t.hint(*page_close(steps))
+    elif plan.door_off(cmd.env):  # the door stands and only PATH lacks it (row ic1-close R2)
+        t.hint("hint.setup.path")
     else:
         t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
     return code

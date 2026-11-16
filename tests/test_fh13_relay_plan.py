@@ -299,7 +299,7 @@ class PageTest(Base):
         self.assertEqual(code, 0, out + err)
         self.assertNotIn(PAGE, out + err)  # the report's add line and the pin's close, no page's
         self.assertIn("add to your shell profile:", out + err)
-        self.assertEqual(err.splitlines()[-1], "next: ~/.local/bin/agentik doctor checks each plugin.")
+        self.assertEqual(err.splitlines()[-1], path_close)  # the door stands off PATH (row ic1-close R2)
         with open(where) as fh:
             self.assertEqual(fh.read(), body)  # setup writes nothing at W
         self.assertFalse([line for line in h.ran() if T in line], h.ran())

@@ -300,7 +300,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.ran.start`: ran: `{command}`, which could not start
 - `setup.wrote`: wrote: `{path}`
 - `setup.nothing`: Setup has nothing to do: no step from 2 to 5 has a line to run.
-- `hint.setup.doctor`: next: `{doctor}` checks each plugin.
+- `hint.setup.doctor`: next: `{doctor}`
 - `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{setup}` --yes to run the lines above.
 - `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
 - `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
@@ -550,6 +550,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
+- `doctor.door.off`: `{path}` is there; the line marked add below puts its folder on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.claim.twice`: `{tools}` each claim the verb `{word}`, so `{run}` runs none of them
