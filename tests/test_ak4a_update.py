@@ -321,7 +321,7 @@ class UpdateTest(Base):
             code, out, err = h.run("update", "--yes",
                                    exe=os.path.join(checkout, "plugins", "suite", "bin", "agentik-suite"))
             self.assertEqual(code, 0, out + err)
-            self.assertRegex(out, r"agentik-suite \S+ was placed from a checkout, so update leaves it")
+            self.assertRegex(out, r"4  note  agentik-suite +agentik-suite \S+ came from a checkout its command does not name")
             self.assertIn(hint, err)
             self.assertEqual(h.ran("git.log"), [])
             self.assertEqual(h.snapshot(checkout), before)
