@@ -494,7 +494,9 @@ class UpdateTest(unittest.TestCase):
         doc_code, doc_out, doc_err = h.run("doctor")
         self.assertIn("FAIL  f1", doc_out)
         self.assertTrue(out.endswith(doc_out), out + "\n----\n" + doc_out)
-        self.assertEqual(err.splitlines()[-1], doc_err.splitlines()[-1])
+        # the suite from a checkout closes on its own line, after the doctor's (row up2 R2)
+        self.assertEqual(err.splitlines()[-2], doc_err.splitlines()[-1])
+        self.assertTrue(err.splitlines()[-1].startswith("next: pull that checkout"), err)
 
 
 if __name__ == "__main__":
