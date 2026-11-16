@@ -27,7 +27,7 @@ import sys
 
 import agentik_install
 
-from . import apply, doctor, plan, term, tools
+from . import apply, doctor, plan, prog, term, tools
 
 SCHEMA = "agentik.update/1"
 SESSION_WALL = 10
@@ -234,8 +234,14 @@ class Update:
             if isinstance(root, str) and isinstance(ver, str) and ver:
                 own = plan.build([], self.env, os.path.join(root, "lib"), cmd.tool, ver)
                 steps += [dict(s, n=4) for s in own if s["n"] == 5]
-        elif SUITE in self.names and SUITE not in self.skips:
-            steps.append(plan._step(4, "suite", "ok", cmd.tool, "update.suite.checkout", version=cmd.version))
+        elif SUITE in self.names and SUITE not in self.skips:  # a note, never ok (row up2 R2)
+            path = self.checkout()
+            if path:
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout",
+                                        version=cmd.version, path=plan.shown(path, self.home)))
+            else:
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout.none",
+                                        version=cmd.version))
         steps.append(plan._step(5, "doctor", "todo", "doctor", "update.doctor", cmd.say("doctor")))
         if any(s["state"] == "blocked" for s in self.prereqs):
             for s in steps:
@@ -257,10 +263,36 @@ class Update:
 
     # ---- the close (R6, R7, R8) -----------------------------------------------------------------
 
+    def checkout(self):
+        """The checkout the suite's launcher names (row up2 R1), where `setup` still stands there."""
+        found = agentik_install.read_launcher(os.path.join(self.bindir, "agentik-" + SUITE))
+        path = (found or {}).get("checkout")
+        return path if agentik_install._plain_checkout(path) else None
+
+    def pull_line(self, path):
+        """The one line that moves a suite placed from `path`: a pull, then its setup (R2)."""
+        q = prog.shown(path, self.home, full=self.o["json"])
+        return "git -C %s pull --ff-only && %s/setup" % (q, q)
+
+    def suite_close(self):
+        """The close's last lines for a suite placed from a checkout: the reason, then the one
+        `next:` that moves it (R2); where the marketplace lists no suite and the launcher names no
+        checkout, today's line."""
+        if self.suite is not None or SUITE not in self.names or SUITE in self.skips or self.t.quiet:
+            return
+        path = self.checkout()
+        if path:
+            why, command = "update.suite.why", self.pull_line(path)
+        elif SUITE in tools.descriptions(self.env):
+            why, command = "update.suite.why.none", "claude plugin install suite@agentik"
+        else:
+            self.t.hint("hint.update.suite.pull", **self.slots)
+            return
+        self.t.flush()
+        self.t.line(why, err=True, **self.slots)
+        self.t.hint("hint.update.suite", command=command)
+
     def hints(self):
-        if self.suite is None and SUITE in self.names and SUITE not in self.skips:
-            listed = SUITE in tools.descriptions(self.env)
-            self.t.hint("hint.update.suite" if listed else "hint.update.suite.pull", **self.slots)
         missing = self.absent + [e["name"] for e in self.gone]
         if missing:
             self.t.hint("hint.update.setup", command=self.cmd.say("setup", *missing), names=", ".join(missing))
@@ -276,7 +308,8 @@ class Update:
 
     def skipped_json(self, steps):
         found = [{"name": name, "why": s["detail"]} for name, s in self.skips.items()]
-        found += [{"name": SUITE, "why": s["detail"]} for s in steps if s["mid"] == "update.suite.checkout"]
+        found += [{"name": SUITE, "why": s["detail"]} for s in steps
+                  if s["mid"] in ("update.suite.checkout", "update.suite.checkout.none")]
         return found
 
     def json(self, ok, steps, after=None, ran=(), wrote=(), checked=None, error=None, held=None):
@@ -335,6 +368,7 @@ class Update:
             self.title()
             apply.show(self.cmd, steps)
             self.hints()
+            self.suite_close()
             return 0
         if blocked:
             missing = ", ".join(s["subject"] for s in blocked)
@@ -465,13 +499,15 @@ class Update:
         else:
             t.table([("fail", [self.gone_text(e)], None) if e in self.gone else
                      ("ok", [t.text("update.tool.moved", name=e["name"], old=e["from"], new=after.get(e["name"]))
-                             if e in moved else
-                             t.text("update.tool.same", name=e["name"], version=e["from"])], None)
+                             if e in moved else  # the suite's row speaks of the plugin (R3)
+                             t.text("update.suite.same" if e["name"] == SUITE else "update.tool.same",
+                                    name=e["name"], version=e["from"])], None)
                      for e in self.order])
         if left:
             apply.show(self.cmd, left)
         self.hints()
         doctor.screen(self.cmd, groups, failed, warned, total, entries)
+        self.suite_close()
         if short:
             t.flush()
             t.error(short[0], **short[1])
