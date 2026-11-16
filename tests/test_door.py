@@ -47,7 +47,7 @@ class DoorTest(unittest.TestCase):
         env = {"HOME": self.home, "PATH": path or "%s:%s" % (self.stubs, SYSTEM),
                "XDG_CACHE_HOME": os.path.join(self.home, "cache")}
         p = subprocess.run([str(door), *args], capture_output=True, text=True, env=env, timeout=60,
-                           cwd=cwd)
+                           cwd=cwd or self.home)  # no clone here: the next: line is the clone line (rm1 R3)
         return p.returncode, p.stdout, p.stderr
 
     def placed(self):
@@ -138,7 +138,7 @@ class DoorTest(unittest.TestCase):
             self.assertEqual((code, err), (0, NEXT + "\n"), args)
             self.assertTrue(out.startswith(USAGE + "\n"), args)
             self.assertIn("no agentik-* tool on PATH", out)
-        self.assertEqual(self.run_door("--version"), (0, "agentik 0.3.0 (no suite installed)\n", ""))
+        self.assertEqual(self.run_door("--version"), (0, "agentik 0.3.1 (no suite installed)\n", ""))
         for args in (("--json",), ("--version", "--json"), ("-q", "x"), ("help", "--json"),
                      ("help", "x", "y")):
             self.assertEqual(self.run_door(*args), (2, "", USAGE + "\n"), args)
@@ -167,7 +167,7 @@ class DoorTest(unittest.TestCase):
         self.assertTrue(os.access(copy, os.X_OK))
         self.assertEqual(subprocess.run(["sh", "-n", str(DOOR)]).returncode, 0)
         self.assertLess(len(data.splitlines()), 120)  # R6, raised at review 1
-        self.assertRegex(data.decode("ascii"), r"(?m)^VERSION=0\.3\.0$")
+        self.assertRegex(data.decode("ascii"), r"(?m)^VERSION=0\.3\.1$")
         self.assertFalse(re.search(rb"[^\t\n\x20-\x7e]", data), "an escape byte or a mark")
         # the copy dispatches from its own folder: the suite beside it is on PATH there
         code, out, _ = self.run_door("--help", path="%s:%s" % (SUITE_BIN, SYSTEM), door=copy)

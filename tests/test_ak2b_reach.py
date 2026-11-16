@@ -18,7 +18,7 @@ from test_agentik_suite import LAUNCHER, LIB, MANIFEST, ROOT, SYSTEM, Home, vers
 
 import agentik_install  # noqa: E402  (the suite's copy, on sys.path from test_agentik_suite)
 
-DOOR_VERSION = "0.3.0"
+DOOR_VERSION = "0.3.1"
 MODULE_RUN = "import sys; sys.path.insert(0, sys.argv[1]); import agentik_install as a; " \
              "sys.exit(a.install_cli(sys.argv[2]))"
 
@@ -177,7 +177,7 @@ class DoorFateTest(Reach):
         ours = str(ROOT / "bin" / "agentik")
         fate = agentik_install.door_fate
         self.assertEqual(fate(self.path("bin", "agentik"), ours), "write")
-        for kind, want in ((b"0.1.0", "write"), (b"0.2.0", "write"), (b"0.3.0", "keep"), (b"9.0.0", "keep"),
+        for kind, want in ((b"0.1.0", "write"), (b"0.2.0", "write"), (b"0.3.0", "write"), (b"0.3.1", "keep"), (b"9.0.0", "keep"),
                            (b"banana", "unversioned"), ("fifo", "unversioned"), ("link", "link")):
             self.assertEqual(fate(self.door(kind), ours), want, kind)
         os.unlink(self.path("bin", "agentik"))
