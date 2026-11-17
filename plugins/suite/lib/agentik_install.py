@@ -568,10 +568,12 @@ def prune_news(lines):
     return [l for l in lines if not re.fullmatch(r"prune-trees: removed 0, kept \d+ \(\d+ live, the newest \d+\)", l)]
 
 
-def install_cli(prefix=None, env=None, force=False):
+def install_cli(prefix=None, env=None, force=False, takes_force=False):
     """The verb `<tool> install-cli [--prefix P] [--force]`, for a tool's command line to call: its
     exit code. 0 done, or a newer command left as it is (one line says so; `force` places this
-    tree anyway); 1 it could not (the reason on stderr), nothing moved past what it had written."""
+    tree anyway); 1 it could not (the reason on stderr), nothing moved past what it had written.
+    The line names `--force` only where `takes_force` says the caller's verb takes that flag
+    (row up3-forward-only, review 1 F1)."""
     import sys
     try:
         done = install(prefix, env, force=force)
@@ -579,8 +581,9 @@ def install_cli(prefix=None, env=None, force=False):
         print("install-cli: %s" % e, file=sys.stderr)
         return 1
     if done["kept"]:
-        print("Left %s at %s, newer than this plugin's %s; --force places %s."
-              % (shown(done["launcher"], env), done["kept"], done["version"], done["version"]))
+        flag = "; --force places %s" % done["version"] if takes_force else ""
+        print("Left %s at %s, newer than this plugin's %s%s."
+              % (shown(done["launcher"], env), done["kept"], done["version"], flag))
         return 0
     link = " %s links to it." % shown(done["link"], env) if done["link"] else ""
     print("Placed %s %s and %s.%s" % (shown(done["launcher"], env), done["version"], shown(done["door"], env), link))
