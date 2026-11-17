@@ -191,7 +191,8 @@ _RUNNER = re.compile(r'"\$\{?TREE\}?/([^"/\s]+)"')  # install-cli's `[ -f "$TREE
 
 def code_gone(path):
     """The tree the launcher at `path` runs from, when that folder or the runner in it is gone,
-    else None (row up1-tree-gone R1). A launcher runs from its tree when its text uses the `TREE`
+    a runner it cannot read counting as gone, as the launcher reads it, else None (row
+    up1-tree-gone R1; up3-forward-only review 1 F2). A launcher runs from its tree when its text uses the `TREE`
     (or an older form's `CODE`) it names; one that never does is not read as gone. Never raises."""
     read = agentik_install.read_launcher(path)
     tree = (read or {}).get("tree")
@@ -202,7 +203,7 @@ def code_gone(path):
     if not _RUNS_TREE.search(text):
         return None
     runner = _RUNNER.search(text)
-    if not os.path.isdir(tree) or (runner and not os.path.isfile(os.path.join(tree, runner.group(1)))):
+    if not os.path.isdir(tree) or (runner and not agentik_install.runner_stands(os.path.join(tree, runner.group(1)))):
         return tree
     return None
 

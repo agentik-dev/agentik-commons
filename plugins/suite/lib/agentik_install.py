@@ -1093,15 +1093,21 @@ def _behind(path):
     return newer(version(), found and found["version"])
 
 
+def runner_stands(path):
+    """The runner at `path` is one the launcher runs: a file it can read, the launcher's own
+    `[ -f … ] && [ -r … ]` (row up3-forward-only, review 1 F2). Else its code is gone."""
+    return os.path.isfile(path) and os.access(path, os.R_OK)
+
+
 def _ahead(path, conf, share):
     """The version of the launcher at `path` where install-cli wrote it (`_ours`), its runner
-    stands in its TREE and it is newer than this plugin; else None. A command whose code is gone
-    is never kept: its own line names this install-cli as the way back."""
+    stands in its TREE (`runner_stands`) and it is newer than this plugin; else None. A command
+    whose code is gone is never kept: its own line names this install-cli as the way back."""
     if not _ours(path, conf["tool_name"], share):
         return None
     found = read_launcher(path) or {}
     tree, theirs = found.get("tree"), found.get("version")
-    if not tree or not os.path.isfile(os.path.join(tree, conf["runner"])):
+    if not tree or not runner_stands(os.path.join(tree, conf["runner"])):
         return None
     return theirs if newer(theirs, version()) else None
 

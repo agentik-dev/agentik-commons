@@ -253,11 +253,11 @@ class PlanTest(Base):
         steps = plan.build(["murmur"], h.env(), str(LIB), "agentik-suite", version())
         return [s for s in steps if s["n"] == 4][0]
 
-    def doctor_row(self, have, runner=None):
+    def doctor_row(self, have, runner=None, name="h"):
         """The doctor's launcher row for a tool of the suite's default set: its plan rows read
         that set alone."""
         tool = sorted(DEFAULT)[0]
-        h = self.at(have, tool=tool, runner=runner)
+        h = self.at(have, tool=tool, runner=runner, name=name)
         code, out, err = h.run("doctor", "--all", "--json")
         rows = [c for g in json.loads(out)["tools"] for c in g["checks"]
                 if c["name"] == "launcher ~/.local/bin/agentik-" + tool]
@@ -301,7 +301,7 @@ class PlanTest(Base):
         # review 1 F2: as the launcher reads it, so setup and update place it again
         s = self.row(self.at("1.9.3", runner=0))
         self.assertEqual((s["state"], s["mid"]), ("todo", "setup.launcher.gone"))
-        c = self.doctor_row("1.9.3", runner=0)
+        c = self.doctor_row("1.9.3", runner=0, name="d")
         self.assertNotEqual(c["status"], "note", c)
         self.assertIn("gone", c["detail"])
         self.assertNotIn("newer", c["detail"])
