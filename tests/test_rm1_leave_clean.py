@@ -76,6 +76,24 @@ class LauncherForm(unittest.TestCase):
                 fh.write(OLD_HEAD.replace("its old\n", "its old \n") + "VERSION=1\nTREE=/nowhere\n")
             self.assertFalse(agentik_install._launcher_form(path, "agentik-session"))
 
+    def test_the_older_line_is_the_session_tools_alone(self):
+        # review 1, F2: under any other name a launcher in the older form is kept, as before the row
+        name = "agentik-murmur"
+        head = OLD_HEAD.replace("agentik-session", name)
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = os.path.realpath(tmp)
+            tree = os.path.join(prefix, "share", name, "0123456789abcdef0123456789abcdef01234567")
+            os.makedirs(tree)
+            with open(os.path.join(tree, name), "w") as fh:
+                fh.write("pass\n")
+            os.makedirs(os.path.join(prefix, "bin"))
+            path = os.path.join(prefix, "bin", name)
+            with open(path, "w") as fh:
+                fh.write(head + "VERSION=1.0\nTREE=%s\nexec true\n" % shlex.quote(tree))
+            self.assertFalse(agentik_install._launcher_form(path, name))
+            rows = agentik_install.uninstall(name, prefix, door=False, dry=True, spare=())
+            self.assertEqual({fate for _, _, fate in rows}, {"kept: " + agentik_install.NOT_OURS}, rows)
+
     def test_both_copies_of_the_module_are_one(self):
         with open(str(ROOT / "scripts" / "agentik_install.py"), "rb") as a, \
                 open(str(ROOT / "plugins" / "suite" / "lib" / "agentik_install.py"), "rb") as b:
@@ -218,6 +236,22 @@ class LeaveClean(Base):
         self.assertIn("~/.claude/plugins/cache/agentik/suite", out.split(CLOSE)[0])
         self.assertNotIn("~/.claude/plugins/cache/agentik/suite", out.split(CLOSE)[1])
 
+    def test_r5_a_state_folder_reached_through_a_link_and_dotdot_is_shown_as_given(self):
+        # review 1, F3: ~/s is a link to ~/deep/a, so ~/s/../st is ~/deep/st, not ~/st
+        h = self.home(listed=("murmur", "paint", "x"))
+        os.makedirs(os.path.join(h.home, "deep", "a"))
+        os.symlink(os.path.join(h.home, "deep", "a"), os.path.join(h.home, "s"))
+        h.file(os.path.join(h.home, "deep", "st", "agentik-x", "notes"), "mine\n")
+        h.file(os.path.join(h.home, "deep", "st", "agentik-suite", "old.txt"), "mine\n")
+        code, out, err = h.go("remove", "--all", "--yes", XDG_STATE_HOME=os.path.join(h.home, "s", "..", "st"))
+        self.assertEqual(code, 0, out + err)
+        close = out.split(CLOSE)[1]
+        for name in ("agentik-x", "agentik-suite"):
+            self.assertIn("~/s/../st/%s" % name, close, out)
+            self.assertTrue(os.path.isdir(os.path.join(h.home, "deep", "st", name)))
+        self.assertNotIn("~/st/", out)
+        self.assertNotIn("no longer stands", out)
+
 
 class DoorLine(unittest.TestCase):
     """R3 at the door: with no suite, `agentik-commons/setup` by its path where a clone stands here,
@@ -272,11 +306,27 @@ class DoorLine(unittest.TestCase):
         self.assertEqual(line, "next: agentik-commons/setup")
         self.assertEqual(self.runs(line, where), (0, "setup ran\n"))
 
-    def test_a_setup_that_cannot_run_is_no_clone(self):
-        os.makedirs(os.path.join(self.tmp, "agentik-commons"))
-        with open(os.path.join(self.tmp, "agentik-commons", "setup"), "w") as fh:
-            fh.write(SETUP)
-        self.assertEqual(self.door(self.tmp), CLONE)
+    def test_a_setup_that_cannot_run_goes_through_sh(self):
+        # review 1, F1: a folder agentik-commons here is never the clone line, which fails there
+        for where, shown in ((self.tmp, "%s/agentik-commons/setup" % self.tmp),
+                             (os.path.join(self.tmp, "a b"), "agentik-commons/setup")):
+            os.makedirs(os.path.join(where, "agentik-commons"))
+            with open(os.path.join(where, "agentik-commons", "setup"), "w") as fh:
+                fh.write(SETUP)
+            for args in (("nosuch",), ("--help",)):
+                line = self.door(where, *args)
+                self.assertEqual(line, "next: sh " + shown, args)
+                self.assertEqual(self.runs(line, where), (0, "setup ran\n"))
+
+    def test_a_folder_with_no_setup_stands_in_the_way(self):
+        os.makedirs(os.path.join(self.tmp, "agentik-commons", "notes"))
+        for args in (("nosuch",), ("--help",)):
+            p = subprocess.run([str(DOOR), *args], capture_output=True, text=True, env=self.env, cwd=self.tmp,
+                               timeout=60)
+            lines = p.stderr.splitlines()
+            self.assertEqual([x for x in lines if x.startswith("next:")], [], lines)
+            self.assertIn("stands in the way", lines[-1])
+            self.assertLessEqual(len(lines[-1]), 76 + len("agentik: "))
 
 
 if __name__ == "__main__":
