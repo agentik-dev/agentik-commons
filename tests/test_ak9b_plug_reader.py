@@ -494,9 +494,10 @@ class UpdateTest(unittest.TestCase):
         doc_code, doc_out, doc_err = h.run("doctor")
         self.assertIn("FAIL  f1", doc_out)
         self.assertTrue(out.endswith(doc_out), out + "\n----\n" + doc_out)
-        # the suite from a checkout closes on its own line, after the doctor's (row up2 R2)
-        self.assertEqual(err.splitlines()[-2], doc_err.splitlines()[-1])
-        self.assertTrue(err.splitlines()[-1].startswith("next: pull that checkout"), err)
+        # the suite from a checkout closes on its reason and its own line, after the doctor's
+        # (row up2 R2; its review 1 F2: the plugin's line, listed or not)
+        self.assertEqual(err.splitlines()[-3], doc_err.splitlines()[-1])
+        self.assertEqual(err.splitlines()[-1], "next: claude plugin install suite@agentik", err)
 
 
 if __name__ == "__main__":

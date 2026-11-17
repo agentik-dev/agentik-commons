@@ -331,6 +331,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
 - `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
 - `update.suite.checkout`: agentik-suite `{version}` was placed from `{path}`, which update does not pull
+- `update.suite.checkout.gone`: agentik-suite `{version}` was placed from `{path}`, which is no longer a checkout
 - `update.suite.checkout.none`: agentik-suite `{version}` came from a checkout its command does not name
 - `update.suite.same`: the `{name}` plugin `{version}`, already current
 - `update.suite.why`: the line below pulls agentik-suite's checkout and runs its setup
@@ -359,7 +360,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
-- `hint.update.suite.pull`: pull that checkout, run install-cli of plugins/suite/bin/agentik-suite
 
 ## Remove
 

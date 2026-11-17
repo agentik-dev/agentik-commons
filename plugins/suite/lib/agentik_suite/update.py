@@ -235,9 +235,12 @@ class Update:
                 own = plan.build([], self.env, os.path.join(root, "lib"), cmd.tool, ver)
                 steps += [dict(s, n=4) for s in own if s["n"] == 5]
         elif SUITE in self.names and SUITE not in self.skips:  # a note, never ok (row up2 R2)
-            path = self.checkout()
-            if path:
+            path = self.named()
+            if path and agentik_install._plain_checkout(path):
                 steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout",
+                                        version=cmd.version, path=plan.shown(path, self.home)))
+            elif path:  # named, and no longer a checkout (review 1 F1)
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout.gone",
                                         version=cmd.version, path=plan.shown(path, self.home)))
             else:
                 steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout.none",
@@ -263,10 +266,14 @@ class Update:
 
     # ---- the close (R6, R7, R8) -----------------------------------------------------------------
 
-    def checkout(self):
-        """The checkout the suite's launcher names (row up2 R1), where `setup` still stands there."""
+    def named(self):
+        """The path the suite's launcher names on its `CHECKOUT=` line (row up2 R1), or None."""
         found = agentik_install.read_launcher(os.path.join(self.bindir, "agentik-" + SUITE))
-        path = (found or {}).get("checkout")
+        return (found or {}).get("checkout") or None
+
+    def checkout(self):
+        """The checkout the suite's launcher names, where `setup` still stands there."""
+        path = self.named()
         return path if agentik_install._plain_checkout(path) else None
 
     def pull_line(self, path):
@@ -276,18 +283,15 @@ class Update:
 
     def suite_close(self):
         """The close's last lines for a suite placed from a checkout: the reason, then the one
-        `next:` that moves it (R2); where the marketplace lists no suite and the launcher names no
-        checkout, today's line."""
+        `next:` that moves it (R2): the pull where the launcher names a checkout that stands, else
+        the suite plugin's install, whether or not the marketplace lists it (review 1 F1, F2)."""
         if self.suite is not None or SUITE not in self.names or SUITE in self.skips or self.t.quiet:
             return
         path = self.checkout()
         if path:
             why, command = "update.suite.why", self.pull_line(path)
-        elif SUITE in tools.descriptions(self.env):
-            why, command = "update.suite.why.none", "claude plugin install suite@agentik"
         else:
-            self.t.hint("hint.update.suite.pull", **self.slots)
-            return
+            why, command = "update.suite.why.none", "claude plugin install suite@agentik"
         self.t.flush()
         self.t.line(why, err=True, **self.slots)
         self.t.hint("hint.update.suite", command=command)
@@ -309,7 +313,7 @@ class Update:
     def skipped_json(self, steps):
         found = [{"name": name, "why": s["detail"]} for name, s in self.skips.items()]
         found += [{"name": SUITE, "why": s["detail"]} for s in steps
-                  if s["mid"] in ("update.suite.checkout", "update.suite.checkout.none")]
+                  if s["mid"] in ("update.suite.checkout", "update.suite.checkout.gone", "update.suite.checkout.none")]
         return found
 
     def json(self, ok, steps, after=None, ran=(), wrote=(), checked=None, error=None, held=None):
