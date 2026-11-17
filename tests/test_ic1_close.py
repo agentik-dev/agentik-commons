@@ -232,7 +232,7 @@ class BlockedTest(Home):
         code, out, err = self.old(["setup"], self.env())
         self.assertEqual(code, 2, out + err)
         ver = "%d.%d.%d" % sys.version_info[:3]
-        self.assertEqual(self.last(err), "This needs a Python of at least 3.99, and %s is older." % ver)
+        self.assertEqual(self.last(err), "Python %s is older than 3.99; set AGENTIK_PYTHON to a newer one." % ver)
         self.assertNotIn("next:", err)  # no command of ours mends it: the GUIDE's null
         self.assertIn("is older than the 3.99 minimum", out)
 
@@ -243,7 +243,7 @@ class BlockedTest(Home):
         code, out, err = self.old(["update"], env)
         self.assertEqual(code, 2, out + err)
         ver = "%d.%d.%d" % sys.version_info[:3]
-        self.assertEqual(self.last(err), "This needs a Python of at least 3.99, and %s is older." % ver)
+        self.assertEqual(self.last(err), "Python %s is older than 3.99; set AGENTIK_PYTHON to a newer one." % ver)
         self.assertNotIn("install", err)
         self.assertNotIn("next:", err)
 

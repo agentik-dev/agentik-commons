@@ -8,7 +8,8 @@ help:
 
 # scripts/recordlint is a copy of agentik-commons' record check. Never edit it here.
 recordlint:
-	@shasum -a 256 -c --status scripts/recordlint.sha256 \
+	@if command -v shasum >/dev/null 2>&1; then sum="shasum -a 256"; else sum=sha256sum; fi; \
+	$$sum -c --status scripts/recordlint.sha256 \
 	  || { echo "recordlint: scripts/recordlint is not the file scripts/recordlint.sha256 names; copy it again from agentik-commons" >&2; exit 2; }
 	scripts/recordlint
 
