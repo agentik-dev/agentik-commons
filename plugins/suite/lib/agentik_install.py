@@ -581,7 +581,7 @@ def install_cli(prefix=None, env=None, force=False, takes_force=False):
         print("install-cli: %s" % e, file=sys.stderr)
         return 1
     if done["kept"]:
-        flag = "; --force places %s" % done["version"] if takes_force else ""
+        flag = "; --force places it" if takes_force else ""   # each version once (review 1 L5)
         print("Left %s at %s, newer than this plugin's %s%s."
               % (shown(done["launcher"], env), done["kept"], done["version"], flag))
         return 0
