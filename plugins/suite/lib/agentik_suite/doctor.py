@@ -92,10 +92,36 @@ def door(cmd, on_path):
                                              want=want or "none"))
     if a >= b:
         return _check("door", "ok", t.text("doctor.door.ok", path=shown, have=have, want=want))
-    if any(f["name"] == cmd.tool for f in on_path):
+    low = a < agentik_install.order(prog.FLOOR)  # it hands no verb to the suite (row dr1 R2)
+    placed = _placed(home)
+    if placed and not _same(placed, path):  # an older door ahead of ~/.local/bin's (row dr1 R1)
+        c = _check("door", "fail" if low else "warn",
+                   t.text("doctor.door.ahead.old" if low else "doctor.door.ahead", path=shown, have=have,
+                          door=plan.shown(placed, home)), plan.PROFILE_LINE)
+        c["ahead"] = True
+        return c
+    on = any(f["name"] == cmd.tool for f in on_path)
+    if low and on:
         return _check("door", "fail", t.text("doctor.door.behind", path=shown, have=have, want=want),
                       cmd.say("install-cli"))
-    return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want), setup)
+    return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want),
+                  cmd.say("install-cli") if on else setup)
+
+
+def _placed(home):
+    """~/.local/bin/agentik where it is a regular executable file, else None."""
+    if not home:
+        return None
+    path = os.path.join(home, ".local", "bin", agentik_install.DOOR)
+    return path if os.path.isfile(path) and os.access(path, os.X_OK) else None
+
+
+def _same(a, b):
+    """True where two paths name one file, a link or a second spelling of a folder aside."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normpath(a) == os.path.normpath(b)
 
 
 def shadow(cmd, on_path):
@@ -547,7 +573,7 @@ def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
     if c.get("add"):
         return c["add"]
-    if c.get("off"):  # the door row ends on the line that mends this terminal (ic1-close review 1)
+    if c.get("off") or c.get("ahead"):  # the door row ends on the line that mends this terminal (ic1, dr1)
         return cmd.t.text("doctor.fix", command=c["remedy"])
     s = c.get("step")
     if s and s["line"] != "run":

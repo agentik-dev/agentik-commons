@@ -5,7 +5,7 @@
 | from | agentik-hq's brief dr1-door-ahead of 2026-11-16, R1 to R4; level S3; the install and upgrade review's findings 10 and 16 |
 | pin | agentik-commons main 17f4ed5 (suite 0.7.29); worktree `.claude/worktrees/dr1-door-ahead`, branch `dr1-door-ahead`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; every probe in a temp HOME, a temp PATH and a stub `claude`; no network |
-| may touch | `plugins/suite/lib/agentik_suite/doctor.py` (`door()`, `_under`'s first lines), `messages.md`'s `doctor.door.*` and `hint.setup.blocked.old`, `plugins/suite/lib/scaffold/hq/Makefile`, `tests/test_dr1_door_ahead.py`, `tests/test_ak11_init.py` (the Makefile's sha and its `make -n` text), `tests/test_ic1_close.py` (the refusal's text), `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json`'s version, this packet, `history/sittings/*.md` |
+| may touch | `plugins/suite/lib/agentik_suite/doctor.py` (`door()`, `_under`'s first lines), `messages.md`'s `doctor.door.*` and `hint.setup.blocked.old`, `plugins/suite/lib/scaffold/hq/Makefile`, `tests/test_dr1_door_ahead.py`, `tests/test_ak11_init.py` (the Makefile's sha and its `make -n` text), `tests/test_ic1_close.py` (the refusal's text), `tests/test_sc2_name.py` (its older-door screen closes on the PATH line), `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json`'s version, this packet, `history/sittings/*.md` |
 | verify | `make voice` and `make check`, each through the gate queue; `scripts/hygiene --require-private --commits main..HEAD` |
 
 ## 1. The owner's words

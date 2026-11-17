@@ -560,6 +560,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
 - `doctor.door.behind`: `{path}` is at `{have}`, too old to pass a verb to the suite
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
+- `doctor.door.ahead`: `{path}` is at `{have}` and comes before `{door}` on PATH
+- `doctor.door.ahead.old`: `{path}` is at `{have}`, too old to pass a verb, and comes before `{door}` on PATH
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.door.off`: `{path}` is there, but its folder is not on PATH
