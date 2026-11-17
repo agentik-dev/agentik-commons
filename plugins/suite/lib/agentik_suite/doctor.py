@@ -87,25 +87,41 @@ def door(cmd, on_path):
     want = (agentik_install.read_launcher(agentik_install._source()[2]) or {}).get("version")
     have = (agentik_install.read_launcher(path) or {}).get("version")
     a, b = agentik_install.order(have), agentik_install.order(want)
+    placed = _mends(home, path, b)
+    if a is None and placed:  # a door ahead with no version to read (row dr1 review 1 F1)
+        return _ahead(_check("door", "warn", t.text("doctor.door.ahead.unread", path=shown,
+                                                    door=plan.shown(placed, home)), plan.PROFILE_LINE))
     if a is None or b is None:
         return _check("door", "warn", t.text("doctor.door.unread", path=shown, have=have or "none",
                                              want=want or "none"))
     if a >= b:
         return _check("door", "ok", t.text("doctor.door.ok", path=shown, have=have, want=want))
     low = a < agentik_install.order(prog.FLOOR)  # it hands no verb to the suite (row dr1 R2)
-    placed = _placed(home)
-    if placed and not _same(placed, path):  # an older door ahead of ~/.local/bin's (row dr1 R1)
-        c = _check("door", "fail" if low else "warn",
-                   t.text("doctor.door.ahead.old" if low else "doctor.door.ahead", path=shown, have=have,
-                          door=plan.shown(placed, home)), plan.PROFILE_LINE)
-        c["ahead"] = True
-        return c
+    if placed:  # an older door ahead of a current ~/.local/bin/agentik (row dr1 R1, review 1 F2)
+        return _ahead(_check("door", "fail" if low else "warn",
+                             t.text("doctor.door.ahead.old" if low else "doctor.door.ahead", path=shown,
+                                    have=have, door=plan.shown(placed, home)), plan.PROFILE_LINE))
     on = any(f["name"] == cmd.tool for f in on_path)
     if low and on:
         return _check("door", "fail", t.text("doctor.door.behind", path=shown, have=have, want=want),
                       cmd.say("install-cli"))
     return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want),
                   cmd.say("install-cli") if on else setup)
+
+
+def _ahead(c):
+    c["ahead"] = True  # `_under` gives the row its `fix:` line, the PATH line
+    return c
+
+
+def _mends(home, path, want):
+    """~/.local/bin/agentik where it is another file than the first door on PATH and reads at
+    this command's door version or newer, so that the PATH line mends the door; else None."""
+    placed = _placed(home)
+    if not placed or _same(placed, path) or want is None:
+        return None
+    version = agentik_install.order((agentik_install.read_launcher(placed) or {}).get("version"))
+    return placed if version is not None and version >= want else None
 
 
 def _placed(home):

@@ -216,7 +216,7 @@ class BlockedTest(Home):
         error = json.loads(out)["error"]
         ver = "%d.%d.%d" % sys.version_info[:3]
         self.assertEqual(error["code"], "blocked")
-        self.assertEqual(error["message"], "Setup ran nothing: Python %s is older than the 3.99 it needs."
+        self.assertEqual(error["message"], "Python %s is older than 3.99. Set AGENTIK_PYTHON to a newer one."
                          % ver)
         self.assertIsNone(error["remedy"])
 

@@ -309,7 +309,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
 - `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
 - `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{setup}` again.
-- `err.setup.blocked.old`: Setup ran nothing: Python `{version}` is older than the `{floor}` it needs.
+- `err.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
 - `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{setup}` again.
 - `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{setup}` again.
 - `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{setup}` again to retry it.
@@ -562,6 +562,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.ahead`: `{path}` is at `{have}` and comes before `{door}` on PATH
 - `doctor.door.ahead.old`: `{path}` is at `{have}`, too old to pass a verb, and comes before `{door}` on PATH
+- `doctor.door.ahead.unread`: no version could be read from `{path}`, which comes before `{door}` on PATH
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.door.off`: `{path}` is there, but its folder is not on PATH

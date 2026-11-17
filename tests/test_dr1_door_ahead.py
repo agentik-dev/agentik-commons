@@ -219,7 +219,8 @@ class NotNewerTest(Ahead):
                                        "agentik install-cli")
         self.assertEqual(code, 0, text)
         self.assertNotIn("too old to pass a verb", text)  # R2 stands: 0.3.0 hands its verbs on
-        self.assertEqual(self.last(text), "next: agentik install-cli", text)
+        # a warn: the pin's close rules name setup, whose step 6 places the current door
+        self.assertEqual(self.last(text), "next: agentik setup", text)
 
 
 class UnreadAheadTest(Ahead):
