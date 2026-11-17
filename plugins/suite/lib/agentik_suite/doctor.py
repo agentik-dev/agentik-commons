@@ -202,15 +202,14 @@ def _tool_of(step, names):
 def planned(cmd):
     """The plugins the doctor plans: the default set's installed, in its order, then each other
     the suite knows installed, sorted, the suite's own aside; the default ones not installed; and
-    the setup line that mends a row of theirs: bare for the default set or none, else `setup` with
-    their names, so it installs nothing not chosen (row ic2-needs review 1 F1)."""
+    the words after `setup` in the line that mends a row of theirs: none for the default set or
+    none installed, else their names, so it installs nothing not chosen (row ic2-needs review 1 F1)."""
     defaults = plan.default_set(cmd.lib)
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     on = [n for n in tools.installed(cmd.env, cmd.lib) if n != suite]
     names = [n for n in defaults if n in on] + sorted(n for n in on if n not in defaults)
     absent = [n for n in defaults if n not in on]
-    setup = cmd.say("setup", *names) if names and names != defaults else cmd.say("setup")
-    return names, absent, setup
+    return names, absent, tuple(names) if names and names != defaults else ()
 
 
 def plan_rows(cmd):
@@ -220,7 +219,8 @@ def plan_rows(cmd):
     Each keeps its step under `step`, which --json cuts away. The plan is of the plugins installed:
     the default set's, in its order, then each other the suite knows, the suite's own aside; the
     default ones not installed are one note, `absent`, with no remedy (row ic2-needs R3). A need's
-    row is the tool's own doctor's to name, with its fix (R1). A row's remedy is `planned`'s line."""
+    row is the tool's own doctor's to name, with its fix (R1). A row's remedy is `setup` with
+    `planned`'s words (review 1 F1)."""
     names, absent, setup = planned(cmd)
     steps = plan.build(names, cmd.env, cmd.lib, cmd.tool, cmd.version)
     rows = tools.rows(cmd.env, cmd.lib, None, names=names)
@@ -237,7 +237,7 @@ def plan_rows(cmd):
             if s["mid"] in HELD:
                 remedy = cmd.say("config", "suite.sources." + tool)
             else:
-                remedy = s["command"] if s["n"] == 6 and s["command"] else setup
+                remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup", *setup)
         if state == "ok":
             mid = SOURCE_OK.get(s["mid"], s["mid"]) if theirs else s["mid"]
         else:
@@ -536,7 +536,7 @@ def close_command(cmd, groups):
         if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
             return c["remedy"]
     if _left(suite, 1, 5):  # the plan's own setup line (review 1 F1)
-        return next((c["setup"] for c in suite if c.get("setup")), cmd.say("setup"))
+        return cmd.say("setup", *next((c["setup"] for c in suite if "setup" in c), ()))
     for g in groups[1:]:
         fails = [c for c in g["checks"] if c["status"] == "fail"]
         if fails:

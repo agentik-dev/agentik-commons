@@ -528,7 +528,7 @@ class Command:
             steps = plan.build(names or plan.default_set(self.lib), self.env, self.lib, self.tool,
                                self.version)
             t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
-                   else "hint.help.done", **dict(self.slots(), setup=setup))
+                   else "hint.help.done", **dict(self.slots(), setup=self.say("setup", *setup)))
         return 0
 
     def first_screen(self):
