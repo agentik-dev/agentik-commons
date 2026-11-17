@@ -365,6 +365,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.say.launcher.missing`: not placed; update places it from the plugin
 - `update.say.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; update places it again
 - `update.say.launcher.unread`: holds no version line; update places it again at `{want}`
+- `update.say.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; update leaves it as it is
 - `update.say.launcher.earlier`: `{path}` comes first on PATH, so it runs instead; update leaves both as they are
 - `update.say.launcher.noversion`: placed; the source gives no version to compare, so update leaves it
 - `update.say.launcher.other`: at version `{have}`, and the source is at `{want}`; update places it again

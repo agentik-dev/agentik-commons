@@ -47,8 +47,8 @@ FAILS = {"err.setup.step": "err.update.step", "err.setup.step.silent": "err.upda
 SAYS = {"setup." + k: "update.say." + k for k in (
     "cmd.missing", "python.low", "plugin.missing", "plugin.broken",
     "launcher.missing", "launcher.behind", "launcher.unread", "launcher.earlier", "launcher.noversion",
-    "launcher.other", "launcher.page", "launcher.theirs", "suite.newer", "suite.behind", "suite.unread",
-    "suite.missing", "door.blocked", "door.link", "door.unversioned")}
+    "launcher.newer", "launcher.other", "launcher.page", "launcher.theirs", "suite.newer",
+    "suite.behind", "suite.unread", "suite.missing", "door.blocked", "door.link", "door.unversioned")}
 PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
