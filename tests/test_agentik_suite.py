@@ -43,6 +43,30 @@ def version():
     return json.loads(MANIFEST.read_text())["version"]
 
 
+_KNOWN = []
+
+
+def known_plugin():
+    """A copy of the plugin whose fallback table holds a row for the made-up `alpha` and `beta`,
+    made once and removed at exit: setup refuses a name the suite does not know (row ic2-needs R2),
+    so a test that plans one where nothing else names it runs this copy, as test_ak3_setup does."""
+    if not _KNOWN:
+        import atexit
+        top = os.path.realpath(tempfile.mkdtemp(prefix="known-suite-"))
+        atexit.register(shutil.rmtree, top, True)
+        root = os.path.join(top, "suite")
+        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        table = os.path.join(root, "lib", "fallback.json")
+        with open(table) as fh:
+            rows = json.load(fh)
+        for name in ("alpha", "beta"):
+            rows[name] = {"lines": ["agentik %s doctor" % name], "user_file": None, "needs": [], "status": []}
+        with open(table, "w") as fh:
+            json.dump(rows, fh)
+        _KNOWN.append(Path(root))
+    return _KNOWN[0]
+
+
 def package_files():
     return sorted(p for p in PACKAGE.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
 
@@ -65,6 +89,8 @@ def writes_outside_term(source):
 
 
 class Home(unittest.TestCase):
+    launcher = LAUNCHER  # a test that plans a made-up name sets known_plugin()'s (ic2-needs R2)
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -90,14 +116,14 @@ class Home(unittest.TestCase):
         return env
 
     def run_cli(self, *args, **more):
-        p = subprocess.run([str(LAUNCHER), *args], capture_output=True, text=True,
+        p = subprocess.run([str(self.launcher), *args], capture_output=True, text=True,
                            env=self.env(**more), timeout=60)
         return p.returncode, p.stdout, p.stderr
 
     def run_pty(self, *args, cols=200, **more):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
-        p = subprocess.Popen([str(LAUNCHER), *args], stdin=slave, stdout=slave, stderr=slave,
+        p = subprocess.Popen([str(self.launcher), *args], stdin=slave, stdout=slave, stderr=slave,
                              env=self.env(**more), close_fds=True)
         os.close(slave)
         chunks = []
@@ -304,6 +330,7 @@ class VerbTest(Home):
         self.assertEqual(self.snapshot(), before)
 
     def test_a3_steps_two_to_four_read_the_plugin_files(self):
+        self.launcher = known_plugin() / "bin" / "agentik-suite"  # alpha and beta known (ic2-needs R2)
         config = os.path.join(self.home, ".claude")
         absent = self.plan("alpha", "beta")
         for s in absent["steps"]:
@@ -448,6 +475,7 @@ class StreamTest(Home):
         self.assertEqual(out.getvalue(), "  ok  a  ??/x\n")
 
     def test_r6_a_crafted_file(self):
+        self.launcher = known_plugin() / "bin" / "agentik-suite"  # alpha known (ic2-needs R2)
         plugins = os.path.join(self.home, ".claude", "plugins")
         os.makedirs(plugins)
         with open(os.path.join(plugins, "installed_plugins.json"), "w") as fh:
@@ -577,6 +605,7 @@ class PlanTruthTest(Home):
         self.assertNotIn("claude plugin", out + err)
 
     def test_r2_r3_each_run_line_works_in_order(self):
+        self.launcher = known_plugin() / "bin" / "agentik-suite"  # alpha and beta known (ic2-needs R2)
         home = os.path.join(self.home, "a home")  # every path in a command holds a space
         os.mkdir(home)
         template = os.path.join(self.home, "plugin-bin")
@@ -658,7 +687,8 @@ class PlanTruthTest(Home):
     def test_m3_l4_step_fives_path_is_one_shell_word(self):
         """Review 2's L4, under packet ak2b R5: the path in step 5's command is one shell word."""
         root = os.path.join(self.home, "pl ug", "suite")
-        shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(str(known_plugin()), root,  # alpha known (ic2-needs R2)
+                        ignore=shutil.ignore_patterns("__pycache__"))
         p = subprocess.run([os.path.join(root, "bin", "agentik-suite"), "setup", "--dry-run",
                             "--json", "alpha"], capture_output=True, text=True, env=self.env(),
                            timeout=60)
