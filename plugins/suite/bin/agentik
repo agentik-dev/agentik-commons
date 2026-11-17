@@ -44,15 +44,15 @@ target() {
 	for t in "$@"; do case $t in -*) ;; *) return 0 ;; esac; done; return 1
 }
 
-# back: NEXT is a clone's setup here (or this folder's), by its path where plain; else the clone line.
+# back: NEXT is a clone's setup (`sh` one that cannot run), else the clone line or the folder's word.
 back() {
 	for r in agentik-commons/setup ./setup; do
 		[ "$r" = ./setup ] && [ "${PWD##*/}" != agentik-commons ] && continue
-		[ -f "$r" ] && [ -x "$r" ] || continue
-		d=${PWD%/}/${r#./} NEXT="next: $r"
-		case $d in /*) plain "$d" / && [ -x "$d" ] && NEXT="next: $d" ;; esac
-		return
+		[ -f "$r" ] && o=-x x= && { [ -x "$r" ] || { o=-f x='sh ' && [ "$r" != ./setup ]; }; } || continue
+		d=${PWD%/}/${r#./} NEXT="next: $x$r"
+		case $d in /*) plain "$d" / && [ $o "$d" ] && NEXT="next: $x$d" ;; esac; return
 	done
+	[ ! -d agentik-commons ] || NEXT="agentik: agentik-commons here has no setup, and stands in the way of a clone"
 }
 missing() {
 	back; printf '%s\n' "agentik: $1 is not installed, and neither is the agentik suite" "$NEXT" >&2
