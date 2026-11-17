@@ -99,7 +99,7 @@ Packets and sitting prompts' read lists cite a record as `record <file> --sectio
 |---|---|
 | `tool_name`, `remedy`, `runner`, `old_name`, `old_state` | `plugin/lib/agentik-tool.conf`, one `key=value` a line, every key present, plain words with no quotes; `sync` writes it once from `plugin.json`'s `name` when absent and never again; the tool's own, not listed |
 | the runner, `plugin/lib/<runner>` | the tool's own: it puts its own folder on `sys.path` (`-I` leaves it off), imports `agentik_install`, and calls `restore_parent_env()` before it can spawn |
-| its calls | `install_cli(prefix)` from the verb, `refresh()` from `hook SessionStart` (a line it returns goes in the `systemMessage`), `version()` for `--version` |
+| its calls | `install_cli(prefix, force=…, takes_force=True)` from a verb that takes `--force`, `install_cli(prefix)` from one that does not (its line over a newer command names no flag), `refresh()` from `hook SessionStart` (a line it returns goes in the `systemMessage`), `version()` for `--version` |
 
 | exits | |
 |---|---|

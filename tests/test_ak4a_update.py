@@ -261,7 +261,7 @@ class UpdateTest(Base):
                 self.assertEqual(out, "")
                 lines = err.splitlines()
                 self.assertTrue(lines[0].endswith("held install: " + what), err)
-                self.assertTrue(lines[1].startswith("next: ") and lines[1].endswith(" once it has ended"), err)
+                self.assertRegex(lines[1], r"^next: .* update( --dry-run)?$")  # up4 R4: the command alone
                 self.assertEqual(h.ran(), [])
                 self.assertEqual(h.snapshot(), before)
         h.file(os.path.join(h.bin, "ps"), "#!/bin/sh\nexit 1\n")  # a list that cannot be read holds
@@ -459,7 +459,7 @@ class ReviewOneTest(Base):
         self.assertEqual(len(row), 1, out)
         self.assertTrue(row[0].lstrip().startswith("FAIL") and "murmur" in row[0], row)
         self.assertIn(MOVED % ("paint", "2.0.0", "2.1.0"), out)
-        self.assertRegex(err, r"next: .*setup murmur ")
+        self.assertRegex(err, r"(?m)^next: .*setup murmur$")  # up4 R4: the command alone
 
     def test_17_a_step_3_row_left_at_the_second_read_fails(self):
         h = self.two_behind()
@@ -491,7 +491,7 @@ class ReviewOneTest(Base):
         self.assertEqual(code, 0, out + err)
         self.assertIn("quill is not installed", out)
         self.assertNotIn("no tool, since none", out)
-        self.assertRegex(err, r"next: .*setup quill ")
+        self.assertRegex(err, r"(?m)^next: .*setup quill$")  # up4 R4: the command alone
 
     def test_20_an_unattended_answer_holds_whatever_its_exit(self):
         h = self.two_behind()
