@@ -41,6 +41,12 @@ FAILS = {"err.setup.step": "err.update.step", "err.setup.step.silent": "err.upda
          "err.setup.wall": "err.update.wall", "err.setup.wall.silent": "err.update.wall.silent",
          "err.setup.start": "err.update.start", "err.setup.todo": "err.update.todo",
          "err.setup.interrupted.idle": "err.update.interrupted.idle"}
+# setup's step 4 and 5 rows that name setup, in update's own words where update shows them (row
+# up4-update-close R4); the step's `mid` stays setup's, so the plan's logic reads it as before
+SAYS = {"setup." + k: "update.say." + k for k in (
+    "launcher.missing", "launcher.behind", "launcher.unread", "launcher.earlier", "launcher.noversion",
+    "launcher.other", "launcher.page", "launcher.theirs", "suite.newer", "suite.behind", "suite.unread",
+    "suite.missing", "door.blocked", "door.link", "door.unversioned")}
 PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
@@ -162,14 +168,15 @@ class Update:
         self.slots = dict(cmd.slots(), setup=cmd.say("update"))  # setup's lines name this verb
         self.names, self.tools, self.skips, self.shown, self.absent, self.gone = [], [], {}, [], [], []
         self.suite, self.order = None, []  # a held run's JSON reads no scope (review 1 F1)
+        self.current = None  # the row whose command runs now (up4 R5)
 
     # ---- the scope (R2) ---------------------------------------------------------------------
 
     def scope(self):
         known = tools.known(self.env, self.cmd.lib)
         for name in self.nouns:
-            if name not in known and name != SUITE:
-                raise self.cmd.Refusal("bad_name", "err.setup.name", self.cmd.say("update", "--dry-run"),
+            if name not in known and name != SUITE:  # a name, and no tool's (up4 R4)
+                raise self.cmd.Refusal("bad_name", "err.update.unknown", self.cmd.say("update", "--dry-run"),
                                        name=name)
         names = self.nouns or [n for n in known if n != SUITE] + [SUITE]
         self.names = [n for n in names if n != SUITE] + ([SUITE] if SUITE in names else [])
@@ -208,7 +215,7 @@ class Update:
 
     def detail(self, steps):
         for s in steps:
-            s["detail"] = self.t.text(s["mid"], **dict(self.slots, **s["values"]))
+            s["detail"] = self.t.text(SAYS.get(s["mid"], s["mid"]), **dict(self.slots, **s["values"]))
         return steps
 
     def head(self):
@@ -227,19 +234,22 @@ class Update:
                 steps.append(self.skips[name])
         return steps
 
-    def tail(self):
+    def tail(self, only=None):
         """Steps 3 to 5, from the finder as it reads now: setup's step 4 rows for each tool, its
         step 5 rows for the suite's own command and the door, and the doctor (R4, R5, R6). A tool
         the finder now reads absent is gone and gets no row here (review 1 F4); a step 3 row of
-        setup's that is not ok is shown with its command and left for the person to run (F5)."""
+        setup's that is not ok is shown with its command and left for the person to run (F5). With
+        `only`, the rows of those tools alone, and no suite, door or doctor row (up4 R3)."""
         cmd = self.cmd
         read = tools.rows(self.env, cmd.lib, cmd.cwd, names=[e["name"] for e in self.order]) if self.order else {}
         self.gone = [e for e in self.order if read[e["name"]]["kind"] == "absent"]
-        names = [e["name"] for e in self.tools if e not in self.gone]
+        names = [e["name"] for e in self.tools if e not in self.gone and (only is None or e["name"] in only)]
         built = plan.build(names, self.env, cmd.lib, cmd.tool, cmd.version)
         self.prereqs = [s for s in built if s["n"] == 1]
         steps = [dict(s, n=3, left=True) for s in built if s["n"] == 3 and s["state"] != "ok"]
         steps += [dict(s, n=3) for s in built if s["n"] == 4]
+        if only is not None:
+            return steps if not any(s["state"] == "blocked" for s in self.prereqs) else []
         if self.suite and self.suite not in self.gone:
             row = read[SUITE]
             root, ver = row["root"], row["version"]
@@ -309,9 +319,14 @@ class Update:
         self.t.hint("hint.update.suite", command=command)
 
     def hints(self):
+        """A tool named and not installed, or gone: the reason, then `next:` and setup's line alone
+        (up4 R4)."""
         missing = self.absent + [e["name"] for e in self.gone]
-        if missing:
-            self.t.hint("hint.update.setup", command=self.cmd.say("setup", *missing), names=", ".join(missing))
+        if missing and not self.t.quiet:
+            self.t.flush()
+            self.t.line("update.setup.why" if len(missing) == 1 else "update.setup.why.many", err=True,
+                        names=", ".join(missing))
+            self.t.hint("hint.update.setup", command=self.cmd.say("setup", *missing))
 
     def launcher(self, name):
         found = agentik_install.read_launcher(os.path.join(self.bindir, "agentik-" + name))
@@ -360,7 +375,7 @@ class Update:
         else:
             self.t.error("err.update.held", what=what)
             again = self.cmd.say("update", *(self.nouns + (["--dry-run"] if self.o["dry_run"] else [])))
-            self.t.hint("hint.update.held.ps" if unread else "hint.update.held", command=again)
+            self.t.hint("hint.update.held", command=again)  # the cause above is its reason (up4 R4)
         return 2
 
     def main(self):
@@ -430,7 +445,9 @@ class Update:
             self.t.line("setup.running", err=True, command=row["command"])
             self.t.flush()
         before = apply.look(self.home, self.config)
+        self.current = row  # what an interrupt stopped (up4 R5)
         result = apply.execute(row["command"], self.env)
+        self.current = None
         after = apply.look(self.home, self.config)
         wrote.extend(p for p in sorted(after) if after[p] != before.get(p) and p not in wrote)
         ran.append({"n": row["n"], "command": row["command"], "exit": result["exit"]})
@@ -451,6 +468,7 @@ class Update:
 
     def _run(self, steps):
         t, ran, wrote, failure, placed = self.t, [], [], None, False
+        moved, before = [], []  # the plugins step 2 moved; the commands placed before a stop (up4 R3)
         try:
             for row in [s for s in steps if s["n"] in (1, 2) and s["command"]]:  # always run (R5)
                 old = self.root(row) if row["n"] == 2 else None
@@ -459,8 +477,12 @@ class Update:
                     failure = apply._failure(row["command"], result)
                     break
                 new = self.root(row) if row["n"] == 2 else None
+                if new and new != old:
+                    moved.append(row["subject"].rpartition("@")[0])
                 if new and new != old and new not in wrote:
                     wrote.append(new)
+            if failure and moved:
+                before = self.place(moved, ran, wrote)
             done = set()
             while failure is None:  # steps 3 and 4 from the finder read again, after each command
                 rows = self.runnable(self.detail(self.tail()))
@@ -476,7 +498,12 @@ class Update:
                     failure = apply._failure(rows[0]["command"], result)
         except KeyboardInterrupt:
             apply._ignore()
-            failure = ("err.setup.interrupted.idle", {}, apply.INTERRUPTED)
+            if self.current:  # the command it stopped, in the journal and on screen (up4 R5)
+                ran.append({"n": self.current["n"], "command": self.current["command"], "exit": None})
+                failure = ("err.update.interrupted", {"command": self.current["command"]}, apply.INTERRUPTED)
+            else:
+                failure = ("err.setup.interrupted.idle", {}, apply.INTERRUPTED)
+            self.current = None
         apply._ignore()
         code = (failure[2] if len(failure) > 2 else 1) if failure else 0
         left = [] if failure else [s for s in self.detail(self.tail()) if s.get("left")]  # F4, F5
@@ -494,8 +521,12 @@ class Update:
                 self.json(False, steps, after, commands, wrote,
                           error={"code": "step_failed", "message": message, "remedy": self.cmd.say("update")})
             else:
+                self.restart(moved)
                 t.flush()
-                t.error(mid, **dict(self.slots, **failure[1]))
+                again = self.cmd.say("update") if mid == "err.update.interrupted" else None
+                t.error(mid, again, **dict(self.slots, **failure[1]))
+                if before:
+                    t.line("update.placed", err=True, commands=", ".join(before))
             return code
         short = None
         if left:
@@ -515,15 +546,19 @@ class Update:
                       error=error)
             return code
         moved = [e for e in self.order if e not in self.gone and after.get(e["name"]) != e["from"]]
-        if not moved and not placed and not gone and not left:  # no row is left to do (F5)
+        if not moved and not placed and not gone and not left and not self.absent:  # F5; up4 R4
             t.line("update.nothing")
-        else:
+        elif moved or placed or gone or left or self.order:  # a tool named and not installed: no
+            # `everything is current`; the rows of those that are, and the reason below (up4 R4)
+            pages = self.pages() if moved else {}
             t.table([("fail", [self.gone_text(e)], None) if e in self.gone else
+                     self.page_row(e, after, pages[e["name"]]) if e in moved and e["name"] in pages else
                      ("ok", [t.text("update.tool.moved", name=e["name"], old=e["from"], new=after.get(e["name"]))
                              if e in moved else  # the suite's row speaks of the plugin (R3)
                              t.text("update.suite.same" if e["name"] == SUITE else "update.tool.same",
                                     name=e["name"], version=e["from"])], None)
                      for e in self.order])
+        self.restart(moved)
         if left:
             apply.show(self.cmd, left)
         self.hints()
@@ -533,6 +568,47 @@ class Update:
             t.flush()
             t.error(short[0], **short[1])
         return code
+
+    def place(self, names, ran, wrote):
+        """After a step 2 failure, the install-cli of each tool step 2 moved, as step 3 runs it; the
+        first that fails stops the placing. The commands placed, each with its version (up4 R3)."""
+        placed, done = [], set()
+        while True:
+            rows = [s for s in self.runnable(self.detail(self.tail(only=names))) if s["command"] not in done]
+            if not rows:
+                return placed
+            done.add(rows[0]["command"])
+            result = self.execute(rows[0], ran, wrote)
+            if result["why"] or result["exit"] != 0:
+                return placed
+            exe = os.path.basename(rows[0]["subject"])
+            found = agentik_install.read_launcher(os.path.join(self.bindir, exe))
+            placed.append("%s %s" % (exe, (found or {}).get("version") or "?"))
+
+    def restart(self, moved):
+        """Where a plugin moved, the one line that open sessions keep the old ones (up4 R1)."""
+        if moved and not self.t.quiet:
+            self.t.line("update.restart")
+
+    def pages(self):
+        """{tool: (its page, the file the finder says runs for it, or None)} for each tool in scope
+        whose table row holds a `page`, read from step 3's rows as the finder reads now (up4 R2)."""
+        table = tools.fallback(self.cmd.lib)
+        found = {}
+        for s in self.tail():
+            name = s["values"].get("name")
+            page = name and tools.page(table, name)
+            if page and s["mid"] in ("setup.launcher.theirs", "setup.launcher.page"):
+                found[name] = (page, s["values"].get("path"))
+        return found
+
+    def page_row(self, e, after, found):
+        """A moved tool that installs its own command: a note, never ok, with its page (up4 R2)."""
+        page, path = found
+        values = dict(name=e["name"], old=e["from"], new=after.get(e["name"]))
+        text = self.t.text("update.tool.page", path=path, **values) if path else \
+            self.t.text("update.tool.page.none", **values)
+        return ("note", [text], self.t.text("setup.page", command=page))
 
     def gone_text(self, e):
         return self.t.text("update.tool.gone", name=e["name"], version=e["from"] or "?")

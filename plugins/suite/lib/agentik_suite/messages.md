@@ -344,14 +344,34 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.tool.gone`: `{name}` `{version}` is no longer installed
+- `update.tool.page`: the `{name}` plugin `{old}` to `{new}`; its command, at `{path}`, stays as it was
+- `update.tool.page.none`: the `{name}` plugin `{old}` to `{new}`; its command is not installed
+- `update.restart`: sessions started before this keep the old plugins until they are restarted
+- `update.placed`: placed before the stop: `{commands}`
+- `update.setup.why`: `{names}` is not installed; the line below installs it
+- `update.setup.why.many`: `{names}` are not installed; the line below installs them
+- `update.say.launcher.missing`: not placed; update places it from the plugin
+- `update.say.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; update places it again
+- `update.say.launcher.unread`: holds no version line; update places it again at `{want}`
+- `update.say.launcher.earlier`: `{path}` comes first on PATH, so it runs instead; update leaves both as they are
+- `update.say.launcher.noversion`: placed; the source gives no version to compare, so update leaves it
+- `update.say.launcher.other`: at version `{have}`, and the source is at `{want}`; update places it again
+- `update.say.launcher.page`: not placed, and not update's to place: `{name}` installs its own command
+- `update.say.launcher.theirs`: `{name}` installed its own command, at `{path}`; update leaves it as it is
+- `update.say.suite.newer`: at version `{have}`, newer than this command's `{want}`; update leaves it as it is
+- `update.say.suite.behind`: at version `{have}`, and this command is at `{want}`; update places it again
+- `update.say.suite.unread`: holds no version line; update places it again at `{want}`
+- `update.say.suite.missing`: not placed; update places it from this command
+- `update.say.door.blocked`: not placed, or older than this command's; the rows above block it
+- `update.say.door.link`: a link, so update leaves it as it is
+- `update.say.door.unversioned`: holds no version to compare, so update leaves it as it is
 - `update.nothing`: everything is current; nothing was placed.
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
 - `update.held.ps`: the process list cannot be read: `{why}`
 - `err.update.held`: held install: `{what}`
-- `hint.update.held`: next: `{command}` once it has ended
-- `hint.update.held.ps`: next: `{command}` once ps can list each process's environment
-- `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
+- `hint.update.held`: next: `{command}`
+- `hint.update.setup`: next: `{command}`
 - `hint.update.suite`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
@@ -363,6 +383,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
 - `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
 - `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
+- `err.update.interrupted`: Update was interrupted, so it stopped `{command}`
+- `err.update.unknown`: `{name}` is no known tool
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
