@@ -201,7 +201,7 @@ class Remove:
         found += [(os.path.join(self.config, "plugins", "data", name + "@agentik"), "remove.keep.data"),
                   (os.path.join(self.config, "plugins", "cache", "agentik", name), "remove.keep.cache")]
         self.guard += [p for p, _ in found]
-        found = [(os.path.normpath(p), why) for p, why in found]  # `agents/` and `agents`: one folder
+        found = [(os.path.normpath(p), why) for p, why in found]  # `a/` and `a`: one folder (rm1 R5)
         return [(p, why) for p, why in dict(found).items() if os.path.lexists(p)]
 
     # ---- the plan (R4, R5) ---------------------------------------------------------------------
