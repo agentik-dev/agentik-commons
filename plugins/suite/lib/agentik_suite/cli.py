@@ -522,10 +522,13 @@ class Command:
 
     def _close_help(self):
         t = self.t
-        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3)
-            steps = plan.build(plan.default_set(self.lib), self.env, self.lib, self.tool, self.version)
+        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3), of
+            # the plugins the doctor plans, and its setup line (row ic2-needs review 1 lead 1)
+            names, _, setup = doctor.planned(self)
+            steps = plan.build(names or plan.default_set(self.lib), self.env, self.lib, self.tool,
+                               self.version)
             t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
-                   else "hint.help.done", **self.slots())
+                   else "hint.help.done", **dict(self.slots(), setup=setup))
         return 0
 
     def first_screen(self):
