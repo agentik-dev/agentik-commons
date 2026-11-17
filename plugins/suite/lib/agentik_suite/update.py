@@ -472,6 +472,7 @@ class Update:
     def _run(self, steps):
         t, ran, wrote, failure, placed = self.t, [], [], None, False
         moved, before = [], []  # the plugins step 2 moved; the commands placed before a stop (up4 R3)
+        cause, broke = None, None  # the step 2 failure that began the placing; a placement that failed
         try:
             for row in [s for s in steps if s["n"] in (1, 2) and s["command"]]:  # always run (R5)
                 old = self.root(row) if row["n"] == 2 else None
@@ -484,8 +485,9 @@ class Update:
                     moved.append(row["subject"].rpartition("@")[0])
                 if new and new != old and new not in wrote:
                     wrote.append(new)
-            if failure and moved:
-                before = self.place(moved, ran, wrote)
+            if failure and moved:  # `before` is filled as it goes, so an interrupt keeps it (review 1 F2)
+                cause = failure
+                broke = self.place(moved, ran, wrote, before)
             done = set()
             while failure is None:  # steps 3 and 4 from the finder read again, after each command
                 rows = self.runnable(self.detail(self.tail()))
@@ -527,9 +529,12 @@ class Update:
                 self.restart(moved)
                 t.flush()
                 again = self.cmd.say("update") if mid == "err.update.interrupted" else None
-                t.error(mid, again, **dict(self.slots, **failure[1]))
-                if before:
-                    t.line("update.placed", err=True, commands=", ".join(before))
+                below = self.placing(before, cause if cause is not failure else None, broke)
+                t.error(mid, None if below else again, **dict(self.slots, **failure[1]))
+                for line, values in below:
+                    t.line(line, err=True, **values)
+                if below and again:  # `next:` stays last
+                    t.hint("hint.update.again", command=again)
             return code
         short = None
         if left:
@@ -572,21 +577,38 @@ class Update:
             t.error(short[0], **short[1])
         return code
 
-    def place(self, names, ran, wrote):
+    def place(self, names, ran, wrote, placed):
         """After a step 2 failure, the install-cli of each tool step 2 moved, as step 3 runs it; the
-        first that fails stops the placing. The commands placed, each with its version (up4 R3)."""
-        placed, done = [], set()
+        first that fails stops the placing. Each command placed goes into `placed` as it lands, with
+        its version, so an interrupt keeps the list (up4 R3, review 1 F2); the placement that
+        failed, as (command, result), else None (review 1 L5)."""
+        done = set()
         while True:
             rows = [s for s in self.runnable(self.detail(self.tail(only=names))) if s["command"] not in done]
             if not rows:
-                return placed
+                return None
             done.add(rows[0]["command"])
             result = self.execute(rows[0], ran, wrote)
             if result["why"] or result["exit"] != 0:
-                return placed
+                return rows[0]["command"], result
             exe = os.path.basename(rows[0]["subject"])
             found = agentik_install.read_launcher(os.path.join(self.bindir, exe))
             placed.append("%s %s" % (exe, (found or {}).get("version") or "?"))
+
+    @staticmethod
+    def placing(before, cause, broke):
+        """The lines under a FAIL where step 2's failure began the placing: the commands placed, the
+        step 2 failure where the FAIL is another's, and a placement that failed (review 1 F2, L5)."""
+        lines = []
+        if before:
+            lines.append(("update.placed", {"commands": ", ".join(before)}))
+        if cause:
+            lines.append(("update.place.cause", {"command": cause[1]["command"]}))
+        if broke:
+            command, result = broke
+            lines.append(("update.place.failed" if result["last"] else "update.place.failed.silent",
+                          {"command": command, "last": result["last"] or ""}))
+        return lines
 
     def restart(self, moved):
         """Where a plugin moved, the one line that open sessions keep the old ones (up4 R1)."""

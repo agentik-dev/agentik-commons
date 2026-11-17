@@ -348,6 +348,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.tool.page.none`: the `{name}` plugin `{old}` to `{new}`; its command is not installed
 - `update.restart`: sessions started before this keep the old plugins until they are restarted
 - `update.placed`: placed before the stop: `{commands}`
+- `update.place.cause`: the placing began once `{command}` failed in step 2
+- `update.place.failed`: `{command}` failed too and said `{last}`; the placing stopped there
+- `update.place.failed.silent`: `{command}` failed too, with no output; the placing stopped there
 - `update.setup.why`: `{names}` is not installed; the line below installs it
 - `update.setup.why.many`: `{names}` are not installed; the line below installs them
 - `update.blocked.why`: step 1 needs `{missing}`; install it, then run the line below
@@ -376,6 +379,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.update.setup`: next: `{command}`
 - `hint.update.suite`: next: `{command}`
 - `hint.update.blocked`: next: `{command}`
+- `hint.update.again`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
