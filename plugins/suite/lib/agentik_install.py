@@ -519,10 +519,12 @@ def _locked_install(prefix, share, env, conf, ps_timeout=60):
             "link": link, "pruned": lines, "checkout": checkout}
 
 
-def install(prefix=None, env=None, dry_run=False):
+def install(prefix=None, env=None, dry_run=False, force=False):
     """The verb's work; what it wrote, or an OSError, KeyError or ValueError. `door_fate` is read
     before any write; `on_path` is true when <prefix>/bin is an entry of the env's PATH. With
-    `dry_run` it takes no lock and writes nothing: `tree` is None and `pruned` empty."""
+    `dry_run` it takes no lock and writes nothing: `tree` is None and `pruned` empty. `kept` is
+    the version of a command install-cli wrote that is newer than this tree and whose code stands:
+    then nothing is written, unless `force` (row up3-forward-only R1); else None."""
     env = os.environ if env is None else env
     conf = names()
     if prefix == "~" or (prefix or "").startswith("~/"):    # make quotes PREFIX, so no shell did
@@ -534,19 +536,24 @@ def install(prefix=None, env=None, dry_run=False):
     seen = {"door_fate": door_fate(door, _source()[2]),
             "on_path": os.path.normpath(bin_dir) in [
                 os.path.normpath(p) for p in (env.get("PATH") or "").split(os.pathsep) if p]}
-    if dry_run:
+    launcher = os.path.join(bin_dir, conf["tool_name"])
+    kept = None if force else _ahead(launcher, conf, share)
+    if dry_run or kept:
         old = conf["old_name"]
-        launcher = os.path.join(bin_dir, conf["tool_name"])
         done = {"launcher": launcher, "tree": None, "version": version(),
-                "door": door, "link": _old_link(bin_dir, old), "pruned": [],
+                "door": door, "link": None if kept else _old_link(bin_dir, old), "pruned": [],
                 "checkout": checkout_of(_source()[0], env, launcher)}
     else:
         lock = _lock(share)
         try:
-            done = _locked_install(prefix, share, env, conf)
+            kept = None if force else _ahead(launcher, conf, share)    # again, under the lock
+            done = None if kept else _locked_install(prefix, share, env, conf)
         finally:
             lock.close()
-    done.update(seen)
+        if kept:
+            done = {"launcher": launcher, "tree": None, "version": version(), "door": door,
+                    "link": None, "pruned": [], "checkout": None}
+    done.update(seen, kept=kept)
     return done
 
 
@@ -561,15 +568,23 @@ def prune_news(lines):
     return [l for l in lines if not re.fullmatch(r"prune-trees: removed 0, kept \d+ \(\d+ live, the newest \d+\)", l)]
 
 
-def install_cli(prefix=None, env=None):
-    """The verb `<tool> install-cli [--prefix P]`, for a tool's command line to call: its exit
-    code. 0 done; 1 it could not (the reason on stderr), nothing moved past what it had written."""
+def install_cli(prefix=None, env=None, force=False, takes_force=False):
+    """The verb `<tool> install-cli [--prefix P] [--force]`, for a tool's command line to call: its
+    exit code. 0 done, or a newer command left as it is (one line says so; `force` places this
+    tree anyway); 1 it could not (the reason on stderr), nothing moved past what it had written.
+    The line names `--force` only where `takes_force` says the caller's verb takes that flag
+    (row up3-forward-only, review 1 F1)."""
     import sys
     try:
-        done = install(prefix, env)
+        done = install(prefix, env, force=force)
     except (OSError, KeyError, ValueError) as e:
         print("install-cli: %s" % e, file=sys.stderr)
         return 1
+    if done["kept"]:
+        flag = "; --force places it" if takes_force else ""   # each version once (review 1 L5)
+        print("Left %s at %s, newer than this plugin's %s%s."
+              % (shown(done["launcher"], env), done["kept"], done["version"], flag))
+        return 0
     link = " %s links to it." % shown(done["link"], env) if done["link"] else ""
     print("Placed %s %s and %s.%s" % (shown(done["launcher"], env), done["version"], shown(done["door"], env), link))
     for line in prune_news(done["pruned"]):
@@ -1063,18 +1078,41 @@ def order(ver):
         (0, p, "") if isinstance(p, int) else (1, 0, p) for p in pre)
 
 
+def newer(a, b):
+    """Version `a` sorts above version `b`: the one comparison refresh, install and setup's step 4
+    make (row up3-forward-only R1). Equal, absent or a version `order` cannot read: False."""
+    if not a or not b or a == b:
+        return False
+    a, b = order(a), order(b)
+    return a is not None and b is not None and a > b
+
+
 def _behind(path):
     """The launcher at `path` is older than this plugin. Absent, a link, no line, no reading or
     equal: left alone."""
     if os.path.islink(path):
         return False
     found = read_launcher(path)
-    theirs = found and found["version"]
-    ours = version()
-    if not theirs or theirs == ours:
-        return False
-    theirs, ours = order(theirs), order(ours)
-    return theirs is not None and ours is not None and ours > theirs
+    return newer(version(), found and found["version"])
+
+
+def runner_stands(path):
+    """The runner at `path` is one the launcher runs: a file it can read, the launcher's own
+    `[ -f … ] && [ -r … ]` (row up3-forward-only, review 1 F2). Else its code is gone."""
+    return os.path.isfile(path) and os.access(path, os.R_OK)
+
+
+def _ahead(path, conf, share):
+    """The version of the launcher at `path` where install-cli wrote it (`_ours`), its runner
+    stands in its TREE (`runner_stands`) and it is newer than this plugin; else None. A command
+    whose code is gone is never kept: its own line names this install-cli as the way back."""
+    if not _ours(path, conf["tool_name"], share):
+        return None
+    found = read_launcher(path) or {}
+    tree, theirs = found.get("tree"), found.get("version")
+    if not tree or not runner_stands(os.path.join(tree, conf["runner"])):
+        return None
+    return theirs if newer(theirs, version()) else None
 
 
 def _refresh(env, conf):

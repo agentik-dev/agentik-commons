@@ -48,6 +48,8 @@ FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.p
         "setup.plugin.declared": "doctor.plan.declared", "setup.plugin.gone": "doctor.plan.gone",
         "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other",
         "setup.launcher.gone": "doctor.plan.code", "setup.suite.gone": "doctor.plan.code"}
+# An ok row that is a fact to note, in doctor's words (row up3-forward-only R4).
+NOTE = {"setup.launcher.newer": "doctor.plan.newer"}
 # A held row (fk2-plan R4) in doctor's words, whose remedy is the card that shows how to choose.
 HELD = {"setup.plugin.held": "doctor.source.undecided", "setup.plugin.held.twice": "doctor.source.twice",
         "setup.plugin.held.repo": "doctor.source.repo"}
@@ -87,15 +89,57 @@ def door(cmd, on_path):
     want = (agentik_install.read_launcher(agentik_install._source()[2]) or {}).get("version")
     have = (agentik_install.read_launcher(path) or {}).get("version")
     a, b = agentik_install.order(have), agentik_install.order(want)
+    placed = _mends(home, path, b)
+    if a is None and placed:  # a door ahead with no version to read (row dr1 review 1 F1)
+        return _ahead(_check("door", "warn", t.text("doctor.door.ahead.unread", path=shown,
+                                                    door=plan.shown(placed, home)), plan.PROFILE_LINE))
     if a is None or b is None:
         return _check("door", "warn", t.text("doctor.door.unread", path=shown, have=have or "none",
                                              want=want or "none"))
     if a >= b:
         return _check("door", "ok", t.text("doctor.door.ok", path=shown, have=have, want=want))
-    if any(f["name"] == cmd.tool for f in on_path):
+    low = a < agentik_install.order(prog.FLOOR)  # it hands no verb to the suite (row dr1 R2)
+    if placed:  # an older door ahead of a current ~/.local/bin/agentik (row dr1 R1, review 1 F2)
+        return _ahead(_check("door", "fail" if low else "warn",
+                             t.text("doctor.door.ahead.old" if low else "doctor.door.ahead", path=shown,
+                                    have=have, door=plan.shown(placed, home)), plan.PROFILE_LINE))
+    on = any(f["name"] == cmd.tool for f in on_path)
+    if low and on:
         return _check("door", "fail", t.text("doctor.door.behind", path=shown, have=have, want=want),
                       cmd.say("install-cli"))
-    return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want), setup)
+    return _check("door", "warn", t.text("doctor.door.old", path=shown, have=have, want=want),
+                  cmd.say("install-cli") if on else setup)
+
+
+def _ahead(c):
+    c["ahead"] = True  # `_under` gives the row its `fix:` line, the PATH line
+    return c
+
+
+def _mends(home, path, want):
+    """~/.local/bin/agentik where it is another file than the first door on PATH and reads at
+    this command's door version or newer, so that the PATH line mends the door; else None."""
+    placed = _placed(home)
+    if not placed or _same(placed, path) or want is None:
+        return None
+    version = agentik_install.order((agentik_install.read_launcher(placed) or {}).get("version"))
+    return placed if version is not None and version >= want else None
+
+
+def _placed(home):
+    """~/.local/bin/agentik where it is a regular executable file, else None."""
+    if not home:
+        return None
+    path = os.path.join(home, ".local", "bin", agentik_install.DOOR)
+    return path if os.path.isfile(path) and os.access(path, os.X_OK) else None
+
+
+def _same(a, b):
+    """True where two paths name one file, a link or a second spelling of a folder aside."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return os.path.normpath(a) == os.path.normpath(b)
 
 
 def shadow(cmd, on_path):
@@ -221,7 +265,9 @@ def plan_rows(cmd):
                 remedy = cmd.say("config", "suite.sources." + tool)
             else:
                 remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup")
-        if state == "ok":
+        if s["mid"] in NOTE:
+            state, mid = "note", NOTE[s["mid"]]
+        elif state == "ok":
             mid = SOURCE_OK.get(s["mid"], s["mid"]) if theirs else s["mid"]
         else:
             mid = FACT.get(s["mid"], "doctor.plan.placed")
@@ -547,7 +593,7 @@ def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
     if c.get("add"):
         return c["add"]
-    if c.get("off"):  # the door row ends on the line that mends this terminal (ic1-close review 1)
+    if c.get("off") or c.get("ahead"):  # the door row ends on the line that mends this terminal (ic1, dr1)
         return cmd.t.text("doctor.fix", command=c["remedy"])
     s = c.get("step")
     if s and s["line"] != "run":

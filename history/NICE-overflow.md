@@ -255,3 +255,21 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n169 | S4 | `plugins/suite` `tools.py` `run_all` | SIGTERM or SIGHUP leaves a hung read running past the wall: `run_all` cleans up on BaseException alone; `status` shares it, and with in4's fix `status` and `inbox` map both signals to `status.Signalled`, `config` and `doctor` not | in4 review 1 F7: exit -15, the stub at ppid 1 | 2026-11-14, in4-inbox review 1 |
 | n170 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |
 | n171 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f4_a_child_that_left_the_group_and_holds_stdout` | the test's 3.0 s bound is missed on a loaded machine: 3.19 s while three other gate jobs ran, 711 of 712 passed, and the same head was green in the job before; widen the bound or measure against an idle baseline | a landing's `make check` | 2026-11-14, in4-inbox phase 2 |
+
+## From the Open table (n172 to n175, moved by up3-forward-only's phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n172 | S4 | `plugins/suite` the refresh at SessionStart | the refresh at SessionStart moves only a launcher whose tree its own plugin froze: not held by fk2-plan, so an enabled copy numerically newer can still replace a fork's launcher | hq design/25 §3 item 16, R1-F2 | 2026-11-14, fk2-plan build 1 |
+| n173 | S4 | `bin/agentik` | a folder whose path holds a space is printed as `that folder` in the list the door shows when no suite is installed: safe, and the path is lost | sc13 review 2 N1 | 2026-11-14, sc13-door review 2 |
+| n174 | S4 | `form.nothing_new` | a render that inverts or empties Expected using only words the draft holds is saved as it stands, and no word is marked unsure; that check is reword's road, so it is not rp8's | rp8 review 1 F6 | 2026-11-14, rp8-respeak review 1 |
+| n175 | S4 | `render.run` | a signal that arrives in the last instructions of `run`, after the last check and before the old handlers are back, is recorded and never raised; one that arrives inside `mkdtemp` leaves an empty folder; read in the code, not reproduced | rp8 review 2 N2 | 2026-11-14, rp8-respeak review 2 |
+
+## From the Open table (n176 to n179, moved by dr1-door-ahead's phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n176 | S4 | the suite's start | Ctrl-C while a verb's imports load, its first 100 ms or so, prints a `KeyboardInterrupt` traceback and exits by the signal, for `config` and `issue new` alike, and on main too | rp8 review 2 N3 | 2026-11-14, rp8-respeak review 2 |
+| n177 | S4 | `plugins/suite` `config.py` `_tool` | `config suite` words each config-read warning but `choice` as `unknown key`, so a `sources` line the suite passes over reads `unknown key sources.suite`; the doctor's `doctor.settings.*` words could serve | `config.py:403`, a user file naming `suite` under `sources:` | 2026-11-14, fk2b-reads build 1 |
+| n178 | S4 | `doctor` | a group line can carry the mark FAIL beside a warn's words: where a tool's own doctor fails in a home with a source warn, the line reads `FAIL  murmur  2 plugins of this name are installed, and no source is declared`; the exit (1) and the close are right | hI with a failing launcher doctor (review 1's `p10_fail.py`) | 2026-11-14, fk2b-reads review 1's leads |
+| n179 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f2_twenty_slow_tools_add_nothing_past_the_wall` | n171's 3.0 s bound in a second test: `config` took 3.02 s at load 8 beside another check, and was green alone three times at the same head; one bound for both tests, widened or measured against an idle baseline | gate 20261114-061401-1894 | 2026-11-14, fh13-relay-plan build 1 |

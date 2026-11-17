@@ -17,11 +17,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n191 | S4 | `plugins/suite` `update.py` | with output sent to a file, `agentik update` prints its `running claude plugin marketplace update agentik` line above the plan's first line, since the two streams are not flushed in order; not fixed | the first real run of `agentik update`, in ak9b-plug-reader's start line | 2026-11-14, ak9b-plug-reader build 1 |
 | n182 | S4 | `plugins/suite` `cli.py` `help_verb` | the sentence under `usage:` in `help <verb>` is not wrapped to the width, so the terminal breaks it mid-word: `help doctor` at 60 columns has a line of 103 characters | sc5 review 1 N1 | 2026-11-14, sc5-first-screen review 1 |
 | n180 | S4 | `plugins/suite` `plan.py` step 3, `cli.py` `_not_a_verb` | a tool with a `page` and a held or unfound source: setup's plan shows step 3's lone row, no step 4 or 7 row and never the page, while `T doctor` refuses with the page | review 1 lead, homes hB, hH, pC | 2026-11-14, fh13-relay-plan fix of review 1 |
-| n176 | S4 | the suite's start | Ctrl-C while a verb's imports load, its first 100 ms or so, prints a `KeyboardInterrupt` traceback and exits by the signal, for `config` and `issue new` alike, and on main too | rp8 review 2 N3 | 2026-11-14, rp8-respeak review 2 |
-| n175 | S4 | `render.run` | a signal that arrives in the last instructions of `run`, after the last check and before the old handlers are back, is recorded and never raised; one that arrives inside `mkdtemp` leaves an empty folder; read in the code, not reproduced | rp8 review 2 N2 | 2026-11-14, rp8-respeak review 2 |
-| n174 | S4 | `form.nothing_new` | a render that inverts or empties Expected using only words the draft holds is saved as it stands, and no word is marked unsure; that check is reword's road, so it is not rp8's | rp8 review 1 F6 | 2026-11-14, rp8-respeak review 1 |
-| n173 | S4 | `bin/agentik` | a folder whose path holds a space is printed as `that folder` in the list the door shows when no suite is installed: safe, and the path is lost | sc13 review 2 N1 | 2026-11-14, sc13-door review 2 |
-| n172 | S4 | `plugins/suite` the refresh at SessionStart | the refresh at SessionStart moves only a launcher whose tree its own plugin froze: not held by fk2-plan, so an enabled copy numerically newer can still replace a fork's launcher | hq design/25 §3 item 16, R1-F2 | 2026-11-14, fk2-plan build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
 | n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
@@ -41,13 +36,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
-
-## From packet fk2b-reads (build 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n177 | S4 | `plugins/suite` `config.py` `_tool` | `config suite` words each config-read warning but `choice` as `unknown key`, so a `sources` line the suite passes over reads `unknown key sources.suite`; the doctor's `doctor.settings.*` words could serve | `config.py:403`, a user file naming `suite` under `sources:` | 2026-11-14, fk2b-reads build 1 |
-| n178 | S4 | `doctor` | a group line can carry the mark FAIL beside a warn's words: where a tool's own doctor fails in a home with a source warn, the line reads `FAIL  murmur  2 plugins of this name are installed, and no source is declared`; the exit (1) and the close are right | hI with a failing launcher doctor (review 1's `p10_fail.py`) | 2026-11-14, fk2b-reads review 1's leads |
 
 ## From packet ak4a-update (build 1, reviews 1 and 2)
 
@@ -131,3 +119,18 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n240 | S4 | `plugins/suite` `apply.py` `execute`, `report` | a command that hangs is silent until its limit (600 s for `claude`, 120 s for an install-cli): no `still running` line a minute; and a run cut by `kill -9` writes no journal line, so the next run, which finishes it, no longer lists what the cut run kept | review finding 15, its other parts | 2026-11-16, up4-update-close build 1 |
 | n241 | S4 | `plugins/suite` `update.py` `_run`, `main`, `page_row` | an interrupt's `next:` drops the names and `--yes`; `update NoSuch` reads `err.setup.name`; a page tool whose plugin ships its command reads `stays as it was`; `--json` has no sessions field; a long note unlaid on a pty; an interrupt in `apply.look` reads `between steps` | review 1 L2-L4, L6-L8 | 2026-11-16, up4 review 1 |
+
+## From packet up3-forward-only (reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n242 | S4 | `agentik_install.py`, `plan.py` step 4 | L1 a person's newer file reads newer to setup and doctor, yet install-cli overwrites it; L2 no test holds launcher line 2, which forward-only reads; L3, L4 a kept command: no door, PATH hint, dry-run title; L6 update reuses setup's words; L7 a `doctor.py` merge; L8 a gone `AGENTIK_PYTHON` | review 1 leads | 2026-11-16, up3 review 1 |
+| n243 | S4 | each tool's `install-cli` verb, after the sync of `agentik_install.py` | no tool's verb takes `--force` yet, so after the sync each tool's install-cli says it left a newer command and names no way to place over it; the sync's row gives each verb the flag and has it call `install_cli(prefix, force=…, takes_force=True)` | review 2 L2 | 2026-11-16, up3 review 2 |
+
+## From packet dr1-door-ahead (reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n244 | S4 | `update.py`, `doctor.py`, hq Makefile | leads: update `--json` on old Python says `--dry-run`, not AGENTIK_PYTHON; the doctor's old-Python row closes on a setup that refuses; no sum tool: recordlint's copy advice; sc2's `check()` skips the PATH line; a `--prefix` door gets install-cli; a close beside a second warn is setup | review 1, L1 to L6 | 2026-11-16, dr1-door-ahead review 1 |
+| n245 | S4 | `plugins/suite` `update.py` blocked close | with `claude` and `git` both off PATH, update's blocked close gives Claude Code's address alone and says nothing of git; its other form says `install it` of several | read, not run | 2026-11-16, up4-update-close review 2 |
+| n246 | S4 | `plugins/suite` `doctor.py` `close_command` | where the door's row is a warn with an install-cli remedy (an older door, none current at `~/.local/bin`), the close says `next: agentik setup` while the row and `--json` say install-cli; one line for both would read better | read, not run | 2026-11-16, dr1-door-ahead review 2 |
