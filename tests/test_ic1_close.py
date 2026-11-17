@@ -6,6 +6,10 @@ doctor's door row name the PATH line, and neither names the other. R3: plain set
 gives the address and closes on the command typed; a Python under the floor is called older, never
 "install". R4: stdout is flushed before the question and before a refusal.
 
+The fix of review 1: F2, an installed Python under the floor is called older, with its version and
+the minimum, in setup's `--json` refusal and in update's and setup's closes, never "install", and
+no close sends him into the same refusal; the PATH close is `next: export PATH=...`, which runs.
+
 Each screen runs in a temp HOME, PATH a folder with a stub `claude` (the plan tests' stub, which
 installs the made-up plugin files) then /usr/bin:/bin, the suite started as `./setup` from the
 clone's folder; two tests run in process. Nothing here starts the real `claude` or writes outside
@@ -34,7 +38,9 @@ PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
 # a plugin's install-cli that places its own launcher and no door, so step 5 places the suite's
 NO_DOOR = re.sub(r' &&\n    printf [^\n]*/agentik" ;;', " ;;", PLUGIN_BIN)
 MESSAGES = catalogue.load()
-PATH_CLOSE = MESSAGES["hint.setup.path"]
+# review 1's ruling: the PATH close is a command, its reason on the line above
+PATH_CLOSE = "next: " + PROFILE
+PATH_WHY = "The line below mends this terminal; the line marked add mends each new one."
 
 
 class Home(unittest.TestCase):
@@ -115,21 +121,23 @@ class PathLineTest(Home):
             self.assertEqual(code, 0, text)
             self.assertIn("add to your shell profile: " + PROFILE, text)
             self.assertEqual(self.last(text), PATH_CLOSE, (round_, text))
-            self.assertNotIn("doctor", self.last(text))
+            self.assertEqual(text.splitlines()[-2], PATH_WHY, (round_, text))
+            self.assertEqual(self.paste(self.last(text), env)[0], 0, text)
         self.assertTrue(os.path.isfile(os.path.join(self.bindir, "agentik")))
         code, text = self.run_both(["./setup", "--dry-run"], env)
-        self.assertEqual(self.last(text), PATH_CLOSE)  # the dry run's close, as at the pin
+        self.assertEqual(self.last(text), PATH_CLOSE, text)  # the dry run's close too
+        self.assertEqual(text.splitlines()[-2], PATH_WHY, text)
         code, text = self.run_both([os.path.join(self.bindir, "agentik"), "doctor"], env)
         self.assertEqual(code, 0, text)
         self.assertEqual(self.last(text), PATH_CLOSE, text)
+        self.assertEqual(text.splitlines()[-2], PATH_WHY, text)
         self.assertNotIn("setup", self.last(text))
         door = [l for l in text.splitlines() if l.split()[:2] == ["warn", "door"]]
         self.assertEqual(len(door), 1, text)
-        self.assertIn("~/.local/bin/agentik is there; the line marked add below puts its folder on PATH",
-                      door[0])
-        self.assertNotIn("fix:", text)
+        self.assertIn("~/.local/bin/agentik is there, but its folder is not on PATH", door[0])
         lines = text.splitlines()
         at = lines.index(door[0])
+        self.assertEqual(lines[at + 1].strip(), "fix: " + PROFILE, text)  # the door row ends on it
         self.assertIn("add to your shell profile: " + PROFILE, "\n".join(lines[at:]))
 
     def test_r2_doctor_json_carries_the_line(self):
@@ -151,8 +159,18 @@ class PathLineTest(Home):
         self.assertIn("no agentik command on PATH", p.stdout)
         self.assertTrue(self.last(p.stderr).endswith("setup"), p.stderr)
 
+    def test_path_no_close_is_prose_and_the_paste_runs(self):
+        """Review 1's ruling: the PATH close is a command, printed by every close that names it."""
+        self.assertEqual(MESSAGES["hint.setup.path"], "next: {command}")
+        self.assertEqual(MESSAGES["setup.path.why"], PATH_WHY)
+        code, out = self.paste(PATH_CLOSE, self.env(on_path=False))
+        self.assertEqual(code, 0, out)
+
     def test_r2_the_new_line_holds_the_voice(self):
-        text = MESSAGES["doctor.door.off"]
+        for mid in ("doctor.door.off", "setup.path.why", "hint.setup.blocked.old", "err.setup.blocked.old"):
+            self.voice(MESSAGES[mid])
+
+    def voice(self, text):
         self.assertLessEqual(len(re.sub(r"`\{[^}]*\}`", "", text).replace("`", "")), 76)
         self.assertIsNone(re.search(r"this version|a later version|\bwould\b|\bexit", text, re.I))
         self.assertLessEqual(len(re.findall(r"\b(since|so|because)\b", text, re.I)), 1)
@@ -184,8 +202,50 @@ class BlockedTest(Home):
         self.assertIn("Python %s at" % ver, text)
         self.assertIn("is older than the 3.99 minimum", text)
         self.assertNotIn("install python3", text)
-        self.assertTrue(self.last(err.getvalue()).startswith("next: "), text)
         self.assertNotIn("install", self.last(err.getvalue()))
+
+    def old(self, argv, env):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(plan, "FLOOR", (3, 99)):
+            code = cli.main(argv, env=env, out=out, err=err)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_f2_setup_json_says_older_and_names_no_dry_run(self):
+        code, out, err = self.old(["setup", "--json"], self.env())
+        self.assertEqual(code, 2, out + err)
+        error = json.loads(out)["error"]
+        ver = "%d.%d.%d" % sys.version_info[:3]
+        self.assertEqual(error["code"], "blocked")
+        self.assertEqual(error["message"], "Setup ran nothing: Python %s is older than the 3.99 it needs."
+                         % ver)
+        self.assertIsNone(error["remedy"])
+
+    def test_f2_a_missing_claude_reads_as_before_in_json(self):
+        out = subprocess.run(["./setup", "--json"], cwd=str(ROOT), env=self.env(path=SYSTEM),
+                             stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120).stdout
+        error = json.loads(out)["error"]
+        self.assertEqual(error["message"], "Setup ran nothing, since step 1 needs claude. "
+                                           "Install it, then run ./setup again.")
+        self.assertEqual(error["remedy"], "./setup --dry-run")
+
+    def test_f2_plain_setup_closes_on_the_older_line_and_no_loop(self):
+        code, out, err = self.old(["setup"], self.env())
+        self.assertEqual(code, 2, out + err)
+        ver = "%d.%d.%d" % sys.version_info[:3]
+        self.assertEqual(self.last(err), "This needs a Python of at least 3.99, and %s is older." % ver)
+        self.assertNotIn("next:", err)  # no command of ours mends it: the GUIDE's null
+        self.assertIn("is older than the 3.99 minimum", out)
+
+    def test_f2_update_closes_on_the_older_line(self):
+        env = self.env()
+        code, text = self.run_both(["./setup", "--yes"], env)
+        self.assertEqual(code, 0, text)
+        code, out, err = self.old(["update"], env)
+        self.assertEqual(code, 2, out + err)
+        ver = "%d.%d.%d" % sys.version_info[:3]
+        self.assertEqual(self.last(err), "This needs a Python of at least 3.99, and %s is older." % ver)
+        self.assertNotIn("install", err)
+        self.assertNotIn("next:", err)
 
 
 class _Piped:

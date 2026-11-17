@@ -48,6 +48,23 @@ def planned(steps):
     return len(runnable(steps)) + len(waiting)
 
 
+def old_python(steps):
+    """The values of step 1's python3 row where it is blocked, else None. The suite runs under that
+    Python, so a blocked one is installed and under the floor, never missing (review 1 F2)."""
+    for s in steps:
+        if s["id"] == "prereqs" and s["subject"] == "python3" and s["state"] == "blocked":
+            return s["values"]
+    return None
+
+
+def path_close(t, command):
+    """The close where the door stands and only PATH lacks its folder: the reason, then the line
+    that mends this terminal, a command that runs as printed (ic1-close review 1)."""
+    t.flush()  # the plan's add line above it, where both streams share one pipe
+    t.line("setup.path.why", err=True)
+    t.hint("hint.setup.path", command=command)
+
+
 def page_close(steps):
     """The close where a page row is left and no step holds a command setup would run, or None
     (row fh13 R7): each such tool in the plan's order."""
@@ -251,6 +268,15 @@ def _before(cmd, names, build, the_plan, home, config):
     t, o = cmd.t, cmd.opts
     steps = build()
     blocked = [s["subject"] for s in steps if s["state"] == "blocked"]
+    old = old_python(steps)
+    if old and o["json"]:  # no command of ours mends it, so the remedy is null (review 1 F2)
+        raise cmd.Usage("blocked", "err.setup.blocked.old", None, version=old["version"],
+                        floor=old["floor"], **cmd.slots())
+    if old:
+        the_plan(steps)
+        t.flush()
+        t.line("hint.setup.blocked.old", err=True, version=old["version"], floor=old["floor"])
+        return 2
     if blocked:
         if o["json"]:
             raise cmd.Usage("blocked", "err.setup.blocked", cmd.say("setup", "--dry-run"),
@@ -434,7 +460,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
     elif page_close(steps):  # fh13 R7
         t.hint(*page_close(steps))
     elif plan.door_off(cmd.env):  # the door stands and only PATH lacks it (row ic1-close R2)
-        t.hint("hint.setup.path")
+        path_close(t, add[0]["command"] if add else plan.PROFILE_LINE)  # step 6's line, a prefix's too
     else:
         t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
     return code

@@ -526,8 +526,8 @@ def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
     if c.get("add"):
         return c["add"]
-    if c.get("off"):  # step 6's row below holds the line, marked add
-        return None
+    if c.get("off"):  # the door row ends on the line that mends this terminal (ic1-close review 1)
+        return cmd.t.text("doctor.fix", command=c["remedy"])
     s = c.get("step")
     if s and s["line"] != "run":
         if left or not s["command"]:
@@ -644,7 +644,7 @@ def screen(cmd, groups, failed, warned, total, entries=()):
     if hint == PLAIN:
         t.hint("hint.doctor.fail.plain", doctor=cmd.say("doctor"))
     elif hint == PATH:
-        t.hint("hint.setup.path")
+        apply.path_close(t, plan.PROFILE_LINE)
     elif hint:
         t.hint("hint.doctor.next", command=hint)
 

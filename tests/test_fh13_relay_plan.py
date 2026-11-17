@@ -291,7 +291,7 @@ class PageTest(Base):
         self.assertNotIn(PAGE, out + err)
         self.assertIn("yours to run later: %s doctor" % where, out)
         self.assertIn("add to your shell profile:", out)
-        path_close = "next: add the line marked add above to your shell profile, then open a new terminal."
+        path_close = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
         self.assertEqual(err.splitlines()[-1], path_close)
         with open(where) as fh:
             body = fh.read()

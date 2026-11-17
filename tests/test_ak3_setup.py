@@ -31,7 +31,7 @@ MARKET = "plugin marketplace add agentik-dev/agentik-commons"
 FIRST = [MARKET, "plugin install alpha@agentik", "plugin install beta@agentik"]
 LAST_LINE = "beta@agentik: no such version in the marketplace"
 PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
-PATH_CLOSE = "next: add the line marked add above to your shell profile, then open a new terminal."
+PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
 # the plan tests' stub, after two lines: record the call, and fail beta's install on the flag
 RECORD = """#!/usr/bin/python3
 import os as _o, sys as _s

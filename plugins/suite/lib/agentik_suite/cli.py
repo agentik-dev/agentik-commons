@@ -663,7 +663,11 @@ class Command:
         else:
             t.line("setup.title.none")
         apply.show(self, steps)  # the run's table too, `get it:` under a missing claude (row ic1-close R3)
-        t.hint(*self._closing(steps, nouns), **self.slots())
+        mid, values = self._closing(steps, nouns)
+        if mid == "hint.setup.path":  # a command, its reason above it (ic1-close review 1)
+            apply.path_close(t, values["command"])
+        else:
+            t.hint(mid, values, **self.slots())
         return 0
 
     def _closing(self, steps, nouns):
@@ -681,8 +685,9 @@ class Command:
             return again
         if apply.page_close(steps):  # before the PATH line's close (row fh13 R7)
             return apply.page_close(steps)
-        if any(s["command"] for s in early):
-            return "hint.setup.path", {}
+        add = [s["command"] for s in early if s["command"] and s["line"] == "add"]
+        if add:
+            return "hint.setup.path", {"command": add[0]}
         return "hint.setup.rest", {}
 
 

@@ -287,7 +287,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
-- `hint.setup.path`: next: add the line marked add above to your shell profile, then open a new terminal.
+- `hint.setup.blocked.old`: This needs a Python of at least `{floor}`, and `{version}` is older.
+- `setup.path.why`: The line below mends this terminal; the line marked add mends each new one.
+- `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
 - `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
 - `hint.setup.page`: next: step 4 names the page with the install line for `{names}`. Setup has done the rest.
@@ -305,6 +307,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
 - `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
 - `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{setup}` again.
+- `err.setup.blocked.old`: Setup ran nothing: Python `{version}` is older than the `{floor}` it needs.
 - `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{setup}` again.
 - `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{setup}` again.
 - `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{setup}` again to retry it.
@@ -550,7 +553,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
-- `doctor.door.off`: `{path}` is there; the line marked add below puts its folder on PATH
+- `doctor.door.off`: `{path}` is there, but its folder is not on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.claim.twice`: `{tools}` each claim the verb `{word}`, so `{run}` runs none of them

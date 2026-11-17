@@ -19,7 +19,7 @@ WOULD = "would run: "
 LATER = "yours to run later: "
 DECLINED = "since the answer was not yes"
 NEEDS_YES = "since it cannot ask you here"
-PATH_CLOSE = "next: add the line marked add above to your shell profile, then open a new terminal."
+PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
 
 
 def screen(text):

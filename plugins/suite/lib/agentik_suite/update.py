@@ -343,7 +343,12 @@ class Update:
                                      missing=missing, **self.slots)
             self.title()
             apply.show(self.cmd, steps)
-            t.hint("hint.setup.blocked", missing=missing, **self.slots)
+            old = apply.old_python(blocked)
+            if old:  # installed and too old: no install, no dry run that refuses again (review 1 F2)
+                t.flush()
+                t.line("hint.setup.blocked.old", err=True, version=old["version"], floor=old["floor"])
+            else:
+                t.hint("hint.setup.blocked", missing=missing, **self.slots)
             return 2
         if not o["json"]:
             self.title()
