@@ -127,9 +127,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n242 | S4 | `agentik_install.py`, `plan.py` step 4 | L1 a person's newer file reads newer to setup and doctor, yet install-cli overwrites it; L2 no test holds launcher line 2, which forward-only reads; L3, L4 a kept command: no door, PATH hint, dry-run title; L6 update reuses setup's words; L7 a `doctor.py` merge; L8 a gone `AGENTIK_PYTHON` | review 1 leads | 2026-11-16, up3 review 1 |
 | n243 | S4 | each tool's `install-cli` verb, after the sync of `agentik_install.py` | no tool's verb takes `--force` yet, so after the sync each tool's install-cli says it left a newer command and names no way to place over it; the sync's row gives each verb the flag and has it call `install_cli(prefix, force=…, takes_force=True)` | review 2 L2 | 2026-11-16, up3 review 2 |
 
-## From packet dr1-door-ahead (review 1)
+## From packet dr1-door-ahead (reviews 1 and 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n244 | S4 | `update.py`, `doctor.py`, hq Makefile | leads: update `--json` on old Python says `--dry-run`, not AGENTIK_PYTHON; the doctor's old-Python row closes on a setup that refuses; no sum tool: recordlint's copy advice; sc2's `check()` skips the PATH line; a `--prefix` door gets install-cli; a close beside a second warn is setup | review 1, L1 to L6 | 2026-11-16, dr1-door-ahead review 1 |
 | n245 | S4 | `plugins/suite` `update.py` blocked close | with `claude` and `git` both off PATH, update's blocked close gives Claude Code's address alone and says nothing of git; its other form says `install it` of several | read, not run | 2026-11-16, up4-update-close review 2 |
+| n246 | S4 | `plugins/suite` `doctor.py` `close_command` | where the door's row is a warn with an install-cli remedy (an older door, none current at `~/.local/bin`), the close says `next: agentik setup` while the row and `--json` say install-cli; one line for both would read better | read, not run | 2026-11-16, dr1-door-ahead review 2 |
