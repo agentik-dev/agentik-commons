@@ -273,3 +273,17 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n177 | S4 | `plugins/suite` `config.py` `_tool` | `config suite` words each config-read warning but `choice` as `unknown key`, so a `sources` line the suite passes over reads `unknown key sources.suite`; the doctor's `doctor.settings.*` words could serve | `config.py:403`, a user file naming `suite` under `sources:` | 2026-11-14, fk2b-reads build 1 |
 | n178 | S4 | `doctor` | a group line can carry the mark FAIL beside a warn's words: where a tool's own doctor fails in a home with a source warn, the line reads `FAIL  murmur  2 plugins of this name are installed, and no source is declared`; the exit (1) and the close are right | hI with a failing launcher doctor (review 1's `p10_fail.py`) | 2026-11-14, fk2b-reads review 1's leads |
 | n179 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f2_twenty_slow_tools_add_nothing_past_the_wall` | n171's 3.0 s bound in a second test: `config` took 3.02 s at load 8 beside another check, and was green alone three times at the same head; one bound for both tests, widened or measured against an idle baseline | gate 20261114-061401-1894 | 2026-11-14, fh13-relay-plan build 1 |
+
+## From the Open table (n180 and n182, moved by ic2-needs' phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n180 | S4 | `plugins/suite` `plan.py` step 3, `cli.py` `_not_a_verb` | a tool with a `page` and a held or unfound source: setup's plan shows step 3's lone row, no step 4 or 7 row and never the page, while `T doctor` refuses with the page | review 1 lead, homes hB, hH, pC | 2026-11-14, fh13-relay-plan fix of review 1 |
+| n182 | S4 | `plugins/suite` `cli.py` `help_verb` | the sentence under `usage:` in `help <verb>` is not wrapped to the width, so the terminal breaks it mid-word: `help doctor` at 60 columns has a line of 103 characters | sc5 review 1 N1 | 2026-11-14, sc5-first-screen review 1 |
+
+## From packet ak4a-update (n183 and n184, moved by ic2-needs' phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n183 | S4 | `plugins/suite` `update.py` | where the suite was placed from a checkout, `update` cannot name that checkout, since `install-cli` records the tree's hash and version but not the folder it froze from; recorded, the note could name the folder | `agentik_install.read_launcher` reads VERSION, TREE, PYTHON | 2026-11-14, ak4a build 1 |
+| n184 | S4 | `plugins/suite` `update.py` `main`, `cli.py` `err.setup.name` | `update zzz`, a well-formed name that is no plugin of the list, gets setup's refusal for a bad name (`zzz is not a plugin name: lowercase letters, digits and dashes`), whose words say its shape is wrong; words for a name the list does not hold | review 1 lead | 2026-11-14, ak4a review 1 |
