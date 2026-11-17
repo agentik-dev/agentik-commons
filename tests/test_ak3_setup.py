@@ -5,22 +5,39 @@ with `claude` the plan tests' stub that also records each call and fails `instal
 while a flag file is there; the plugins are the made-up `alpha` and `beta`, and a made-up suite
 launcher is placed at this version. Two tests run the command in process, with a stand-in plan.
 Nothing here starts the real `claude` or writes outside its temp folder."""
+import atexit
 import io
 import json
 import os
 import pty
 import select
+import shutil
 import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import CLAUDE_STUB, LAUNCHER, PLUGIN_BIN, SYSTEM, Home, version  # noqa: E402
+from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, version  # noqa: E402
 from agentik_suite import cli, plan  # noqa: E402
+
+# Setup refuses a name the suite does not know (row ic2-needs R2), so these tests run a copy of the
+# plugin whose fallback table holds a row for each made-up plugin, as test_fh13_relay_plan does.
+_COPY = os.path.realpath(tempfile.mkdtemp(prefix="ak3-suite-"))
+atexit.register(shutil.rmtree, _COPY, True)
+shutil.copytree(str(PLUGIN), os.path.join(_COPY, "suite"), ignore=shutil.ignore_patterns("__pycache__"))
+LAUNCHER = Path(_COPY) / "suite" / "bin" / "agentik-suite"
+with open(os.path.join(_COPY, "suite", "lib", "fallback.json")) as _fh:
+    _TABLE = json.load(_fh)
+for _name in ("alpha", "beta"):
+    _TABLE[_name] = {"lines": ["agentik %s doctor" % _name], "user_file": None, "needs": [], "status": []}
+with open(os.path.join(_COPY, "suite", "lib", "fallback.json"), "w") as _fh:
+    json.dump(_TABLE, _fh)
 
 try:
     from agentik_suite import apply
@@ -54,6 +71,11 @@ class SetupHome(Home):
         self.flag = os.path.join(self.stubs, "fail-beta")
         self.stub("claude", RECORD % (self.calls, self.flag, LAST_LINE) + CLAUDE_STUB % self.template)
         self.place("agentik-suite", version())
+
+    def run_cli(self, *args, **more):  # the copy's launcher (ic2-needs R2)
+        p = subprocess.run([str(LAUNCHER), *args], capture_output=True, text=True,
+                           env=self.env(**more), timeout=60)
+        return p.returncode, p.stdout, p.stderr
 
     @property
     def bindir(self):
@@ -448,7 +470,8 @@ class InProcessTest(SetupHome):
 
     def run_in_process(self, command, *args):
         out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(plan, "build", self.stand_in(command)):
+        with mock.patch.object(plan, "build", self.stand_in(command)), \
+                mock.patch.object(plan, "known", lambda env, lib: sorted(args)):  # ic2-needs R2
             code = cli.main(["setup", "--yes", *args], env=self.env(), out=out, err=err)
         return code, out.getvalue(), err.getvalue()
 
