@@ -101,26 +101,38 @@ def _unattended(path, argv, env):
         return False
 
 
-def hold(cmd):
-    """The held text, or None (R3). It starts the process list and, where the finder says a file
-    runs for the `unattended` read's tool, that file; it reads nothing else."""
-    env = cmd.env
+def listing(env):
+    """The process list through the `ps` the env's PATH finds: (text, None) or (None, why), the
+    why agentik_install.processes gives (row lx1-ps-linux R1); the doctor reads it the same way."""
     ps = shutil.which("ps", path=env.get("PATH", ""))  # none on PATH: a list that cannot be read
-    text = agentik_install.processes(ps, timeout=PS_WALL)[0] if ps else None
+    return agentik_install.processes(ps, timeout=PS_WALL) if ps else (None, "ps is not on PATH")
+
+
+def holding(cmd):
+    """(the held text or None, whether it is a list that cannot be read) (R3). It starts the
+    process list and, where the finder says a file runs for the `unattended` read's tool, that
+    file; it reads nothing else. A list that cannot be read says why (row lx1-ps-linux R3)."""
+    env = cmd.env
+    text, why = listing(env)
     if text is None:
-        return cmd.t.text("update.held.ps")
+        return cmd.t.text("update.held.ps", why=why), True
     runner = reader(cmd.lib, "run")
     pid = runner and runner_pid(text, runner[0])
     if pid:
-        return cmd.t.text("update.held.run", tool=runner[0], pid=pid)
+        return cmd.t.text("update.held.run", tool=runner[0], pid=pid), False
     found = reader(cmd.lib, "unattended")
     if not found:
-        return None
+        return None, False
     row = tools.rows(env, cmd.lib, cmd.cwd, names=[found[0]])[found[0]]
     path = (row["runs"] or {}).get("path")
     if path and _unattended(path, found[1], env):
-        return cmd.t.text("update.held.unattended")
-    return None
+        return cmd.t.text("update.held.unattended"), False
+    return None, False
+
+
+def hold(cmd):
+    """The held text, or None (R3): holding's first."""
+    return holding(cmd)[0]
 
 
 def _standing(row):
@@ -342,13 +354,13 @@ class Update:
 
     # ---- the verb ---------------------------------------------------------------------------
 
-    def held(self, what):
+    def held(self, what, unread=False):
         if self.o["json"]:
             self.json(False, [], held=what)
         else:
             self.t.error("err.update.held", what=what)
             again = self.cmd.say("update", *(self.nouns + (["--dry-run"] if self.o["dry_run"] else [])))
-            self.t.hint("hint.update.held", command=again)
+            self.t.hint("hint.update.held.ps" if unread else "hint.update.held", command=again)
         return 2
 
     def main(self):
@@ -356,9 +368,9 @@ class Update:
             if not tools.NAME.match(name):
                 raise self.cmd.Refusal("bad_name", "err.setup.name", self.cmd.say("update", "--dry-run"),
                                        name=name)
-        what = hold(self.cmd)
+        what, unread = holding(self.cmd)
         if what:
-            return self.held(what)
+            return self.held(what, unread)
         self.scope()
         steps = self.detail(self.head() + self.tail())
         blocked = [s for s in self.prereqs if s["state"] == "blocked"]

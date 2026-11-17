@@ -329,13 +329,20 @@ class Remove:
         words = self.nouns + (["--all"] if self.all else []) + (["--dry-run"] if dry and self.o["dry_run"] else [])
         return self.cmd.say("remove", *words)
 
-    def held(self, what, steps=()):
+    def held(self, what, steps=(), unread=False):
         if self.o["json"]:
             self.json(False, list(steps), held=what)
         else:
             self.t.error("err.remove.held", what=what)
-            self.t.hint("hint.remove.held", command=self.again(dry=True))
+            self.t.hint("hint.remove.held.ps" if unread else "hint.remove.held", command=self.again(dry=True))
         return 2
+
+    def said(self, what):
+        """(the held text, whether it is a list that cannot be read) of uninstall's hold: one that
+        names no pid is processes' why, said in update's words (row lx1-ps-linux R3)."""
+        if what is None or what.startswith("pid "):
+            return what, False
+        return self.t.text("update.held.ps", why=what), True
 
     def title(self):
         names = ", ".join([e["name"] for e in self.tools] + [s["subject"] for s in self.others])
@@ -351,14 +358,15 @@ class Remove:
         for name in self.nouns:
             if not tools.NAME.match(name):
                 raise cmd.Refusal("bad_name", "err.setup.name", cmd.say("remove", "--all", "--dry-run"), name=name)
-        what = update.hold(cmd)
+        what, unread = update.holding(cmd)
         if what:
-            return self.held(what)
+            return self.held(what, unread=unread)
         self.spare = spare(self.env)
         self.scope()
         steps, what = self.build()
         if what:
-            return self.held(what, self.detail(steps))
+            what, unread = self.said(what)
+            return self.held(what, self.detail(steps), unread)
         steps = self.detail(steps)
         todo = self.todo(steps)
         o, t = self.o, self.t
@@ -437,8 +445,9 @@ class Remove:
                 if fate.startswith("kept: partly removed") and partly is None:
                     partly = ("err.remove.partly", {"path": self.shown(path), "why": fate})
                 elif fate.startswith("kept: held") and partly is None:
-                    partly = ("err.remove.held.run", {"what": held_of([(path, what, fate)]), "name": name,
-                                                      "command": self.again()})
+                    said, unread = self.said(held_of([(path, what, fate)]))
+                    partly = ("err.remove.held.run.ps" if unread else "err.remove.held.run",
+                              {"what": said, "name": name, "command": self.again()})
         return partly
 
     def run(self, steps):
@@ -454,7 +463,8 @@ class Remove:
                 if e["plugin"]:
                     again = self.uninstall("agentik-" + e["name"])  # the hold read again, right before step 1 (F4)
                     if held_of(again) and not ran and not removed:
-                        return self.held(held_of(again))
+                        what, unread = self.said(held_of(again))
+                        return self.held(what, unread=unread)
                     if held_of(again):
                         e["rows"] = again
                         failure = self.take(again, removed, kept, e["name"])
@@ -472,7 +482,8 @@ class Remove:
                 claude = [s for s in steps if s["n"] in (3, 4) and s["state"] == "todo"]
                 again = self.door_fate(self.uninstall("agentik-suite", door=True)) if claude else []
                 if held_of(again) and not ran and not removed:  # the suite's hold read again before step 3 (G2)
-                    return self.held(held_of(again))
+                    what, unread = self.said(held_of(again))
+                    return self.held(what, unread=unread)
                 if held_of(again):
                     self.suite_rows = again
                     failure = self.take(again, removed, kept)

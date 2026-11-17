@@ -42,6 +42,9 @@ tests/test_sp1_launcher_step.py: sibling
 # commit 04cf99b named the suite's public tools in this test and 1a621df took them out
 tests/test_su6_rows_part.py: sibling
 
+# commit 36d6279 named the suite's default plugins in this test and 74ddbd2 read them from the manifest
+tests/test_up1_tree_gone.py: sibling
+
 # a packet names its read-only sources by path
 design/packets/*.md: sibling,home
 
