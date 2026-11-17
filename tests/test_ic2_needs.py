@@ -14,6 +14,7 @@ import json
 import os
 import pty
 import select
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -102,6 +103,15 @@ class Home(unittest.TestCase):
     def need_lines(self, text):
         return [l for l in text.splitlines() if "PyYAML" in l]
 
+    def installed(self):
+        with open(os.path.join(self.home, ".claude", "plugins", "installed_plugins.json")) as fh:
+            return sorted(json.load(fh)["plugins"])
+
+    def paste(self, line):
+        """A close as printed, `~` read as HOME, run with --yes."""
+        words = [self.home + w[1:] if w.startswith("~/") else w for w in line.split()]
+        return self.run_both(words + ["--yes"])
+
     @property
     def market(self):
         return os.path.join(self.home, ".claude", "plugins", "known_marketplaces.json")
@@ -156,6 +166,11 @@ class NeedTest(Home):
         self.stub("go", "#!/bin/sh\nexit 0\n")
         rows = [s for s in plan.build(["relay"], env, str(LIB), "agentik-suite", "0.0.1") if s["id"] == "need"]
         self.assertEqual(rows, [])
+
+    def test_f2_the_row_says_what_was_read(self):
+        code, text = self.run_both(["./setup", "--dry-run", "respeak"])
+        self.assertIn("the python3 first on PATH has no PyYAML; setup goes on without it",
+                      self.need_lines(text)[0])
 
     def test_r1_the_message(self):
         text = MESSAGES["setup.need.missing"]
@@ -224,6 +239,68 @@ class DoctorTest(Home):
         self.assertEqual([(c["status"], c["name"]) for c in checks[1:]], PIN_CHECKS)
         code, text = self.doctor()
         self.assertNotIn("next:", text)
+
+    def mended(self, broken, chosen):
+        """Review 1 F1: after `setup --yes <chosen>` and `broken`, the doctor's row and its close
+        name `setup` with the chosen names; the close pasted with --yes mends the row and installs
+        no plugin that was not there."""
+        code, text = self.run_both(["./setup", "--yes"] + chosen)
+        self.assertEqual(code, 0, text)
+        before = self.installed()
+        broken()
+        code, text = self.doctor()
+        close = text.splitlines()[-1]
+        want = " setup " + " ".join(chosen)
+        self.assertTrue(close.startswith("next: ") and close.endswith(want), text)
+        code, out = self.doctor("--json")
+        rows = [c for c in json.loads(out)["tools"][0]["checks"] if c["status"] in ("warn", "fail")
+                and c["remedy"] and " setup" in c["remedy"] and not c["name"].startswith("door")]
+        self.assertTrue(rows, out)
+        for c in rows:
+            self.assertTrue(c["remedy"].endswith(want), c)
+        code, text = self.paste(close[len("next: "):])
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.installed(), before, text)
+        return self.doctor()[1]
+
+    def test_f1_a_chosen_plugins_launcher_gone(self):
+        launcher = os.path.join(self.bindir, "agentik-respeak")
+        text = self.mended(lambda: os.remove(launcher), ["respeak"])
+        self.assertTrue(os.path.exists(launcher))
+        self.assertNotIn("not placed", text)
+
+    def test_f1_a_chosen_plugins_folder_gone(self):
+        folder = os.path.join(self.home, ".claude", "plugins", "cache", "agentik", "session")
+        text = self.mended(lambda: shutil.rmtree(folder), ["session", "respeak"])
+        self.assertTrue(os.path.isdir(folder))
+        self.assertNotIn("folder gone", text)
+
+
+class ScreenTest(Home):
+    """Review 1 lead 1: the bare command's close plans what the doctor plans."""
+    def screen(self, exe=None):
+        code, text = self.run_both([exe or os.path.join(self.bindir, "agentik-suite")])
+        self.assertEqual(code, 0, text)
+        return text.splitlines()[-1]
+
+    def test_lead1_after_one_plugin_the_close_names_it(self):
+        code, text = self.run_both(["./setup", "--yes", "respeak"])
+        self.assertEqual(code, 0, text)
+        before = self.installed()
+        self.assertFalse(self.screen().endswith(" setup"))
+        os.remove(os.path.join(self.bindir, "agentik-respeak"))
+        close = self.screen()
+        self.assertTrue(close.startswith("next: ") and close.endswith(" setup respeak"), close)
+        code, text = self.paste(close[len("next: "):])
+        self.assertEqual(code, 0, text)
+        self.assertEqual(self.installed(), before, text)
+
+    def test_lead1_the_default_set_or_none_as_at_the_pin(self):
+        none = self.screen(str(ROOT / "plugins" / "suite" / "bin" / "agentik-suite"))
+        self.assertTrue(none.endswith(" setup"), none)
+        code, text = self.run_both(["./setup", "--yes"])
+        self.assertEqual(code, 0, text)
+        self.assertTrue(self.screen().endswith(" doctor"))
 
 
 if __name__ == "__main__":
