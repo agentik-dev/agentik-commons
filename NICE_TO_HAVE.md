@@ -21,7 +21,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n175 | S4 | `render.run` | a signal that arrives in the last instructions of `run`, after the last check and before the old handlers are back, is recorded and never raised; one that arrives inside `mkdtemp` leaves an empty folder; read in the code, not reproduced | rp8 review 2 N2 | 2026-11-14, rp8-respeak review 2 |
 | n174 | S4 | `form.nothing_new` | a render that inverts or empties Expected using only words the draft holds is saved as it stands, and no word is marked unsure; that check is reword's road, so it is not rp8's | rp8 review 1 F6 | 2026-11-14, rp8-respeak review 1 |
 | n173 | S4 | `bin/agentik` | a folder whose path holds a space is printed as `that folder` in the list the door shows when no suite is installed: safe, and the path is lost | sc13 review 2 N1 | 2026-11-14, sc13-door review 2 |
-| n172 | S4 | `plugins/suite` the refresh at SessionStart | the refresh at SessionStart moves only a launcher whose tree its own plugin froze: not held by fk2-plan, so an enabled copy numerically newer can still replace a fork's launcher | hq design/25 §3 item 16, R1-F2 | 2026-11-14, fk2-plan build 1 |
 | n179 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f2_twenty_slow_tools_add_nothing_past_the_wall` | n171's 3.0 s bound in a second test: `config` took 3.02 s at load 8 beside another check, and was green alone three times at the same head; one bound for both tests, widened or measured against an idle baseline | gate 20261114-061401-1894 | 2026-11-14, fh13-relay-plan build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
@@ -42,12 +41,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
-
-## From packet in4-inbox (review 1 and phase 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n171 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f4_a_child_that_left_the_group_and_holds_stdout` | the test's 3.0 s bound is missed on a loaded machine: 3.19 s while three other gate jobs ran, 711 of 712 passed, and the same head was green in the job before; widen the bound or measure against an idle baseline | a landing's `make check` | 2026-11-14, in4-inbox phase 2 |
 
 ## From packet fk2b-reads (build 1)
 
@@ -132,3 +125,5 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n238 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
 | n239 | S4 | `plugins/suite` `remove.py`, GUIDE §10 | the old order's cut under a `claude` refusing an uninstall once its marketplace is gone; GUIDE's door "reads and writes nothing" yet tests the cwd; `remove` via the launcher refills the pycache it removes; `once()` keeps a folder's first spelling, so an earlier second one misses `soft` | read, not run | 2026-11-16, rm1-leave-clean review 2 |
 | n240 | S4 | respeak's doctor's `fix:` for PyYAML | where `python3` on PATH is Homebrew's, `python3 -m pip install pyyaml` is refused by pip: that Python is externally managed; setup's step-1 warn names the need, no command | finding 7 of the first-install review; the `EXTERNALLY-MANAGED` file, read, not run | 2026-11-16, ic2-needs R1 |
+| n241 | S4 | `plugins/suite` setup, doctor | ic2-needs' leads: a HOME set but not absolute plans; `update nosuch` calls it no plugin name; the doctor runs the 2 s need probe to drop it; all else done, the need shows in respeak's doctor alone; a shared need, a row a plugin; a name in `fallback.json` alone fails at install | review 1 leads 2 to 8 | 2026-11-16, ic2-needs review 1 |
+| n242 | S4 | `plugins/suite` `plan.py` `need_met` | PyYAML is read from the `python3` first on PATH alone, while respeak looks at several Pythons and one `RESPEAK_PYTHON` names, so the warn can stand where respeak works | review 1 F2, `python3.12` with yaml | 2026-11-16, ic2-needs review 1 |
