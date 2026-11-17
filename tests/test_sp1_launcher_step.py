@@ -11,7 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import LIB, Home, version, walled  # noqa: E402
-from agentik_suite import doctor, plan, tools  # noqa: E402
+from agentik_suite import doctor, plan  # noqa: E402
 
 DESCRIBE = {"schema": "agentik.describe/1", "ok": True, "tool": "%s", "version": "1.0.0",
             "summary": "A made-up tool for the tests.", "repo": "example/agentik-%s",
@@ -131,7 +131,7 @@ class LauncherStepTest(Home):
                 fh.write(SILENT["hang"])
             return self.build(*sorted(SILENT))
         # tw1 R2: against the same build with nothing slow, the describes' wall
-        steps = walled(self, lambda: self.build(*sorted(SILENT)), slow, wall=tools.WALL)
+        steps = walled(self, lambda: self.build(*sorted(SILENT)), slow)
         for kind in SILENT:
             self.assertEqual(self.step(steps, 4, kind), self.today(kind), kind)
             self.assertEqual(self.step(steps, 7, kind)["mid"], "setup.doctor.wait", kind)
