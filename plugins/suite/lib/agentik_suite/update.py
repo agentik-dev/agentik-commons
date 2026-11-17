@@ -41,9 +41,11 @@ FAILS = {"err.setup.step": "err.update.step", "err.setup.step.silent": "err.upda
          "err.setup.wall": "err.update.wall", "err.setup.wall.silent": "err.update.wall.silent",
          "err.setup.start": "err.update.start", "err.setup.todo": "err.update.todo",
          "err.setup.interrupted.idle": "err.update.interrupted.idle"}
-# setup's step 4 and 5 rows that name setup, in update's own words where update shows them (row
-# up4-update-close R4); the step's `mid` stays setup's, so the plan's logic reads it as before
+# setup's step 1, 3, 4 and 5 rows that name setup, in update's own words where update shows them
+# (row up4-update-close R4, review 1 L1); the step's `mid` stays setup's, so the plan's logic reads
+# it as before
 SAYS = {"setup." + k: "update.say." + k for k in (
+    "cmd.missing", "python.low", "plugin.missing", "plugin.broken",
     "launcher.missing", "launcher.behind", "launcher.unread", "launcher.earlier", "launcher.noversion",
     "launcher.other", "launcher.page", "launcher.theirs", "suite.newer", "suite.behind", "suite.unread",
     "suite.missing", "door.blocked", "door.link", "door.unversioned")}
