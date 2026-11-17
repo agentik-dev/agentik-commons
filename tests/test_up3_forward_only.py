@@ -26,10 +26,13 @@ from test_agentik_suite import LAUNCHER, LIB, version  # noqa: E402
 from agentik_suite import plan  # noqa: E402
 import agentik_install  # noqa: E402
 
-# the fixture's runner, as test_agentik_install's, with install-cli's `--force` passed through
-RUNNER = ai.RUNNER.replace("raise SystemExit(a.install_cli())",
-                           'raise SystemExit(a.install_cli(force=True) if "--force" in sys.argv[2:] '
-                           'else a.install_cli())')
+# A tool after the sync, before its verb takes `--force`: test_agentik_install's runner, which
+# calls `install_cli()`. FLAGGED is one whose verb takes it, and says so (review 1 F1).
+PLAIN = ai.RUNNER
+FLAGGED = ai.RUNNER.replace("raise SystemExit(a.install_cli())",
+                            'raise SystemExit(a.install_cli(force="--force" in sys.argv[2:], takes_force=True))')
+LONG = ("2.0.0-alpha.129", "2.0.0-alpha.104")  # long pre-release versions on both sides (review 1 L5)
+WIDTH = 76  # design/23 V1, before the values, as test_sc1_voice_width counts it
 
 
 def launcher_version(path):
@@ -40,32 +43,69 @@ def launcher_version(path):
 class ToolTest(ai.Base):
     """R1 for a tool: the canonical module's install-cli, from a made-up plugin."""
 
-    def plugin(self, tool="agentik-x", ver="1.0.0", **old):
+    def plugin(self, tool="agentik-x", ver="1.0.0", runner=PLAIN, **old):
         root = ai.Base.plugin(self, tool, ver, **old)
-        (root / "lib" / tool).write_text(RUNNER)
+        (root / "lib" / tool).write_text(runner)
         return root
 
-    def place(self, ver, *args):
-        root = self.plugin(ver=ver)
+    def place(self, ver, *args, runner=PLAIN):
+        root = self.plugin(ver=ver, runner=runner)
         return self.run_tool(root / "bin" / "agentik-x", "install-cli", *args)
 
-    def test_an_older_tree_leaves_a_newer_command_and_says_so(self):
-        self.assertEqual(self.place("2.0.0")[0], 0)
-        code, out, err = self.place("1.9.0")
+    def kept_line(self, have, want, runner):
+        """The one line an older tree's install-cli prints over a newer command it leaves."""
+        self.assertEqual(self.place(have)[0], 0)
+        code, out, err = self.place(want, runner=runner)
         self.assertEqual((code, err), (0, ""), out)
-        self.assertEqual(launcher_version(self.bin()), "2.0.0")
+        self.assertEqual(launcher_version(self.bin()), have)
         lines = out.splitlines()
         self.assertEqual(len(lines), 1, out)
-        self.assertIn("~/.local/bin/agentik-x", lines[0])
-        self.assertIn("2.0.0", lines[0])
-        self.assertIn("1.9.0", lines[0])
-        self.assertIn("newer", lines[0])
-        self.assertIn("--force", lines[0])
+        return lines[0]
+
+    def test_an_older_tree_leaves_a_newer_command_and_says_so(self):
+        line = self.kept_line("2.0.0", "1.9.0", FLAGGED)
+        for word in ("~/.local/bin/agentik-x", "2.0.0", "1.9.0", "newer", "--force"):
+            self.assertIn(word, line)
         self.assertEqual(self.run_tool(self.bin(), "--version")[1], "2.0.0\n")
+
+    def test_a_verb_that_takes_no_force_is_not_told_to_pass_it(self):
+        # review 1 F1: install_cli's default names no flag, which a tool's verb would refuse
+        line = self.kept_line("2.0.0", "1.9.0", PLAIN)
+        for word in ("Left ~/.local/bin/agentik-x", "2.0.0", "1.9.0", "newer"):
+            self.assertIn(word, line)
+        self.assertNotIn("--force", line)
+        self.assertNotIn("force", line)
+
+    def test_the_kept_line_holds_the_width_with_long_versions(self):
+        # review 1 L5: each value once, so the line before its values holds V1, in both forms
+        for n, runner in enumerate((PLAIN, FLAGGED)):
+            with self.subTest(form=("plain", "flagged")[n]):
+                if n:
+                    shutil.rmtree(self.home)
+                    self.home.mkdir()
+                line = self.kept_line(LONG[0], LONG[1], runner)
+                values = ("~/.local/bin/agentik-x",) + LONG
+                self.assertEqual([line.count(v) for v in values], [1, 1, 1], line)
+                bare = line
+                for v in values:
+                    bare = bare.replace(v, "")
+                self.assertLessEqual(len(bare), WIDTH, line)
+
+    def test_a_newer_command_whose_runner_cannot_be_read_is_placed(self):
+        # review 1 F2: the launcher refuses an unreadable runner as gone, and names install-cli
+        self.assertEqual(self.place("2.0.0")[0], 0)
+        runner = self.share() / self.trees()[0] / "agentik-x"
+        os.chmod(runner, 0)
+        self.addCleanup(lambda: runner.exists() and os.chmod(runner, 0o644))
+        self.assertEqual(self.run_tool(self.bin(), "--version")[0], 3)
+        code, out, err = self.place("1.9.0")
+        self.assertEqual((code, err), (0, ""), out)
+        self.assertEqual(launcher_version(self.bin()), "1.9.0")
+        self.assertEqual(self.run_tool(self.bin(), "--version")[1], "1.9.0\n")
 
     def test_force_places_the_older_tree(self):
         self.assertEqual(self.place("2.0.0")[0], 0)
-        code, out, err = self.place("1.9.0", "--force")
+        code, out, err = self.place("1.9.0", "--force", runner=FLAGGED)
         self.assertEqual((code, err), (0, ""), out)
         self.assertEqual(launcher_version(self.bin()), "1.9.0")
         self.assertIn("Placed ~/.local/bin/agentik-x 1.9.0", out)
@@ -190,23 +230,34 @@ class PlanTest(Base):
     """R3, R4: a launcher newer than its plugin reads ok to setup, a note to the doctor, and update
     leaves it; one older than its plugin is placed as at the pin."""
 
-    def at(self, have, want="1.9.0", name="h", tool="murmur"):
+    def at(self, have, want="1.9.0", name="h", tool="murmur", runner=None):
+        """A home whose launcher is at `have` and its plugin at `want`. With `runner`, a mode, the
+        launcher tests its runner as install-cli's does, and the runner stands with that mode."""
         h = self.home(names=(tool,), name=name)
         h.install(tool + "@agentik", want, launcher=False)
-        h.file(os.path.join(h.bindir, "agentik-" + tool), "#!/bin/sh\nVERSION=%s\nTREE=%s\nexit 0\n"
-               % (have, os.path.join(h.home, ".local", "share", "agentik-" + tool, have)))
-        os.makedirs(os.path.join(h.home, ".local", "share", "agentik-" + tool, have))
+        tree = os.path.join(h.home, ".local", "share", "agentik-" + tool, have)
+        test = '' if runner is None else '[ -f "$TREE/agentik-%s" ] && [ -r "$TREE/agentik-%s" ] || exit 3\n' % (
+            tool, tool)
+        h.file(os.path.join(h.bindir, "agentik-" + tool), "#!/bin/sh\nVERSION=%s\nTREE=%s\n%sexit 0\n"
+               % (have, tree, test))
+        os.makedirs(tree)
+        if runner is not None:
+            path = os.path.join(tree, "agentik-" + tool)
+            with open(path, "w") as fh:
+                fh.write("print('runs')\n")
+            os.chmod(path, runner)
+            self.addCleanup(lambda: os.path.exists(path) and os.chmod(path, 0o644))
         return h
 
     def row(self, h):
         steps = plan.build(["murmur"], h.env(), str(LIB), "agentik-suite", version())
         return [s for s in steps if s["n"] == 4][0]
 
-    def doctor_row(self, have):
+    def doctor_row(self, have, runner=None):
         """The doctor's launcher row for a tool of the suite's default set: its plan rows read
         that set alone."""
         tool = sorted(DEFAULT)[0]
-        h = self.at(have, tool=tool)
+        h = self.at(have, tool=tool, runner=runner)
         code, out, err = h.run("doctor", "--all", "--json")
         rows = [c for g in json.loads(out)["tools"] for c in g["checks"]
                 if c["name"] == "launcher ~/.local/bin/agentik-" + tool]
@@ -241,6 +292,24 @@ class PlanTest(Base):
         h.run("setup", "--yes", "murmur")
         self.assertEqual(h.version_of("murmur"), "1.9.3")
         self.assertEqual([l for l in h.ran() if l.endswith("agentik-murmur install-cli")], [])
+
+    def test_a_newer_launcher_with_a_readable_runner_reads_newer(self):
+        s = self.row(self.at("1.9.3", runner=0o644))
+        self.assertEqual((s["state"], s["mid"]), ("ok", "setup.launcher.newer"))
+
+    def test_a_newer_launcher_whose_runner_cannot_be_read_is_gone(self):
+        # review 1 F2: as the launcher reads it, so setup and update place it again
+        s = self.row(self.at("1.9.3", runner=0))
+        self.assertEqual((s["state"], s["mid"]), ("todo", "setup.launcher.gone"))
+        c = self.doctor_row("1.9.3", runner=0)
+        self.assertNotEqual(c["status"], "note", c)
+        self.assertIn("gone", c["detail"])
+        self.assertNotIn("newer", c["detail"])
+        for n, verb in enumerate((("update", "--yes"), ("setup", "--yes", "murmur"))):
+            h = self.at("1.9.3", name="g%d" % n, runner=0)
+            code, out, err = h.run(*verb)
+            self.assertEqual(code, 0, out + err)
+            self.assertEqual(len([l for l in h.ran() if l.endswith("agentik-murmur install-cli")]), 1, verb)
 
     def test_an_older_launcher_is_placed_by_setup_and_update(self):
         s = self.row(self.at("1.0.0"))
