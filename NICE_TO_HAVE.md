@@ -129,8 +129,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n240 | S4 | `plugins/suite` `apply.py` `execute`, `report` | a command that hangs is silent until its limit (600 s for `claude`, 120 s for an install-cli): no `still running` line a minute; and a run cut by `kill -9` writes no journal line, so the next run, which finishes it, no longer lists what the cut run kept | review finding 15, its other parts | 2026-11-16, up4-update-close build 1 |
 | n241 | S4 | `plugins/suite` `update.py` `_run`, `main`, `page_row` | an interrupt's `next:` drops the names and `--yes`; `update NoSuch` reads `err.setup.name`; a page tool whose plugin ships its command reads `stays as it was`; `--json` has no sessions field; a long note unlaid on a pty; an interrupt in `apply.look` reads `between steps` | review 1 L2-L4, L6-L8 | 2026-11-16, up4 review 1 |
 
-## From packet up3-forward-only (review 1)
+## From packet up3-forward-only (reviews 1 and 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n242 | S4 | `agentik_install.py`, `plan.py` step 4 | L1 a person's newer file reads newer to setup and doctor, yet install-cli overwrites it; L2 no test holds launcher line 2, which forward-only reads; L3, L4 a kept command: no door, PATH hint, dry-run title; L6 update reuses setup's words; L7 a `doctor.py` merge; L8 a gone `AGENTIK_PYTHON` | review 1 leads | 2026-11-16, up3 review 1 |
+| n243 | S4 | each tool's `install-cli` verb, after the sync of `agentik_install.py` | no tool's verb takes `--force` yet, so after the sync each tool's install-cli says it left a newer command and names no way to place over it; the sync's row gives each verb the flag and has it call `install_cli(prefix, force=…, takes_force=True)` | review 2 L2 | 2026-11-16, up3 review 2 |
