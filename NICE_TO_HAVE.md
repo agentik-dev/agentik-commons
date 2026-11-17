@@ -43,18 +43,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
 
-## From packet rp6-verb (review 1 and build 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n167 | S4 | `plugins/suite` `gather.py` `_past_edge` | a one-line window over 64 KiB drops its first 1,024 bytes and the word there; a secret with spaces in it longer than that, straddling the window's start, would keep its tail | read in build 2 | 2026-11-14, rp6-verb build 2 |
-
 ## From packet in4-inbox (review 1 and phase 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n168 | S4 | `plugins/suite` `tools.py` `run_all` | a read runs in the person's cwd, so a tool that writes to its cwd writes in a checkout: `run_all` starts each job with no `cwd`, and `status` shares it; give the reads a neutral cwd | in4 review 1 F6: from cwd `T/pear-hq` a stub's `./WRITTEN-BY-TOOL` lands in the checkout | 2026-11-14, in4-inbox review 1 |
-| n169 | S4 | `plugins/suite` `tools.py` `run_all` | SIGTERM or SIGHUP leaves a hung read running past the wall: `run_all` cleans up on BaseException alone; `status` shares it, and with in4's fix `status` and `inbox` map both signals to `status.Signalled`, `config` and `doctor` not | in4 review 1 F7: exit -15, the stub at ppid 1 | 2026-11-14, in4-inbox review 1 |
 | n170 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |
 | n171 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f4_a_child_that_left_the_group_and_holds_stdout` | the test's 3.0 s bound is missed on a loaded machine: 3.19 s while three other gate jobs ran, 711 of 712 passed, and the same head was green in the job before; widen the bound or measure against an idle baseline | a landing's `make check` | 2026-11-14, in4-inbox phase 2 |
 
@@ -132,3 +124,11 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n234 | S4 | `plugins/suite` `apply.py` `show` | `update`'s and `remove`'s plans now show `get it:` under a missing `claude`, since they print through `show`; no brief named it, and it reads as a gain: confirm it or keep it to setup | `agentik-suite update` with PATH `/usr/bin:/bin`: main has no `get it:` line, the branch has one | 2026-11-16, ic1-close review 1 |
 | n235 | S4 | `plugins/suite` `plan.py` `door_off` | any executable at `~/.local/bin/agentik` counts as the door; off PATH, both closes name the PATH line and hide its "holds no version" warn until PATH is mended (main ran that file, so no worse) | a script of your own there, that folder off PATH: `doctor` | 2026-11-16, ic1-close review 1 |
 | n236 | S4 | `plugins/suite` `update.py`, `doctor.py`, `messages.md` | with an old Python the dry run's close and doctor's close still name `setup`, and `err.update.blocked` (update's `--json`) still says "install it"; out of reach on a Mac whose system Python is at the minimum | build 2's not-done list; read, not run | 2026-11-16, ic1-close review 2 |
+
+## From packet rm1-leave-clean (reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n237 | S4 | `bin/agentik` `back` | the door looks for a clone in the cwd alone: from a subfolder of a clone, or from `~` with the clone elsewhere, it prints the clone line, which runs but makes a second clone | `agentik nosuch` with no suite, run in `agentik-commons/docs` | 2026-11-16, rm1-leave-clean review 1 |
+| n238 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
+| n239 | S4 | `plugins/suite` `remove.py`, GUIDE §10 | the old order's cut under a `claude` refusing an uninstall once its marketplace is gone; GUIDE's door "reads and writes nothing" yet tests the cwd; `remove` via the launcher refills the pycache it removes; `once()` keeps a folder's first spelling, so an earlier second one misses `soft` | read, not run | 2026-11-16, rm1-leave-clean review 2 |

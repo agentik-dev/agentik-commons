@@ -24,7 +24,8 @@ def fake(directory, name, code=0, mode=0o755, body=None):
 
 def run(*args, path=SYSTEM, cwd=None):
     env = {"PATH": path, "HOME": os.environ.get("HOME", "/")}
-    p = subprocess.run([str(SCRIPT), *args], capture_output=True, text=True, env=env, cwd=cwd)
+    p = subprocess.run([str(SCRIPT), *args], capture_output=True, text=True, env=env,
+                       cwd=cwd or "/")  # no clone here: the next: line is the clone line (rm1 R3)
     return p.returncode, p.stdout, p.stderr
 
 

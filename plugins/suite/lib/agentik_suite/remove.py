@@ -7,10 +7,11 @@ cannot be read, holds the run, exit 2, nothing written; then each chosen tool's
 or where the plugin is absent and its launcher stands (R3); any other kind is a kept row with no
 command, its launcher left. Its steps (R4): `claude plugin uninstall <name>@agentik --keep-data`
 where it is installed, then `uninstall("agentik-<name>")`. With `--all`, after every tool (R5):
-the `agentik` marketplace where it is the one setup adds, the suite's own plugin where it is
-listed at the user's scope, the suite's launcher, trees and the door, then the agentik cache
-folder by the install module's own walk, which follows no link. Config and state folders, and
-Claude Code's data and cache folders for each tool, are listed and kept (R7). Step 5 may remove
+the suite's own plugin where it is listed at the user's scope, then the `agentik` marketplace
+where it is the one setup adds, so every plugin goes before its marketplace (row rm1-leave-clean
+R4), the suite's launcher, trees and the door, then the agentik cache folder by the install
+module's own walk, which follows no link. Config and state folders, and Claude Code's data and
+cache folders for each tool and the suite, are listed and kept (R7), each folder once. Step 5 may remove
 the tree this code runs from (R6): every module is imported at the top, the catalogue is in
 memory and each slot is filled before it, and after it nothing is read from the tree.
 """
@@ -88,6 +89,16 @@ def user_path(home, user):
     return os.path.join(home, user[2:]) if user.startswith("~/") else user
 
 
+def once(found):
+    """(path, why) pairs, a folder once: keyed on its real path, its first path kept as given, so it
+    is tested and shown there (rm1 R5; its review 1, F3: `..` after a link, normalised, names another
+    folder)."""
+    out = {}
+    for p, why in found:
+        out.setdefault(os.path.realpath(p), (p, why))
+    return list(out.values())
+
+
 def cache_fate(env, home, guard=(), acted=()):
     """(the agentik cache folder, None where it goes or the reason it stays, the root its walk may
     remove under, the guarded path it would have reached or None). It goes only where it is a real
@@ -138,6 +149,7 @@ class Remove:
         self.tools, self.others, self.extra, self.keep = [], [], [], []
         self.spare, self.suite_rows, self.cache, self.cache_root = (), [], (None, ""), None
         self.guard = []  # every path R7 names, standing or not: the cache walk reaches none (F1)
+        self.soft = set()  # kept rows named only where they stand: gone after the run, no fault
         self.remedy = cmd.say("remove")  # every word the close prints, filled before step 5 (R6)
 
     # ---- which tools (R3), what they keep (R7) ------------------------------------------------
@@ -199,7 +211,7 @@ class Remove:
         found += [(os.path.join(self.config, "plugins", "data", name + "@agentik"), "remove.keep.data"),
                   (os.path.join(self.config, "plugins", "cache", "agentik", name), "remove.keep.cache")]
         self.guard += [p for p, _ in found]
-        return [(p, why) for p, why in dict(found).items() if os.path.lexists(p)]
+        return once([(p, why) for p, why in found if os.path.lexists(p)])  # `a/` and `a`: one folder (rm1 R5)
 
     # ---- the plan (R4, R5) ---------------------------------------------------------------------
 
@@ -237,16 +249,16 @@ class Remove:
             steps += self.rows_steps(2, e["rows"])
             self.keep += e["keep"]
         if self.all:
+            if self.suite_listed():  # every plugin before its marketplace (rm1 R4)
+                steps.append(plan._step(3, "plugin", "todo", SUITE + "@" + plan.MARKETPLACE, "remove.suite",
+                                        "claude plugin uninstall %s@%s --keep-data" % (SUITE, plan.MARKETPLACE)))
             found = self.market()
             command = "claude plugin marketplace remove " + plan.MARKETPLACE
             if found and found[0]:
-                steps.append(plan._step(3, "market", "todo", plan.MARKETPLACE, "remove.market", command))
+                steps.append(plan._step(4, "market", "todo", plan.MARKETPLACE, "remove.market", command))
             elif found:
-                steps.append(plan._step(3, "market", "ok", plan.MARKETPLACE, "remove.kept.market", command,
+                steps.append(plan._step(4, "market", "ok", plan.MARKETPLACE, "remove.kept.market", command,
                                         line="later", source=found[1]))
-            if self.suite_listed():
-                steps.append(plan._step(4, "plugin", "todo", SUITE + "@" + plan.MARKETPLACE, "remove.suite",
-                                        "claude plugin uninstall %s@%s --keep-data" % (SUITE, plan.MARKETPLACE)))
             self.suite_rows = self.door_fate(self.uninstall("agentik-suite", door=True))
             steps += self.rows_steps(5, self.suite_rows)
             state = os.path.dirname(apply.journal_path(self.env, self.home))
@@ -255,6 +267,11 @@ class Remove:
                                        for e in tools.fallback(self.cmd.lib).values()) if p]
             self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
             self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
+            cache = os.path.join(self.config, "plugins", "cache", plan.MARKETPLACE, SUITE)  # rm1 R5
+            self.guard.append(cache)
+            if os.path.lexists(cache):
+                self.keep.append((cache, "remove.keep.cache"))
+                self.soft.add(cache)
             path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards(), self.acted())
             if why == "remove.cache.acted" and self.a_row(path):
                 why = ""  # a row of step 2 or 5, the door say: that row is its one fate (G4)
@@ -263,13 +280,15 @@ class Remove:
                 steps.append(plan._step(6, "cache", "todo", self.shown(path), "remove.cache"))
             elif why:
                 steps.append(plan._step(6, "cache", "ok", self.shown(path), why, reach=self.shown(reach or "")))
+        self.keep = once(self.keep)  # a folder named once (rm1 R5)
         steps += [plan._step(7, "keep", "ok", self.shown(p), why) for p, why in self.keep]
         rows = [r for e in self.tools for r in e["rows"]] + (self.suite_rows if self.all else [])
         return steps, held_of(rows)
 
     def door_fate(self, rows):
         """The suite's dry rows, the door's `kept: <entry> stands` read `would remove` where every
-        entry that keeps it has a `would remove` row in this plan: step 2 takes them first (F3)."""
+        entry that keeps it has a `would remove` row in this plan: step 2 takes them first (F3);
+        else it names the first entry no row removes, the one the run finds standing (rm1 R2)."""
         going = {os.path.basename(p) for p, _, fate in [r for e in self.tools for r in e["rows"]] + list(rows)
                  if fate == "would remove" and os.path.dirname(p) == self.bindir}
         out = []
@@ -282,8 +301,11 @@ class Remove:
                     entries = None
                 keeps = [n for n in entries or () if n not in (agentik_install.DOOR, "agentik-" + SUITE) and (
                     agentik_install._TOOL.match(n) or agentik_install._launcher_form(os.path.join(self.bindir, n), n))]
-                if keeps and all(n in going for n in keeps):
+                stays = [n for n in keeps if n not in going]
+                if keeps and not stays:
                     fate = "would remove"
+                elif stays:
+                    fate = "kept: %s stands" % agentik_install._ascii(stays[0])
             out.append((path, what, fate))
         return out
 
@@ -493,9 +515,9 @@ class Remove:
                     failure = self.execute(s["command"], s["n"], ran, wrote)
                     if failure:
                         break
-                    if s["n"] == 3 and os.path.lexists(folder):  # removed only where an lstat finds it gone (F6)
+                    if s["id"] == "market" and os.path.lexists(folder):  # removed only where an lstat finds it gone (F6)
                         stands.append((folder, self.t.text("remove.market.stands")))  # to go, and stands (G5)
-                    elif s["n"] == 3 and stood:
+                    elif s["id"] == "market" and stood:
                         removed.append(folder)
                 if failure is None:
                     self.suite_rows = self.uninstall("agentik-suite", door=True, dry=False)  # R6: the tree may go
@@ -507,10 +529,11 @@ class Remove:
             failure = ("err.remove.interrupted.idle", {}, apply.INTERRUPTED)
         apply._ignore()
         code = (failure[2] if len(failure) > 2 else 1) if failure else 0
-        kept += [(p, texts[why]) for p, why in self.keep]
+        soft = {p for p in self.soft if not os.path.lexists(p)}  # gone, and named only where it stood
+        kept += [(p, texts[why]) for p, why in self.keep if p not in soft]
         if self.cache[0] and self.cache[1]:
             red += [] if os.path.lexists(self.cache[0]) else [(self.cache[0], gone)]
-        red += [(p, gone) for p, why in self.keep if not os.path.lexists(p)]  # by lstat, before the journal (F1)
+        red += [(p, gone) for p, why in self.keep if not os.path.lexists(p) and p not in self.soft]  # by lstat (F1)
         kept = [(p, why) for p, why in kept if p not in {r[0] for r in red}]
         code = code or (1 if red or stands else 0)
         wrote = wrote + [p for p in removed if p not in wrote]

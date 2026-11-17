@@ -688,6 +688,11 @@ LAUNCHER_MAX = 65536              # a launcher install-cli wrote is under this m
 _TREE_NAME = re.compile(r"^[0-9a-f]{40}$")    # _freeze's name for a tree: _hash()[:40]
 DOOR_LINE = "# agentik: the front door"
 NOT_OURS = "not the launcher install-cli wrote"
+# The second line the session tool's own install-cli wrote before its alpha.127, exactly as written
+# there for its name (row rm1-leave-clean); taken for OLD_FORM_NAME alone (its review 1, F2). The name
+# is joined from two parts, since this module's text names no tool (test_the_canonical_forms_name_no_tool).
+OLD_FORM = "# __NAME__ launcher, written by `__NAME__ install-cli` (design/04 §2, §3); its old"
+OLD_FORM_NAME = "agentik-" + "session"
 
 
 def _homes(env):
@@ -717,7 +722,8 @@ def _under(path, root):
 
 def _launcher_form(path, name):
     """R3's first three tests: a regular file and no link, under LAUNCHER_MAX bytes, whose second
-    line is LAUNCHER's for `name` (the one form that line has had). It reads a regular file only."""
+    line is LAUNCHER's for `name`, or OLD_FORM's where `name` is OLD_FORM_NAME (row rm1-leave-clean).
+    It reads a regular file only."""
     import stat
     try:
         st = os.lstat(path)
@@ -729,7 +735,8 @@ def _launcher_form(path, name):
     if data is None:
         return False
     lines = data.decode("utf-8", "surrogateescape").split("\n")
-    return len(lines) > 1 and lines[1] == LAUNCHER.split("\n")[1].replace("__NAME__", name)
+    forms = (LAUNCHER.split("\n")[1],) + ((OLD_FORM,) if name == OLD_FORM_NAME else ())
+    return len(lines) > 1 and lines[1] in [f.replace("__NAME__", name) for f in forms]
 
 
 def _ours(path, name, share):
