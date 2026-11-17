@@ -174,7 +174,8 @@ class OldDoorTest(Ahead):
         self.assertTrue(got["remedy"].endswith("install-cli"), got)
 
     def test_the_new_rows_hold_the_voice(self):
-        for mid in ("doctor.door.ahead", "doctor.door.ahead.old", "hint.setup.blocked.old"):
+        for mid in ("doctor.door.ahead", "doctor.door.ahead.old", "doctor.door.ahead.unread",
+                    "hint.setup.blocked.old", "err.setup.blocked.old"):
             text = MESSAGES[mid]
             self.assertLessEqual(len(re.sub(r"`\{[^}]*\}`", "", text).replace("`", "")), 76, mid)
             self.assertIsNone(re.search(r"this version|a later version|\bwould\b|\bexit|remove", text, re.I))
@@ -182,7 +183,99 @@ class OldDoorTest(Ahead):
         self.assertNotIn("too old", MESSAGES["doctor.door.ahead"])
 
 
+class NotNewerTest(Ahead):
+    """Review 1 F2: R1's PATH line is the fix only where ~/.local/bin/agentik reads at this
+    command's door version or newer; where it is older, the row and its remedy are the pin's."""
+
+    def pin_row(self, env, status, detail, remedy):
+        code, text = self.doctor(env)
+        rows, lines = self.door_rows(text)
+        self.assertEqual(len(rows), 1, text)
+        at, row = rows[0]
+        self.assertEqual(row.split()[0], {"fail": "FAIL", "warn": "warn"}[status], text)
+        self.assertTrue(row.endswith(detail), text)
+        self.assertNotIn("comes before", text)
+        self.assertNotIn(FIX, text)
+        self.assertNotIn(PROFILE, text)
+        got = self.door_json(env)
+        self.assertEqual((got["status"], got["detail"]), (status, detail))
+        self.assertTrue(got["remedy"].endswith(remedy), got)
+        return code, text, got
+
+    def test_f2_both_doors_at_0_1_0_read_as_at_the_pin(self):
+        self.place("0.1.0")
+        self.place("0.1.0", folder=self.bindir)
+        code, text, got = self.pin_row(self.ahead_env(), "fail",
+                                       "~/old/agentik is at 0.1.0, too old to pass a verb to the suite",
+                                       "/.local/bin/agentik-suite install-cli")
+        self.assertEqual(code, 1, text)
+        self.assertEqual(self.last(text), "next: ~/.local/bin/agentik-suite install-cli", text)
+
+    def test_f2_a_0_3_0_door_over_a_0_2_0_one_keeps_install_cli(self):
+        self.place("0.3.0")
+        self.place("0.2.0", folder=self.bindir)
+        code, text, got = self.pin_row(self.ahead_env(), "warn",
+                                       "~/old/agentik is at version 0.3.0, older than 0.3.1",
+                                       "agentik install-cli")
+        self.assertEqual(code, 0, text)
+        self.assertNotIn("too old to pass a verb", text)  # R2 stands: 0.3.0 hands its verbs on
+        self.assertEqual(self.last(text), "next: agentik install-cli", text)
+
+
+class UnreadAheadTest(Ahead):
+    """Review 1 F1: under R1's condition, a door ahead whose version cannot be read is R1's row
+    too, a warn whose `fix:` is the PATH line; with no door at ~/.local/bin it is the pin's row."""
+
+    def named(self, env):
+        code, text = self.doctor(env)
+        self.assertEqual(code, 0, text)
+        rows, lines = self.door_rows(text)
+        self.assertEqual(len(rows), 1, text)
+        at, row = rows[0]
+        self.assertEqual(row.split()[0], "warn", text)
+        self.assertIn("~/old/agentik", row)
+        self.assertIn("no version could be read", row)
+        self.assertIn("comes before ~/.local/bin/agentik on PATH", row)
+        self.assertEqual(lines[at + 1].strip(), FIX, text)
+        self.assertEqual(self.last(text), "next: " + PROFILE, text)
+        got = self.door_json(env)
+        self.assertEqual((got["status"], got["remedy"]), ("warn", PROFILE))
+        self.assertIn("~/old/agentik", got["detail"])
+        code, out = self.run_both(["/bin/sh", "-c", lines[at + 1].strip()[len("fix: "):]
+                                   + "\nagentik doctor"], env)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.door_rows(out)[0], [], out)
+
+    def test_f1_a_door_ahead_that_runs_and_cannot_be_read(self):
+        os.chmod(self.place("0.1.0"), 0o111)
+        self.named(self.ahead_env())
+
+    def test_f1_a_door_ahead_with_no_version_line(self):
+        self.foreign()
+        self.named(self.ahead_env())
+
+    def test_f1_no_version_and_none_at_local_bin_reads_as_at_the_pin(self):
+        self.foreign()
+        os.remove(self.door)
+        got = self.door_json(self.ahead_env())
+        self.assertEqual(got, {"name": "door", "status": "warn", "remedy": None,
+                               "detail": "~/old/agentik holds no version to compare: none there, 0.3.1 here"})
+
+    def foreign(self):
+        path = os.path.join(self.old, "agentik")
+        with open(path, "w") as fh:
+            fh.write("#!/bin/sh\necho another agentik >&2\nexit 2\n")
+        os.chmod(path, 0o755)
+
+
 class OldPythonTest(Home):
+    def test_f3_setup_json_refusal_names_agentik_python(self):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(plan, "FLOOR", (3, 99)):
+            code = cli.main(["setup", "--json"], env=self.env(), out=out, err=err)
+        self.assertEqual(code, 2, out.getvalue() + err.getvalue())
+        self.assertIn("Set AGENTIK_PYTHON to a newer one.", json.loads(out.getvalue())["error"]["message"])
+
     def test_3_the_refusal_names_agentik_python(self):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(plan, "FLOOR", (3, 99)):
