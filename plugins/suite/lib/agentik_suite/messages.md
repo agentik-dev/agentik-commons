@@ -289,7 +289,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
-- `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`; set AGENTIK_PYTHON to a newer one.
+- `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
 - `setup.path.why`: The line below mends this terminal; the line marked add mends each new one.
 - `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
