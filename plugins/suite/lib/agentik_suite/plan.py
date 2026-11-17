@@ -91,6 +91,14 @@ def default_set(lib):
     return names
 
 
+def known(env, lib):
+    """The names setup plans, sorted (row ic2-needs R2): each name the suite knows (tools.known:
+    the marketplace file's, the fallback table's, each installed `<name>@agentik`, each `sources`
+    line's) and the suite's own."""
+    from . import tools  # tools imports this module at its top
+    return sorted(set(tools.known(env, lib)) | {manifest(lib).get("name") or "suite"})
+
+
 def shown(path, home):
     """A path as the user would type it: under HOME, from `~`."""
     if home and (path == home or path.startswith(home.rstrip("/") + "/")):

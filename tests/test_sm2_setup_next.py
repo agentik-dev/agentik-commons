@@ -29,7 +29,7 @@ from agentik_suite import cli  # noqa: E402
 
 SYSTEM = "/usr/bin:/bin"
 GET = "get it: https://claude.com/claude-code"
-PLUGIN = "murmur"  # a made-up plugin's name
+PLUGIN = "agents"  # a name the suite knows: setup refuses one it does not (row ic2-needs R2)
 
 
 class Home(unittest.TestCase):

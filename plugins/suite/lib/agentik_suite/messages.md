@@ -112,6 +112,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.extra.one`: `{verb}` takes one name; `{word}` is one more
 - `err.version`: `{tool}` has no version: `{path}` cannot be read
 - `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
+- `err.setup.unknown`: `{name}` is no plugin the suite knows; it knows `{names}`
+- `err.setup.home`: HOME is not set, so setup has no folder to plan in
 
 - `err.config.tool`: `{name}` is not a tool here
 - `err.config.key`: `{name}` has no key `{key}`

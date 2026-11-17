@@ -647,6 +647,13 @@ class Command:
         for noun in nouns:
             if not NOUN.match(noun):
                 raise Refusal("bad_name", "err.setup.name", self.say("setup", "--dry-run"), name=noun)
+        if not self.env.get("HOME"):  # no path to plan from (row ic2-needs R2)
+            raise Refusal("no_home", "err.setup.home", None)
+        known = plan.known(self.env, self.lib)
+        for noun in nouns:  # before any plan, the dry run's too (R2)
+            if noun not in known:
+                raise Refusal("unknown_plugin", "err.setup.unknown", self.say("setup", "--dry-run"),
+                              name=noun, names=", ".join(known))
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)
