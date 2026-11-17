@@ -133,8 +133,8 @@ class LauncherLine(ti.Base):
 class UpdateRow(tu.Base):
     """R2 and R3, update's row for the suite and its close."""
 
-    def placed(self, listed=("murmur", "suite"), name=True, under_home=True):
-        h = self.home(listed)
+    def placed(self, listed=("murmur", "suite"), name=True, under_home=True, hname="h"):
+        h = self.home(listed, name=hname)
         h.install("murmur@agentik", "1.0.0", "1.1.0")
         base = h.home if under_home else self.tmp
         checkout = os.path.join(base, "work", "agentik-commons")
@@ -200,6 +200,50 @@ class UpdateRow(tu.Base):
         self.assertIn("ok  the suite plugin 0.2.0, already current", out)
         self.assertNotIn("ok  suite 0.2.0, already current", out)
         self.assertIn("ok  murmur 1.0.0, already current", out)
+
+    def gone_close(self, lose):
+        """Review 1 F1: the launcher names a path that no longer reads as a checkout (the folder
+        gone, or its `.git`); the note names the path, and the close is the plugin's line alone."""
+        h, checkout, exe = self.placed(hname="h-" + lose)
+        run = os.path.join(self.tmp, "run-" + lose)
+        shutil.copytree(os.path.join(checkout, "plugins", "suite"), run, ignore=shutil.ignore_patterns("__pycache__"))
+        exe = os.path.join(run, "bin", "agentik-suite")
+        shutil.rmtree(checkout if lose == "folder" else os.path.join(checkout, ".git"))
+        code, out, err = h.run("update", "--yes", exe=exe)
+        self.assertEqual(code, 0, out + err)
+        row = [l for l in out.splitlines() if l.lstrip().startswith("4 ")]
+        self.assertEqual(len(row), 1, out)
+        self.assertRegex(row[0], r"^\s*4\s+note\s+agentik-suite\s+")
+        self.assertIn("~/work/agentik-commons", row[0])
+        self.assertIn("no longer a checkout", row[0])
+        self.assertNotIn("does not name", row[0])
+        last = err.rstrip("\n").splitlines()[-2:]
+        self.assertEqual(last[1], "next: claude plugin install suite@agentik")
+        self.assertFalse(last[0].startswith("next:"), last)
+        self.assertNotIn("pull", err)
+        code, out, err = h.run("update", "--dry-run", "--json", exe=exe)
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual([s["name"] for s in json.loads(out)["skipped"]], ["suite"])
+
+    def test_14_a_named_checkout_whose_folder_is_gone(self):
+        self.gone_close("folder")
+
+    def test_15_a_named_checkout_whose_git_is_gone(self):
+        self.gone_close(".git")
+
+    def test_16_no_line_closes_on_the_plugin_listed_or_not(self):
+        """Review 1 F2: no path line; the `next:` is the plugin's line alone, its reason above,
+        whether or not the marketplace lists `suite`; no close says to pull a checkout."""
+        for listed in (("murmur", "suite"), ("murmur",)):
+            h, checkout, exe = self.placed(listed=listed, name=False, hname="h-%d" % len(listed))
+            code, out, err = h.run("update", "--yes", exe=exe)
+            self.assertEqual(code, 0, out + err)
+            row = [l for l in out.splitlines() if l.lstrip().startswith("4 ")][0]
+            self.assertIn("does not name", row)
+            last = err.rstrip("\n").splitlines()[-2:]
+            self.assertEqual(last[1], "next: claude plugin install suite@agentik", (listed, err))
+            self.assertFalse(last[0].startswith("next:"), (listed, last))
+            self.assertNotIn("pull that checkout", out + err)
 
 
 @unittest.skipUnless(os.access(APPLE_PY, os.X_OK) and shutil.which("git", path="/usr/bin:/bin"),
