@@ -126,8 +126,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n238 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
 | n239 | S4 | `plugins/suite` `remove.py`, GUIDE §10 | the old order's cut under a `claude` refusing an uninstall once its marketplace is gone; GUIDE's door "reads and writes nothing" yet tests the cwd; `remove` via the launcher refills the pycache it removes; `once()` keeps a folder's first spelling, so an earlier second one misses `soft` | read, not run | 2026-11-16, rm1-leave-clean review 2 |
 
-## From packet up4-update-close (build 1)
+## From packet up4-update-close (build 1, review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n240 | S4 | `plugins/suite` `apply.py` `execute`, `report` | a command that hangs is silent until its limit (600 s for `claude`, 120 s for an install-cli): no `still running` line a minute; and a run cut by `kill -9` writes no journal line, so the next run, which finishes it, no longer lists what the cut run kept | review finding 15, its other parts | 2026-11-16, up4-update-close build 1 |
+| n241 | S4 | `plugins/suite` `update.py` `_run`, `main`, `page_row` | an interrupt's `next:` drops the names and `--yes`; `update NoSuch` reads `err.setup.name`; a page tool whose plugin ships its command reads `stays as it was`; `--json` has no sessions field; a long note unlaid on a pty; an interrupt in `apply.look` reads `between steps` | review 1 L2-L4, L6-L8 | 2026-11-16, up4 review 1 |
