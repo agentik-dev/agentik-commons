@@ -12,12 +12,12 @@ light at import: a hook imports it for `restore_parent_env`, and no import here 
 The prune: a launcher already running keeps its tree for its whole life, which for a respawn chain
 is hours, so deleting every other tree pulls the code out from under it. It keeps the new tree (its
 mtime set to now, so a re-install of an old tree counts as newest); every entry a running process
-names in its command line or environment, read from `ps -axwwE -o pid=,command=` and compared by
-realpath; and the newest KEEP by mtime, which cover a launcher that has read the old file and not
-yet exec'd, and any process ps could not see. An entry whose name starts with a dot is the
-install's own and no tree. It fails safe: when ps cannot run, exits non-zero, or shows no
-environment (a probe variable set in ps's own environment is missing from its output), nothing is
-removed. The limit: macOS hides the environment of its platform binaries even from their own user,
+names in its command line or environment, read from `ps -axwwE -o pid=,command=`, or where that
+exits non-zero from `ps axwwe -o pid=,command=` (procps's BSD form), and compared by realpath; and
+the newest KEEP by mtime, which cover a launcher that has read the old file and not yet exec'd,
+and any process ps could not see. An entry whose name starts with a dot is the install's own and
+no tree. It fails safe: when ps cannot run, both forms exit non-zero, or ps shows no environment
+(a probe variable set in ps's own environment is missing from its output), nothing is removed. The limit: macOS hides the environment of its platform binaries even from their own user,
 so a tree named only in such a process's environment is removed unless it is among the newest KEEP.
 """
 import os
@@ -546,19 +546,30 @@ def install_cli(prefix=None, env=None):
 
 # ---- the prune -----------------------------------------------------------------------------
 
+# The process list's two forms: BSD's and macOS's `-axwwE`, then procps's BSD form, whose `e`
+# appends the environment to `command`; procps refuses `E` in both of its parsers.
+PS_FORMS = ("-axwwE", "axwwe")
+
+
 def processes(ps, timeout=60):
-    """(every process's command line and environment as one text, None) or (None, why)."""
+    """(every process's command line and environment as one text, None) or (None, why). The second
+    form runs only where the first exits non-zero, and `why` is then the second's: `<ps> exited
+    <n>`, and the first line ps wrote on stderr. A ps that cannot start or times out runs once."""
     import secrets
     import subprocess
     token = secrets.token_hex(8)
-    try:
-        r = subprocess.run([ps, "-axwwE", "-o", "pid=,command="], capture_output=True,
-                           text=True, errors="replace", timeout=timeout,
-                           env=dict(os.environ, **{PROBE: token}))
-    except (OSError, subprocess.SubprocessError) as e:
-        return None, "%s: %s" % (ps, e)
-    if r.returncode != 0:
-        return None, "%s exited %d" % (ps, r.returncode)
+    for form in PS_FORMS:
+        try:
+            r = subprocess.run([ps, form, "-o", "pid=,command="], capture_output=True,
+                               text=True, errors="replace", timeout=timeout,
+                               env=dict(os.environ, **{PROBE: token}))
+        except (OSError, subprocess.SubprocessError) as e:
+            return None, "%s: %s" % (ps, e)
+        if r.returncode == 0:
+            break
+    else:
+        said = next((l.strip() for l in r.stderr.splitlines() if l.strip()), "")
+        return None, "%s exited %d%s" % (ps, r.returncode, ": " + _ascii(said[:200]) if said else "")
     if "%s=%s" % (PROBE, token) not in r.stdout:
         return None, "no process environment is visible"
     return r.stdout, None

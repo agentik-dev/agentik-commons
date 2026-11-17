@@ -337,9 +337,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.nothing`: everything is current; nothing was placed.
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
-- `update.held.ps`: the process list cannot be read
+- `update.held.ps`: the process list cannot be read: `{why}`
 - `err.update.held`: held install: `{what}`
 - `hint.update.held`: next: `{command}` once it has ended
+- `hint.update.held.ps`: next: `{command}` once ps can list each process's environment
 - `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
 - `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
@@ -393,7 +394,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.usage`: `{remove}` takes plugin names or --all, and never both
 - `err.remove.held`: held remove: `{what}`
 - `err.remove.held.run`: Remove stopped: `{what}`, so `{name}` stands; run `{command}` once it ends
+- `err.remove.held.run.ps`: Remove stopped: `{what}`, so `{name}` stands; run `{command}` once ps can list each process
 - `hint.remove.held`: next: `{command}` once it has ended
+- `hint.remove.held.ps`: next: `{command}` once ps can list each process's environment
 - `err.remove.yes`: Remove ran nothing, since it cannot ask here; run `{remove}` --yes
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
 - `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, written by `claude plugin`; use a terminal
@@ -551,6 +554,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
+- `doctor.ps.unread`: the process list cannot be read, so update and remove refuse: `{why}`
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.claim.twice`: `{tools}` each claim the verb `{word}`, so `{run}` runs none of them
 - `doctor.settings.ok`: `{path}` reads
