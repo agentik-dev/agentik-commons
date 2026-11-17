@@ -167,7 +167,7 @@ class ThisRepo(unittest.TestCase):
         self.assertTrue(os.access(SCRIPT, os.X_OK))
 
     def test_this_repos_own_readme_is_in_the_form(self):
-        self.assertEqual(run(cwd=str(ROOT)), (0, "README.md: top: 8 lines, in the form\n", ""))
+        self.assertEqual(run(cwd=str(ROOT)), (0, "README.md: top: 9 lines, in the form\n", ""))
 
     def test_the_lint_target_runs_it(self):
         lint = (ROOT / "Makefile").read_text().split("\nlint:\n", 1)[1].split("\n\n", 1)[0]

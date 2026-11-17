@@ -11,6 +11,7 @@ claude
 ```
 
 It needs Claude Code, git and the system's Python at 3.9 or newer, and it installs no package.
+To upgrade, from the folder that holds the clone: `git -C agentik-commons pull && agentik-commons/setup && agentik update`.
 Part of [agentik](https://github.com/agentik-dev): what each plugin does, and how to leave.
 
 ## For maintainers
@@ -22,7 +23,7 @@ The `suite` plugin also installs with Claude Code's own verbs and no clone; that
 claude plugin marketplace add agentik-dev/agentik-commons && claude plugin install suite@agentik
 ```
 
-`suite` is this repo's one plugin: the suite's default set, whose `dependencies` on session, decisions and agents Claude Code installs and enables with it, and the `agentik-suite` command that manages it (below). Updates stay `claude plugin marketplace update agentik && claude plugin update <name>@agentik`.
+`suite` is this repo's one plugin: the suite's default set, whose `dependencies` on session, decisions and agents Claude Code installs and enables with it, and the `agentik-suite` command that manages it (below). `agentik update` brings each plugin and its command current; `claude plugin update` alone moves a plugin and leaves its command behind.
 
 A clone and its `setup` set a machine up, the steps above included: `git clone https://github.com/agentik-dev/agentik-commons && agentik-commons/setup` runs `agentik-suite setup` from the clone, which adds the marketplace, installs each plugin, places each launcher, the suite's command and the `agentik` door in `~/.local/bin`, and prints the `export PATH` line when that folder is off PATH. `make install` puts the suite's command and the door on this terminal alone, under `PREFIX` when it is set.
 

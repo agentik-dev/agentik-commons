@@ -43,19 +43,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
 
-## From packets su2-read and su2-screen (review 1 and phase 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-
 ## From packet rp6-verb (review 1 and build 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n162 | S4 | `plugins/suite` `issue.py` `_read`, `_new`, `_send` | the drafts path is printed raw: `new --json`'s and the bare read's `path`, and `--web`'s `The draft:` line, so `XDG_STATE_HOME`, and under the real home the login, reach stdout; print `plan.shown` or the id alone, and let the skill take the id | review 1's F7, probe D | 2026-11-14, rp6-verb review 1 |
-| n163 | S4 | `plugins/suite` `scrub.py` (a) | a login inside a longer word is left in the draft, though design/22 §8 item 2 names the case; whole-word matching spares a plain-word login inside a common word, so which rule holds is the coordinator's call | review 1's F9, a lead against rp2's rule | 2026-11-14, rp6-verb review 1 |
-| n164 | S4 | `plugins/suite` `scrub.py` (b) | `</details>` in the person's words is scrubbed as a one-segment path and drawn `<<path-1>>`; nothing leaks or goes live, an over-scrub of rp2's one-segment rule | review 1's F10 | 2026-11-14, rp6-verb review 1 |
-| n165 | S4 | `tests/test_rp6_issue.py` | three files are opened and never closed (lines 213, 288, 348), a ResourceWarning each under `-W` | review 1's observations | 2026-11-14, rp6-verb review 1 |
 | n167 | S4 | `plugins/suite` `gather.py` `_past_edge` | a one-line window over 64 KiB drops its first 1,024 bytes and the word there; a secret with spaces in it longer than that, straddling the window's start, would keep its tail | read in build 2 | 2026-11-14, rp6-verb build 2 |
 
 ## From packet in4-inbox (review 1 and phase 2)
@@ -121,8 +112,23 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n224 | S4 | `plugins/suite` `config.py` search | a hyphenated word never matches a summary: `\w+` splits at `-` and `'`; `alpha.cap`'s summary "Sets the max-turns cap for a sitting." is not found by `config max-turns`, which lists only key `alpha.max-turns`; within R1's letter | stub `alpha` with keys `max-turns` and `cap`: one row | 2026-11-15, sc7-config-find review 1 |
 | n225 | S4 | `term.py` `_wrap` | a key with a space wraps in two on a pty, so it cannot be read as one word: `alpha.$(touch` then `PWNED).tension` at 80 columns (28 columns, past a third); a pipe prints it whole; term's name wrapping at the pin | stub key `$(touch PWNED).tension`, `config tension` on a pty at 80 columns | 2026-11-15, sc7-config-find review 1 |
 | n226 | S4 | `term.py` `fit` | `fit` can leave a space before its mark: the cut `The turns this sitting is metered …` at 66 columns; rstrip the kept text before adding `…` | `config turns` on a pty at 66 columns with a stub `session.ceilings.turns` of that summary | 2026-11-15, sc7-config-find review 1 |
-| n227 | S4 | `plugins/suite` `messages.md` `issue.strike.none` | `Struck {words} in {places}; the draft is unchanged.` says struck and unchanged at once | `issue strike` of a word the draft does not hold | 2026-11-16, ic1-close |
-| n228 | S4 | `plugins/suite` `messages.md` `usage.issue` | the usage drops the `[TOOL]` that `issue new` takes (`issue.py`'s docstring: `new [TOOL]`) | `help issue`'s first line | 2026-11-16, ic1-close |
-| n229 | S3 | `plugins/suite` `apply.py` `_before` | with `setup \| tee` the question can print above the plan: the flush feeds the pipe and the question reaches stderr before tee copies the plan; R4's `tee` clause was withdrawn; main prints the same | `script -q o.txt /bin/bash -c './setup \| tee /dev/null'` fed `n`: the question above the plan in 4 of 5 runs | 2026-11-16, ic1-close review 1 F1 |
-| n230 | S4 | `plugins/suite` `apply.py` `show` | `update`'s and `remove`'s plans now show `get it:` under a missing `claude`, since they print through `show`; no brief named it, and it reads as a gain: confirm it or keep it to setup | `agentik-suite update` with PATH `/usr/bin:/bin`: main has no `get it:` line, the branch has one | 2026-11-16, ic1-close review 1 |
-| n231 | S4 | `plugins/suite` `plan.py` `door_off` | any executable at `~/.local/bin/agentik` counts as the door; off PATH, both closes name the PATH line and hide its "holds no version" warn until PATH is mended (main ran that file, so no worse) | a script of your own there, that folder off PATH: `doctor` | 2026-11-16, ic1-close review 1 |
+| n227 | S4 | `scripts/agentik_install.py` `prune`, `uninstall` | a removed tree's bytecode stays under `<cache>/agentik/pycache/<its real path>`, the prune's and `remove <tool>`'s alike; only `remove --all` clears it | one machine: 95 MB in 4,798 files, 44 session trees' bytecode where 5 stand | 2026-11-16, the install and upgrade review, finding 14 |
+
+## From packet up2-suite-origin (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n228 | S4 | `plugins/suite` `update.py` `suite_close` | the close can carry two `next:` lines, the doctor's then the suite's; R2 says one | review 1's F2 reproduction | 2026-11-16, up2-suite-origin review 1 |
+| n229 | S4 | `plugins/suite` `update.py` `named` | reads `$HOME/.local/bin/agentik-suite` alone: a suite under another `PREFIX` is judged by HOME's launcher | review 1's lead | 2026-11-16, up2-suite-origin review 1 |
+| n230 | S4 | `plugins/suite` `update.py` `suite_close` | the pull line prints with no condition: a person who just ran the README's upgrade line is told to pull again | review 1's lead | 2026-11-16, up2-suite-origin review 1 |
+
+## From packet ic1-close (build 1, reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n231 | S4 | `plugins/suite` `messages.md` `issue.strike.none` | `Struck {words} in {places}; the draft is unchanged.` says struck and unchanged at once | `issue strike` of a word the draft does not hold | 2026-11-16, ic1-close |
+| n232 | S4 | `plugins/suite` `messages.md` `usage.issue` | the usage drops the `[TOOL]` that `issue new` takes (`issue.py`'s docstring: `new [TOOL]`) | `help issue`'s first line | 2026-11-16, ic1-close |
+| n233 | S3 | `plugins/suite` `apply.py` `_before` | with `setup \| tee` the question can print above the plan: the flush feeds the pipe and the question reaches stderr before tee copies the plan; R4's `tee` clause was withdrawn; main prints the same | `script -q o.txt /bin/bash -c './setup \| tee /dev/null'` fed `n`: the question above the plan in 4 of 5 runs | 2026-11-16, ic1-close review 1 F1 |
+| n234 | S4 | `plugins/suite` `apply.py` `show` | `update`'s and `remove`'s plans now show `get it:` under a missing `claude`, since they print through `show`; no brief named it, and it reads as a gain: confirm it or keep it to setup | `agentik-suite update` with PATH `/usr/bin:/bin`: main has no `get it:` line, the branch has one | 2026-11-16, ic1-close review 1 |
+| n235 | S4 | `plugins/suite` `plan.py` `door_off` | any executable at `~/.local/bin/agentik` counts as the door; off PATH, both closes name the PATH line and hide its "holds no version" warn until PATH is mended (main ran that file, so no worse) | a script of your own there, that folder off PATH: `doctor` | 2026-11-16, ic1-close review 1 |
+| n236 | S4 | `plugins/suite` `update.py`, `doctor.py`, `messages.md` | with an old Python the dry run's close and doctor's close still name `setup`, and `err.update.blocked` (update's `--json`) still says "install it"; out of reach on a Mac whose system Python is at the minimum | build 2's not-done list; read, not run | 2026-11-16, ic1-close review 2 |

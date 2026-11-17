@@ -266,11 +266,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.other`: at version `{have}`, and the source is at `{want}`; setup would place it again
 - `setup.launcher.page`: not placed, and not setup's to place: `{name}` installs its own command
 - `setup.launcher.theirs`: `{name}` installed its own command, at `{path}`; setup leaves it as it is
+- `setup.launcher.gone`: its code at `{tree}` is gone; the line below places it again
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
 - `setup.suite.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.missing`: not placed; setup would place it from this command
+- `setup.suite.gone`: its code at `{tree}` is gone; the line below places it again
 - `setup.door.ok`: in place, at this command's version or newer
 - `setup.door.above`: not placed, or older than this command's; the line above places it
 - `setup.door.place`: not placed, or older than this command's; the install-cli line below places it
@@ -333,18 +335,24 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.doctor`: the doctor reads every tool once the steps above have run
 - `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
 - `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
-- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so update leaves it.
+- `update.suite.checkout`: agentik-suite `{version}` was placed from `{path}`, which update does not pull
+- `update.suite.checkout.gone`: agentik-suite `{version}` was placed from `{path}`, which is no longer a checkout
+- `update.suite.checkout.none`: agentik-suite `{version}` came from a checkout its command does not name
+- `update.suite.same`: the `{name}` plugin `{version}`, already current
+- `update.suite.why`: the line below pulls agentik-suite's checkout and runs its setup
+- `update.suite.why.none`: the line below installs the suite plugin, so `{update}` covers agentik-suite
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.tool.gone`: `{name}` `{version}` is no longer installed
 - `update.nothing`: everything is current; nothing was placed.
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
-- `update.held.ps`: the process list cannot be read
+- `update.held.ps`: the process list cannot be read: `{why}`
 - `err.update.held`: held install: `{what}`
 - `hint.update.held`: next: `{command}` once it has ended
+- `hint.update.held.ps`: next: `{command}` once ps can list each process's environment
 - `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
-- `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
+- `hint.update.suite`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
@@ -358,7 +366,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
-- `hint.update.suite.pull`: pull that checkout, run install-cli of plugins/suite/bin/agentik-suite
 
 ## Remove
 
@@ -396,7 +403,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.usage`: `{remove}` takes plugin names or --all, and never both
 - `err.remove.held`: held remove: `{what}`
 - `err.remove.held.run`: Remove stopped: `{what}`, so `{name}` stands; run `{command}` once it ends
+- `err.remove.held.run.ps`: Remove stopped: `{what}`, so `{name}` stands; run `{command}` once ps can list each process
 - `hint.remove.held`: next: `{command}` once it has ended
+- `hint.remove.held.ps`: next: `{command}` once ps can list each process's environment
 - `err.remove.yes`: Remove ran nothing, since it cannot ask here; run `{remove}` --yes
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
 - `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, written by `claude plugin`; use a terminal
@@ -555,6 +564,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.door.off`: `{path}` is there, but its folder is not on PATH
 - `doctor.shadow.ok`: no command on PATH takes a verb's place
+- `doctor.ps.unread`: the process list cannot be read, so update and remove refuse: `{why}`
 - `doctor.shadow.hit`: `{path}` runs in place of the verb `{word}`; rename or remove it
 - `doctor.claim.twice`: `{tools}` each claim the verb `{word}`, so `{run}` runs none of them
 - `doctor.settings.ok`: `{path}` reads
@@ -571,6 +581,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.passed`: its doctor passed
 - `doctor.tool.failed`: its doctor failed
 - `doctor.tool.silent`: its doctor failed, and printed nothing
+- `doctor.tool.said`: its doctor failed, and said: `{last}`
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
@@ -582,6 +593,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.gone`: listed, but its folder is gone
 - `doctor.plan.earlier`: `{path}` comes first on PATH and runs in place of this one
 - `doctor.plan.other`: at another version than the source that stands
+- `doctor.plan.code`: its code at `{tree}` is gone
 - `doctor.source.undecided`: `{count}` plugins of this name are installed, and no source is declared
 - `doctor.source.twice`: installed for you and for this repo, and no source is declared
 - `doctor.source.repo`: the only plugin of this name came from this repo; no source is declared

@@ -4,6 +4,8 @@ Each run is the suite's launcher in a temp HOME (`Home`), TZ=UTC, its cwd a temp
 On the stub PATH two made-up tools, `agentik-ledger` (the reads `questions` and `backlog`) and
 `agentik-bench` (`charter`), each a script that answers `describe --json`, prints for each read the
 object built from the world file the test wrote, for the paths it is given, and records its argv.
+The describe is answered by the shell's builtins, with no python started, so the suite's describe
+wall (tools.WALL) never waits on how fast this machine starts a python.
 Four made-up checkouts under a temp folder T: `pear-hq`, `quince-hq`, `fig-hq`, each a git repository
 on `main` with one commit, and `plum-hq`, which is not made. Every fixture is dated from the clock at
 the test's start. After every run each checkout is walked whole and its `git status` read again
@@ -14,6 +16,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import signal
 import stat
 import subprocess
@@ -37,12 +40,6 @@ with open(os.path.join(here, "tool-calls"), "a") as fh:
     fh.write(json.dumps([name] + args) + "\n")
 with open(os.path.join(here, "tools.json")) as fh:
     reads = json.load(fh)[name]
-if args == ["describe", "--json"]:
-    print(json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
-                      "summary": "A made-up tool.", "repo": "example/" + name, "plugin": name + "@agentik",
-                      "needs": [], "verbs": [],
-                      "reads": [{"kind": "status", "name": r, "argv": a} for r, a in reads]}))
-    sys.exit(0)
 with open(os.path.join(here, "world.json")) as fh:
     world = json.load(fh)
 for read, argv in reads:
@@ -69,6 +66,23 @@ for read, argv in reads:
     sys.exit(0)
 sys.exit(2)
 '''
+
+# The describe is answered by sh's builtins (`[`, printf), so no python starts under the describe's
+# wall; every other argv goes to tool.py. The describe's argv is recorded as tool.py records a read's.
+STUB = """#!/bin/sh
+if [ "$#" -eq 2 ] && [ "$1" = describe ] && [ "$2" = --json ]; then
+    printf '%%s\\n' %(call)s >> %(calls)s
+    printf '%%s\\n' %(describe)s
+    exit 0
+fi
+PYTHONPYCACHEPREFIX=%(pyc)s exec /usr/bin/python3 -B %(tool)s %(name)s "$@"
+"""
+
+
+def describe(name):
+    return {"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
+            "summary": "A made-up tool.", "repo": "example/" + name, "plugin": name + "@agentik",
+            "needs": [], "verbs": [], "reads": [{"kind": "status", "name": r, "argv": a} for r, a in READS[name]]}
 
 NEXT_ACT = "Cut the first row, then name the repos in the README."
 BLOCK = ("## 1. Which barn holds the hay\n\n**Where things stand.** The hay is in the yard and rain is due.\n\n"
@@ -133,8 +147,12 @@ class InboxHome(base.Home):
         with open(os.path.join(side, "tools.json"), "w") as fh:
             json.dump(READS, fh)
         for name in READS:
-            self.stub("agentik-" + name, '#!/bin/sh\nPYTHONPYCACHEPREFIX="%s" exec /usr/bin/python3 -B "%s" %s "$@"\n'
-                      % (os.path.join(side, "pyc"), os.path.join(side, "tool.py"), name))
+            self.stub("agentik-" + name, STUB % {
+                "call": shlex.quote(json.dumps([name, "describe", "--json"])),
+                "calls": shlex.quote(os.path.join(side, "tool-calls")),
+                "describe": shlex.quote(json.dumps(describe(name))),
+                "pyc": shlex.quote(os.path.join(side, "pyc")), "tool": shlex.quote(os.path.join(side, "tool.py")),
+                "name": name})
         self.walked = [self.T]
         self.pear, self.quince, self.fig = (self.checkout(os.path.join(self.T, n))
                                             for n in ("pear-hq", "quince-hq", "fig-hq"))

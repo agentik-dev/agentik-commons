@@ -46,7 +46,8 @@ FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.p
         "setup.launcher.behind": "doctor.plan.behind", "setup.suite.behind": "doctor.plan.behind",
         "setup.launcher.unread": "doctor.plan.unread", "setup.suite.unread": "doctor.plan.unread",
         "setup.plugin.declared": "doctor.plan.declared", "setup.plugin.gone": "doctor.plan.gone",
-        "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other"}
+        "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other",
+        "setup.launcher.gone": "doctor.plan.code", "setup.suite.gone": "doctor.plan.code"}
 # A held row (fk2-plan R4) in doctor's words, whose remedy is the card that shows how to choose.
 HELD = {"setup.plugin.held": "doctor.source.undecided", "setup.plugin.held.twice": "doctor.source.twice",
         "setup.plugin.held.repo": "doctor.source.repo"}
@@ -128,6 +129,14 @@ def twice(cmd, found):
     return [_check("claim", "fail", cmd.t.text("doctor.claim.twice", word=w, tools=joined(names),
                                                 run=cmd.say(w)))
             for w, names in words.items() if len(names) > 1]
+
+
+def process_list(cmd):
+    """The process list read as update and remove read it: one warn with the reason where it
+    cannot be read, since both refuse there, and no row where it reads (row lx1-ps-linux R4)."""
+    from . import update  # update imports this module, so the import waits for the call
+    why = update.listing(cmd.env)[1]
+    return [_check("processes", "warn", cmd.t.text("doctor.ps.unread", why=why))] if why else []
 
 
 def user_settings(cmd):
@@ -389,6 +398,13 @@ def describes(cmd, entries):
                               deadline=time.monotonic() + tools.WALL)[0] if exes else {}
 
 
+def last_line(err):
+    """A tool's stderr bytes: its last line that is not blank, as one clean line, else None."""
+    lines = [tools.one_line(l) for l in (err or b"").decode("utf-8", "replace").splitlines()]
+    lines = [l for l in lines if l]
+    return lines[-1] if lines else None
+
+
 def own_doctors(cmd, entries, described=None):
     """[group] for each listed tool but the suite, in the list's order. A group is {name,
     checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2).
@@ -416,7 +432,8 @@ def own_doctors(cmd, entries, described=None):
         answers[name] = got
         return ()
 
-    results = tools.run_all(jobs, cmd.env, then=then,
+    errs = {}  # each job's stderr: a silent doctor's last line (row up1-tree-gone R3)
+    results = tools.run_all(jobs, cmd.env, then=then, errs=errs,
                             deadline=time.monotonic() + DEADLINE) if jobs else {}
     groups = []
     for e in entries:
@@ -439,9 +456,11 @@ def own_doctors(cmd, entries, described=None):
             code, out, state = results[(name, "read")]
             state = "unread" if state == "ran" else state  # it ran and does not count (R8)
         else:
-            code, out, state = results[(name, 1)]
+            key = (name, 1)
+            code, out, state = results[key]
             if state == "ran":
-                code, out, state = results.get((name, 2), (None, b"", "timed out"))
+                key = (name, 2)
+                code, out, state = results.get(key, (None, b"", "timed out"))
         if state == "timed out":
             c = _check("doctor", "warn", t.text("doctor.tool.slow", secs="%g" % DEADLINE), again)
         elif state != "ran":
@@ -450,6 +469,8 @@ def own_doctors(cmd, entries, described=None):
             c = _check("doctor", "ok", t.text("doctor.tool.passed"))
         elif out.strip():
             c = _check("doctor", "fail", t.text("doctor.tool.failed"), again)
+        elif last_line(errs.get(key)):
+            c = _check("doctor", "fail", t.text("doctor.tool.said", last=last_line(errs.get(key))), again)
         else:
             c = _check("doctor", "fail", t.text("doctor.tool.silent"), again)
         group["checks"] = lead + [c]
@@ -656,7 +677,7 @@ def read(cmd):
     entries = tools.listed(suite, on_path, cmd.env)
     described = describes(cmd, entries[1:])
     own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
-        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd)
+        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
     groups += own_doctors(cmd, entries[1:], described)

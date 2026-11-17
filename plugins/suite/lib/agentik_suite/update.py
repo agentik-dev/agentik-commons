@@ -27,7 +27,7 @@ import sys
 
 import agentik_install
 
-from . import apply, doctor, plan, term, tools
+from . import apply, doctor, plan, prog, term, tools
 
 SCHEMA = "agentik.update/1"
 SESSION_WALL = 10
@@ -101,26 +101,38 @@ def _unattended(path, argv, env):
         return False
 
 
-def hold(cmd):
-    """The held text, or None (R3). It starts the process list and, where the finder says a file
-    runs for the `unattended` read's tool, that file; it reads nothing else."""
-    env = cmd.env
+def listing(env):
+    """The process list through the `ps` the env's PATH finds: (text, None) or (None, why), the
+    why agentik_install.processes gives (row lx1-ps-linux R1); the doctor reads it the same way."""
     ps = shutil.which("ps", path=env.get("PATH", ""))  # none on PATH: a list that cannot be read
-    text = agentik_install.processes(ps, timeout=PS_WALL)[0] if ps else None
+    return agentik_install.processes(ps, timeout=PS_WALL) if ps else (None, "ps is not on PATH")
+
+
+def holding(cmd):
+    """(the held text or None, whether it is a list that cannot be read) (R3). It starts the
+    process list and, where the finder says a file runs for the `unattended` read's tool, that
+    file; it reads nothing else. A list that cannot be read says why (row lx1-ps-linux R3)."""
+    env = cmd.env
+    text, why = listing(env)
     if text is None:
-        return cmd.t.text("update.held.ps")
+        return cmd.t.text("update.held.ps", why=why), True
     runner = reader(cmd.lib, "run")
     pid = runner and runner_pid(text, runner[0])
     if pid:
-        return cmd.t.text("update.held.run", tool=runner[0], pid=pid)
+        return cmd.t.text("update.held.run", tool=runner[0], pid=pid), False
     found = reader(cmd.lib, "unattended")
     if not found:
-        return None
+        return None, False
     row = tools.rows(env, cmd.lib, cmd.cwd, names=[found[0]])[found[0]]
     path = (row["runs"] or {}).get("path")
     if path and _unattended(path, found[1], env):
-        return cmd.t.text("update.held.unattended")
-    return None
+        return cmd.t.text("update.held.unattended"), False
+    return None, False
+
+
+def hold(cmd):
+    """The held text, or None (R3): holding's first."""
+    return holding(cmd)[0]
 
 
 def _standing(row):
@@ -234,8 +246,17 @@ class Update:
             if isinstance(root, str) and isinstance(ver, str) and ver:
                 own = plan.build([], self.env, os.path.join(root, "lib"), cmd.tool, ver)
                 steps += [dict(s, n=4) for s in own if s["n"] == 5]
-        elif SUITE in self.names and SUITE not in self.skips:
-            steps.append(plan._step(4, "suite", "ok", cmd.tool, "update.suite.checkout", version=cmd.version))
+        elif SUITE in self.names and SUITE not in self.skips:  # a note, never ok (row up2 R2)
+            path = self.named()
+            if path and agentik_install._plain_checkout(path):
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout",
+                                        version=cmd.version, path=plan.shown(path, self.home)))
+            elif path:  # named, and no longer a checkout (review 1 F1)
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout.gone",
+                                        version=cmd.version, path=plan.shown(path, self.home)))
+            else:
+                steps.append(plan._step(4, "suite", "todo", cmd.tool, "update.suite.checkout.none",
+                                        version=cmd.version))
         steps.append(plan._step(5, "doctor", "todo", "doctor", "update.doctor", cmd.say("doctor")))
         if any(s["state"] == "blocked" for s in self.prereqs):
             for s in steps:
@@ -257,10 +278,37 @@ class Update:
 
     # ---- the close (R6, R7, R8) -----------------------------------------------------------------
 
+    def named(self):
+        """The path the suite's launcher names on its `CHECKOUT=` line (row up2 R1), or None."""
+        found = agentik_install.read_launcher(os.path.join(self.bindir, "agentik-" + SUITE))
+        return (found or {}).get("checkout") or None
+
+    def checkout(self):
+        """The checkout the suite's launcher names, where `setup` still stands there."""
+        path = self.named()
+        return path if agentik_install._plain_checkout(path) else None
+
+    def pull_line(self, path):
+        """The one line that moves a suite placed from `path`: a pull, then its setup (R2)."""
+        q = prog.shown(path, self.home, full=self.o["json"])
+        return "git -C %s pull --ff-only && %s/setup" % (q, q)
+
+    def suite_close(self):
+        """The close's last lines for a suite placed from a checkout: the reason, then the one
+        `next:` that moves it (R2): the pull where the launcher names a checkout that stands, else
+        the suite plugin's install, whether or not the marketplace lists it (review 1 F1, F2)."""
+        if self.suite is not None or SUITE not in self.names or SUITE in self.skips or self.t.quiet:
+            return
+        path = self.checkout()
+        if path:
+            why, command = "update.suite.why", self.pull_line(path)
+        else:
+            why, command = "update.suite.why.none", "claude plugin install suite@agentik"
+        self.t.flush()
+        self.t.line(why, err=True, **self.slots)
+        self.t.hint("hint.update.suite", command=command)
+
     def hints(self):
-        if self.suite is None and SUITE in self.names and SUITE not in self.skips:
-            listed = SUITE in tools.descriptions(self.env)
-            self.t.hint("hint.update.suite" if listed else "hint.update.suite.pull", **self.slots)
         missing = self.absent + [e["name"] for e in self.gone]
         if missing:
             self.t.hint("hint.update.setup", command=self.cmd.say("setup", *missing), names=", ".join(missing))
@@ -276,7 +324,8 @@ class Update:
 
     def skipped_json(self, steps):
         found = [{"name": name, "why": s["detail"]} for name, s in self.skips.items()]
-        found += [{"name": SUITE, "why": s["detail"]} for s in steps if s["mid"] == "update.suite.checkout"]
+        found += [{"name": SUITE, "why": s["detail"]} for s in steps
+                  if s["mid"] in ("update.suite.checkout", "update.suite.checkout.gone", "update.suite.checkout.none")]
         return found
 
     def json(self, ok, steps, after=None, ran=(), wrote=(), checked=None, error=None, held=None):
@@ -305,13 +354,13 @@ class Update:
 
     # ---- the verb ---------------------------------------------------------------------------
 
-    def held(self, what):
+    def held(self, what, unread=False):
         if self.o["json"]:
             self.json(False, [], held=what)
         else:
             self.t.error("err.update.held", what=what)
             again = self.cmd.say("update", *(self.nouns + (["--dry-run"] if self.o["dry_run"] else [])))
-            self.t.hint("hint.update.held", command=again)
+            self.t.hint("hint.update.held.ps" if unread else "hint.update.held", command=again)
         return 2
 
     def main(self):
@@ -319,9 +368,9 @@ class Update:
             if not tools.NAME.match(name):
                 raise self.cmd.Refusal("bad_name", "err.setup.name", self.cmd.say("update", "--dry-run"),
                                        name=name)
-        what = hold(self.cmd)
+        what, unread = holding(self.cmd)
         if what:
-            return self.held(what)
+            return self.held(what, unread)
         self.scope()
         steps = self.detail(self.head() + self.tail())
         blocked = [s for s in self.prereqs if s["state"] == "blocked"]
@@ -335,6 +384,7 @@ class Update:
             self.title()
             apply.show(self.cmd, steps)
             self.hints()
+            self.suite_close()
             return 0
         if blocked:
             missing = ", ".join(s["subject"] for s in blocked)
@@ -470,13 +520,15 @@ class Update:
         else:
             t.table([("fail", [self.gone_text(e)], None) if e in self.gone else
                      ("ok", [t.text("update.tool.moved", name=e["name"], old=e["from"], new=after.get(e["name"]))
-                             if e in moved else
-                             t.text("update.tool.same", name=e["name"], version=e["from"])], None)
+                             if e in moved else  # the suite's row speaks of the plugin (R3)
+                             t.text("update.suite.same" if e["name"] == SUITE else "update.tool.same",
+                                    name=e["name"], version=e["from"])], None)
                      for e in self.order])
         if left:
             apply.show(self.cmd, left)
         self.hints()
         doctor.screen(self.cmd, groups, failed, warned, total, entries)
+        self.suite_close()
         if short:
             t.flush()
             t.error(short[0], **short[1])

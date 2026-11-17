@@ -227,7 +227,21 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n153 | S4 | `plugins/suite` `cli.py` `_bad_flag` | a value flag typed with no value (`status --ps`) reads `--ps is not a flag of status`, which is false; a cause of its own, `--ps needs a value`, would say it | read in `_parse`, not run | 2026-11-13, sc4 build 1 |
 | n155 | S4 | `plugins/suite` `term.py` `_ordered` | U+061C, U+200E, U+200F and the Cf characters (U+200B, U+2060, U+FEFF, U+00AD, U+180E, U+206A) reach the cause and `next:` lines; settled where this row's `_ordered` and su2-screen's `clean` meet | review 2's F3 | 2026-11-13, sc4 review 2 |
 | n156 | S4 | `plugins/suite` `cli.py` `do_version` | with no manifest, `version`'s `next:` is `claude plugin install suite@agentik`, the suite's one remedy that starts `claude` and installs; sc11 may weigh it against `agentik setup suite` | review 2's F5, a copy with `plugin.json` removed | 2026-11-13, sc4 review 2 |
+
+## From packets su2-read and su2-screen (review 1 and phase 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
 | n157 | S4 | `plugins/suite` `status_read.py` `_sessions` | a seat id not shaped 8-4-4-4-12 hex is never matched to its process, and its row counts as bare; match seat ids against every later word | seats `seat-a`, `seat-b`, a row `claude --resume seat-a`: both `pid` null | 2026-11-13, su2-read review 1's R1-F5 |
 | n158 | S4 | `plugins/suite` `status_read.py` `_settle` | a `schema` past 4,300 digits raises ValueError from `int()` under Python 3.11+; compare the digits' length | `x/` and 5,000 nines: ValueError under 3.14 | 2026-11-13, su2-read review 1's R1-F7 |
 | n160 | S4 | `plugins/suite` `status_screen.py` `capped`, `wall` | past five sessions with no `sessions` source the cap row reads `and 5 more: ?`, no command; `%g` prints a wall of 1234567 as `1.23457e+06 s` | `capped` and `wall` | 2026-11-13, su2-screen review 1's R1-F8 |
 | n161 | S4 | `plugins/suite` `status_read.py` `_remedy`, `status_screen.py` `command` | a tool's command is printed `agentik TOOL ...` where no door reaches the suite too, so pasted it is not found; sc4's `_tool_line` gives the tool's file there | read, not run | 2026-11-14, su2-read phase 2 |
+
+## From packet rp6-verb (review 1 and build 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n162 | S4 | `plugins/suite` `issue.py` `_read`, `_new`, `_send` | the drafts path is printed raw: `new --json`'s and the bare read's `path`, and `--web`'s `The draft:` line, so `XDG_STATE_HOME`, and under the real home the login, reach stdout; print `plan.shown` or the id alone, and let the skill take the id | review 1's F7, probe D | 2026-11-14, rp6-verb review 1 |
+| n163 | S4 | `plugins/suite` `scrub.py` (a) | a login inside a longer word is left in the draft, though design/22 §8 item 2 names the case; whole-word matching spares a plain-word login inside a common word, so which rule holds is the coordinator's call | review 1's F9, a lead against rp2's rule | 2026-11-14, rp6-verb review 1 |
+| n164 | S4 | `plugins/suite` `scrub.py` (b) | `</details>` in the person's words is scrubbed as a one-segment path and drawn `<<path-1>>`; nothing leaks or goes live, an over-scrub of rp2's one-segment rule | review 1's F10 | 2026-11-14, rp6-verb review 1 |
+| n165 | S4 | `tests/test_rp6_issue.py` | three files are opened and never closed (lines 213, 288, 348), a ResourceWarning each under `-W` | review 1's observations | 2026-11-14, rp6-verb review 1 |
