@@ -48,6 +48,8 @@ FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.p
         "setup.plugin.declared": "doctor.plan.declared", "setup.plugin.gone": "doctor.plan.gone",
         "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other",
         "setup.launcher.gone": "doctor.plan.code", "setup.suite.gone": "doctor.plan.code"}
+# An ok row that is a fact to note, in doctor's words (row up3-forward-only R4).
+NOTE = {"setup.launcher.newer": "doctor.plan.newer"}
 # A held row (fk2-plan R4) in doctor's words, whose remedy is the card that shows how to choose.
 HELD = {"setup.plugin.held": "doctor.source.undecided", "setup.plugin.held.twice": "doctor.source.twice",
         "setup.plugin.held.repo": "doctor.source.repo"}
@@ -221,7 +223,9 @@ def plan_rows(cmd):
                 remedy = cmd.say("config", "suite.sources." + tool)
             else:
                 remedy = s["command"] if s["n"] == 6 and s["command"] else cmd.say("setup")
-        if state == "ok":
+        if s["mid"] in NOTE:
+            state, mid = "note", NOTE[s["mid"]]
+        elif state == "ok":
             mid = SOURCE_OK.get(s["mid"], s["mid"]) if theirs else s["mid"]
         else:
             mid = FACT.get(s["mid"], "doctor.plan.placed")

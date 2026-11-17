@@ -8,6 +8,8 @@
 README.md: sibling
 NICE_TO_HAVE.md: sibling
 history/NICE-2026-11-01.md: sibling
+# the overflow holds rows moved whole from the NICE file, so it reads as that file does
+history/NICE-overflow.md: sibling
 design/*.md: sibling
 docs/sibling.md: sibling
 .claude-plugin/marketplace.json: sibling

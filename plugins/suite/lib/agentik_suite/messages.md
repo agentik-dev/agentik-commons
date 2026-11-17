@@ -76,6 +76,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.render`: Render Happened and Expected by the narrator; added words drop the render.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
+- `flag.force`: Place this command even where the one in place is newer.
 - `flag.kind`: What to write. The one kind is hq.
 
 ## Version
@@ -86,6 +87,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `install.done`: Placed `{launcher}` `{version}` and `{door}`.
 - `install.dry`: Plan: place `{launcher}` at version `{version}`. Nothing is written.
+- `install.newer`: Left `{launcher}` at `{have}`, newer than this command's `{want}`; --force places it.
 - `install.door.keep`: The agentik command `{door}` is current or newer, so it stays as it is.
 - `install.door.link`: The agentik command `{door}` is a link, so it stays as it is.
 - `install.door.unversioned`: The agentik command `{door}` holds no version to compare, so it stays.
@@ -259,6 +261,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.inplace`: the plugin's command runs from the plugin's own folder, so there is nothing to place
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
+- `setup.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; setup leaves it as it is
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.launcher.earlier`: `{path}` comes first on PATH, so it runs in place of this one; setup leaves both as they are
 - `setup.launcher.link`: a link to the source's own command, so there is nothing to place
@@ -362,6 +365,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.say.launcher.missing`: not placed; update places it from the plugin
 - `update.say.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; update places it again
 - `update.say.launcher.unread`: holds no version line; update places it again at `{want}`
+- `update.say.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; update leaves it as it is
 - `update.say.launcher.earlier`: `{path}` comes first on PATH, so it runs instead; update leaves both as they are
 - `update.say.launcher.noversion`: placed; the source gives no version to compare, so update leaves it
 - `update.say.launcher.other`: at version `{have}`, and the source is at `{want}`; update places it again
@@ -609,6 +613,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.newer`: at `{have}`, newer than the plugin's `{want}`
 - `doctor.plan.unread`: holds no version line
 - `doctor.plan.placed`: not placed
 - `doctor.tool.passed`: its doctor passed
