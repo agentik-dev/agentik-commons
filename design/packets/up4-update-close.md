@@ -34,3 +34,17 @@
 | 4a | `update quill` (listed, not installed): no `everything is current`, exit 0; `update nosuch`: `nosuch is no known tool`, exit 2 | `everything is current; nothing was placed.`; `nosuch is not a plugin name: …` |
 | 5 | SIGINT to the run while a stub `claude plugin update` hangs: the FAIL names the command, exit 130, the child stopped, the journal's `ran` holds it | `Update was interrupted between steps`; `ran` omits it |
 | 6 | `make voice` exit 0; `make check` green through the gate; hygiene over `main..HEAD` exit 0 | green |
+
+## 4. The fix of review 1 (pin ffabf25)
+
+- F1, a prerequisite missing (`claude` not on PATH): the close is a reason line, `step 1 needs <missing>` with Claude Code's address where `claude` is the one missing, then `next: agentik update` with the names given, alone. Setup's `hint.setup.blocked` stays as it is, and update no longer prints it.
+- F2, a step 2 failure begins the placing: the list of commands placed is `_run`'s, so an interrupt or a failure during the placing keeps it. Under the FAIL: `placed before the stop:` with that list, the step 2 failure that began the placing (where the FAIL is another's), and a placement that failed (lead L5); the `next:` stays last.
+- L1, update's step 1 and step 3 rows (`setup.cmd.missing`, `setup.python.low`, `setup.plugin.missing`, `setup.plugin.broken`) are in update's words (`update.say.*`), as R4 has it; setup's screen is unchanged.
+- Leads L2 to L4 and L6 to L8: one NICE row, S4.
+
+| # | line | at ffabf25 |
+|---|---|---|
+| 7 | no `claude` on PATH, `update --yes`: a reason line naming `claude` and its address, then a `next:` that runs as printed, exit 2 | `next: install claude, then … update --dry-run again.`; pasted, exit 64 |
+| 8 | three tools move, quill's plugin update fails, murmur placed, paint's `install-cli` interrupted: `placed before the stop: agentik-murmur 1.1.0` and quill's update named under the FAIL, exit 130 | the FAIL and `next:` alone |
+| 9 | the same, paint's `install-cli` failing: a line names it under the FAIL, exit 1 | the `running` line alone |
+| 10 | update's screen holds no `setup would`, `setup stops` or `setup leaves`; setup's dry run unchanged | `not on PATH; setup stops here …`; `… setup would install it again` |
