@@ -38,6 +38,7 @@ STATUSES = ("ok", "note", "warn", "fail")
 SCHEMA = "agentik.doctor/1"
 SCHEMAS = re.compile(r"agentik\.doctor/([0-9]+)\Z")  # an answer of schema 1 or lower counts (R5)
 PLAIN = "\0plain"  # the close that names the doctor alone: no fail's command may close (R7)
+PATH = "\0path"  # the close that names step 6's line: the door stands off PATH (row ic1-close R2)
 KEYS = ("name", "status", "detail", "remedy")
 FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.plan.path",
         "setup.python.low": "doctor.plan.python", "setup.market.missing": "doctor.plan.market",
@@ -76,6 +77,11 @@ def door(cmd, on_path):
     setup = cmd.say("setup")
     path = first_door(cmd.env)
     if path is None:
+        off = plan.door_off(cmd.env)
+        if off:  # the door stands and only PATH lacks its folder: step 6's line (row ic1-close R2)
+            c = _check("door", "warn", t.text("doctor.door.off", path=plan.shown(off, home)), plan.PROFILE_LINE)
+            c["off"] = True
+            return c
         return _check("door", "warn", t.text("doctor.door.none"), setup)
     shown = plan.shown(path, home)
     want = (agentik_install.read_launcher(agentik_install._source()[2]) or {}).get("version")
@@ -502,7 +508,8 @@ def _closes(remedy):
 def close_command(cmd, groups):
     """The one command the close names (R8), first match, or None. A tool's remedy that fails
     `_closes` stands on its check's line, and the close names the tool's own doctor, through the
-    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name)."""
+    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name).
+    Among the warns, a door that stands off PATH closes on step 6's line, PATH (row ic1-close R2)."""
     suite = groups[0]["checks"]
     for c in suite:
         if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
@@ -526,6 +533,8 @@ def close_command(cmd, groups):
             return PLAIN  # no row names a command: the plain line
     for i, g in enumerate(groups):
         for c in g["checks"]:
+            if c.get("off"):
+                return PATH
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
                     and not (c.get("step") and c["step"]["n"] == 6):
                 if i == 0 or _closes(c["remedy"]):
@@ -538,6 +547,8 @@ def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
     if c.get("add"):
         return c["add"]
+    if c.get("off"):  # the door row ends on the line that mends this terminal (ic1-close review 1)
+        return cmd.t.text("doctor.fix", command=c["remedy"])
     s = c.get("step")
     if s and s["line"] != "run":
         if left or not s["command"]:
@@ -653,6 +664,8 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.line("doctor.done")
     if hint == PLAIN:
         t.hint("hint.doctor.fail.plain", doctor=cmd.say("doctor"))
+    elif hint == PATH:
+        apply.path_close(t, plan.PROFILE_LINE)
     elif hint:
         t.hint("hint.doctor.next", command=hint)
 

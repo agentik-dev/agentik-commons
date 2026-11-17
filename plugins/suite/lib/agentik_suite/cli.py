@@ -72,7 +72,6 @@ SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never 
 NEVER_MENDED = WRITES  # a word that is no verb is never mended into one of these
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
-STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
 SCHEMA = "agentik.%s/1"
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
@@ -663,18 +662,12 @@ class Command:
             t.line("setup.title", plugins=", ".join(names))
         else:
             t.line("setup.title.none")
-        rows, last = [], None
-        for s in steps:
-            shown = s["command"] or s.get("page")  # a page is shown, never run (fh13 R6)
-            after = t.text("setup." + s["line"], command=shown) if shown else None
-            if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
-                after = t.text("setup.cmd.get")  # where Claude Code comes from (row sm2 R2)
-            n = str(s["n"]) if s["n"] != last else ""
-            last = s["n"]
-            subject = term.path(s["subject"]) if s["subject"].startswith(("~", "/")) else term.name(s["subject"])
-            rows.append((STATUS[s["state"]], [n, subject, s["detail"]], after))
-        t.table(rows, mark_at=1)
-        t.hint(*self._closing(steps, nouns), **self.slots())
+        apply.show(self, steps)  # the run's table too, `get it:` under a missing claude (row ic1-close R3)
+        mid, values = self._closing(steps, nouns)
+        if mid == "hint.setup.path":  # a command, its reason above it (ic1-close review 1)
+            apply.path_close(t, values["command"])
+        else:
+            t.hint(mid, values, **self.slots())
         return 0
 
     def _closing(self, steps, nouns):
@@ -692,8 +685,9 @@ class Command:
             return again
         if apply.page_close(steps):  # before the PATH line's close (row fh13 R7)
             return apply.page_close(steps)
-        if any(s["command"] for s in early):
-            return "hint.setup.path", {}
+        add = [s["command"] for s in early if s["command"] and s["line"] == "add"]
+        if add:
+            return "hint.setup.path", {"command": add[0]}
         return "hint.setup.rest", {}
 
 

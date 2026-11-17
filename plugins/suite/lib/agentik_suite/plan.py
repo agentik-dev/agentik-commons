@@ -91,6 +91,23 @@ def shown(path, home):
     return path
 
 
+def bin_on_path(home, search):
+    """True when ~/.local/bin is one of PATH's folders: step 6's read."""
+    entries = [os.path.normpath(p) for p in search.split(os.pathsep) if p]
+    return os.path.normpath(os.path.join(home, ".local", "bin")) in entries
+
+
+def door_off(env):
+    """The door at ~/.local/bin/agentik, a regular executable file, while that folder is off PATH,
+    else None: the state whose one act left is step 6's line, which setup's close and doctor's
+    door row and close all name (row ic1-close R2)."""
+    home = env.get("HOME") or ""
+    if not home or bin_on_path(home, env.get("PATH", "")):
+        return None
+    door = os.path.join(home, ".local", "bin", DOOR)
+    return door if os.path.isfile(door) and os.access(door, os.X_OK) else None
+
+
 def _step(n, sid, state, subject, mid, command=None, line="run", **values):
     return {"n": n, "id": sid, "state": state, "subject": subject, "mid": mid,
             "values": values, "command": command, "line": line}
@@ -382,8 +399,7 @@ def build(names, env, lib, tool, version, cwd=None):
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place", place))
 
     # 6: ~/.local/bin on PATH
-    entries = [os.path.normpath(p) for p in search.split(os.pathsep) if p]
-    if os.path.normpath(bindir) in entries:
+    if bin_on_path(home, search):
         steps.append(_step(6, "path", "ok", shown(bindir, home), "setup.path.ok"))
     else:
         steps.append(_step(6, "path", "todo", shown(bindir, home), "setup.path.missing",
