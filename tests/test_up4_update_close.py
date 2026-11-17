@@ -41,6 +41,32 @@ def alive(pid):
         return False
 
 
+def seeded(h, pid, body):
+    """The plugin `pid` as step 2 moves it ships `body` as its command (review 1 F2)."""
+    with open(os.path.join(h.home, "seed.py"), "a") as fh:
+        fh.write("\n_first = plugin\n\n\ndef plugin(home, pid, ver):\n    root = _first(home, pid, ver)\n"
+                 "    if pid == %r:\n        exe = os.path.join(root, 'bin', 'agentik-' + pid.partition('@')[0])\n"
+                 "        with open(exe, 'w') as fh:\n            fh.write(%r)\n        os.chmod(exe, 0o755)\n"
+                 "    return root\n" % (pid, body))
+
+
+def three(h):
+    """murmur, paint and quill each one behind; quill's plugin update fails, so murmur and paint
+    moved before the stop (review 1 F2)."""
+    h.install("murmur@agentik", "1.0.0", "1.1.0")
+    h.install("paint@agentik", "2.0.0", "2.1.0")
+    h.install("quill@agentik", "3.0.0", "3.1.0")
+    h.file(os.path.join(h.home, "fail"), "quill@agentik")
+
+
+def under(err):
+    """The lines under the one FAIL line."""
+    lines = err.splitlines()
+    fail = [i for i, l in enumerate(lines) if l.startswith("FAIL")]
+    assert len(fail) == 1, err
+    return lines[fail[0]], lines[fail[0] + 1:]
+
+
 class Close(tu.Base):
     def test_1_a_moved_tool_holds_the_sessions_line_once_and_none_moved_none(self):
         h = self.home()
@@ -187,6 +213,100 @@ class Close(tu.Base):
         self.assertEqual(entry["exit"], 130)
         self.assertIn({"n": 2, "command": "claude plugin update murmur@agentik", "exit": None}, entry["ran"])
 
+
+    def test_8_a_missing_claude_closes_on_its_reason_and_a_command_alone(self):
+        h = self.home()
+        h.install("murmur@agentik", "1.0.0", "1.1.0")
+        os.remove(os.path.join(h.bin, "claude"))
+        code, out, err = h.run("update", "murmur", "--yes")
+        self.assertEqual(code, 2, out + err)
+        lines = err.splitlines()
+        self.assertEqual(len(nexts(err)), 1, err)
+        line = nexts(err)[0]
+        self.assertRegex(line, r"update murmur$")
+        self.assertEqual(lines[-1], "next: " + line)
+        self.assertIn("claude", lines[-2])
+        self.assertIn("https://claude.com/claude-code", lines[-2])
+        self.assertNotIn("then", line)
+        p = subprocess.run(["/bin/sh", "-c", line], capture_output=True, text=True, env=h.env(),
+                           cwd=h.home, stdin=subprocess.DEVNULL, timeout=120)
+        self.assertEqual(p.returncode, 2, (line, p.stdout, p.stderr))  # it runs, and is blocked again
+        for word in REFUSED:
+            self.assertNotIn(word, p.stdout + p.stderr, line)
+        # setup's own close is setup's, as it was
+        self.assertEqual(catalogue.load()["hint.setup.blocked"],
+                         "next: install `{missing}`, then `{setup}` --dry-run again.")
+
+    def test_9_an_interrupt_while_placing_keeps_what_was_placed_and_its_cause(self):
+        h = self.home(("murmur", "paint", "quill"))
+        three(h)
+        seeded(h, "paint@agentik", '#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\n'
+               'echo $$ > "$HOME/child.pid"\nsleep 30\n')
+        pidfile = os.path.join(h.home, "child.pid")
+        p = subprocess.Popen([str(LAUNCHER), "update", "--yes"], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, env=h.env(), cwd=h.home,
+                             stdin=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(300):
+            if os.path.exists(pidfile) and open(pidfile).read().strip():
+                break
+            time.sleep(0.1)
+        time.sleep(0.3)
+        os.killpg(p.pid, signal.SIGINT)
+        out, err = p.communicate(timeout=60)
+        self.assertEqual(p.returncode, 130, out + err)
+        self.assertNotIn("Traceback", err)
+        fail, rest = under(err)
+        self.assertIn("interrupted", fail)
+        self.assertIn("agentik-paint install-cli", fail)
+        self.assertIn("placed before the stop: agentik-murmur 1.1.0", rest, err)
+        self.assertTrue(any("claude plugin update quill@agentik" in l for l in rest), err)
+        self.assertRegex(rest[-1], r"^next: .*update$")
+        self.assertEqual(len(nexts(err)), 1, err)
+        self.assertEqual([h.version_of(n) for n in ("murmur", "paint", "quill")], ["1.1.0", "2.0.0", "3.0.0"])
+        with open(os.path.join(h.home, ".local", "state", "agentik-suite", "setup.jsonl")) as fh:
+            entry = json.loads(fh.read().splitlines()[-1])
+        self.assertEqual(entry["exit"], 130)
+        self.assertIn({"n": 2, "command": "claude plugin update quill@agentik", "exit": 1}, entry["ran"])
+
+    def test_10_a_placement_that_fails_is_named_under_the_fail(self):
+        h = self.home(("murmur", "paint", "quill"))
+        three(h)
+        seeded(h, "paint@agentik", '#!/bin/sh\necho "$0 $*" >> "$HOME/ran.log"\n'
+               'echo "no room on the disk"\nexit 1\n')
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 1, out + err)
+        fail, rest = under(err)
+        self.assertIn("claude plugin update quill@agentik", fail)  # the step 2 failure stays the FAIL
+        self.assertIn("placed before the stop: agentik-murmur 1.1.0", rest, err)
+        named = [l for l in rest if "agentik-paint install-cli" in l]
+        self.assertEqual(len(named), 1, err)
+        self.assertIn("failed", named[0])
+        self.assertEqual([h.version_of(n) for n in ("murmur", "paint", "quill")], ["1.1.0", "2.0.0", "3.0.0"])
+
+    def test_11_updates_step_1_and_step_3_rows_speak_of_update(self):
+        h = self.home()
+        h.install("murmur@agentik", "1.0.0", "1.1.0")
+        h.install("paint@agentik", "2.0.0", "2.1.0")
+        h.file(os.path.join(h.home, "gone"), "murmur@agentik")  # a step 3 row left (review 1 F5)
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("murmur@agentik", out)
+        self.assertNotRegex(out + err, r"setup (would|leaves|stops)")
+        os.remove(os.path.join(h.bin, "claude"))
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("not on PATH", out)
+        self.assertNotRegex(out + err, r"setup (would|leaves|stops)")
+        code, out, err = h.run("setup", "--dry-run")  # setup's own rows stay setup's
+        self.assertIn("not on PATH; setup stops here until it is installed", out + err)
+        messages = catalogue.load()
+        said = [m for m in messages if re.match(r"setup\.(cmd|python|plugin|launcher|suite|door)\.", m)
+                and re.search(r"setup(?:'s)? (would|leaves|stops|to place)|not setup's", messages[m])]
+        self.assertTrue(said)
+        for mid in said:
+            self.assertIn(mid, update.SAYS)
+            self.assertNotIn("setup", messages[update.SAYS[mid]], mid)
+            self.assertNotIn("would", messages[update.SAYS[mid]], mid)
 
 if __name__ == "__main__":
     unittest.main()
