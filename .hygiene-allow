@@ -78,3 +78,7 @@ docs/first-hour.md: sibling
 # the hq scaffold names the ledger's tool, which a new hq runs (row ak11-init R10)
 plugins/suite/lib/scaffold/hq/*: sibling
 plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed
+
+# the hq scaffold test's stub checks the verb a new hq runs, as the scaffold names it (row
+# dr1-door-ahead, the coordinator's ruling)
+tests/test_dr1_door_ahead.py: sibling
