@@ -39,3 +39,14 @@ Each in a temp HOME, PATH `~/.local/bin`, a folder with a stub `claude` (the pla
 | 3 | `./setup --yes respeak`, then `agentik-suite doctor`: one note naming session, decisions and agents, and the close does not name setup (`-k test_r3`) | `warn plugin not installed: session@agentik, decisions@agentik, agents@agentik`; `next: ~/.local/bin/agentik-suite setup` |
 | 4 | `./setup --yes`, then the doctor: the suite group's rows and close as at the pin (`-k test_r4`) | `warn suite 1 to look at, 15 ok`, the door's warn alone, no `next:` |
 | 5 | `make voice` exits 0; `make check` green through the gate; `scripts/hygiene --require-private --commits main..HEAD` exits 0 | green |
+
+## 5. The fix of review 1
+
+| item | value |
+|---|---|
+| ruling | the coordinator's, 2026-11-16: F1 (S3) in one round; lead 1 and F2 (S4) ride; leads 2 to 8 one NICE row, S4 |
+| may touch | `doctor.py` (`planned`, `plan_rows`, `close_command`'s step line), `cli.py` (`_close_help`), `plan.py` (step 1's need row), `messages.md` (`setup.need.module`), `tests/test_ic2_needs.py`, `NICE_TO_HAVE.md` (two S4 rows), `history/NICE-overflow.md` (rows moved whole by the size bound), `design/voice/checked.sha256`, the charter, this packet; no version line |
+
+- F1: `doctor.planned(cmd)` gives the plugins the doctor plans, the default ones absent, and the setup line: bare when the planned names are the default set or none, else `setup` with those names. A plan row's remedy and the close where steps 1 to 5 are left take that line, so pasted with `--yes` it mends the row and installs nothing not chosen (`-k test_f1`, red at e06ae90).
+- Lead 1: the bare command's close plans the same names and names the same line; with the default set installed, or none, it reads as at the pin (`-k test_lead1`).
+- F2: a module need whose program is on PATH reads `setup.need.module`: the `python3` first on PATH has no PyYAML, and setup goes on without it. A need whose program is not on PATH keeps `setup.need.missing` (`-k test_f2`).
