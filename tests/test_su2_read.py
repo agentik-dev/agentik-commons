@@ -14,7 +14,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import LIB  # noqa: E402
+from test_agentik_suite import LIB, walled  # noqa: E402
 from test_su1_status_check import NOW, StatusHome  # noqa: E402
 from agentik_suite import cli, covers, status, status_read, tools  # noqa: E402
 
@@ -271,10 +271,11 @@ class FailingSourceTest(ReadHome):
     def test_7_timed_out(self):
         self.read()  # the describe cache, so the clock below holds the read alone
         pids = os.path.join(self.side, "pids")
-        self.answer(gate={"sleep": 10, "child": pids})
-        start = time.monotonic()
-        obj = self.read()
-        self.assertLess(time.monotonic() - start, 1.6)
+
+        def slow():
+            self.answer(gate={"sleep": 10, "child": pids})
+            return self.read()
+        obj = walled(self, self.read, slow, wall=1.0)  # tw1 R2: the gate read's 1 s wall
         g = self.source(obj, "gate")
         self.assertEqual((g["state"], g["ms"]), ("timed out", 1000))
         time.sleep(0.1)

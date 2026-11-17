@@ -26,7 +26,7 @@ import time
 import unittest
 
 import test_agentik_suite as base
-from test_agentik_suite import LAUNCHER, LIB, SYSTEM
+from test_agentik_suite import LAUNCHER, LIB, SYSTEM, walled
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 GIT_ENV = {"PATH": SYSTEM, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull, "TZ": "UTC",
@@ -353,10 +353,11 @@ note  quince-hq  nothing readable waits
                       "the suite does not know\n", out)
         self.assertTrue(out.startswith("Waiting on you: at least 2,"), out)
         self.assertEqual((code, err), (0, DOCTOR % self.L))
-        self.how("charter", sleep=10)
-        start = time.monotonic()
-        code, out, err = self.inbox(self.pear, self.quince)
-        self.assertLess(time.monotonic() - start, 6.0)
+        def slow():
+            self.how("charter", sleep=10)
+            return self.inbox(self.pear, self.quince)
+        # tw1 R2: against the same read answered, inbox's 5 s wall and the margin
+        code, out, err = walled(self, lambda: self.inbox(self.pear, self.quince), slow, wall=5.0)
         self.assertIn("note  not read  charter: agentik-bench charter show --json gave no answer in 5 s\n", out)
         self.assertTrue(out.startswith("Waiting on you: at least 2,"), out)
         self.assertEqual((code, err), (0, DOCTOR % self.L))
