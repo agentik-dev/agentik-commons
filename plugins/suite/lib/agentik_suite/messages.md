@@ -350,6 +350,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.placed`: placed before the stop: `{commands}`
 - `update.setup.why`: `{names}` is not installed; the line below installs it
 - `update.setup.why.many`: `{names}` are not installed; the line below installs them
+- `update.blocked.why`: step 1 needs `{missing}`; install it, then run the line below
+- `update.blocked.why.claude`: step 1 needs `{missing}`; get claude at https://claude.com/claude-code
 - `update.say.launcher.missing`: not placed; update places it from the plugin
 - `update.say.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; update places it again
 - `update.say.launcher.unread`: holds no version line; update places it again at `{want}`
@@ -373,6 +375,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.update.held`: next: `{command}`
 - `hint.update.setup`: next: `{command}`
 - `hint.update.suite`: next: `{command}`
+- `hint.update.blocked`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again

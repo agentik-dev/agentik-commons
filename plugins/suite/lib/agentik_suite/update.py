@@ -412,8 +412,11 @@ class Update:
             if old:  # installed and too old: no install, no dry run that refuses again (review 1 F2)
                 t.flush()
                 t.line("hint.setup.blocked.old", err=True, version=old["version"], floor=old["floor"])
-            else:
-                t.hint("hint.setup.blocked", missing=missing, **self.slots)
+            elif not t.quiet:  # the reason, then update alone with the names given (up4 review 1 F1)
+                t.flush()
+                claude = any(s["subject"] == "claude" for s in blocked)
+                t.line("update.blocked.why.claude" if claude else "update.blocked.why", err=True, missing=missing)
+                t.hint("hint.update.blocked", command=self.cmd.say("update", *dict.fromkeys(self.nouns)))
             return 2
         if not o["json"]:
             self.title()
