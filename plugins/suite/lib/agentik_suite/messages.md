@@ -241,6 +241,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
+- `setup.need.missing`: `{name}` needs it, and it is not found; setup goes on without it
 - `setup.market.ok`: known to Claude Code
 - `setup.market.missing`: not known to Claude Code; setup would add it
 - `setup.plugin.ok`: installed at version `{version}`

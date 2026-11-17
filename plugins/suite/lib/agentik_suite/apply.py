@@ -29,7 +29,7 @@ WALL = 120
 GRACE = 2  # seconds between an interrupted command's SIGTERM and its SIGKILL
 INTERRUPTED = 130
 JOURNAL = "setup" + ".jsonl"  # the verb's journal; a bare id-like literal would read as a message id
-STATUS = {"ok": "ok", "todo": "note", "blocked": "warn"}
+STATUS = {"ok": "ok", "todo": "note", "blocked": "warn", "warn": "warn"}  # warn: a need (ic2-needs)
 JSON_KEYS = ("n", "id", "state", "subject", "detail", "command")
 
 

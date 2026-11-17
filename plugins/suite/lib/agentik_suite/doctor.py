@@ -33,7 +33,7 @@ from . import apply, plan, prog, settings, sources, status, tools
 
 DEADLINE = 30.0
 RESERVED = ("update", "init", "completion", "inbox")
-STATE = {"ok": "ok", "todo": "warn", "blocked": "fail"}
+STATE = {"ok": "ok", "todo": "warn", "blocked": "fail", "warn": "warn"}
 STATUSES = ("ok", "note", "warn", "fail")
 SCHEMA = "agentik.doctor/1"
 SCHEMAS = re.compile(r"agentik\.doctor/([0-9]+)\Z")  # an answer of schema 1 or lower counts (R5)
