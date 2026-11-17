@@ -821,9 +821,7 @@ class ConfigTest(ConfigHome):
 
     def test_a1_a4_three_levels_piped(self):
         self.tools()
-        start = time.monotonic()
-        code, out, err = self.cfg("config")
-        self.assertLess(time.monotonic() - start, 3.0)
+        code, out, err = walled(self, lambda: self.cfg("config", PATH=SYSTEM), lambda: self.cfg("config"))
         self.assertEqual(code, 0, err)
         # a mark only where something is wrong, the state in a person's words (sc6-config R2)
         rows = {[w for w in l.split() if w != "warn"][0]: l for l in out.splitlines()[1:] if l.strip()}
@@ -990,6 +988,26 @@ class ConfigTest(ConfigHome):
         self.assertRegex(re.sub(r"\x1b\[[0-9;]*m", "", text), r"(?m)^  watchers +24 +w0\.match w0\.start ")
 
 
+WALL = 2.0  # the product's one wall for the describes and the config reads (ak1b)
+MARGIN = 0.9  # tw1 R1: the stated margin past a baseline and a wall, under a second
+
+
+def walled(case, quick, slow, wall=WALL, margin=MARGIN):
+    """tw1 R1: a bound on a command's time taken against a baseline. quick runs the same command
+    with nothing slow in it, just before; slow must take less than quick's seconds plus the wall
+    the product promises plus the margin, so a loaded machine's slower start counts on both
+    sides. Returns what slow returns."""
+    start = time.monotonic()
+    quick()
+    base = time.monotonic() - start
+    start = time.monotonic()
+    got = slow()
+    took = time.monotonic() - start
+    case.assertLess(took, base + wall + margin, "%.2f s against a baseline of %.2f s, a wall of %s s "
+                    "and a margin of %s s" % (took, base, wall, margin))
+    return got
+
+
 LAG = """#!/bin/sh
 if [ "$1 $2" = "describe --json" ]; then
   echo '{"schema": "agentik.describe/1", "ok": true, "tool": "lag", "version": "1", "summary": "s",
@@ -1013,11 +1031,8 @@ class WallTest(ConfigHome):
                             " ".join(shlex.quote(a) for a in args)))
 
     def timed(self, *args):
-        start = time.monotonic()
-        code, out, err = self.cfg(*args)
-        took = time.monotonic() - start
+        code, out, err = walled(self, lambda: self.cfg(*args, PATH=SYSTEM), lambda: self.cfg(*args))
         self.assertEqual(code, 0, err)
-        self.assertLess(took, 3.0, out)
         return out
 
     def groups_gone(self, *files):

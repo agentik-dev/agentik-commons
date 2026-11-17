@@ -15,7 +15,7 @@ import unittest
 from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import LIB, ROOT, Home, writes_outside_term  # noqa: E402
+from test_agentik_suite import LIB, ROOT, Home, walled, writes_outside_term  # noqa: E402
 from agentik_suite import gather  # noqa: E402
 
 MARKET = "market-x"
@@ -445,10 +445,11 @@ class SystemTest(GatherHome):
         self.assertLess(self.elapsed, 6)
 
     def test_a_slow_claude(self):
-        self.stub("claude", '#!/bin/sh\necho "$*" >> "%s"\nsleep 30\n' % self.calls)
-        f = self.gather()
+        def slow():
+            self.stub("claude", '#!/bin/sh\necho "$*" >> "%s"\nsleep 30\n' % self.calls)
+            return self.gather()
+        f = walled(self, self.gather, slow, wall=5.0)  # tw1 R2: claude --version's 5 s wall
         self.assertEqual(f["system"]["claude"], "unreadable")
-        self.assertLess(self.elapsed, 6)
 
 
 if __name__ == "__main__":

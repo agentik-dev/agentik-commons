@@ -12,12 +12,11 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import ESC, LAUNCHER, LIB, ROOT, Home  # noqa: E402
+from test_agentik_suite import ESC, LAUNCHER, LIB, ROOT, Home, walled  # noqa: E402
 from agentik_suite import cli  # noqa: E402
 
 S = os.path.join(str(LIB), "scaffold", "hq")
@@ -310,9 +309,10 @@ class InitTest(Home):
         self.assertEqual(sorted(tree(seam)), sorted(FILES))
 
     def test_22_on_a_terminal_it_waits_for_no_answer(self):
-        start = time.monotonic()
-        code, shown = self.run_pty("init", self.at("ask"))
-        self.assertLess(time.monotonic() - start, 2.0)
+        # tw1 R1: no wall to add; the baseline is the same line piped, and the margin the 2 s bound had
+        # over an idle run (0.19 s at e52ae7d)
+        code, shown = walled(self, lambda: self.go("init", self.at("ask")),
+                             lambda: self.run_pty("init", self.at("ask")), wall=0, margin=1.8)
         self.assertEqual(code, 2, shown)
         self.assertIn("init needs --kind", shown)
         self.assertFalse(os.path.lexists(self.at("ask")))

@@ -134,3 +134,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n244 | S4 | `update.py`, `doctor.py`, hq Makefile | leads: update `--json` on old Python says `--dry-run`, not AGENTIK_PYTHON; the doctor's old-Python row closes on a setup that refuses; no sum tool: recordlint's copy advice; sc2's `check()` skips the PATH line; a `--prefix` door gets install-cli; a close beside a second warn is setup | review 1, L1 to L6 | 2026-11-16, dr1-door-ahead review 1 |
 | n245 | S4 | `plugins/suite` `update.py` blocked close | with `claude` and `git` both off PATH, update's blocked close gives Claude Code's address alone and says nothing of git; its other form says `install it` of several | read, not run | 2026-11-16, up4-update-close review 2 |
 | n246 | S4 | `plugins/suite` `doctor.py` `close_command` | where the door's row is a warn with an install-cli remedy (an older door, none current at `~/.local/bin`), the close says `next: agentik setup` while the row and `--json` say install-cli; one line for both would read better | read, not run | 2026-11-16, dr1-door-ahead review 2 |
+
+## From row tw1-test-walls (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n247 | S4 | `tests/test_agentik_suite.py` `walled` | under load the baseline run itself read 0.07 to 1.13 s, and a slow baseline loosens the bound: with a wall broken to 3.5 s one test passed once (3.57 s on a 1.06 s baseline); every stub sleeps 10 s or more, so a real break is caught; two baselines and the smaller of them would tighten it | review 1, L1 | 2026-11-17, tw1-test-walls review 1 |
