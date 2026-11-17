@@ -576,6 +576,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.path`: not on PATH
 - `doctor.plan.market`: not known to Claude Code
 - `doctor.plan.plugin`: not installed
+- `doctor.plan.absent`: not installed, of the default set: `{names}`
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`

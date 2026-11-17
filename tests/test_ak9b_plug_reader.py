@@ -470,9 +470,9 @@ class DoctorTest(Checks):
 
 
 class TableTest(unittest.TestCase):
-    def test_10_the_table_holds_four_rows(self):
+    def test_10_the_table_holds_five_rows(self):
         table = tools.fallback(str(LIB))
-        self.assertEqual(len(table), 4)
+        self.assertEqual(len(table), 5)  # respeak's joined at row ic2-needs R1
         self.assertTrue(all(row.get("lines") for row in table.values()))
 
 

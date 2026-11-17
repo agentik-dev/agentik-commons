@@ -203,14 +203,21 @@ def plan_rows(cmd):
     """Steps 1 to 6, a check a row: an ok row keeps the plan's message, one not ok takes
     doctor's own fact (R6). A step of a source not the marketplace's own is named by its tool and
     holds no word of the source (row fk2b-reads R1); a held row's remedy is the source's card.
-    Each keeps its step under `step`, which --json cuts away."""
-    names = plan.default_set(cmd.lib)
+    Each keeps its step under `step`, which --json cuts away. The plan is of the plugins installed:
+    the default set's, in its order, then each other the suite knows, the suite's own aside; the
+    default ones not installed are one note, `absent`, with no remedy (row ic2-needs R3). A need's
+    row is the tool's own doctor's to name, with its fix (R1)."""
+    defaults = plan.default_set(cmd.lib)
+    suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
+    on = [n for n in tools.installed(cmd.env, cmd.lib) if n != suite]
+    names = [n for n in defaults if n in on] + sorted(n for n in on if n not in defaults)
+    absent = [n for n in defaults if n not in on]
     steps = plan.build(names, cmd.env, cmd.lib, cmd.tool, cmd.version)
     rows = tools.rows(cmd.env, cmd.lib, None, names=names)
     order, found = iter(names), []
     for s in steps:
         tool = _tool_of(s, order)
-        if s["n"] > 6:
+        if s["n"] > 6 or s["id"] == "need":
             continue
         row = rows.get(tool) if tool else None
         theirs = row is not None and row["kind"] not in ("own", "absent")
@@ -228,6 +235,10 @@ def plan_rows(cmd):
         subject = tool if theirs and s["n"] == 3 else s["subject"]
         c = _check("%s %s" % (s["id"], subject), state, cmd.t.text(mid, **s["values"]), remedy)
         c["step"], c["shown"] = s, subject
+        found.append(c)
+    if absent:
+        c = _check("plugin", "note", cmd.t.text("doctor.plan.absent", names=", ".join(absent)))
+        c["absent"] = True
         found.append(c)
     return found
 
@@ -586,7 +597,7 @@ def _rows(cmd, group, hint, every):
         if every:
             rows.append([c["status"], c["name"], _home(c["detail"], home), after])
             continue
-        if c["status"] not in ("fail", "warn") or c is group.get("lead") \
+        if (c["status"] not in ("fail", "warn") and not c.get("absent")) or c is group.get("lead") \
                 or (group["one"] and s is None and not c.get("source") and not group.get("lead")):
             continue
         if s is None:
