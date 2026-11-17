@@ -291,7 +291,12 @@ def build(names, env, lib, tool, version, cwd=None):
     for name in names:  # each chosen plugin's need, named when it is not met (row ic2-needs R1)
         for need in (table.get(name) or {}).get("needs") or ():
             if isinstance(need, str) and need_met(need, search, env) is False:
-                steps.append(_step(1, "need", "warn", need, "setup.need.missing", name=name))
+                program, module = NEEDS[need]
+                if module and shutil.which(program, path=search):  # what was read (review 1 F2)
+                    steps.append(_step(1, "need", "warn", need, "setup.need.module", name=name,
+                                       program=program, module=need))
+                else:
+                    steps.append(_step(1, "need", "warn", need, "setup.need.missing", name=name))
 
     # 2: the marketplace
     known = _read_json(os.path.join(config, "plugins", "known_marketplaces.json"))
