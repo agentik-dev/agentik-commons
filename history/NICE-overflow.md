@@ -287,3 +287,9 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 |---|---|---|---|---|---|
 | n183 | S4 | `plugins/suite` `update.py` | where the suite was placed from a checkout, `update` cannot name that checkout, since `install-cli` records the tree's hash and version but not the folder it froze from; recorded, the note could name the folder | `agentik_install.read_launcher` reads VERSION, TREE, PYTHON | 2026-11-14, ak4a build 1 |
 | n184 | S4 | `plugins/suite` `update.py` `main`, `cli.py` `err.setup.name` | `update zzz`, a well-formed name that is no plugin of the list, gets setup's refusal for a bad name (`zzz is not a plugin name: lowercase letters, digits and dashes`), whose words say its shape is wrong; words for a name the list does not hold | review 1 lead | 2026-11-14, ak4a review 1 |
+
+## From packet ak4a-update (n185, moved by ic2-needs' phase 2 for review 2's lead)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n185 | S4 | `plugins/suite` `plan.py` `_command` | an `installPath` that links out of the plugins folder to a checkout gets that checkout's `bin/agentik-T install-cli` run by `update` and `setup` alike, since `_command` checks under the root, not under the plugins folder; setup's rule | review 1 probe f | 2026-11-14, ak4a review 1 |
