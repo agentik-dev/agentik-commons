@@ -12,12 +12,11 @@ import stat
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import ESC, LAUNCHER, LIB, ROOT, Home  # noqa: E402
+from test_agentik_suite import ESC, LAUNCHER, LIB, ROOT, Home, walled  # noqa: E402
 from agentik_suite import cli  # noqa: E402
 
 S = os.path.join(str(LIB), "scaffold", "hq")
@@ -31,7 +30,7 @@ SHA = {"README.md": "d539d06ccfca113d0ae93653376011b6dec3bea212efaadd258f654b09f
        "OPEN-QUESTIONS.md": "ece4f53f34e21458e1e1b922c90726ff9b1cf44b49bd6e876b640e4292a85751",
        "HANDOFF.md": "1e105e225a2cdc35fd1d8e2b2f76f5983f9698b790d68bf25ed7e16f82a45c3b",
        "NICE_TO_HAVE.md": "73109709839c436ca56400a58d1ae8e299a1f764126083bf0aeabaaadc98415f",
-       "Makefile": "87d9ed611bf5dcb0ad229cec9ae3f78180bfb9c8adcc62b36766e00f1021d39e",
+       "Makefile": "d7d4c375b1cc68957cee0266b4e1f2a037cce65d07a45c68b6b1626b992b2e91",
        ".gitignore": "ef0f379da339763579b140de87661351628d8bfd1aa09660850fe61e4ebf755d",
        ".claude/agentik/config.yaml": "78b28cace40194e8bf1b6c06d71c5ecab66a71c9444d77a654a940a747919e79"}
 HINT = "next: cd pear-hq && make check, then read README.md there for the steps after it.\n"
@@ -136,7 +135,7 @@ class InitTest(Home):
                            env=self.env(), timeout=30)  # -n: printed, none run
         self.assertEqual(p.returncode, 0, p.stderr)
         text = p.stdout
-        found = [text.find(c) for c in ("shasum -a 256 -c --status scripts/recordlint.sha256",
+        found = [text.find(c) for c in ("$sum -c --status scripts/recordlint.sha256",
                                          "\nscripts/recordlint", "agentik " + "decision" + "s render --check")]
         self.assertTrue(all(i >= 0 for i in found) and found == sorted(found), text)
         self.assertEqual(sorted(tree(here)), sorted(FILES))
@@ -310,9 +309,10 @@ class InitTest(Home):
         self.assertEqual(sorted(tree(seam)), sorted(FILES))
 
     def test_22_on_a_terminal_it_waits_for_no_answer(self):
-        start = time.monotonic()
-        code, shown = self.run_pty("init", self.at("ask"))
-        self.assertLess(time.monotonic() - start, 2.0)
+        # tw1 R1: no wall to add; the baseline is the same line piped, and the margin the 2 s bound had
+        # over an idle run (0.19 s at e52ae7d)
+        code, shown = walled(self, lambda: self.go("init", self.at("ask")),
+                             lambda: self.run_pty("init", self.at("ask")), wall=0, margin=1.8)
         self.assertEqual(code, 2, shown)
         self.assertIn("init needs --kind", shown)
         self.assertFalse(os.path.lexists(self.at("ask")))

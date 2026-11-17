@@ -207,14 +207,16 @@ class FrozenTest(PasteTest):
         self.assertEqual(p.returncode, 0, p.stderr)
         return env
 
-    def check(self, launcher, env, start):
+    def check(self, launcher, env, start, other=None):
         later = []  # sc10: doctor may name install-cli alone; it is pasted once the screens are read
         for words in self.SCREENS:
             text = self.screen([launcher] + words, env)
             self.assertIsNone(self.RUNNER.search(text), (words, text))
             found, safe = self.commands(text, every=True), self.commands(text)
-            self.assertTrue(found, (words, text))
+            self.assertTrue(found or (other and "next: " + other in text), (words, text))
             for c in found:
+                if c == other:  # a line that names no command of ours (row dr1 R1: the PATH line)
+                    continue
                 self.assertTrue(c.startswith(start + " "), (words, c))
                 if c in safe:
                     self.assertNotEqual(self.paste(c, env), 127, (words, c))
@@ -234,7 +236,7 @@ class FrozenTest(PasteTest):
         old = os.path.join(self.home, "old")
         door(os.path.join(old, "agentik"), "0.1.0")
         env["PATH"] = old + ":" + self.bindir + ":" + SYSTEM
-        self.check(TOOL, env, "~/.local/bin/" + TOOL)
+        self.check(TOOL, env, "~/.local/bin/" + TOOL, other='export PATH="$HOME/.local/bin:$PATH"')
 
     def test_f1_a_prefix_off_path(self):
         prefix = os.path.join(self.home, "opt")

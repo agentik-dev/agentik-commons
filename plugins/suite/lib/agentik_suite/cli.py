@@ -51,7 +51,9 @@ DOCTOR_FLAGS = (("--all", None, "all"),)
 REMOVE_FLAGS = (("--all", None, "remove_all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
                ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
+INSTALL_FLAGS = (("--force", None, "force"),)  # place over a newer command (row up3-forward-only R2)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
+VERB_FLAGS["install-cli"] = WRITE_FLAGS + INSTALL_FLAGS
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
 VERB_FLAGS["inbox"] = STATUS_FLAGS
@@ -65,7 +67,7 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
                "--draft": ("draft", "issue"),
                "--kind": ("kind", "init")}
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
-             + ISSUE_FLAGS
+             + ISSUE_FLAGS + INSTALL_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
 SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
@@ -166,7 +168,8 @@ def _flag_fault(opts, words, verb):
     if opts["version"] and (words or opts["help"]):
         return "--version"
     takes = {f[0] for f in VERB_FLAGS.get(verb, ())}
-    for long, short, key in WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + REMOVE_FLAGS + ISSUE_FLAGS:
+    for long, short, key in (WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + REMOVE_FLAGS + ISSUE_FLAGS
+                             + INSTALL_FLAGS):
         if opts[key] and long not in takes:
             return long
     for flag, (key, owner) in VALUE_FLAGS.items():

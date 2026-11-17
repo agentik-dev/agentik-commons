@@ -76,6 +76,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.render`: Render Happened and Expected by the narrator; added words drop the render.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
+- `flag.force`: Place this command even where the one in place is newer.
 - `flag.kind`: What to write. The one kind is hq.
 
 ## Version
@@ -86,6 +87,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `install.done`: Placed `{launcher}` `{version}` and `{door}`.
 - `install.dry`: Plan: place `{launcher}` at version `{version}`. Nothing is written.
+- `install.newer`: Left `{launcher}` at `{have}`, newer than this command's `{want}`; --force places it.
 - `install.door.keep`: The agentik command `{door}` is current or newer, so it stays as it is.
 - `install.door.link`: The agentik command `{door}` is a link, so it stays as it is.
 - `install.door.unversioned`: The agentik command `{door}` holds no version to compare, so it stays.
@@ -263,6 +265,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.inplace`: the plugin's command runs from the plugin's own folder, so there is nothing to place
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
+- `setup.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; setup leaves it as it is
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.launcher.earlier`: `{path}` comes first on PATH, so it runs in place of this one; setup leaves both as they are
 - `setup.launcher.link`: a link to the source's own command, so there is nothing to place
@@ -293,7 +296,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
-- `hint.setup.blocked.old`: This needs a Python of at least `{floor}`, and `{version}` is older.
+- `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
 - `setup.path.why`: The line below mends this terminal; the line marked add mends each new one.
 - `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
@@ -313,7 +316,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
 - `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
 - `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{setup}` again.
-- `err.setup.blocked.old`: Setup ran nothing: Python `{version}` is older than the `{floor}` it needs.
+- `err.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
 - `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{setup}` again.
 - `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{setup}` again.
 - `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{setup}` again to retry it.
@@ -348,15 +351,47 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.tool.gone`: `{name}` `{version}` is no longer installed
+- `update.tool.page`: the `{name}` plugin `{old}` to `{new}`; its command, at `{path}`, stays as it was
+- `update.tool.page.none`: the `{name}` plugin `{old}` to `{new}`; its command is not installed
+- `update.restart`: sessions started before this keep the old plugins until they are restarted
+- `update.placed`: placed before the stop: `{commands}`
+- `update.place.cause`: the placing began once `{command}` failed in step 2
+- `update.place.failed`: `{command}` failed too and said `{last}`; the placing stopped there
+- `update.place.failed.silent`: `{command}` failed too, with no output; the placing stopped there
+- `update.setup.why`: `{names}` is not installed; the line below installs it
+- `update.setup.why.many`: `{names}` are not installed; the line below installs them
+- `update.blocked.why`: step 1 needs `{missing}`; install it, then run the line below
+- `update.blocked.why.claude`: step 1 needs `{missing}`; `{get}`
+- `update.say.cmd.missing`: not on PATH; update stops here until it is installed
+- `update.say.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; update stops here
+- `update.say.plugin.missing`: not installed; the line below installs it
+- `update.say.plugin.broken`: listed at version `{version}`, but its folder is gone; the line below installs it again
+- `update.say.launcher.missing`: not placed; update places it from the plugin
+- `update.say.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; update places it again
+- `update.say.launcher.unread`: holds no version line; update places it again at `{want}`
+- `update.say.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; update leaves it as it is
+- `update.say.launcher.earlier`: `{path}` comes first on PATH, so it runs instead; update leaves both as they are
+- `update.say.launcher.noversion`: placed; the source gives no version to compare, so update leaves it
+- `update.say.launcher.other`: at version `{have}`, and the source is at `{want}`; update places it again
+- `update.say.launcher.page`: not placed, and not update's to place: `{name}` installs its own command
+- `update.say.launcher.theirs`: `{name}` installed its own command, at `{path}`; update leaves it as it is
+- `update.say.suite.newer`: at version `{have}`, newer than this command's `{want}`; update leaves it as it is
+- `update.say.suite.behind`: at version `{have}`, and this command is at `{want}`; update places it again
+- `update.say.suite.unread`: holds no version line; update places it again at `{want}`
+- `update.say.suite.missing`: not placed; update places it from this command
+- `update.say.door.blocked`: not placed, or older than this command's; the rows above block it
+- `update.say.door.link`: a link, so update leaves it as it is
+- `update.say.door.unversioned`: holds no version to compare, so update leaves it as it is
 - `update.nothing`: everything is current; nothing was placed.
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
 - `update.held.ps`: the process list cannot be read: `{why}`
 - `err.update.held`: held install: `{what}`
-- `hint.update.held`: next: `{command}` once it has ended
-- `hint.update.held.ps`: next: `{command}` once ps can list each process's environment
-- `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
+- `hint.update.held`: next: `{command}`
+- `hint.update.setup`: next: `{command}`
 - `hint.update.suite`: next: `{command}`
+- `hint.update.blocked`: next: `{command}`
+- `hint.update.again`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
@@ -367,6 +402,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
 - `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
 - `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
+- `err.update.interrupted`: Update was interrupted, so it stopped `{command}`
+- `err.update.unknown`: `{name}` is no known tool
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
@@ -564,6 +601,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.door.ok`: `{path}` is at version `{have}`; this command's door is `{want}`
 - `doctor.door.behind`: `{path}` is at `{have}`, too old to pass a verb to the suite
 - `doctor.door.old`: `{path}` is at version `{have}`, older than `{want}`
+- `doctor.door.ahead`: `{path}` is at `{have}` and comes before `{door}` on PATH
+- `doctor.door.ahead.old`: `{path}` is at `{have}`, too old to pass a verb, and comes before `{door}` on PATH
+- `doctor.door.ahead.unread`: no version could be read from `{path}`, which comes before `{door}` on PATH
 - `doctor.door.unread`: `{path}` holds no version to compare: `{have}` there, `{want}` here
 - `doctor.door.none`: no agentik command on PATH
 - `doctor.door.off`: `{path}` is there, but its folder is not on PATH
@@ -581,6 +621,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.newer`: at `{have}`, newer than the plugin's `{want}`
 - `doctor.plan.unread`: holds no version line
 - `doctor.plan.placed`: not placed
 - `doctor.tool.passed`: its doctor passed

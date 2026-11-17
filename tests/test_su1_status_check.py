@@ -14,7 +14,7 @@ import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import CATALOGUE, LAUNCHER, PACKAGE, ConfigHome  # noqa: E402
+from test_agentik_suite import CATALOGUE, LAUNCHER, PACKAGE, ConfigHome, walled  # noqa: E402
 from agentik_suite import catalogue, cli, status  # noqa: E402
 
 NOW = "2026-11-13T12:00:00Z"
@@ -290,13 +290,17 @@ class JsonListingAndRecordsTest(StatusHome):
     def test_a8_a_listing_past_the_wall(self):
         pid_file = os.path.join(self.side, "ps.pid")
         stand_in = self.stub("ps", '#!/bin/sh\necho $$ > "%s"\nexec sleep 10\n' % pid_file)
-        before = status.PS
-        status.PS = stand_in
-        self.addCleanup(setattr, status, "PS", before)
+        self.addCleanup(setattr, status, "PS", status.PS)
         out, err = io.StringIO(), io.StringIO()
-        started = time.monotonic()
-        code = cli.main(["status", "--check", "--now", NOW], env=self.env(), out=out, err=err)
-        self.assertLess(time.monotonic() - started, 2)
+
+        def run(to, why):
+            return cli.main(["status", "--check", "--now", NOW], env=self.env(), out=to, err=why)
+
+        def slow():
+            status.PS = stand_in
+            return run(out, err)
+        # tw1 R2: against the same check with the real ps, the listing's 1 s wall
+        code = walled(self, lambda: run(io.StringIO(), io.StringIO()), slow, wall=1.0)
         self.assertEqual((code, out.getvalue(), err.getvalue()),
                          (1, "lamp: not checked: ps gave no listing\n", ""))
         with open(pid_file) as fh:
