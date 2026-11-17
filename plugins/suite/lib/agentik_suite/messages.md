@@ -332,7 +332,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.doctor`: the doctor reads every tool once the steps above have run
 - `update.skip.folder`: `{name}` comes from a folder; pull it there yourself.
 - `update.skip.id`: `{id}` as the file has it is no plugin id, so update runs nothing for it.
-- `update.suite.checkout`: agentik-suite `{version}` was placed from a checkout, so update leaves it.
+- `update.suite.checkout`: agentik-suite `{version}` was placed from `{path}`, which update does not pull
+- `update.suite.checkout.gone`: agentik-suite `{version}` was placed from `{path}`, which is no longer a checkout
+- `update.suite.checkout.none`: agentik-suite `{version}` came from a checkout its command does not name
+- `update.suite.same`: the `{name}` plugin `{version}`, already current
+- `update.suite.why`: the line below pulls agentik-suite's checkout and runs its setup
+- `update.suite.why.none`: the line below installs the suite plugin, so `{update}` covers agentik-suite
 - `update.tool.moved`: `{name}` `{old}` to `{new}`
 - `update.tool.same`: `{name}` `{version}`, already current
 - `update.tool.gone`: `{name}` `{version}` is no longer installed
@@ -344,7 +349,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.update.held`: next: `{command}` once it has ended
 - `hint.update.held.ps`: next: `{command}` once ps can list each process's environment
 - `hint.update.setup`: next: `{command}` installs `{names}`, since update installs nothing.
-- `hint.update.suite`: to have `{update}` cover it too: claude plugin install suite@agentik
+- `hint.update.suite`: next: `{command}`
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
@@ -358,7 +363,6 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.interrupted.idle`: Update was interrupted between steps; run `{update}` again to go on
 - `err.update.left`: Update left `{subject}` undone at step 3; run `{command}`, then `{update}`
 - `err.update.left.none`: Update left `{subject}` undone at step 3; run `{update}` again
-- `hint.update.suite.pull`: pull that checkout, run install-cli of plugins/suite/bin/agentik-suite
 
 ## Remove
 

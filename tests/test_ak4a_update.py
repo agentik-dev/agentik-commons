@@ -310,7 +310,7 @@ class UpdateTest(Base):
 
     def test_7_the_suite_from_a_checkout_is_left_as_it_is(self):
         for listed, hint in ((("murmur", "suite"), "claude plugin install suite@agentik"),
-                             (("murmur",), "pull that checkout, run install-cli of plugins/suite/bin/agentik-suite")):
+                             (("murmur",), "claude plugin install suite@agentik")):  # up2 review 1 F2
             h = self.home(listed, name="h-" + str(len(listed[1:])))
             h.install("murmur@agentik", "1.0.0", "1.1.0")
             checkout = os.path.join(self.tmp, "checkout-" + str(len(listed)))  # review 1 lead d
@@ -321,7 +321,7 @@ class UpdateTest(Base):
             code, out, err = h.run("update", "--yes",
                                    exe=os.path.join(checkout, "plugins", "suite", "bin", "agentik-suite"))
             self.assertEqual(code, 0, out + err)
-            self.assertRegex(out, r"agentik-suite \S+ was placed from a checkout, so update leaves it")
+            self.assertRegex(out, r"4  note  agentik-suite +agentik-suite \S+ came from a checkout its command does not name")
             self.assertIn(hint, err)
             self.assertEqual(h.ran("git.log"), [])
             self.assertEqual(h.snapshot(checkout), before)
