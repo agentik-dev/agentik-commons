@@ -43,13 +43,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
 
-## From packet in4-inbox (review 1 and phase 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n170 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |
-| n171 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f4_a_child_that_left_the_group_and_holds_stdout` | the test's 3.0 s bound is missed on a loaded machine: 3.19 s while three other gate jobs ran, 711 of 712 passed, and the same head was green in the job before; widen the bound or measure against an idle baseline | a landing's `make check` | 2026-11-14, in4-inbox phase 2 |
-
 ## From packet fk2b-reads (build 1)
 
 | id | level | area | finding | evidence | from |
@@ -132,3 +125,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n237 | S4 | `bin/agentik` `back` | the door looks for a clone in the cwd alone: from a subfolder of a clone, or from `~` with the clone elsewhere, it prints the clone line, which runs but makes a second clone | `agentik nosuch` with no suite, run in `agentik-commons/docs` | 2026-11-16, rm1-leave-clean review 1 |
 | n238 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
 | n239 | S4 | `plugins/suite` `remove.py`, GUIDE §10 | the old order's cut under a `claude` refusing an uninstall once its marketplace is gone; GUIDE's door "reads and writes nothing" yet tests the cwd; `remove` via the launcher refills the pycache it removes; `once()` keeps a folder's first spelling, so an earlier second one misses `soft` | read, not run | 2026-11-16, rm1-leave-clean review 2 |
+
+## From packet dr1-door-ahead (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n240 | S4 | `update.py`, `doctor.py`, hq Makefile | leads: update `--json` on old Python says `--dry-run`, not AGENTIK_PYTHON; the doctor's old-Python row closes on a setup that refuses; no sum tool: recordlint's copy advice; sc2's `check()` skips the PATH line; a `--prefix` door gets install-cli; a close beside a second warn is setup | review 1, L1 to L6 | 2026-11-16, dr1-door-ahead review 1 |
+| n241 | S4 | `plugins/suite` `update.py` blocked close | with `claude` and `git` both off PATH, update's blocked close gives Claude Code's address alone and says nothing of git; its other form says `install it` of several | read, not run | 2026-11-16, up4-update-close review 2 |
