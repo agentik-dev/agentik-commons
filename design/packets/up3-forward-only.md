@@ -18,7 +18,7 @@ What the review met: an older plugin's `install-cli` placed its version over a n
 ## 2. Rulings
 
 - R1, `install()` in the module and the suite's copy: where the command in place is one install-cli wrote (`_ours`: its form, `TREE` under the share), its code stands (the runner in its `TREE`) and its version is newer than the tree being placed, nothing is written; the result holds `kept`, the newer version, and `install_cli` prints one line with both versions and returns 0. `force=True` places anyway. The comparison is `newer(a, b)`, the one `_behind` (refresh's) now calls; no second.
-- R2, the suite's `install-cli` goes through the same `install()`; it takes `--force`, prints `install.newer` and `--json` gains `kept` (null where it placed).
+- R2, the suite's `install-cli` goes through the same `install()`; it takes `--force`, prints `install.newer` and `--json` gains `kept` where it leaves one, and is as at the pin where it places.
 - R3, plan step 4, a launcher of the agentik marketplace's own plugin (`kind` own) newer than it by `newer`: `ok`, `setup.launcher.newer`, no command. `update` builds its rows from step 4, so it runs no older `install-cli` over it.
 - R4, the doctor maps that row to `doctor.plan.newer` with the status `note`; `doctor.plan.behind` (`older than`) stays only on `setup.launcher.behind`, which a newer launcher no longer reads.
 - R5, session's own `install()` and the sync to the tools are not this row.

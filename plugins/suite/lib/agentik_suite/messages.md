@@ -76,6 +76,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.not_a_duplicate`: Go on to the screen though an open issue holds this failure.
 - `flag.render`: Render Happened and Expected by the narrator; added words drop the render.
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
+- `flag.force`: Place this command even where the one in place is newer.
 - `flag.kind`: What to write. The one kind is hq.
 
 ## Version
@@ -86,6 +87,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `install.done`: Placed `{launcher}` `{version}` and `{door}`.
 - `install.dry`: Plan: place `{launcher}` at version `{version}`. Nothing is written.
+- `install.newer`: Left `{launcher}` at `{have}`, newer than this command's `{want}`; --force places it.
 - `install.door.keep`: The agentik command `{door}` is current or newer, so it stays as it is.
 - `install.door.link`: The agentik command `{door}` is a link, so it stays as it is.
 - `install.door.unversioned`: The agentik command `{door}` holds no version to compare, so it stays.
