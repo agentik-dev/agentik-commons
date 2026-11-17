@@ -525,10 +525,13 @@ class Command:
 
     def _close_help(self):
         t = self.t
-        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3)
-            steps = plan.build(plan.default_set(self.lib), self.env, self.lib, self.tool, self.version)
+        if not t.quiet:  # the plan read for its close, as the dry run builds it (row sm2 R3), of
+            # the plugins the doctor plans, and its setup line (row ic2-needs review 1 lead 1)
+            names, _, setup = doctor.planned(self)
+            steps = plan.build(names or plan.default_set(self.lib), self.env, self.lib, self.tool,
+                               self.version)
             t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
-                   else "hint.help.done", **self.slots())
+                   else "hint.help.done", **dict(self.slots(), setup=self.say("setup", *setup)))
         return 0
 
     def first_screen(self):
@@ -650,6 +653,13 @@ class Command:
         for noun in nouns:
             if not NOUN.match(noun):
                 raise Refusal("bad_name", "err.setup.name", self.say("setup", "--dry-run"), name=noun)
+        if not self.env.get("HOME"):  # no path to plan from (row ic2-needs R2)
+            raise Refusal("no_home", "err.setup.home", None)
+        known = plan.known(self.env, self.lib)
+        for noun in nouns:  # before any plan, the dry run's too (R2)
+            if noun not in known:
+                raise Refusal("unknown_plugin", "err.setup.unknown", self.say("setup", "--dry-run"),
+                              name=noun, names=", ".join(known))
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)

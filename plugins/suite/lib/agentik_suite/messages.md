@@ -114,6 +114,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.extra.one`: `{verb}` takes one name; `{word}` is one more
 - `err.version`: `{tool}` has no version: `{path}` cannot be read
 - `err.setup.name`: `{name}` is not a plugin name: lowercase letters, digits and dashes
+- `err.setup.unknown`: `{name}` is no plugin the suite knows; it knows `{names}`
+- `err.setup.home`: HOME is not set, so setup has no folder to plan in
 
 - `err.config.tool`: `{name}` is not a tool here
 - `err.config.key`: `{name}` has no key `{key}`
@@ -243,6 +245,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.cmd.get`: get it: https://claude.com/claude-code
 - `setup.python.ok`: Python `{version}` at `{path}`; `{floor}` or newer is needed
 - `setup.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; setup stops here
+- `setup.need.missing`: `{name}` needs it, and it is not found; setup goes on without it
+- `setup.need.module`: `{name}` needs it, and the `{program}` first on PATH has no `{module}`; setup goes on without it
 - `setup.market.ok`: known to Claude Code
 - `setup.market.missing`: not known to Claude Code; setup would add it
 - `setup.plugin.ok`: installed at version `{version}`
@@ -613,6 +617,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.path`: not on PATH
 - `doctor.plan.market`: not known to Claude Code
 - `doctor.plan.plugin`: not installed
+- `doctor.plan.absent`: not installed, of the default set: `{names}`
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`

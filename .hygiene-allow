@@ -81,6 +81,11 @@ docs/first-hour.md: sibling
 plugins/suite/lib/scaffold/hq/*: sibling
 plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed
 
+# setup's need rows and the doctor's note name the suite's own public plugins under test, and
+# the plug reader's test names a plugin's fallback row (row ic2-needs, the coordinator's ruling)
+tests/test_ic2_needs.py: sibling
+tests/test_ak9b_plug_reader.py: sibling
+
 # the hq scaffold test's stub checks the verb a new hq runs, as the scaffold names it (row
 # dr1-door-ahead, the coordinator's ruling)
 tests/test_dr1_door_ahead.py: sibling

@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LAUNCHER = ROOT / "plugins" / "suite" / "bin" / "agentik-suite"
 SYSTEM = "/usr/bin:/bin"
 GET = "get it: https://claude.com/claude-code"
-PLUGIN = "murmur"  # a made-up plugin's name
+PLUGIN = "agents"  # a name the suite knows: setup refuses one it does not (row ic2-needs R2)
 PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
 # a plugin's install-cli that places its own launcher and no door, so step 5 places the suite's
 NO_DOOR = re.sub(r' &&\n    printf [^\n]*/agentik" ;;', " ;;", PLUGIN_BIN)

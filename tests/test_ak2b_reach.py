@@ -14,7 +14,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import LAUNCHER, LIB, MANIFEST, ROOT, SYSTEM, Home, version  # noqa: E402
+from test_agentik_suite import LAUNCHER, LIB, MANIFEST, ROOT, SYSTEM, Home, known_plugin, version  # noqa: E402
 
 import agentik_install  # noqa: E402  (the suite's copy, on sys.path from test_agentik_suite)
 
@@ -334,7 +334,8 @@ class ReviewOneTest(Reach):
                      os.path.join(plugins, "known_marketplaces.json"),
                      os.path.join(bindir, "agentik-suite"), os.path.join(bindir, "agentik-alpha")):
             os.mkfifo(path)
-        code, out, err = self.call([LAUNCHER, "setup", "--dry-run", "--json", "alpha"], timeout=5)
+        known = known_plugin() / "bin" / "agentik-suite"  # alpha known (ic2-needs R2)
+        code, out, err = self.call([known, "setup", "--dry-run", "--json", "alpha"], timeout=5)
         self.assertEqual(code, 0, err)
         state = {(s["n"], s["id"]): s["state"] for s in json.loads(out)["steps"]}
         self.assertEqual(state[(2, "marketplace")], "todo")

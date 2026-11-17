@@ -4,7 +4,9 @@ Every step is a read: it opens files and looks names up on PATH, and starts no p
 included, but one: a plugin that ships its command and has no launcher on PATH is asked
 `describe --json` through the suite's own reader (tools.describe_all, its cache and its wall), and
 one whose counted answer lists no `install-cli` verb runs from its own folder (row
-sp1-launcher-step). A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
+sp1-launcher-step); and a chosen plugin's need that is a module, which `python3` on PATH is asked to
+import, from `/`, under NEED_WALL seconds (row ic2-needs R1). Each need not met is a step-1 row of
+state `warn`, which setup runs on past. A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
 known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, read
 through the finder (`sources`, row fk1-sources): steps 3, 4 and 7 plan by the source that stands
 for each name (row fk2-plan), and setup installs no id outside its own marketplace. An absent or unreadable file
@@ -22,6 +24,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import sys
 
 import agentik_install
@@ -32,6 +35,10 @@ FLOOR = (3, 9)
 DOOR = agentik_install.DOOR
 SUITE = "agentik-suite"  # the command the door hands a word it has no tool for
 PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
+# How each word of a plugin's `needs` (fallback.json) is read: a command on PATH, and the Python it
+# must run when there is one (row ic2-needs R1). A word with no reading makes no row.
+NEEDS = {"Go": ("go", None), "PyYAML": ("python3", "import yaml")}
+NEED_WALL = 2.0
 
 
 def _read_json(path):
@@ -84,6 +91,14 @@ def default_set(lib):
     return names
 
 
+def known(env, lib):
+    """The names setup plans, sorted (row ic2-needs R2): each name the suite knows (tools.known:
+    the marketplace file's, the fallback table's, each installed `<name>@agentik`, each `sources`
+    line's) and the suite's own."""
+    from . import tools  # tools imports this module at its top
+    return sorted(set(tools.known(env, lib)) | {manifest(lib).get("name") or "suite"})
+
+
 def shown(path, home):
     """A path as the user would type it: under HOME, from `~`."""
     if home and (path == home or path.startswith(home.rstrip("/") + "/")):
@@ -106,6 +121,23 @@ def door_off(env):
         return None
     door = os.path.join(home, ".local", "bin", DOOR)
     return door if os.path.isfile(door) and os.access(door, os.X_OK) else None
+
+
+def need_met(need, search, env):
+    """True when `need` is met, False when not, None when it has no reading (NEEDS): its command
+    on PATH, and, for a module, that command imports it from `/`, stdin closed, within NEED_WALL."""
+    how = NEEDS.get(need)
+    if how is None:
+        return None
+    exe = shutil.which(how[0], path=search)
+    if not exe or how[1] is None:
+        return bool(exe)
+    try:
+        done = subprocess.run([exe, "-c", how[1]], cwd="/", env=env, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=NEED_WALL)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
 
 
 def _step(n, sid, state, subject, mid, command=None, line="run", **values):
@@ -256,6 +288,16 @@ def build(names, env, lib, tool, version, cwd=None):
     else:
         steps.append(_step(1, "prereqs", "blocked", "python3", "setup.python.low",
                            version=ver, path=sys.executable, floor=floor))
+    table = tools.fallback(lib)
+    for name in names:  # each chosen plugin's need, named when it is not met (row ic2-needs R1)
+        for need in (table.get(name) or {}).get("needs") or ():
+            if isinstance(need, str) and need_met(need, search, env) is False:
+                program, module = NEEDS[need]
+                if module and shutil.which(program, path=search):  # what was read (review 1 F2)
+                    steps.append(_step(1, "need", "warn", need, "setup.need.module", name=name,
+                                       program=program, module=need))
+                else:
+                    steps.append(_step(1, "need", "warn", need, "setup.need.missing", name=name))
 
     # 2: the marketplace
     known = _read_json(os.path.join(config, "plugins", "known_marketplaces.json"))
@@ -292,7 +334,6 @@ def build(names, env, lib, tool, version, cwd=None):
 
     # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli; a
     # tool with a page installs its own, so setup names the page or the file the finder names (fh13)
-    table = tools.fallback(lib)
     pages = {n: p for n, p in ((n, tools.page(table, n)) for n in names) if p}
     placed = []
     inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1] and n not in pages
