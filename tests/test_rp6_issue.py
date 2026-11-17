@@ -49,7 +49,10 @@ if os.path.exists(os.path.join(d, key + ".out")):
     with open(os.path.join(d, key + ".out")) as fh:
         sys.stdout.write(fh.read())
 '''
-PS = '#!/bin/sh\necho "    1     0 /sbin/launchd"\necho "$PPID     1 /usr/bin/python3"\n'
+# send's `-A` read gets the ancestry; any other read is the process list with its environment, as
+# the doctor reads it (row lx1-ps-linux R4), so no warn of a list that cannot be read joins the draft
+PS = ('#!/bin/sh\n[ "$1" = -A ] || { echo "2 /bin/sh AGENTIK_PRUNE_PROBE=$AGENTIK_PRUNE_PROBE"; exit 0; }\n'
+      'echo "    1     0 /sbin/launchd"\necho "$PPID     1 /usr/bin/python3"\n')
 DOCTOR = r'''#!/usr/bin/python3 -I
 import json, sys
 if sys.argv[1:] == ["doctor", "--json"]:

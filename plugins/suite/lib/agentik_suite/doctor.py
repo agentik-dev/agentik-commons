@@ -125,6 +125,14 @@ def twice(cmd, found):
             for w, names in words.items() if len(names) > 1]
 
 
+def process_list(cmd):
+    """The process list read as update and remove read it: one warn with the reason where it
+    cannot be read, since both refuse there, and no row where it reads (row lx1-ps-linux R4)."""
+    from . import update  # update imports this module, so the import waits for the call
+    why = update.listing(cmd.env)[1]
+    return [_check("processes", "warn", cmd.t.text("doctor.ps.unread", why=why))] if why else []
+
+
 def user_settings(cmd):
     home = cmd.env.get("HOME")
     try:
@@ -656,7 +664,7 @@ def read(cmd):
     entries = tools.listed(suite, on_path, cmd.env)
     described = describes(cmd, entries[1:])
     own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
-        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd)
+        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
     groups += own_doctors(cmd, entries[1:], described)
