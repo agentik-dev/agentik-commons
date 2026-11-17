@@ -354,7 +354,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.setup.why`: `{names}` is not installed; the line below installs it
 - `update.setup.why.many`: `{names}` are not installed; the line below installs them
 - `update.blocked.why`: step 1 needs `{missing}`; install it, then run the line below
-- `update.blocked.why.claude`: step 1 needs `{missing}`; get claude at https://claude.com/claude-code
+- `update.blocked.why.claude`: step 1 needs `{missing}`; `{get}`
 - `update.say.cmd.missing`: not on PATH; update stops here until it is installed
 - `update.say.python.low`: Python `{version}` at `{path}` is older than the `{floor}` minimum; update stops here
 - `update.say.plugin.missing`: not installed; the line below installs it

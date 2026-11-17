@@ -417,7 +417,8 @@ class Update:
             elif not t.quiet:  # the reason, then update alone with the names given (up4 review 1 F1)
                 t.flush()
                 claude = any(s["subject"] == "claude" for s in blocked)
-                t.line("update.blocked.why.claude" if claude else "update.blocked.why", err=True, missing=missing)
+                t.line("update.blocked.why.claude" if claude else "update.blocked.why", err=True, missing=missing,
+                       get=t.text("setup.cmd.get"))  # the address, as setup's row has it, held once
                 t.hint("hint.update.blocked", command=self.cmd.say("update", *dict.fromkeys(self.nouns)))
             return 2
         if not o["json"]:
