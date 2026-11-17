@@ -19,6 +19,7 @@ WOULD = "would run: "
 LATER = "yours to run later: "
 DECLINED = "since the answer was not yes"
 NEEDS_YES = "since it cannot ask you here"
+PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
 
 
 def screen(text):
@@ -156,10 +157,14 @@ class AskTest(SetupHome):
         self.plan_of_one()
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: ~/.local/bin/agentik doctor checks each plugin.", err.splitlines()[-1])  # sc2: off PATH
+        # off PATH with the door placed, the close is step 6's line (row ic1-close R2)
+        self.assertEqual(err.splitlines()[-1], PATH_CLOSE)
         code, out, err = self.run_cli("setup", "alpha")  # nothing to do, the door in place
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: ~/.local/bin/agentik doctor", err.splitlines()[-1])
+        self.assertEqual(err.splitlines()[-1], PATH_CLOSE)
+        code, out, err = self.run_cli("setup", "alpha", PATH=self.bindir + ":" + self.env()["PATH"])
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(err.splitlines()[-1], "next: agentik doctor")  # on PATH: the door's (sc2, R1)
 
     def test_a6_a_door_not_ours_keeps_the_suites_name(self):
         self.plan_of_one()

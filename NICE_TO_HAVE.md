@@ -43,31 +43,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n154 | S3 | `plugins/suite` `cli.py` `_takes` | a mended `config` line is still refused for a second wrong word: `confg x` gives `config x`, which pasted reads `x is not a tool here`, exit 2 (55 lines of the sweep); `offer` could check the first name against the tools and plugins | review 2's F2 | 2026-11-13, sc4 review 2 |
 
-## From packets su2-read and su2-screen (review 1 and phase 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n157 | S4 | `plugins/suite` `status_read.py` `_sessions` | a seat id not shaped 8-4-4-4-12 hex is never matched to its process, and its row counts as bare; match seat ids against every later word | seats `seat-a`, `seat-b`, a row `claude --resume seat-a`: both `pid` null | 2026-11-13, su2-read review 1's R1-F5 |
-| n158 | S4 | `plugins/suite` `status_read.py` `_settle` | a `schema` past 4,300 digits raises ValueError from `int()` under Python 3.11+; compare the digits' length | `x/` and 5,000 nines: ValueError under 3.14 | 2026-11-13, su2-read review 1's R1-F7 |
-| n160 | S4 | `plugins/suite` `status_screen.py` `capped`, `wall` | past five sessions with no `sessions` source the cap row reads `and 5 more: ?`, no command; `%g` prints a wall of 1234567 as `1.23457e+06 s` | `capped` and `wall` | 2026-11-13, su2-screen review 1's R1-F8 |
-| n161 | S4 | `plugins/suite` `status_read.py` `_remedy`, `status_screen.py` `command` | a tool's command is printed `agentik TOOL ...` where no door reaches the suite too, so pasted it is not found; sc4's `_tool_line` gives the tool's file there | read, not run | 2026-11-14, su2-read phase 2 |
-
-## From packet rp6-verb (review 1 and build 2)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n162 | S4 | `plugins/suite` `issue.py` `_read`, `_new`, `_send` | the drafts path is printed raw: `new --json`'s and the bare read's `path`, and `--web`'s `The draft:` line, so `XDG_STATE_HOME`, and under the real home the login, reach stdout; print `plan.shown` or the id alone, and let the skill take the id | review 1's F7, probe D | 2026-11-14, rp6-verb review 1 |
-| n163 | S4 | `plugins/suite` `scrub.py` (a) | a login inside a longer word is left in the draft, though design/22 §8 item 2 names the case; whole-word matching spares a plain-word login inside a common word, so which rule holds is the coordinator's call | review 1's F9, a lead against rp2's rule | 2026-11-14, rp6-verb review 1 |
-| n164 | S4 | `plugins/suite` `scrub.py` (b) | `</details>` in the person's words is scrubbed as a one-segment path and drawn `<<path-1>>`; nothing leaks or goes live, an over-scrub of rp2's one-segment rule | review 1's F10 | 2026-11-14, rp6-verb review 1 |
-| n165 | S4 | `tests/test_rp6_issue.py` | three files are opened and never closed (lines 213, 288, 348), a ResourceWarning each under `-W` | review 1's observations | 2026-11-14, rp6-verb review 1 |
-| n167 | S4 | `plugins/suite` `gather.py` `_past_edge` | a one-line window over 64 KiB drops its first 1,024 bytes and the word there; a secret with spaces in it longer than that, straddling the window's start, would keep its tail | read in build 2 | 2026-11-14, rp6-verb build 2 |
-
 ## From packet in4-inbox (review 1 and phase 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n168 | S4 | `plugins/suite` `tools.py` `run_all` | a read runs in the person's cwd, so a tool that writes to its cwd writes in a checkout: `run_all` starts each job with no `cwd`, and `status` shares it; give the reads a neutral cwd | in4 review 1 F6: from cwd `T/pear-hq` a stub's `./WRITTEN-BY-TOOL` lands in the checkout | 2026-11-14, in4-inbox review 1 |
-| n169 | S4 | `plugins/suite` `tools.py` `run_all` | SIGTERM or SIGHUP leaves a hung read running past the wall: `run_all` cleans up on BaseException alone; `status` shares it, and with in4's fix `status` and `inbox` map both signals to `status.Signalled`, `config` and `doctor` not | in4 review 1 F7: exit -15, the stub at ppid 1 | 2026-11-14, in4-inbox review 1 |
 | n170 | S4 | `plugins/suite` `inbox.py` `_reads` | the wall is not the whole run's: `describe_all`'s own 2 s, then the reads' 5 s, so a hung describe-only tool beside three hung reads takes 7.06 s while each row says `gave no answer in 5 s` | in4 review 1 F9, `agentik-slow` beside three sleeping reads | 2026-11-14, in4-inbox review 1 |
 | n171 | S4 | `tests/test_agentik_suite.py` `WallTest.test_f4_a_child_that_left_the_group_and_holds_stdout` | the test's 3.0 s bound is missed on a loaded machine: 3.19 s while three other gate jobs ran, 711 of 712 passed, and the same head was green in the job before; widen the bound or measure against an idle baseline | a landing's `make check` | 2026-11-14, in4-inbox phase 2 |
 
@@ -125,10 +104,31 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n224 | S4 | `plugins/suite` `config.py` search | a hyphenated word never matches a summary: `\w+` splits at `-` and `'`; `alpha.cap`'s summary "Sets the max-turns cap for a sitting." is not found by `config max-turns`, which lists only key `alpha.max-turns`; within R1's letter | stub `alpha` with keys `max-turns` and `cap`: one row | 2026-11-15, sc7-config-find review 1 |
 | n225 | S4 | `term.py` `_wrap` | a key with a space wraps in two on a pty, so it cannot be read as one word: `alpha.$(touch` then `PWNED).tension` at 80 columns (28 columns, past a third); a pipe prints it whole; term's name wrapping at the pin | stub key `$(touch PWNED).tension`, `config tension` on a pty at 80 columns | 2026-11-15, sc7-config-find review 1 |
 | n226 | S4 | `term.py` `fit` | `fit` can leave a space before its mark: the cut `The turns this sitting is metered …` at 66 columns; rstrip the kept text before adding `…` | `config turns` on a pty at 66 columns with a stub `session.ceilings.turns` of that summary | 2026-11-15, sc7-config-find review 1 |
+| n227 | S4 | `scripts/agentik_install.py` `prune`, `uninstall` | a removed tree's bytecode stays under `<cache>/agentik/pycache/<its real path>`, the prune's and `remove <tool>`'s alike; only `remove --all` clears it | one machine: 95 MB in 4,798 files, 44 session trees' bytecode where 5 stand | 2026-11-16, the install and upgrade review, finding 14 |
 
-## From packet rm1-leave-clean (review 1)
+## From packet up2-suite-origin (review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n227 | S4 | `bin/agentik` `back` | the door looks for a clone in the cwd alone: from a subfolder of a clone, or from `~` with the clone elsewhere, it prints the clone line, which runs but makes a second clone | `agentik nosuch` with no suite, run in `agentik-commons/docs` | 2026-11-16, rm1-leave-clean review 1 |
-| n228 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
+| n228 | S4 | `plugins/suite` `update.py` `suite_close` | the close can carry two `next:` lines, the doctor's then the suite's; R2 says one | review 1's F2 reproduction | 2026-11-16, up2-suite-origin review 1 |
+| n229 | S4 | `plugins/suite` `update.py` `named` | reads `$HOME/.local/bin/agentik-suite` alone: a suite under another `PREFIX` is judged by HOME's launcher | review 1's lead | 2026-11-16, up2-suite-origin review 1 |
+| n230 | S4 | `plugins/suite` `update.py` `suite_close` | the pull line prints with no condition: a person who just ran the README's upgrade line is told to pull again | review 1's lead | 2026-11-16, up2-suite-origin review 1 |
+
+## From packet ic1-close (build 1, reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n231 | S4 | `plugins/suite` `messages.md` `issue.strike.none` | `Struck {words} in {places}; the draft is unchanged.` says struck and unchanged at once | `issue strike` of a word the draft does not hold | 2026-11-16, ic1-close |
+| n232 | S4 | `plugins/suite` `messages.md` `usage.issue` | the usage drops the `[TOOL]` that `issue new` takes (`issue.py`'s docstring: `new [TOOL]`) | `help issue`'s first line | 2026-11-16, ic1-close |
+| n233 | S3 | `plugins/suite` `apply.py` `_before` | with `setup \| tee` the question can print above the plan: the flush feeds the pipe and the question reaches stderr before tee copies the plan; R4's `tee` clause was withdrawn; main prints the same | `script -q o.txt /bin/bash -c './setup \| tee /dev/null'` fed `n`: the question above the plan in 4 of 5 runs | 2026-11-16, ic1-close review 1 F1 |
+| n234 | S4 | `plugins/suite` `apply.py` `show` | `update`'s and `remove`'s plans now show `get it:` under a missing `claude`, since they print through `show`; no brief named it, and it reads as a gain: confirm it or keep it to setup | `agentik-suite update` with PATH `/usr/bin:/bin`: main has no `get it:` line, the branch has one | 2026-11-16, ic1-close review 1 |
+| n235 | S4 | `plugins/suite` `plan.py` `door_off` | any executable at `~/.local/bin/agentik` counts as the door; off PATH, both closes name the PATH line and hide its "holds no version" warn until PATH is mended (main ran that file, so no worse) | a script of your own there, that folder off PATH: `doctor` | 2026-11-16, ic1-close review 1 |
+| n236 | S4 | `plugins/suite` `update.py`, `doctor.py`, `messages.md` | with an old Python the dry run's close and doctor's close still name `setup`, and `err.update.blocked` (update's `--json`) still says "install it"; out of reach on a Mac whose system Python is at the minimum | build 2's not-done list; read, not run | 2026-11-16, ic1-close review 2 |
+
+## From packet rm1-leave-clean (reviews 1 and 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n237 | S4 | `bin/agentik` `back` | the door looks for a clone in the cwd alone: from a subfolder of a clone, or from `~` with the clone elsewhere, it prints the clone line, which runs but makes a second clone | `agentik nosuch` with no suite, run in `agentik-commons/docs` | 2026-11-16, rm1-leave-clean review 1 |
+| n238 | S4 | `plugins/suite` `remove.py` the suite's cache row | the plan shows the suite's cache folder as kept; where `claude` takes that folder during the run, the close drops its row without a word, so plan and close differ on that row (by design) | `test_r5_the_suites_cache_gone_after_the_run_is_no_fault` | 2026-11-16, rm1-leave-clean review 1 |
+| n239 | S4 | `plugins/suite` `remove.py`, GUIDE §10 | the old order's cut under a `claude` refusing an uninstall once its marketplace is gone; GUIDE's door "reads and writes nothing" yet tests the cwd; `remove` via the launcher refills the pycache it removes; `once()` keeps a folder's first spelling, so an earlier second one misses `soft` | read, not run | 2026-11-16, rm1-leave-clean review 2 |

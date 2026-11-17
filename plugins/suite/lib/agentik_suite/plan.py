@@ -19,6 +19,7 @@ plugin's install-cli places the door, so while step 4 has a row to do the door's
 """
 import json
 import os
+import re
 import shlex
 import shutil
 import sys
@@ -88,6 +89,23 @@ def shown(path, home):
     if home and (path == home or path.startswith(home.rstrip("/") + "/")):
         return "~" + path[len(home.rstrip("/")):]
     return path
+
+
+def bin_on_path(home, search):
+    """True when ~/.local/bin is one of PATH's folders: step 6's read."""
+    entries = [os.path.normpath(p) for p in search.split(os.pathsep) if p]
+    return os.path.normpath(os.path.join(home, ".local", "bin")) in entries
+
+
+def door_off(env):
+    """The door at ~/.local/bin/agentik, a regular executable file, while that folder is off PATH,
+    else None: the state whose one act left is step 6's line, which setup's close and doctor's
+    door row and close all name (row ic1-close R2)."""
+    home = env.get("HOME") or ""
+    if not home or bin_on_path(home, env.get("PATH", "")):
+        return None
+    door = os.path.join(home, ".local", "bin", DOOR)
+    return door if os.path.isfile(door) and os.access(door, os.X_OK) else None
 
 
 def _step(n, sid, state, subject, mid, command=None, line="run", **values):
@@ -165,6 +183,28 @@ def _page_runs(row, where):
     from . import sources  # sources imports this module at its top
     runs = (row["runs"] or {}).get("path")
     return runs or (where if sources._executable(where) else None)
+
+
+_RUNS_TREE = re.compile(r"\$\{?(TREE|CODE)\b")  # a launcher that runs from the folder it names
+_RUNNER = re.compile(r'"\$\{?TREE\}?/([^"/\s]+)"')  # install-cli's `[ -f "$TREE/<runner>" ]`
+
+
+def code_gone(path):
+    """The tree the launcher at `path` runs from, when that folder or the runner in it is gone,
+    else None (row up1-tree-gone R1). A launcher runs from its tree when its text uses the `TREE`
+    (or an older form's `CODE`) it names; one that never does is not read as gone. Never raises."""
+    read = agentik_install.read_launcher(path)
+    tree = (read or {}).get("tree")
+    if not tree:
+        return None
+    data = agentik_install.read_regular(path, 65536) or b""
+    text = data.decode("utf-8", "surrogateescape")
+    if not _RUNS_TREE.search(text):
+        return None
+    runner = _RUNNER.search(text)
+    if not os.path.isdir(tree) or (runner and not os.path.isfile(os.path.join(tree, runner.group(1)))):
+        return tree
+    return None
 
 
 def _plugin_row(n, name, row, home):
@@ -282,6 +322,7 @@ def build(names, env, lib, tool, version, cwd=None):
             continue
         want, source = have[name]
         command = "%s install-cli" % shlex.quote(source) if source else None
+        gone = code_gone(where) if read is not None else None
         runs = (row["runs"] or {}).get("path")
         if not source:
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.none"))
@@ -299,6 +340,9 @@ def build(names, env, lib, tool, version, cwd=None):
         elif read is None:
             steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.missing",
                                command))
+        elif gone:  # whatever the versions say (row up1-tree-gone R1)
+            steps.append(_step(4, "launcher", "todo", shown(where, home), "setup.launcher.gone",
+                               command, tree=shown(gone, home)))
         elif not (isinstance(want, str) and want):  # nothing to compare (review 1 F4)
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.noversion"))
         elif read.get("version") == want:
@@ -321,8 +365,12 @@ def build(names, env, lib, tool, version, cwd=None):
     if theirs and theirs != version:
         a, b = agentik_install.order(theirs), agentik_install.order(version)
         newer = a is not None and b is not None and a > b
+    gone = code_gone(own) if read is not None else None
     if read is None:
         steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.missing", place))
+    elif gone:  # whatever the versions say, from this command (row up1-tree-gone R1)
+        steps.append(_step(5, "suite", "todo", shown(own, home), "setup.suite.gone", place,
+                           tree=shown(gone, home)))
     elif theirs == version:
         steps.append(_step(5, "suite", "ok", shown(own, home), "setup.suite.ok", version=version))
     elif newer:  # never moved backward: its own install-cli places the door (ak2b review 1)
@@ -351,8 +399,7 @@ def build(names, env, lib, tool, version, cwd=None):
         steps.append(_step(5, "door", "todo", shown(door, home), "setup.door.place", place))
 
     # 6: ~/.local/bin on PATH
-    entries = [os.path.normpath(p) for p in search.split(os.pathsep) if p]
-    if os.path.normpath(bindir) in entries:
+    if bin_on_path(home, search):
         steps.append(_step(6, "path", "ok", shown(bindir, home), "setup.path.ok"))
     else:
         steps.append(_step(6, "path", "todo", shown(bindir, home), "setup.path.missing",

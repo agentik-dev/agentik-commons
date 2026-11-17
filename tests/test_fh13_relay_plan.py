@@ -291,7 +291,7 @@ class PageTest(Base):
         self.assertNotIn(PAGE, out + err)
         self.assertIn("yours to run later: %s doctor" % where, out)
         self.assertIn("add to your shell profile:", out)
-        path_close = "next: add the line marked add above to your shell profile, then open a new terminal."
+        path_close = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
         self.assertEqual(err.splitlines()[-1], path_close)
         with open(where) as fh:
             body = fh.read()
@@ -299,7 +299,7 @@ class PageTest(Base):
         self.assertEqual(code, 0, out + err)
         self.assertNotIn(PAGE, out + err)  # the report's add line and the pin's close, no page's
         self.assertIn("add to your shell profile:", out + err)
-        self.assertEqual(err.splitlines()[-1], "next: ~/.local/bin/agentik doctor checks each plugin.")
+        self.assertEqual(err.splitlines()[-1], path_close)  # the door stands off PATH (row ic1-close R2)
         with open(where) as fh:
             self.assertEqual(fh.read(), body)  # setup writes nothing at W
         self.assertFalse([line for line in h.ran() if T in line], h.ran())

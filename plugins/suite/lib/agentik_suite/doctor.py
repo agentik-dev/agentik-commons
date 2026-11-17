@@ -38,6 +38,7 @@ STATUSES = ("ok", "note", "warn", "fail")
 SCHEMA = "agentik.doctor/1"
 SCHEMAS = re.compile(r"agentik\.doctor/([0-9]+)\Z")  # an answer of schema 1 or lower counts (R5)
 PLAIN = "\0plain"  # the close that names the doctor alone: no fail's command may close (R7)
+PATH = "\0path"  # the close that names step 6's line: the door stands off PATH (row ic1-close R2)
 KEYS = ("name", "status", "detail", "remedy")
 FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.plan.path",
         "setup.python.low": "doctor.plan.python", "setup.market.missing": "doctor.plan.market",
@@ -45,7 +46,8 @@ FACT = {"setup.cmd.missing": "doctor.plan.path", "setup.path.missing": "doctor.p
         "setup.launcher.behind": "doctor.plan.behind", "setup.suite.behind": "doctor.plan.behind",
         "setup.launcher.unread": "doctor.plan.unread", "setup.suite.unread": "doctor.plan.unread",
         "setup.plugin.declared": "doctor.plan.declared", "setup.plugin.gone": "doctor.plan.gone",
-        "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other"}
+        "setup.launcher.earlier": "doctor.plan.earlier", "setup.launcher.other": "doctor.plan.other",
+        "setup.launcher.gone": "doctor.plan.code", "setup.suite.gone": "doctor.plan.code"}
 # A held row (fk2-plan R4) in doctor's words, whose remedy is the card that shows how to choose.
 HELD = {"setup.plugin.held": "doctor.source.undecided", "setup.plugin.held.twice": "doctor.source.twice",
         "setup.plugin.held.repo": "doctor.source.repo"}
@@ -75,6 +77,11 @@ def door(cmd, on_path):
     setup = cmd.say("setup")
     path = first_door(cmd.env)
     if path is None:
+        off = plan.door_off(cmd.env)
+        if off:  # the door stands and only PATH lacks its folder: step 6's line (row ic1-close R2)
+            c = _check("door", "warn", t.text("doctor.door.off", path=plan.shown(off, home)), plan.PROFILE_LINE)
+            c["off"] = True
+            return c
         return _check("door", "warn", t.text("doctor.door.none"), setup)
     shown = plan.shown(path, home)
     want = (agentik_install.read_launcher(agentik_install._source()[2]) or {}).get("version")
@@ -122,6 +129,14 @@ def twice(cmd, found):
     return [_check("claim", "fail", cmd.t.text("doctor.claim.twice", word=w, tools=joined(names),
                                                 run=cmd.say(w)))
             for w, names in words.items() if len(names) > 1]
+
+
+def process_list(cmd):
+    """The process list read as update and remove read it: one warn with the reason where it
+    cannot be read, since both refuse there, and no row where it reads (row lx1-ps-linux R4)."""
+    from . import update  # update imports this module, so the import waits for the call
+    why = update.listing(cmd.env)[1]
+    return [_check("processes", "warn", cmd.t.text("doctor.ps.unread", why=why))] if why else []
 
 
 def user_settings(cmd):
@@ -383,6 +398,13 @@ def describes(cmd, entries):
                               deadline=time.monotonic() + tools.WALL)[0] if exes else {}
 
 
+def last_line(err):
+    """A tool's stderr bytes: its last line that is not blank, as one clean line, else None."""
+    lines = [tools.one_line(l) for l in (err or b"").decode("utf-8", "replace").splitlines()]
+    lines = [l for l in lines if l]
+    return lines[-1] if lines else None
+
+
 def own_doctors(cmd, entries, described=None):
     """[group] for each listed tool but the suite, in the list's order. A group is {name,
     checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2).
@@ -410,7 +432,8 @@ def own_doctors(cmd, entries, described=None):
         answers[name] = got
         return ()
 
-    results = tools.run_all(jobs, cmd.env, then=then,
+    errs = {}  # each job's stderr: a silent doctor's last line (row up1-tree-gone R3)
+    results = tools.run_all(jobs, cmd.env, then=then, errs=errs,
                             deadline=time.monotonic() + DEADLINE) if jobs else {}
     groups = []
     for e in entries:
@@ -433,9 +456,11 @@ def own_doctors(cmd, entries, described=None):
             code, out, state = results[(name, "read")]
             state = "unread" if state == "ran" else state  # it ran and does not count (R8)
         else:
-            code, out, state = results[(name, 1)]
+            key = (name, 1)
+            code, out, state = results[key]
             if state == "ran":
-                code, out, state = results.get((name, 2), (None, b"", "timed out"))
+                key = (name, 2)
+                code, out, state = results.get(key, (None, b"", "timed out"))
         if state == "timed out":
             c = _check("doctor", "warn", t.text("doctor.tool.slow", secs="%g" % DEADLINE), again)
         elif state != "ran":
@@ -444,6 +469,8 @@ def own_doctors(cmd, entries, described=None):
             c = _check("doctor", "ok", t.text("doctor.tool.passed"))
         elif out.strip():
             c = _check("doctor", "fail", t.text("doctor.tool.failed"), again)
+        elif last_line(errs.get(key)):
+            c = _check("doctor", "fail", t.text("doctor.tool.said", last=last_line(errs.get(key))), again)
         else:
             c = _check("doctor", "fail", t.text("doctor.tool.silent"), again)
         group["checks"] = lead + [c]
@@ -481,7 +508,8 @@ def _closes(remedy):
 def close_command(cmd, groups):
     """The one command the close names (R8), first match, or None. A tool's remedy that fails
     `_closes` stands on its check's line, and the close names the tool's own doctor, through the
-    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name)."""
+    door where one reaches the suite (`tool_doctor`; review 1 F1: `doctor <tool>` takes no name).
+    Among the warns, a door that stands off PATH closes on step 6's line, PATH (row ic1-close R2)."""
     suite = groups[0]["checks"]
     for c in suite:
         if c["status"] == "fail" and c["remedy"] and c["remedy"].strip():
@@ -505,6 +533,8 @@ def close_command(cmd, groups):
             return PLAIN  # no row names a command: the plain line
     for i, g in enumerate(groups):
         for c in g["checks"]:
+            if c.get("off"):
+                return PATH
             if c["status"] == "warn" and _is_shell(c["remedy"]) \
                     and not (c.get("step") and c["step"]["n"] == 6):
                 if i == 0 or _closes(c["remedy"]):
@@ -517,6 +547,8 @@ def _under(cmd, c, hint, left):
     """The one line under a row (R7), or None."""
     if c.get("add"):
         return c["add"]
+    if c.get("off"):  # the door row ends on the line that mends this terminal (ic1-close review 1)
+        return cmd.t.text("doctor.fix", command=c["remedy"])
     s = c.get("step")
     if s and s["line"] != "run":
         if left or not s["command"]:
@@ -632,6 +664,8 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.line("doctor.done")
     if hint == PLAIN:
         t.hint("hint.doctor.fail.plain", doctor=cmd.say("doctor"))
+    elif hint == PATH:
+        apply.path_close(t, plan.PROFILE_LINE)
     elif hint:
         t.hint("hint.doctor.next", command=hint)
 
@@ -643,7 +677,7 @@ def read(cmd):
     entries = tools.listed(suite, on_path, cmd.env)
     described = describes(cmd, entries[1:])
     own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
-        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd)
+        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
     groups += own_doctors(cmd, entries[1:], described)

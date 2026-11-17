@@ -385,7 +385,9 @@ class Term:
     def error(self, mid, next_=None, **values):
         """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
         command to paste, with no mark (row sc4 R1); neither line holds a line or direction
-        control (sc4 review 1 F8)."""
+        control (sc4 review 1 F8). What stdout holds goes first, where both streams share one pipe
+        (row ic1-close R4)."""
+        self.out.flush()
         stream = self.err
         shown, painted = stream.mark("fail")
         stream.write(_ordered(painted + GAP + self.text(mid, **values)))
