@@ -266,11 +266,13 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.other`: at version `{have}`, and the source is at `{want}`; setup would place it again
 - `setup.launcher.page`: not placed, and not setup's to place: `{name}` installs its own command
 - `setup.launcher.theirs`: `{name}` installed its own command, at `{path}`; setup leaves it as it is
+- `setup.launcher.gone`: its code at `{tree}` is gone; the line below places it again
 - `setup.suite.ok`: at version `{version}`, the same as this command
 - `setup.suite.newer`: at version `{have}`, newer than this command's `{want}`; setup leaves it as it is
 - `setup.suite.behind`: at version `{have}`, and this command is at `{want}`; setup would place it again
 - `setup.suite.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.suite.missing`: not placed; setup would place it from this command
+- `setup.suite.gone`: its code at `{tree}` is gone; the line below places it again
 - `setup.door.ok`: in place, at this command's version or newer
 - `setup.door.above`: not placed, or older than this command's; the line above places it
 - `setup.door.place`: not placed, or older than this command's; the install-cli line below places it
@@ -571,6 +573,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.passed`: its doctor passed
 - `doctor.tool.failed`: its doctor failed
 - `doctor.tool.silent`: its doctor failed, and printed nothing
+- `doctor.tool.said`: its doctor failed, and said: `{last}`
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
@@ -582,6 +585,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.gone`: listed, but its folder is gone
 - `doctor.plan.earlier`: `{path}` comes first on PATH and runs in place of this one
 - `doctor.plan.other`: at another version than the source that stands
+- `doctor.plan.code`: its code at `{tree}` is gone
 - `doctor.source.undecided`: `{count}` plugins of this name are installed, and no source is declared
 - `doctor.source.twice`: installed for you and for this repo, and no source is declared
 - `doctor.source.repo`: the only plugin of this name came from this repo; no source is declared
