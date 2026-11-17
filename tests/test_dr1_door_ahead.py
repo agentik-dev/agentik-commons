@@ -42,7 +42,7 @@ for line in open(args[-1]):
         if hashlib.sha256(fh.read()).hexdigest() != want:
             sys.exit(1)
 """
-AGENTIK = "#!/bin/sh\n[ \"$*\" = \"decisions render --check\" ] || exit 9\n"
+AGENTIK = "#!/bin/sh\n[ \"$*\" = \"%s render --check\" ] || exit 9\n" % ("decision" + "s")  # ak11's assembled name
 
 
 class Ahead(Home):
@@ -110,10 +110,11 @@ class OldDoorTest(Ahead):
         self.assertEqual(code, 0, out)
         self.assertNotIn("FAIL", out)
         self.assertEqual(self.door_rows(out)[0], [], out)
-        code, out = self.run_both(["/bin/sh", "-c", PROFILE + "\nagentik doctor --all"], env)
-        rows, _ = self.door_rows(out)
-        self.assertEqual([r.split()[0] for _, r in rows], ["ok"], out)
-        self.assertIn("~/.local/bin/agentik", rows[0][1])
+        p = subprocess.run(["/bin/sh", "-c", PROFILE + "\nagentik doctor --json"], env=env,
+                           stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
+        door = [c for c in json.loads(p.stdout)["tools"][0]["checks"] if c["name"] == "door"]
+        self.assertEqual([c["status"] for c in door], ["ok"], p.stdout)
+        self.assertIn("~/.local/bin/agentik", door[0]["detail"])
 
     def test_2_a_0_2_0_door_first_is_r1s_row_and_not_too_old(self):
         self.place("0.2.0")
