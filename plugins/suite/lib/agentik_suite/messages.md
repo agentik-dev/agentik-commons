@@ -261,6 +261,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.launcher.inplace`: the plugin's command runs from the plugin's own folder, so there is nothing to place
 - `setup.launcher.ok`: at version `{version}`, the same as the plugin
 - `setup.launcher.behind`: at version `{have}`, and the plugin is at `{want}`; setup would place it again
+- `setup.launcher.newer`: at version `{have}`, newer than the plugin's `{want}`; setup leaves it as it is
 - `setup.launcher.unread`: holds no version line; setup would place it again at `{want}`
 - `setup.launcher.earlier`: `{path}` comes first on PATH, so it runs in place of this one; setup leaves both as they are
 - `setup.launcher.link`: a link to the source's own command, so there is nothing to place
@@ -578,6 +579,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`
+- `doctor.plan.newer`: at `{have}`, newer than the plugin's `{want}`
 - `doctor.plan.unread`: holds no version line
 - `doctor.plan.placed`: not placed
 - `doctor.tool.passed`: its doctor passed

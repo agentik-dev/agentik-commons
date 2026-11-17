@@ -349,6 +349,10 @@ def build(names, env, lib, tool, version, cwd=None):
             steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.ok",
                                version=want))
             placed.insert(0, placed.pop())  # a launcher at its version is the first to name
+        elif row["kind"] == "own" and agentik_install.newer(read.get("version"), want):
+            # never moved backward, as step 5's own (row up3-forward-only R3)
+            steps.append(_step(4, "launcher", "ok", shown(where, home), "setup.launcher.newer",
+                               have=read["version"], want=want))
         elif read.get("version"):  # another source's version is never called behind (R5)
             mid = "setup.launcher.behind" if row["kind"] == "own" else "setup.launcher.other"
             steps.append(_step(4, "launcher", "todo", shown(where, home), mid,
