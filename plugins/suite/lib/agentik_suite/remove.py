@@ -89,6 +89,16 @@ def user_path(home, user):
     return os.path.join(home, user[2:]) if user.startswith("~/") else user
 
 
+def once(found):
+    """(path, why) pairs, a folder once: keyed on its real path, its first path kept as given, so it
+    is tested and shown there (rm1 R5; its review 1, F3: `..` after a link, normalised, names another
+    folder)."""
+    out = {}
+    for p, why in found:
+        out.setdefault(os.path.realpath(p), (p, why))
+    return list(out.values())
+
+
 def cache_fate(env, home, guard=(), acted=()):
     """(the agentik cache folder, None where it goes or the reason it stays, the root its walk may
     remove under, the guarded path it would have reached or None). It goes only where it is a real
@@ -201,8 +211,7 @@ class Remove:
         found += [(os.path.join(self.config, "plugins", "data", name + "@agentik"), "remove.keep.data"),
                   (os.path.join(self.config, "plugins", "cache", "agentik", name), "remove.keep.cache")]
         self.guard += [p for p, _ in found]
-        found = [(os.path.normpath(p), why) for p, why in found]  # `a/` and `a`: one folder (rm1 R5)
-        return [(p, why) for p, why in dict(found).items() if os.path.lexists(p)]
+        return once([(p, why) for p, why in found if os.path.lexists(p)])  # `a/` and `a`: one folder (rm1 R5)
 
     # ---- the plan (R4, R5) ---------------------------------------------------------------------
 
@@ -262,7 +271,7 @@ class Remove:
             self.guard.append(cache)
             if os.path.lexists(cache):
                 self.keep.append((cache, "remove.keep.cache"))
-                self.soft.add(os.path.normpath(cache))
+                self.soft.add(cache)
             path, why, self.cache_root, reach = cache_fate(self.env, self.home, self.guards(), self.acted())
             if why == "remove.cache.acted" and self.a_row(path):
                 why = ""  # a row of step 2 or 5, the door say: that row is its one fate (G4)
@@ -271,10 +280,7 @@ class Remove:
                 steps.append(plan._step(6, "cache", "todo", self.shown(path), "remove.cache"))
             elif why:
                 steps.append(plan._step(6, "cache", "ok", self.shown(path), why, reach=self.shown(reach or "")))
-        once = {}
-        for p, why in self.keep:  # a folder named once (rm1 R5)
-            once.setdefault(os.path.normpath(p), why)
-        self.keep = list(once.items())
+        self.keep = once(self.keep)  # a folder named once (rm1 R5)
         steps += [plan._step(7, "keep", "ok", self.shown(p), why) for p, why in self.keep]
         rows = [r for e in self.tools for r in e["rows"]] + (self.suite_rows if self.all else [])
         return steps, held_of(rows)
