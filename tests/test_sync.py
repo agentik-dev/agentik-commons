@@ -130,7 +130,12 @@ class SyncTest(unittest.TestCase):
 
 
 PLACED = {"plugin/lib/agentik_install.py": "scripts/agentik_install.py",
-          "plugin/bin/agentik-x": "scripts/plugin-launcher", "plugin/bin/agentik": "bin/agentik"}
+          "plugin/bin/agentik-x": "scripts/plugin-launcher", "plugin/bin/agentik": "bin/agentik",
+          # packet ak10b-term: the writer, as the package agentik_term
+          "plugin/lib/agentik_term/term.py": "plugins/suite/lib/agentik_suite/term.py",
+          "plugin/lib/agentik_term/catalogue.py": "plugins/suite/lib/agentik_suite/catalogue.py"}
+TERM_INIT = "plugin/lib/agentik_term/__init__.py"  # its bytes are sync's own, listed
+TERM_OWN = "plugin/lib/agentik_term/messages.md"  # the tool's own, written once, not listed
 RUNNER = '''import os, sys
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 import agentik_install as a
@@ -166,17 +171,18 @@ class PluginTest(unittest.TestCase):
             self.assertTrue(os.access(Path(self.repo, copy), os.X_OK), copy)
         code, out = verify(self.repo)
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(out.splitlines()), sorted(c + ": OK" for c in [*COPIES, *PLACED]))
+        self.assertEqual(sorted(out.splitlines()), sorted(c + ": OK" for c in [*COPIES, *PLACED, TERM_INIT]))
         # the names are the tool's, written once and listed nowhere
         conf = Path(self.repo, "plugin/lib/agentik-tool.conf").read_text()
         self.assertIn("tool_name=agentik-x\nremedy=/x:install-cli\nrunner=agentik-x\n", conf)
         self.assertNotIn("agentik-tool.conf", Path(self.repo, "scripts/vendored.sha256").read_text())
-        self.assertEqual(self.snapshot(), {*COPIES, *PLACED, "scripts/vendored.sha256",
+        self.assertNotIn("messages.md", Path(self.repo, "scripts/vendored.sha256").read_text())
+        self.assertEqual(self.snapshot(), {*COPIES, *PLACED, TERM_INIT, TERM_OWN, "scripts/vendored.sha256",
                                            "plugin/.claude-plugin/plugin.json", "plugin/lib/agentik-tool.conf"})
 
     def test_a_one_byte_change_in_a_placed_copy_fails_the_check(self):
         sync(self.repo)
-        for copy in PLACED:
+        for copy in [*PLACED, TERM_INIT]:
             path = Path(self.repo, copy)
             good = path.read_bytes()
             path.write_bytes(good[:-1] + bytes([good[-1] ^ 1]))

@@ -19,9 +19,13 @@
 # not, plugin/.claude-plugin/plugin.json's name, and this writes the file once
 # from it, the tool's own to edit, never listed. It touches nothing else and
 # never commits: the packet that runs it does, and bumps the plugin (GUIDE §7).
+# The same repo gets the writer the suite draws with, as the package plugin/lib/agentik_term/:
+# term.py and catalogue.py from plugins/suite/lib/agentik_suite/ and an __init__.py this
+# writes, all three listed; and, once, when absent, plugin/lib/agentik_term/messages.md, the
+# tool's own catalogue, seeded with each id term.py names and commons' text for it, never listed.
 # A plugin/ with no lib/ gets the set a repo with no plugin/ gets.
 # Exit 0 done; 2 usage, a target that is not a git checkout (or is this repo),
-# or a plugin/lib/ that names no tool, with nothing written. CDPATH is never followed.
+# a plugin/lib/ that names no tool, or a seed id commons' messages.md lacks, with nothing written. CDPATH is never followed.
 set -eu
 
 usage() {
@@ -81,6 +85,23 @@ if [ -d "$target/plugin/lib" ]; then
 	esac
 fi
 
+# The ids term.py names itself (Term.error's err.next), each with its line in commons' catalogue,
+# for a tool's own messages.md (packet ak10b-term R2); read before anything is written.
+writer=plugins/suite/lib/agentik_suite
+term_ids="err.next"
+seed=
+if [ -n "$tool" ]; then
+	for id in $term_ids; do
+		item=$(awk -v p="- \`$id\`: " 'index($0, p) == 1 { print; exit }' "$here/$writer/messages.md")
+		if [ -z "$item" ]; then
+			echo "sync: $here/$writer/messages.md has no line for $id, which term.py names" >&2
+			exit 2
+		fi
+		seed="$seed$item
+"
+	done
+fi
+
 place() { # source under this repo, destination under the target, mode
 	dir=$target/${2%/*}
 	temp=$dir/.${2##*/}.sync.$$
@@ -103,6 +124,21 @@ if [ -n "$tool" ]; then
 	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
 	place scripts/plugin-launcher "plugin/bin/$tool" 755
 	place bin/agentik plugin/bin/agentik 755
+	place "$writer/term.py" plugin/lib/agentik_term/term.py 644
+	place "$writer/catalogue.py" plugin/lib/agentik_term/catalogue.py 644
+	pkg=$target/plugin/lib/agentik_term
+	printf '%s\n' '"""agentik_term: the one writer, term, and its catalogue, placed by agentik-commons scripts/sync (GUIDE section 10); messages.md beside them is the tool'"'"'s own."""' \
+		>"$pkg/.__init__.py.sync.$$"
+	chmod 644 "$pkg/.__init__.py.sync.$$"
+	mv -f "$pkg/.__init__.py.sync.$$" "$pkg/__init__.py"
+	if ! [ -e "$pkg/messages.md" ] && ! [ -L "$pkg/messages.md" ]; then
+		{
+			printf '# Messages\n\n'
+			printf '%s\n\n' "This catalogue is the tool's own, not a vendored copy: scripts/sync wrote it once and never writes it again. Each message the tool prints through term is one item here, by its id (GUIDE section 10)."
+			printf '%s' "$seed"
+		} >"$pkg/messages.md.sync.$$"
+		mv -f "$pkg/messages.md.sync.$$" "$pkg/messages.md"
+	fi
 	if ! [ -f "$conf" ]; then
 		cat >"$conf.sync.$$" <<EOF
 # This tool's names, for the canonical install-cli and launchers (GUIDE §10); not a vendored copy.
@@ -114,10 +150,10 @@ old_state=
 EOF
 		mv -f "$conf.sync.$$" "$conf"
 	fi
-	listed="$listed plugin/lib/agentik_install.py plugin/bin/$tool plugin/bin/agentik"
+	listed="$listed plugin/lib/agentik_install.py plugin/lib/agentik_term/__init__.py plugin/lib/agentik_term/term.py plugin/lib/agentik_term/catalogue.py plugin/bin/$tool plugin/bin/agentik"
 fi
 # shellcheck disable=SC2086 # the paths are this script's own, with no space
 (CDPATH= cd -P -- "$target" >/dev/null && sum $listed) >"$target/scripts/.vendored.sync.$$"
 mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"
 echo "sync: $target/scripts: $said"
-[ -z "$tool" ] || echo "sync: $target/plugin: lib/agentik_install.py, bin/$tool, bin/agentik"
+[ -z "$tool" ] || echo "sync: $target/plugin: lib/agentik_install.py, lib/agentik_term/__init__.py, lib/agentik_term/term.py, lib/agentik_term/catalogue.py, bin/$tool, bin/agentik"
