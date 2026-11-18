@@ -754,6 +754,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `records.row`: `{key}`: `{value}`
 - `records.none`: none
+- `records.holder.none`: none, so nothing is committed: no git repo holds the folder
+- `records.why.broken`: `{why}`; agentik.records is `{value}`
 - `records.why.no_key`: the repo keeps its records out, and this clone sets no agentik.records
 - `records.why.unread`: git cannot read this clone's agentik.records
 - `records.why.many`: this clone sets agentik.records more than once
@@ -766,6 +768,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.records.repo`: `{dir}` is in no git checkout, so it has no records to find
 - `doctor.records.own`: the records of `{repo}` are in its own tree, `{records}`
 - `doctor.records.out`: out: the records of `{repo}` are in `{records}`
+- `doctor.records.out_loose`: out: the records of `{repo}` are in `{records}`, in no git repo, so nothing is committed
 - `doctor.records.unset`: unset: `{why}`; set it with git config agentik.records and a folder
 - `doctor.records.broken`: broken: `{why}`
 

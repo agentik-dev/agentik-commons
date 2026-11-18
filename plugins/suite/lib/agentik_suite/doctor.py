@@ -201,6 +201,16 @@ def user_settings(cmd):
     return [_check("settings", "ok", cmd.t.text("doctor.settings.ok", path=shown))]
 
 
+def records_why(t, found, start):
+    """The sentence for `found`'s why; in `broken` it names the key's values too (C4 of
+    rr2-records-resolver's fix), each cleaned as every value on screen is."""
+    why = t.text("records.why." + found["why"].replace("-", "_"))
+    held = agentik_records.values(start) if found["state"] == "broken" else []
+    if not held:
+        return why
+    return t.text("records.why.broken", why=why, value=", ".join(v if v else '""' for v in held))
+
+
 def records_row(cmd):
     """The repo the command stands in: where its working records are (packet rr2-records-resolver
     R8). ok in own and out, warn in unset, fail in broken, the state named but in own; no row
@@ -211,9 +221,10 @@ def records_row(cmd):
         return []
     t, home, state = cmd.t, cmd.env.get("HOME"), found["state"]
     if state in ("own", "out"):
-        return [_check("records", "ok", t.text("doctor.records." + state, repo=plan.shown(found["repo"], home),
+        mid = "doctor.records.out_loose" if state == "out" and found["holder"] is None else "doctor.records." + state
+        return [_check("records", "ok", t.text(mid, repo=plan.shown(found["repo"], home),
                                               records=plan.shown(found["records"], home)))]
-    why = t.text("records.why." + found["why"].replace("-", "_"))
+    why = records_why(t, found, cmd.cwd)
     return [_check("records", "warn" if state == "unset" else "fail", t.text("doctor.records." + state, why=why))]
 
 

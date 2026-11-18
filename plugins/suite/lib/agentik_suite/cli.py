@@ -772,7 +772,9 @@ class Command:
         for key in ("repo", "records", "holder", "prefix", "state", "why"):
             value = found[key]
             if key == "why" and value:
-                value = self.t.text("records.why." + value.replace("-", "_"))
+                value = doctor.records_why(self.t, found, start)
+            elif key == "holder" and value is None and found["state"] == "out":
+                value = self.t.text("records.holder.none")
             self.t.line("records.row", key=key, value=self.t.text("records.none") if value is None else value)
         return 0
 

@@ -14,12 +14,12 @@
 |---|---|
 | P..G build 1: packet, R1 to R9, gate 20261118-060553-2642 exit 0 at 56eae2c | done |
 | F1 C1, C2, C5: presence read without `--path` (`unread`, `many`); `repo` the worktree list's first entry; `inside` by same file up the parents and by the shared common git folder; the name by the parent's listing; 43 cases, 15 red at 56eae2c, 43 green | done |
-| F2 C3, C4: `records: out` in `.hygiene-allow` alone; GUIDE §12; the broken line names the key and its values; an `out` with no holder says nothing is committed | open |
+| F2 C3, C4: `records: out` in `.hygiene-allow` alone; GUIDE §12; the broken line names the key and its values; an `out` with no holder says nothing is committed (`doctor.records_why`, `values`); 12 tests of the row OK, 189 of the touched files but the sidecar's | done |
 | F3 `make voice`, `make check` through the gate | open |
 
 ## Next act
 
-F2, then F3.
+F3: `make voice`, commit the sidecar, then `make check`.
 
 ## Handover
 

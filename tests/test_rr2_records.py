@@ -235,7 +235,29 @@ class SuiteTest(unittest.TestCase):
         self.assertIn("state: broken", rows)
         self.assertIn("records: none", rows)
         self.assertTrue(rows[-1].startswith("why: agentik.records names a folder whose name"), rows[-1])
+        self.assertTrue(rows[-1].endswith("; agentik.records is " + os.path.join(self.root, "recs", "gadget")), rows[-1])
         self.assertEqual(sorted(str(p) for p in Path(self.root).rglob("*") if "cache" not in p.parts), before)
+
+    def test_broken_names_the_key_and_its_values_cleaned(self):
+        """C4: the broken line names agentik.records and each value, an escape byte taken out."""
+        os.makedirs(os.path.join(self.root, "a", "widget"))
+        git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "a", "widget"))
+        git(self.env, self.clone, "config", "--local", "--add", "agentik.records", "x\x1b[31m/widget")
+        code, out, err = self.suite(self.clone, "records")
+        self.assertEqual((code, err), (0, ""))
+        self.assertNotIn("\x1b", out)
+        self.assertEqual(out.splitlines()[-1], "why: this clone sets agentik.records more than once; agentik.records is "
+                         + os.path.join(self.root, "a", "widget") + ", x[31m/widget")
+        code, rows = self.doctor_row(self.clone)
+        self.assertEqual([r["status"] for r in rows], ["fail"])
+        self.assertNotIn("\x1b", rows[0]["detail"])
+        self.assertIn("; agentik.records is ", rows[0]["detail"])
+
+    def test_out_with_no_holder_says_nothing_is_committed(self):
+        os.makedirs(os.path.join(self.root, "recs", "widget"))
+        git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "recs", "widget"))
+        code, out, err = self.suite(self.clone, "records")
+        self.assertIn("holder: none, so nothing is committed: no git repo holds the folder", out.splitlines())
 
     def test_records_refusals(self):
         loose = os.path.join(self.root, "loose")
@@ -261,12 +283,16 @@ class SuiteTest(unittest.TestCase):
         git(self.env, self.clone, "config", "--local", "agentik.records", "relative/widget")
         code, rows = self.doctor_row(self.clone)
         self.assertEqual([(r["status"], r["detail"]) for r in rows],
-                         [("fail", "broken: agentik.records is not an absolute path")])
+                         [("fail", "broken: agentik.records is not an absolute path; agentik.records is relative/widget")])
         self.assertEqual(code, 1)
         os.makedirs(os.path.join(self.root, "hq", "widget"))
         git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "hq", "widget"))
         code, rows = self.doctor_row(self.clone)
         self.assertEqual([(r["status"], r["detail"].split(":")[0]) for r in rows], [("ok", "out")])
+        self.assertTrue(rows[0]["detail"].endswith(", in no git repo, so nothing is committed"), rows[0]["detail"])
+        git(self.env, os.path.join(self.root, "hq"), "init", "-q", "-b", "main")
+        code, rows = self.doctor_row(self.clone)
+        self.assertNotIn("nothing is committed", rows[0]["detail"])
         loose = os.path.join(self.root, "loose")
         os.mkdir(loose)
         self.assertEqual(self.doctor_row(loose)[1], [])
