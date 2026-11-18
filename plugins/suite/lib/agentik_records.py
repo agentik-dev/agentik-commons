@@ -24,7 +24,8 @@ spelling of a path, in case or through a link, gets in), named as the main check
 on disk, in no repository that shares the clone's git folder, and in a holder whose tree does not
 declare `out` itself. The declaration is the whole line `records: out` in `.hygiene-allow`, read
 from the file at HEAD through git; a line in an untracked, uncommitted or local file declares
-nothing. Git runs as `git -C <folder>`, never in the current directory, with the repository's
+nothing. Git runs as `git --no-replace-objects -C <folder>`, never in the current directory,
+so a replace ref moves no answer, as it moves none of the scanner's, with the repository's
 own environment variables dropped. `NoRepo` is raised where `start` is no folder, git is absent,
 or `start` stands in no git working tree. `values(start)` gives the key's values as the clone's
 config holds them, for a tool to name in its `broken` line. It writes nothing.
@@ -55,7 +56,7 @@ def _env():
 def _git(folder, *args):
     """(exit, stdout less its last newline) of git run in `folder`; (None, "") with no git."""
     try:
-        p = subprocess.run(["git", "-C", folder] + list(args), stdin=subprocess.DEVNULL,
+        p = subprocess.run(["git", "--no-replace-objects", "-C", folder] + list(args), stdin=subprocess.DEVNULL,
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=_env())
     except OSError:
         return None, ""
