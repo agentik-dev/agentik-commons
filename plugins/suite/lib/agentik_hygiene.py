@@ -49,12 +49,17 @@ the scanner and the resolver never differ on a line in silence. In a tree that d
 (the working `.hygiene-allow`, the one at `HEAD` or the `--allow` file), each scanned
 path under a record name is one `records` line that no row excuses: `history/`,
 `design/packets/`, `bugs/`, `HANDOFF.md`, `NICE_TO_HAVE.md`, `OPEN-QUESTIONS.md`,
-`relay/queue.yaml` and `.hygiene-live`, each at the root, matched as git spells the
-path. Under `--commits` each path a commit adds or modifies under a record name is one
-line where the tip or the base declares (each read from its `.hygiene-allow` blob, the
-base being the range's negative revisions); a removal is none; a base that declares
-with a tip that does not is one more line, on `.hygiene-allow`, so the push it would
-refuse cannot switch the guard off. The group shows only where the scan declares.
+`relay/queue.yaml` and `.hygiene-live`, each at the root, the names case-folded (a
+case-blind file system holds `History/` as `history/`). Under `--commits` each path a
+commit adds or modifies under a record name is one line where the tip or the base
+declares (each read from its `.hygiene-allow` blob, the base being the range's negative
+revisions), a merge's against its first parent (`git diff-tree`; its diff is still
+never scanned for the other groups); a removal is none; a base that declares with a tip
+that does not is one more line, on `.hygiene-allow`, so the push it would refuse cannot
+switch the guard off. Read for the declaration alone, an allow file never fails a scan:
+an entry that is no regular file (a symlink) declares nothing, and bytes that are not
+UTF-8 decode as the resolver's (`surrogateescape`); the read as rows fails as before.
+The group shows only where the scan declares.
 
 This file holds the generic groups only: patterns that name nobody. The terms
 private to one owner (a name, a host, a domain, a private repo) live outside the
@@ -200,6 +205,8 @@ RECORDS_GROUP = "records"
 RECORD_DIRS = ("history/", "design/packets/", "bugs/")
 RECORD_FILES = ("HANDOFF.md", "NICE_TO_HAVE.md", "OPEN-QUESTIONS.md", "relay/queue.yaml",
                 LIVE_FILE)
+RECORD_DIRS_FOLDED = tuple(n.casefold() for n in RECORD_DIRS)
+RECORD_FILES_FOLDED = tuple(n.casefold() for n in RECORD_FILES)
 # Git reads these before `-C`: a caller's would point it at another repo, work tree or
 # index than `--repo`'s, so they leave its environment in both modes.
 GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
@@ -412,34 +419,73 @@ def declares(text):
 
 
 def is_record(path):
-    """True for a path under a record name of design/28 item 7, at the repo's root."""
-    return path.startswith(RECORD_DIRS) or path in RECORD_FILES
+    """True for a path under a record name of design/28 item 7, at the repo's root, the
+    names case-folded: on a case-blind file system `History/` is `history/`."""
+    folded = path.casefold()
+    return folded.startswith(RECORD_DIRS_FOLDED) or folded in RECORD_FILES_FOLDED
 
 
-def read_text(path):
-    """A file's UTF-8 text, None where it is absent; unreadable is a Failure."""
-    if not os.path.exists(path):
-        return None
+def declared_file(path):
+    """Whether a working allow file declares, read for the declaration alone: what is
+    absent, no regular file or unreadable declares nothing, and its bytes decode as the
+    resolver's (`surrogateescape`). It never fails a scan; the rows' read still does."""
+    if os.path.islink(path) or not os.path.isfile(path):
+        return False
     try:
-        with open(path, encoding="utf-8") as fh:
-            return fh.read()
-    except (OSError, UnicodeDecodeError) as exc:
-        raise Failure("cannot read the allow file %s: %s" % (path, why(exc))) from None
+        with open(path, "rb") as fh:
+            return declares(fh.read().decode("utf-8", "surrogateescape"))
+    except OSError:
+        return False
+
+
+def declared_blob(repo, rev):
+    """Whether `.hygiene-allow` in commit `rev` declares, read for the declaration alone:
+    no such path, an entry that is no regular file, or git failing declares nothing."""
+    try:
+        entry = git_out(repo, ["ls-tree", "-z", "--full-tree", rev, "--", ALLOW_FILE],
+                        "git ls-tree failed").split(b"\0")[0]
+        meta = entry.split(b"\t")[0].split()
+        if meta[:2] not in ([b"100644", b"blob"], [b"100755", b"blob"]):
+            return False
+        blob = git_out(repo, ["cat-file", "blob", meta[2].decode("ascii")],
+                       "git cat-file failed")
+    except Failure:
+        return False
+    return declares(blob.decode("utf-8", "surrogateescape"))
 
 
 def tree_declares(repo, allow):
     """True where the working `.hygiene-allow`, the one at HEAD or the `--allow` file
     (`allow`, or None) declares: removing the line in the working file alone keeps the
     guard on."""
-    texts = [read_text(os.path.join(repo, ALLOW_FILE))]
-    if allow is not None:
-        texts.append(read_text(allow))
+    if declared_file(os.path.join(repo, ALLOW_FILE)):
+        return True
+    if allow is not None and declared_file(allow):
+        return True
     head = subprocess.run(list(GIT) + [repo, "rev-parse", "--verify", "--quiet",
                                        "HEAD^{commit}"],
                           capture_output=True, env=git_env())
-    if head.returncode == 0:
-        texts.append(allow_blob(repo, head.stdout.decode("ascii", "replace").strip())[0])
-    return any(declares(t) for t in texts if t is not None)
+    return head.returncode == 0 and declared_blob(
+        repo, head.stdout.decode("ascii", "replace").strip())
+
+
+def merge_records(repo, rng):
+    """[(short sha, path)] for each path a merge of the range adds or modifies against its
+    first parent under a record name: a merge's diff is never scanned, but a record its
+    resolution alone adds reaches the remote in its tree."""
+    out = git_out(repo, ["rev-list", "--min-parents=2", "--end-of-options", rng, "--"],
+                  "git rev-list of the range's merges failed")
+    found = []
+    for merge in out.decode("ascii", "replace").split():
+        names = git_out(repo, ["diff-tree", "-z", "-r", "--no-renames", "--no-ext-diff",
+                               "--no-textconv", "--name-status", "--no-commit-id",
+                               merge + "^1", merge], "git diff-tree of a merge failed")
+        parts = names.split(b"\0")
+        for status, path in zip(parts[0::2], parts[1::2]):
+            path = path.decode("utf-8", "surrogateescape")
+            if status[:1] != b"D" and is_record(path):
+                found.append((merge[:SHORT], path))
+    return found
 
 
 def parse_allow(text, path, known, strict):
@@ -892,6 +938,9 @@ def scan_commits(repo, rng, entries, compiled, declared=False, switched_off=None
         code = proc.wait()
     if code != 0:
         raise Failure("git log of the range failed in %s: exit %d" % (repo, code))
+    if declared:
+        for merge, where in merge_records(repo, rng):
+            count(merge, where, (RECORDS_GROUP,))
     if switched_off:
         count(switched_off, ALLOW_FILE, (RECORDS_GROUP,))
     groups = {name: {"lines": 0, "files": 0, "outside_lines": 0, "outside_files": 0}
@@ -951,8 +1000,8 @@ def main(argv):
         else:
             entries = load_allow(allow, opts["allow"] is not None, known, bool(private))
         if opts["commits"] is not None:
-            at_tip = declares(allow_blob(repo, tip)[0] or "")
-            at_base = any(declares(allow_blob(repo, b)[0] or "") for b in bases)
+            at_tip = declared_blob(repo, tip)
+            at_base = any(declared_blob(repo, b) for b in bases)
             result = scan_commits(repo, opts["commits"], entries, compiled, at_tip or at_base,
                                   tip[:SHORT] if at_base and not at_tip else None)
         else:

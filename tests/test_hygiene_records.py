@@ -22,7 +22,10 @@ MAIL = "t" + "@x.invalid"  # split, so no line of this file is an address
 RECORDS = ["history/sittings/2026-01-01-1.md", "history/sessions/NEXT", "design/packets/p.md",
            "HANDOFF.md", "NICE_TO_HAVE.md", "OPEN-QUESTIONS.md", "bugs/b1.md",
            "relay/queue.yaml", ".hygiene-live"]
-NOT_RECORDS = ["design/notes.md", "docs/HANDOFF.md", "handoff.md", "history.md",
+# C3: the root names compare case-folded, so `Handoff.md` and `History/` are records
+FOLDED = ["Handoff.md", "History/sittings/2026-01-01-1.md", "Bugs/b1.md", "Design/Packets/p.md",
+          "RELAY/Queue.yaml", ".HYGIENE-LIVE"]
+NOT_RECORDS = ["design/notes.md", "docs/HANDOFF.md", "history.md",
                "relay/other.yaml", "design/packets-old/p.md", "sub/history/x.md", "README.md",
                "DECI" + "SIONS.md", "DESIGN.md", ".claude/agentik/config.yaml"]
 # rr2 review 1's probe5: near misses that declare nothing, then the lines that declare
@@ -82,7 +85,7 @@ class Repo(unittest.TestCase):
         for rel, text in files.items():
             path = Path(self.repo, rel)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, newline="")
+            path.write_bytes(text if isinstance(text, bytes) else text.encode("utf-8"))
 
     def commit(self, files, message="work", delete=()):
         self.write(files)
@@ -231,7 +234,7 @@ class ProbeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = os.path.realpath(tmp)
             git(repo, "init", "-q", "-b", "main")
-            Path(repo, ".hygiene-allow").write_text(line + "\n", newline="")
+            Path(repo, ".hygiene-allow").write_bytes((line + "\n").encode("utf-8"))
             Path(repo, "HANDOFF.md").write_text("a\n")
             git(repo, "add", "--", ".hygiene-allow", "HANDOFF.md")
             git(repo, "commit", "-q", "-m", "base")
@@ -344,6 +347,118 @@ class RangeTest(Repo):
         other = os.path.join(PRIVATE_DIR.name, "rows.allow")
         Path(other).write_text("HANDOFF.md: sibling\n")
         self.scan("--commits", "main..work", "--allow", other, code=1)
+
+
+class FixTest(Repo):
+    """Review 1's F1 to F5 (brief 2's C1 to C4), each probe a case."""
+
+    def declared_main(self):
+        self.commit({"README.md": "a\n", ".hygiene-allow": DECLARE}, "base")
+        return git(self.repo, "rev-parse", "HEAD")
+
+    def test_f1_a_symlinked_allow_file_at_a_base_declares_nothing(self):
+        Path(self.repo, "rows.txt").write_text("# none\n")
+        os.symlink("rows.txt", os.path.join(self.repo, ".hygiene-allow"))
+        git(self.repo, "add", "--", "rows.txt", ".hygiene-allow")
+        git(self.repo, "commit", "-q", "-m", "base")
+        base = git(self.repo, "rev-parse", "HEAD")
+        git(self.repo, "rm", "-q", ".hygiene-allow")
+        self.commit({".hygiene-allow": "# none\n", "HANDOFF.md": "a\n"})
+        got, d, err = self.scan("--commits", base + "..HEAD", code=0)
+        self.assertEqual(err, "")
+        self.assertNotIn("records", d["groups"])
+
+    def test_f1_a_tracked_symlinked_allow_file_in_an_undeclared_tree(self):
+        Path(self.repo, "rows.txt").write_text("# none\n")
+        os.symlink("rows.txt", os.path.join(self.repo, ".hygiene-allow"))
+        self.commit({"rows.txt": "# none\n"})
+        git(self.repo, "add", "--", ".hygiene-allow")
+        self.commit({"HANDOFF.md": "a\n"})
+        got, d, err = self.scan(code=0)
+        self.assertEqual(err, "")
+        self.assertNotIn("records", d["groups"])
+
+    def test_f1_a_symlink_holding_the_line_declares_nothing(self):
+        Path(self.repo, "rows.txt").write_text(DECLARE)
+        os.symlink("rows.txt", os.path.join(self.repo, ".hygiene-allow"))
+        git(self.repo, "add", "--", "rows.txt", ".hygiene-allow")
+        self.commit({"HANDOFF.md": "a\n"})
+        self.assertEqual(resolver_state(self.repo), "own")
+        _, d, _ = self.scan(code=0)
+        self.assertNotIn("records", d["groups"])
+
+    def test_f2_a_record_only_a_merge_adds_is_a_hit(self):
+        base = self.declared_main()
+        git(self.repo, "checkout", "-q", "-b", "side")
+        self.commit({"side.txt": "s\n"})
+        git(self.repo, "checkout", "-q", "main")
+        self.commit({"m.txt": "m\n"})
+        subprocess.run(["git", "-C", self.repo, "merge", "-q", "--no-commit", "side"],
+                       capture_output=True, env=QUIET)
+        merge = self.commit({"history/notes.md": "notes\n"}, "merge")
+        self.commit({}, "drop", delete=["history/notes.md"])
+        self.assertIn("history/notes.md", git(self.repo, "ls-tree", "-r", "--name-only", merge))
+        _, d, _ = self.scan("--commits", base + "..main", code=1)
+        self.assertEqual(self.records(d), ["history/notes.md"])
+        self.assertEqual(d["commits"]["hit"], [merge])
+        self.scan(code=0)
+
+    def test_f2_a_merge_that_brings_no_record_adds_no_hit(self):
+        base = self.declared_main()
+        git(self.repo, "checkout", "-q", "-b", "side")
+        self.commit({"side.txt": "s\n"})
+        git(self.repo, "checkout", "-q", "main")
+        self.commit({"m.txt": "m\n"})
+        git(self.repo, "merge", "-q", "--no-edit", "side")
+        _, d, _ = self.scan("--commits", base + "..main", code=0)
+        self.assertEqual(d["groups"]["records"]["lines"], 0)
+
+    def test_f3_a_working_file_not_utf8_beside_an_allow_flag_passes(self):
+        self.commit({"README.md": "a\n"})
+        self.write({".hygiene-allow": b"# \xff\n"})
+        other = os.path.join(PRIVATE_DIR.name, "plain.allow")
+        Path(other).write_text("# none\n")
+        _, d, err = self.scan("--allow", other, code=0)
+        self.assertEqual(err, "")
+        self.assertNotIn("records", d["groups"])
+
+    def test_f3_a_declaration_beside_bytes_not_utf8_still_declares(self):
+        self.commit({"README.md": "a\n", "HANDOFF.md": "a\n"})
+        self.write({".hygiene-allow": b"records: out\n# \xff\n"})
+        other = os.path.join(PRIVATE_DIR.name, "plain.allow")
+        Path(other).write_text("# none\n")
+        _, d, _ = self.scan("--allow", other, code=1)
+        self.assertEqual(self.records(d), ["HANDOFF.md"])
+
+    def test_f3_the_rows_read_still_fails_as_at_the_pin(self):
+        self.commit({"README.md": "a\n"})
+        self.write({".hygiene-allow": b"# \xff\n"})
+        got, out, err = run(self.repo)
+        self.assertEqual(got, 2)
+        self.assertIn("not UTF-8", err)
+
+    def test_f4_a_replace_ref_moves_neither_reader(self):
+        self.commit({"README.md": "a\n", ".hygiene-allow": DECLARE, "HANDOFF.md": "a\n"})
+        old = git(self.repo, "rev-parse", "HEAD:.hygiene-allow")
+        new = subprocess.run(["git", "-C", self.repo, "hash-object", "-w", "--stdin"],
+                             input="a: sibling\n", capture_output=True, text=True,
+                             env=QUIET, check=True).stdout.strip()
+        git(self.repo, "replace", old, new)
+        self.assertEqual(resolver_state(self.repo), "unset")
+        _, d, _ = self.scan(code=1)
+        self.assertEqual(self.records(d), ["HANDOFF.md"])
+
+    def test_f5_root_names_fold_case_in_the_tree(self):
+        self.commit({".hygiene-allow": DECLARE})
+        self.commit({p: "a\n" for p in FOLDED})
+        _, d, _ = self.scan(code=1)
+        self.assertEqual(self.records(d), sorted(FOLDED))
+
+    def test_f5_root_names_fold_case_in_a_range(self):
+        base = self.declared_main()
+        self.commit({p: "a\n" for p in FOLDED})
+        _, d, _ = self.scan("--commits", base + "..HEAD", code=1)
+        self.assertEqual(self.records(d), sorted(FOLDED))
 
 
 if __name__ == "__main__":
