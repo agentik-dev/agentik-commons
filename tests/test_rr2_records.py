@@ -141,3 +141,29 @@ class CasesTest(unittest.TestCase):
         imports = {a.name for node in ast.walk(ast.parse(text)) if isinstance(node, ast.Import) for a in node.names}
         imports |= {node.module for node in ast.walk(ast.parse(text)) if isinstance(node, ast.ImportFrom)}
         self.assertLessEqual(imports, {"os", "subprocess"})
+
+
+class SyncTest(unittest.TestCase):
+    """R7: in a made-up tool tree with plugin/lib/, sync places the resolver, lists it and names it;
+    the placed copy runs under -I with that plugin/lib alone on the path."""
+
+    def test_sync_places_the_resolver(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = os.path.realpath(tmp)
+            env = quiet_env(root)
+            tool = os.path.join(root, "widget")
+            repo(env, tool)
+            os.makedirs(os.path.join(tool, "plugin", ".claude-plugin"))
+            os.makedirs(os.path.join(tool, "plugin", "lib"))
+            Path(tool, "plugin/.claude-plugin/plugin.json").write_text(json.dumps({"name": "widget", "version": "0.1.0"}))
+            p = subprocess.run([str(ROOT / "scripts" / "sync"), tool], capture_output=True, text=True, env=env)
+            self.assertEqual((p.returncode, p.stderr), (0, ""))
+            self.assertIn("lib/agentik_install.py, lib/agentik_records.py, lib/agentik_term/", p.stdout)
+            placed = Path(tool, "plugin/lib/agentik_records.py")
+            self.assertEqual(placed.read_bytes(), SCRIPT.read_bytes())
+            self.assertIn("  plugin/lib/agentik_records.py\n", Path(tool, "scripts/vendored.sha256").read_text())
+            probe = ("import sys; sys.path.insert(0, sys.argv[1]); import agentik_records as r; "
+                     "print(r.resolve(sys.argv[2])['state'])")
+            p = subprocess.run(["/usr/bin/python3", "-I", "-c", probe, str(placed.parent), tool],
+                               capture_output=True, text=True, env=env)
+            self.assertEqual((p.returncode, p.stdout), (0, "own\n"), p.stderr)

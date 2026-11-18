@@ -14,14 +14,14 @@
 |---|---|
 | P the packet and this charter | done |
 | A R1 to R6: the resolver, `tests/records_cases.json` (28 cases), `tests/test_rr2_records.py`; `-k test_cases` red with the file moved aside (1 error), 4 OK under python3 and /usr/bin/python3 | done |
-| B R7: `scripts/sync` places the resolver; its test | open |
+| B R7: `scripts/sync` places `plugin/lib/agentik_records.py`, listed and named; `tests/test_sync.py`'s placed set; `test_rr2_records.SyncTest` (the copy runs under `-I`); test_sync and test_ak10b_term 22 OK; acceptance 2 by `cmp` with the pin's no-lib sums (61746a92); the README's rows | done |
 | C R8: the suite's copy, `records`, the doctor row, the catalogue, the voice sidecar, the version | open |
 | D R9: GUIDE §12 | open |
 | G hygiene over the branch; `make check` through the gate | open |
 
 ## Next act
 
-B: `scripts/sync` places the resolver.
+C: the suite's copy, `records` and the doctor row.
 
 ## Handover
 
