@@ -299,3 +299,20 @@ A read still running at its wall reads as `timed out`, with no stderr line. A re
 7. A layer file that does not parse: `ok` false, `error.code` `bad_file`, the file in `error.message`, exit 2; or, in a tool that skips such a file, `ok` true and one `unreadable` warning naming it.
 8. After every read but the doctor read: the temp HOME outside `$XDG_CACHE_HOME/agentik/` holds the files it held before, byte for byte, `~/Library/Caches` among them. The doctor read may add files under the tool's own state folder and nowhere else.
 9. Every `summary` is one sentence under its bound, and no two settings share a `key`.
+
+## §12 The records root: where a repo's working records are (hq design/28)
+
+A repo's working records (its charters, packets, build order, wish list and open questions) live in its own tree unless the clone says otherwise. One key in the clone's own git config, `agentik.records`, names a folder outside the clone that holds them, each record at the path it has in a repo today. It is read as `git config --local --path --get agentik.records`, so a worktree sees the main checkout's value, git expands a leading `~`, and neither the user's file, the environment nor a worktree's own file can state it. A public repo also tracks one line that says its records live out: `suite.records: out` in `.claude/agentik/config.yaml`, or `records: out` in `.hygiene-allow`. The line counts only in the file as committed at `HEAD`; an untracked or uncommitted line says nothing.
+
+`scripts/agentik_records.py` is the one resolver, stdlib at Python 3.9; `sync` places it at `plugin/lib/agentik_records.py` (§10) and the suite holds a byte-equal copy. `resolve(folder)` answers the object `agentik.records/1`: `repo` (the main checkout, through the common git folder), `records`, `holder` (the top of the git repository whose working folder holds `records`, or none), `prefix` (`records` relative to `holder`), `state` and `why`. A folder in no git checkout raises `NoRepo`. Its cases are data, `tests/records_cases.json`, one layout a case, so a tool in another language runs the same table.
+
+| state | when | records |
+|---|---|---|
+| `own` | no key, and the tree does not declare its records out | the top of the working tree the call stands in, so a worktree's records ride its branch |
+| `out` | the key resolves | the key's folder; git acts on a record run in `holder` |
+| `unset` | the tree declares its records out and the clone has no key (`why` is `no-key`) | none: write no record and ask for none |
+| `broken` | the key is set and does not resolve | none, and never the repo's root; refuse each record read and write |
+
+The key resolves when its value is absolute (else `why` is `relative`; a value git cannot read is `unread`), names a folder that is there (`missing`), lies outside the main checkout and every worktree of the clone by real path (`inside`), ends in the main checkout's folder name (`name`), and sits in a holder whose own tree does not declare its records out (`holder`). A private repo may set the key without the line; it is then `out` with no guard.
+
+`agentik records [--json] [DIR]` prints the object for DIR, the working folder by default, and writes nothing: plain, one line a key, `why` as a sentence; `--json`, the object alone. It exits 0 in every state, and 2 for a DIR that is no folder or in no git checkout. `agentik doctor` gives the repo it stands in one row, `records`: `ok` in `own` and `out`, `warn` in `unset`, `fail` in `broken`, every state but `own` by name with its reason.
