@@ -32,10 +32,11 @@ import sys
 import time
 
 import agentik_install
+import agentik_records
 
 from . import apply, config, doctor, inbox, init, install, issue, plan, prog, remove, status, term, tools, update
 
-VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue", "init")
+VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue", "init", "records")
 KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
 WRITES = ("setup", "update", "remove", "install-cli", "issue", "init")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
@@ -185,6 +186,8 @@ def _takes(verb, o, nouns):
         return len(nouns) <= 1 and all(n in VERBS for n in nouns)
     if verb in ("version", "doctor"):
         return not nouns
+    if verb == "records":
+        return len(nouns) <= 1
     if verb == "install-cli":
         return not nouns and o["prefix"] != ""
     if verb in ("setup", "update"):
@@ -746,6 +749,34 @@ class Command:
 
     def do_init(self, nouns):
         return init.do_init(self, nouns)
+
+    # ---- records --------------------------------------------------------------------------
+
+    def do_records(self, nouns):
+        """Where the repo of DIR, the working folder by default, keeps its working records: the
+        `agentik.records/1` object of agentik_records.resolve (packet rr2-records-resolver R8).
+        Plain, one line a key; --json, the object alone. Exit 0 in every state; it writes nothing."""
+        if len(nouns) > 1:
+            self._no_nouns(nouns[1:], one=True)
+        typed = nouns[0] if nouns else "."
+        start = os.path.join(self.cwd, typed)
+        if not os.path.isdir(start):
+            raise Refusal("not_dir", "err.records.dir", None, dir=typed)
+        try:
+            found = agentik_records.resolve(start)
+        except agentik_records.NoRepo:
+            raise Refusal("no_repo", "err.records.repo", None, dir=typed)
+        if self.opts["json"]:
+            self.t.json(found)
+            return 0
+        for key in ("repo", "records", "holder", "prefix", "state", "why"):
+            value = found[key]
+            if key == "why" and value:
+                value = doctor.records_why(self.t, found, start)
+            elif key == "holder" and value is None and found["state"] == "out":
+                value = self.t.text("records.holder.none")
+            self.t.line("records.row", key=key, value=self.t.text("records.none") if value is None else value)
+        return 0
 
 
 def main(argv=None, env=None, out=None, err=None):

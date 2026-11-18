@@ -13,7 +13,8 @@
 # target runs recordlint (hq design/05 §4).
 #
 # A repo with a plugin/lib/ also gets, in the same file, scripts/agentik_install.py
-# at plugin/lib/agentik_install.py, scripts/plugin-launcher at
+# at plugin/lib/agentik_install.py, scripts/agentik_records.py, the records root's resolver
+# (GUIDE §12), at plugin/lib/agentik_records.py, scripts/plugin-launcher at
 # plugin/bin/agentik-<tool> and bin/agentik at plugin/bin/agentik (GUIDE §10).
 # <tool> is plugin/lib/agentik-tool.conf's tool_name when that file exists; when
 # not, plugin/.claude-plugin/plugin.json's name, and this writes the file once
@@ -122,6 +123,7 @@ listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/readme-top sc
 said="agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
 if [ -n "$tool" ]; then
 	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
+	place scripts/agentik_records.py plugin/lib/agentik_records.py 644
 	place scripts/plugin-launcher "plugin/bin/$tool" 755
 	place bin/agentik plugin/bin/agentik 755
 	place "$writer/term.py" plugin/lib/agentik_term/term.py 644
@@ -150,10 +152,10 @@ old_state=
 EOF
 		mv -f "$conf.sync.$$" "$conf"
 	fi
-	listed="$listed plugin/lib/agentik_install.py plugin/lib/agentik_term/__init__.py plugin/lib/agentik_term/term.py plugin/lib/agentik_term/catalogue.py plugin/bin/$tool plugin/bin/agentik"
+	listed="$listed plugin/lib/agentik_install.py plugin/lib/agentik_records.py plugin/lib/agentik_term/__init__.py plugin/lib/agentik_term/term.py plugin/lib/agentik_term/catalogue.py plugin/bin/$tool plugin/bin/agentik"
 fi
 # shellcheck disable=SC2086 # the paths are this script's own, with no space
 (CDPATH= cd -P -- "$target" >/dev/null && sum $listed) >"$target/scripts/.vendored.sync.$$"
 mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"
 echo "sync: $target/scripts: $said"
-[ -z "$tool" ] || echo "sync: $target/plugin: lib/agentik_install.py, lib/agentik_term/__init__.py, lib/agentik_term/term.py, lib/agentik_term/catalogue.py, bin/$tool, bin/agentik"
+[ -z "$tool" ] || echo "sync: $target/plugin: lib/agentik_install.py, lib/agentik_records.py, lib/agentik_term/__init__.py, lib/agentik_term/term.py, lib/agentik_term/catalogue.py, bin/$tool, bin/agentik"

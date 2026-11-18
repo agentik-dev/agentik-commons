@@ -89,3 +89,6 @@ tests/test_ak9b_plug_reader.py: sibling
 # the hq scaffold test's stub checks the verb a new hq runs, as the scaffold names it (row
 # dr1-door-ahead, the coordinator's ruling)
 tests/test_dr1_door_ahead.py: sibling
+# rr2-records-resolver's fixtures commit as a made-up author at the reserved `.invalid`
+# domain; an early commit of the branch held the address whole, the tree splits it
+tests/test_rr2_records.py: email

@@ -130,6 +130,7 @@ class SyncTest(unittest.TestCase):
 
 
 PLACED = {"plugin/lib/agentik_install.py": "scripts/agentik_install.py",
+          "plugin/lib/agentik_records.py": "scripts/agentik_records.py",  # packet rr2-records-resolver R7
           "plugin/bin/agentik-x": "scripts/plugin-launcher", "plugin/bin/agentik": "bin/agentik",
           # packet ak10b-term: the writer, as the package agentik_term
           "plugin/lib/agentik_term/term.py": "plugins/suite/lib/agentik_suite/term.py",

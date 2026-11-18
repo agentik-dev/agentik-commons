@@ -33,7 +33,8 @@ SYSTEM = "/usr/bin:/bin"
 RECORDER = '#!/bin/sh\necho "$0 $*" >> "%s"\n'
 ESC = "\x1b"
 STDLIB = {"ast", "datetime", "difflib", "fnmatch", "json", "os", "re", "shutil", "sys", "shlex", "agentik_install",
-          "select", "signal", "subprocess", "tempfile", "time", "agentik_hygiene", "hashlib", "unicodedata"}
+          "select", "signal", "subprocess", "tempfile", "time", "agentik_hygiene", "hashlib", "unicodedata",
+          "agentik_records"}
 
 sys.path.insert(0, str(LIB))
 from agentik_suite import catalogue, settings, term  # noqa: E402
@@ -100,6 +101,11 @@ class Home(unittest.TestCase):
         os.mkdir(self.stubs)
         self.calls = os.path.join(self.home, "calls")
         self.stub("claude", RECORDER % self.calls)
+        # the command runs in a folder of no repository, so the doctor's records row reads no real
+        # repo's git config (packet rr2-records-resolver R8)
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        self.work = os.path.realpath(work.name)
 
     def stub(self, name, body="#!/bin/sh\nexit 0\n"):
         path = os.path.join(self.stubs, name)
@@ -117,14 +123,14 @@ class Home(unittest.TestCase):
 
     def run_cli(self, *args, **more):
         p = subprocess.run([str(self.launcher), *args], capture_output=True, text=True,
-                           env=self.env(**more), timeout=60)
+                           env=self.env(**more), timeout=60, cwd=self.work)
         return p.returncode, p.stdout, p.stderr
 
     def run_pty(self, *args, cols=200, **more):
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
         p = subprocess.Popen([str(self.launcher), *args], stdin=slave, stdout=slave, stderr=slave,
-                             env=self.env(**more), close_fds=True)
+                             env=self.env(**more), close_fds=True, cwd=self.work)
         os.close(slave)
         chunks = []
         try:
