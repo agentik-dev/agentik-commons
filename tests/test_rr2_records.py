@@ -17,6 +17,7 @@ SCRIPT = ROOT / "scripts" / "agentik_records.py"
 CASES = ROOT / "tests" / "records_cases.json"
 COPY = ROOT / "plugins" / "suite" / "lib" / "agentik_records.py"
 LAUNCHER = ROOT / "plugins" / "suite" / "bin" / "agentik-suite"
+MAIL = "builder" + "@" + "x.invalid"  # made up, and split so no line of this file is an address
 
 
 def load():
@@ -31,8 +32,8 @@ def quiet_env(root):
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env.update({"HOME": root, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
                 "GIT_CEILING_DIRECTORIES": os.path.dirname(root), "XDG_CONFIG_HOME": os.path.join(root, ".config"),
-                "GIT_AUTHOR_NAME": "a builder", "GIT_AUTHOR_EMAIL": "builder@example.invalid",
-                "GIT_COMMITTER_NAME": "a builder", "GIT_COMMITTER_EMAIL": "builder@example.invalid"})
+                "GIT_AUTHOR_NAME": "a builder", "GIT_AUTHOR_EMAIL": MAIL,
+                "GIT_COMMITTER_NAME": "a builder", "GIT_COMMITTER_EMAIL": MAIL})
     return env
 
 
@@ -167,3 +168,84 @@ class SyncTest(unittest.TestCase):
             p = subprocess.run(["/usr/bin/python3", "-I", "-c", probe, str(placed.parent), tool],
                                capture_output=True, text=True, env=env)
             self.assertEqual((p.returncode, p.stdout), (0, "own\n"), p.stderr)
+
+
+class SuiteTest(unittest.TestCase):
+    """R8: the suite's copy, `records` from the worktree's own launcher, and the doctor's row, each
+    in a temp clone with HOME a temp folder."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = os.path.realpath(tmp.name)
+        self.env = quiet_env(self.root)
+        self.env.update({"PATH": "/usr/bin:/bin", "XDG_CACHE_HOME": os.path.join(self.root, "cache")})
+        self.clone = os.path.join(self.root, "code", "widget")
+        repo(self.env, self.clone)
+
+    def suite(self, cwd, *args):
+        p = subprocess.run([str(LAUNCHER), *args], capture_output=True, text=True, env=self.env, cwd=cwd,
+                           timeout=60)
+        return p.returncode, p.stdout, p.stderr
+
+    def test_the_copy_is_byte_equal(self):
+        self.assertEqual(COPY.read_bytes(), SCRIPT.read_bytes())
+
+    def test_launcher_records_json_in_a_clone_and_its_worktree(self):
+        code, out, err = self.suite(self.clone, "records", "--json")
+        self.assertEqual((code, err), (0, ""))
+        got = json.loads(out)
+        self.assertEqual((got["schema"], got["state"], got["records"]), ("agentik.records/1", "own", self.clone))
+        tree = os.path.join(self.root, "code", "widget-b")
+        git(self.env, self.clone, "worktree", "add", "-q", tree, "-b", "b")
+        code, out, err = self.suite(tree, "records", "--json")
+        self.assertEqual((code, json.loads(out)["records"], json.loads(out)["repo"]), (0, tree, self.clone))
+        code, out2, err = self.suite(self.root, "records", "--json", tree)  # DIR names the folder
+        self.assertEqual(json.loads(out2), json.loads(out))
+
+    def test_launcher_records_plain_writes_nothing(self):
+        os.makedirs(os.path.join(self.root, "recs", "gadget"))
+        git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "recs", "gadget"))
+        before = sorted(str(p) for p in Path(self.root).rglob("*") if "cache" not in p.parts)
+        code, out, err = self.suite(self.clone, "records")
+        self.assertEqual((code, err), (0, ""))
+        rows = out.splitlines()
+        self.assertEqual([r.split(":", 1)[0] for r in rows], ["repo", "records", "holder", "prefix", "state", "why"])
+        self.assertIn("state: broken", rows)
+        self.assertIn("records: none", rows)
+        self.assertTrue(rows[-1].startswith("why: agentik.records names a folder whose name"), rows[-1])
+        self.assertEqual(sorted(str(p) for p in Path(self.root).rglob("*") if "cache" not in p.parts), before)
+
+    def test_records_refusals(self):
+        loose = os.path.join(self.root, "loose")
+        os.mkdir(loose)
+        self.assertEqual(self.suite(loose, "records")[0], 2)
+        self.assertEqual(self.suite(self.clone, "records", "nowhere")[0], 2)
+        self.assertEqual(self.suite(self.clone, "records", ".", "again")[0], 2)
+
+    def doctor_row(self, cwd):
+        code, out, err = self.suite(cwd, "doctor", "--json")
+        suite = json.loads(out)["tools"][0]["checks"]
+        return code, [c for c in suite if c["name"] == "records"]
+
+    def test_doctor_row_by_state(self):
+        code, rows = self.doctor_row(self.clone)
+        self.assertEqual([r["status"] for r in rows], ["ok"])
+        self.assertTrue(rows[0]["detail"].startswith("the records of "), rows[0]["detail"])  # own is not named
+        Path(self.clone, ".hygiene-allow").write_text("records: out\n")
+        git(self.env, self.clone, "add", ".hygiene-allow")
+        git(self.env, self.clone, "commit", "-q", "-m", "declare")
+        code, rows = self.doctor_row(self.clone)
+        self.assertEqual([(r["status"], r["detail"].split(":")[0]) for r in rows], [("warn", "unset")])
+        git(self.env, self.clone, "config", "--local", "agentik.records", "relative/widget")
+        code, rows = self.doctor_row(self.clone)
+        self.assertEqual([(r["status"], r["detail"]) for r in rows],
+                         [("fail", "broken: agentik.records is not an absolute path")])
+        self.assertEqual(code, 1)
+        os.makedirs(os.path.join(self.root, "hq", "widget"))
+        git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "hq", "widget"))
+        code, rows = self.doctor_row(self.clone)
+        self.assertEqual([(r["status"], r["detail"].split(":")[0]) for r in rows], [("ok", "out")])
+        loose = os.path.join(self.root, "loose")
+        os.mkdir(loose)
+        self.assertEqual(self.doctor_row(loose)[1], [])

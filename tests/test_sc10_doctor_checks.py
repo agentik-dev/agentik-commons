@@ -326,7 +326,9 @@ class BoundTest(Checks):
         tools.WALL = 0.5  # the describe wall before the doctor's deadline (row ak9b R5)
         out, err = io.StringIO(), io.StringIO()
         start = time.monotonic()
-        code = cli.Command(["doctor", "--json"], self.env(), out, err).run()
+        command = cli.Command(["doctor", "--json"], self.env(), out, err)
+        command.cwd = self.work  # in no repository, so the records row reads no real config (rr2)
+        code = command.run()
         self.assertLess(time.monotonic() - start, 3)
         obj = json.loads(out.getvalue())
         got = {g["name"]: [(c["status"], c["detail"]) for c in g["checks"]] for g in obj["tools"]}

@@ -383,7 +383,9 @@ class DoctorTest(Checks):
         doctor.DEADLINE = 1.0
         self.addCleanup(setattr, doctor, "DEADLINE", saved)
         out, err = io.StringIO(), io.StringIO()
-        code = cli.Command(["doctor", "--json"], self.env(), out, err).run()
+        command = cli.Command(["doctor", "--json"], self.env(), out, err)
+        command.cwd = self.work  # in no repository, so the records row reads no real config (rr2)
+        code = command.run()
         self.assertNotIn("Traceback", err.getvalue())
         got = {g["name"]: [(c["status"], c["detail"]) for c in g["checks"]]
                for g in json.loads(out.getvalue())["tools"]}

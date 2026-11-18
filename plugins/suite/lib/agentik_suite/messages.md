@@ -49,6 +49,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.inbox`: List what waits on you in each checkout: questions, and what needs a hand.
 - `verb.issue`: Draft a scrubbed report of a problem; it is sent only when you type send.
 - `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
+- `verb.records`: Print where a repo keeps its working records, and whether a tool may use them.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -61,6 +62,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
 - `usage.issue`: usage: `{issue}` [new|show|strike WORD|drop SECTION|edit|reword FILE|send|discard]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
+- `usage.records`: usage: `{prog}` records [<dir>] [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -747,6 +749,24 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.init.full`: `{dir}` is not empty: it holds `{found}`; init needs an empty folder
 - `err.init.write`: init could not write `{path}` (`{why}`); `{dir}` is as it was
 - `err.init.gitfail`: git init failed in `{dir}`, so init wrote nothing; what git said is below
+
+## Records
+
+- `records.row`: `{key}`: `{value}`
+- `records.none`: none
+- `records.why.no_key`: the repo keeps its records out of the clone, and this clone sets no agentik.records
+- `records.why.unread`: git cannot read this clone's agentik.records
+- `records.why.relative`: agentik.records is not an absolute path
+- `records.why.missing`: agentik.records names no folder that is there
+- `records.why.inside`: agentik.records names a folder inside the clone or one of its worktrees
+- `records.why.name`: agentik.records names a folder whose name is not the clone's
+- `records.why.holder`: agentik.records names a folder in a repo that keeps its own records out
+- `err.records.dir`: `{dir}` is not a folder; name a folder in a git checkout
+- `err.records.repo`: `{dir}` is in no git checkout, so it has no records to find
+- `doctor.records.own`: the records of `{repo}` are in its own tree, `{records}`
+- `doctor.records.out`: out: the records of `{repo}` are in `{records}`
+- `doctor.records.unset`: unset: `{why}`; set it with git config agentik.records and a folder
+- `doctor.records.broken`: broken: `{why}`
 
 ## Issue
 

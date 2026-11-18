@@ -28,6 +28,7 @@ import re
 import time
 
 import agentik_install
+import agentik_records
 
 from . import apply, plan, prog, settings, sources, status, tools
 
@@ -198,6 +199,22 @@ def user_settings(cmd):
     if not os.path.exists(path):
         return [_check("settings", "ok", cmd.t.text("doctor.settings.none", path=shown))]
     return [_check("settings", "ok", cmd.t.text("doctor.settings.ok", path=shown))]
+
+
+def records_row(cmd):
+    """The repo the command stands in: where its working records are (packet rr2-records-resolver
+    R8). ok in own and out, warn in unset, fail in broken, the state named but in own; no row
+    where the working folder is in no git checkout."""
+    try:
+        found = agentik_records.resolve(cmd.cwd)
+    except agentik_records.NoRepo:
+        return []
+    t, home, state = cmd.t, cmd.env.get("HOME"), found["state"]
+    if state in ("own", "out"):
+        return [_check("records", "ok", t.text("doctor.records." + state, repo=plan.shown(found["repo"], home),
+                                              records=plan.shown(found["records"], home)))]
+    why = t.text("records.why." + found["why"].replace("-", "_"))
+    return [_check("records", "warn" if state == "unset" else "fail", t.text("doctor.records." + state, why=why))]
 
 
 def source_settings(cmd):
@@ -737,14 +754,16 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.hint("hint.doctor.next", command=hint)
 
 
-def read(cmd):
-    """(groups, failed, warned, total, entries): the one read `doctor` prints and `update` closes on."""
+def read(cmd, records=False):
+    """(groups, failed, warned, total, entries): the one read `doctor` prints and `update` closes on;
+    the records row only where `records` is true, doctor's own call, so update's close runs no git
+    (packet rr2-records-resolver R8)."""
     on_path = cmd._on_path()
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
     entries = tools.listed(suite, on_path, cmd.env)
     described = describes(cmd, entries[1:])
     own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
-        + user_settings(cmd) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
+        + user_settings(cmd) + (records_row(cmd) if records else []) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
     groups += own_doctors(cmd, entries[1:], described)
@@ -756,7 +775,7 @@ def read(cmd):
 
 def do_doctor(cmd, nouns):
     cmd._no_nouns(nouns)
-    groups, failed, warned, total, entries = read(cmd)
+    groups, failed, warned, total, entries = read(cmd, records=True)
     if cmd.opts["json"]:
         cmd.t.json({"schema": SCHEMA, "ok": True, "failed": failed, "warned": warned,
                     "tools": [{"name": g["name"], "checks": [{k: c[k] for k in KEYS} for c in g["checks"]],
