@@ -756,6 +756,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `records.none`: none
 - `records.why.no_key`: the repo keeps its records out, and this clone sets no agentik.records
 - `records.why.unread`: git cannot read this clone's agentik.records
+- `records.why.many`: this clone sets agentik.records more than once
 - `records.why.relative`: agentik.records is not an absolute path
 - `records.why.missing`: agentik.records names no folder that is there
 - `records.why.inside`: agentik.records names a folder inside the clone or one of its worktrees

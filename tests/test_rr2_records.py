@@ -76,7 +76,13 @@ def build(case, root, env):
     if "declare" in case:  # before the worktrees, so their branches hold it too
         declare(env, clone, case["declare"])
     for tree in case.get("worktrees", ()):
-        git(env, clone, "worktree", "add", "-q", os.path.join(root, tree), "-b", os.path.basename(tree))
+        if isinstance(tree, list):  # detached at a commit
+            git(env, clone, "worktree", "add", "-q", "--detach", os.path.join(root, tree[0]), tree[1])
+        else:
+            git(env, clone, "worktree", "add", "-q", os.path.join(root, tree), "-b", os.path.basename(tree))
+    for old, new in case.get("moves", ()):
+        os.makedirs(os.path.dirname(os.path.join(root, new)), exist_ok=True)
+        os.rename(os.path.join(root, old), os.path.join(root, new))
     if "holder" in case:
         top = os.path.join(root, case["holder"]["path"])
         repo(env, top)
@@ -86,8 +92,12 @@ def build(case, root, env):
         os.makedirs(os.path.join(root, folder), exist_ok=True)
     for link, target in case.get("links", ()):
         os.symlink(os.path.join(root, target), os.path.join(root, link))
-    if "key" in case:
-        git(env, clone, "config", "--local", "agentik.records", fill(case["key"], root))
+    keys = case.get("key", [])
+    for value in keys if isinstance(keys, list) else [keys]:
+        git(env, clone, "config", "--local", "--add", "agentik.records", fill(value, root))
+    if "config_text" in case:
+        with open(os.path.join(clone, ".git", "config"), "a") as fh:
+            fh.write(case["config_text"])
     if "worktree_key" in case:
         git(env, clone, "config", "--local", "extensions.worktreeConfig", "true")
         git(env, os.path.join(root, case["worktrees"][0]), "config", "--worktree", "agentik.records",
@@ -99,6 +109,15 @@ def build(case, root, env):
     return run
 
 
+def has(need, root):
+    """True where the file system under root has what a case `needs` (C5 of review 1's fix)."""
+    other = {"case-blind": root.swapcase(), "firmlink": "/System/Volumes/Data" + root}[need]
+    try:
+        return os.path.samefile(root, other)
+    except OSError:
+        return False
+
+
 class CasesTest(unittest.TestCase):
     def test_cases(self):
         records = load()
@@ -107,6 +126,8 @@ class CasesTest(unittest.TestCase):
         for case in cases:
             with self.subTest(case["name"]), tempfile.TemporaryDirectory() as tmp:
                 root = os.path.realpath(tmp)
+                if "needs" in case and not has(case["needs"], root):
+                    self.skipTest("the temp folder's file system is not " + case["needs"])
                 env = quiet_env(root)
                 run = build(case, root, env)
                 expect = {k: fill(v, root) for k, v in case["expect"].items()}
@@ -120,7 +141,7 @@ class CasesTest(unittest.TestCase):
     def test_the_states_and_whys_are_each_a_case(self):
         cases = json.loads(CASES.read_text())["cases"]
         seen = {(c["expect"].get("state"), c["expect"].get("why")) for c in cases}
-        for pair in [("own", None), ("out", None), ("unset", "no-key"), ("broken", "relative"),
+        for pair in [("own", None), ("out", None), ("unset", "no-key"), ("broken", "unread"), ("broken", "many"), ("broken", "relative"),
                      ("broken", "missing"), ("broken", "inside"), ("broken", "name"), ("broken", "holder")]:
             self.assertIn(pair, seen)
 

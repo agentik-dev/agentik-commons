@@ -3,34 +3,38 @@ GUIDE §12). Canonical in agentik-commons; `scripts/sync` places it at plugin/li
 byte-identical in every tool, under vendored.sha256. Standard library, Python 3.9.
 
 `resolve(start)` answers the `agentik.records/1` object for the folder `start`: `repo`, the main
-checkout, found through the common git folder; `records`, the folder that holds the records;
-`holder`, the top of the git repository whose working folder holds `records`, or None; `prefix`,
-`records` relative to `holder`; `state`; and `why`. The states:
+checkout, as git names it; `records`, the folder that holds the records; `holder`, the top of the
+git repository whose working folder holds `records`, or None; `prefix`, `records` relative to
+`holder`; `state`; and `why`. The states:
 
 - `own`: no key, and the tree does not declare `out`. `records` and `holder` are the top of the
   working tree `start` stands in, so a worktree answers its own top; `prefix` is `.`.
 - `out`: the key resolves; `records` is its folder.
 - `unset`: the tree declares `out` and the clone has no key; `why` is `no-key`.
 - `broken`: the key is set and does not resolve; no records folder is answered, and `why` is one
-  of `unread`, `relative`, `missing`, `inside`, `name` or `holder`.
+  of `unread`, `many`, `relative`, `missing`, `inside`, `name` or `holder`.
 
-The key is `agentik.records` in the clone's own config, read as
-`git config --local --path --get agentik.records`: never the user's file, the environment or a
-worktree's own file. It resolves when it is absolute, an existing folder, outside the main
-checkout and every worktree of the clone by real path, named as the main checkout's folder is,
-and in a holder whose tree does not declare `out` itself. The declaration is the whole line
-`suite.records: out` in `.claude/agentik/config.yaml` or `records: out` in `.hygiene-allow`, read
+The key is `agentik.records` in the clone's own config: never the user's file, the environment or
+a worktree's own file. It is set when `git config --local --get-all agentik.records` finds it, and
+read as `git config --local --path --get agentik.records`; a key that is set and that read cannot
+give is `unread`, and a key set more than once is `many`, so a set key is never `own` or `unset`.
+It resolves when it is absolute, an existing folder, outside the main checkout and every worktree
+of the clone (no folder from it up to the root is the same file as one of their tops, so no
+spelling of a path, in case or through a link, gets in), named as the main checkout's folder is
+on disk, in no repository that shares the clone's git folder, and in a holder whose tree does not
+declare `out` itself. The declaration is the whole line `records: out` in `.hygiene-allow`, read
 from the file at HEAD through git; a line in an untracked, uncommitted or local file declares
 nothing. Git runs as `git -C <folder>`, never in the current directory, with the repository's
 own environment variables dropped. `NoRepo` is raised where `start` is no folder, git is absent,
-or `start` stands in no git working tree. Paths are real paths. It writes nothing.
+or `start` stands in no git working tree. `values(start)` gives the key's values as the clone's
+config holds them, for a tool to name in its `broken` line. It writes nothing.
 """
 import os
 import subprocess
 
 SCHEMA = "agentik.records/1"
 KEY = "agentik.records"
-DECLARED = ((".claude/agentik/config.yaml", "suite.records: out"), (".hygiene-allow", "records: out"))
+DECLARED = ((".hygiene-allow", "records: out"),)
 # `git rev-parse --local-env-vars`, and the environment's config items: a hook's GIT_DIR would
 # answer for another repository than the folder named
 LOCAL_ENV = ("GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
@@ -59,6 +63,17 @@ def _git(folder, *args):
     return p.returncode, out[:-1] if out.endswith("\n") else out
 
 
+def _values(start):
+    """(exit, values) of the key in the clone's own config, as written there: exit 1 is no key."""
+    code, text = _git(start, "config", "--local", "-z", "--get-all", KEY)
+    return code, text.split("\0")[:-1] if code == 0 else []
+
+
+def values(start):
+    """The key's values as the clone's own config holds them, unexpanded; [] with none or no repo."""
+    return _values(os.path.realpath(start))[1] if os.path.isdir(start) else []
+
+
 def _declares(top):
     """True where the tree at `top` declares `out` in a tracked file at HEAD."""
     for path, line in DECLARED:
@@ -68,8 +83,46 @@ def _declares(top):
     return False
 
 
-def _under(path, top):
-    return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
+def _same(a, b):
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def _inside(path, tops):
+    """True where `path`, or a folder above it, is the same file as one of `tops`."""
+    ids = set()
+    for top in tops:
+        try:
+            st = os.stat(top)
+        except OSError:
+            continue
+        ids.add((st.st_dev, st.st_ino))
+    while True:
+        try:
+            st = os.stat(path)
+            if (st.st_dev, st.st_ino) in ids:
+                return True
+        except OSError:
+            pass
+        parent = os.path.dirname(path)
+        if parent == path:
+            return False
+        path = parent
+
+
+def _name(path):
+    """The last name of the folder `path` as its parent lists it: on a file system blind to case,
+    a real path keeps the case it was typed in."""
+    parent, name = os.path.split(path)
+    try:
+        names = os.listdir(parent)
+    except OSError:
+        return name
+    if name in names:
+        return name
+    return next((n for n in names if _same(os.path.join(parent, n), path)), name)
 
 
 def _answer(repo, state, why=None, records=None, holder=None, prefix=None):
@@ -85,19 +138,24 @@ def resolve(start):
     if code != 0 or not top:
         raise NoRepo(start)
     top = os.path.realpath(top)
-    code, common = _git(start, "rev-parse", "--git-common-dir")
+    code, common = _git(start, "rev-parse", "--path-format=absolute", "--git-common-dir")
     code_list, listing = _git(start, "worktree", "list", "--porcelain", "-z")
-    if code != 0 or code_list != 0:
-        raise NoRepo(start)
     trees = [os.path.realpath(item[len("worktree "):]) for item in listing.split("\0")
              if item.startswith("worktree ")]
-    common = os.path.realpath(os.path.join(start, common))
-    repo = os.path.dirname(common) if os.path.basename(common) == ".git" else (trees or [top])[0]
-    code, value = _git(start, "config", "--local", "--path", "--get", KEY)
+    if code != 0 or not common or code_list != 0 or not trees:
+        raise NoRepo(start)
+    common = os.path.realpath(common)
+    repo = trees[0]  # the main checkout, or the bare folder, as git names it
+    code, held = _values(start)
     if code == 1:
         if _declares(top):
             return _answer(repo, "unset", "no-key")
         return _answer(repo, "own", records=top, holder=top, prefix=".")
+    if code != 0:
+        return _answer(repo, "broken", "unread")
+    if len(held) > 1:
+        return _answer(repo, "broken", "many")
+    code, value = _git(start, "config", "--local", "--path", "--get", KEY)
     if code != 0:
         return _answer(repo, "broken", "unread")
     if not os.path.isabs(value):
@@ -105,13 +163,16 @@ def resolve(start):
     records = os.path.realpath(value)
     if not os.path.isdir(records):
         return _answer(repo, "broken", "missing")
-    if any(_under(records, tree) for tree in [repo, top] + trees):
+    if _inside(records, [repo, top] + trees):
         return _answer(repo, "broken", "inside")
-    if os.path.basename(os.path.normpath(value)) != os.path.basename(repo):
+    if _name(records) != _name(repo):
         return _answer(repo, "broken", "name")
     code, holder = _git(records, "rev-parse", "--show-toplevel")
     if code != 0 or not holder:
         return _answer(repo, "out", records=records)
+    code, theirs = _git(records, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if code == 0 and theirs and _same(theirs, common):
+        return _answer(repo, "broken", "inside")
     holder = os.path.realpath(holder)
     if _declares(holder):
         return _answer(repo, "broken", "holder")
