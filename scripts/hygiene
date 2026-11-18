@@ -40,6 +40,22 @@ greatest (date, n) is the newest, n compared as an integer. No file, or no
 line, means no charter is live; a line holding a `/` or a space exits 2.
 Its verb pattern wants a lowercase verb; the rest ignore case.
 
+The `records` group (hq design/28 section 3 item 10) is judged by path alone. A repo
+declares its working records out with the line `records: out` in `.hygiene-allow`: a
+line as `str.splitlines` cuts it, equal to that text but for trailing white space,
+the rule `scripts/agentik_records.py` reads it by. That line is no allow row; any other
+line naming the group `out`, and any row naming `records`, is a bad entry (exit 2), so
+the scanner and the resolver never differ on a line in silence. In a tree that declares
+(the working `.hygiene-allow`, the one at `HEAD` or the `--allow` file), each scanned
+path under a record name is one `records` line that no row excuses: `history/`,
+`design/packets/`, `bugs/`, `HANDOFF.md`, `NICE_TO_HAVE.md`, `OPEN-QUESTIONS.md`,
+`relay/queue.yaml` and `.hygiene-live`, each at the root, matched as git spells the
+path. Under `--commits` each path a commit adds or modifies under a record name is one
+line where the tip or the base declares (each read from its `.hygiene-allow` blob, the
+base being the range's negative revisions); a removal is none; a base that declares
+with a tip that does not is one more line, on `.hygiene-allow`, so the push it would
+refuse cannot switch the guard off. The group shows only where the scan declares.
+
 This file holds the generic groups only: patterns that name nobody. The terms
 private to one owner (a name, a host, a domain, a private repo) live outside the
 repo, in the private list: `$AGENTIK_HYGIENE_PRIVATE` when set and not empty,

@@ -14,16 +14,20 @@
 |---|---|
 | P the packet and this charter | done |
 | G1 to G4, the scanner (one commit, one change of `scripts/hygiene` and its byte copy): `tests/test_hygiene_records.py` 32 tests, 25 red at 8ff5214, 32 OK; the hygiene, commits, rp1 and rr2 tests 86 OK | done |
-| G5, G6 the words: docstring, GUIDE §12, NICE row for lead 4 | open |
+| G5, G6 the words: the docstring's `records` paragraph (and the byte copy), GUIDE §12's guard paragraph (where it runs: each `make check`, the landing's and the publish's scans, a pre-push hook where the repo has one), NICE n256 for lead 4; recordlint held | done |
 | V `make check` through the gate | open |
 
 ## Next act
 
-G5, G6: the docstring, GUIDE §12's guard paragraph, the NICE row for lead 4.
+V: `make check` through the gate queue on the head.
 
 ## Handover
 
-- none yet.
+- choice: the group shows in `groups` only where the scan declares, so an undeclared repo's output is the pin's byte for byte. Consumer: the tools' sync row.
+- choice: G1 to G4 landed as one commit, one change of the scanner. Consumer: the review.
+- choice: an `out` line or a `records` row is a bad entry with or without the private list. Consumer: none.
+- choice: the `--allow` file declares in the tree scan too, beside the working file and `HEAD`; a range reads its ends' blobs alone. Consumer: none.
+- choice: the relay names no plan copy of its queue (agentik-relay b735980), so `relay/queue.yaml` alone. Consumer: rr6.
 
 ## Exit
 
