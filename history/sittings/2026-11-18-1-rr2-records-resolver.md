@@ -15,11 +15,11 @@
 | P..G build 1: packet, R1 to R9, gate 20261118-060553-2642 exit 0 at 56eae2c | done |
 | F1 C1, C2, C5: presence read without `--path` (`unread`, `many`); `repo` the worktree list's first entry; `inside` by same file up the parents and by the shared common git folder; the name by the parent's listing; 43 cases, 15 red at 56eae2c, 43 green | done |
 | F2 C3, C4: `records: out` in `.hygiene-allow` alone; GUIDE §12; the broken line names the key and its values; an `out` with no holder says nothing is committed (`doctor.records_why`, `values`); 12 tests of the row OK, 189 of the touched files but the sidecar's | done |
-| F3 `make voice` (gate 20261118-063509-2644 exit 0, sidecar committed), `make check` through the gate | open |
+| F3 `make voice` (gate 20261118-063509-2644 exit 0, sidecar committed), `make check` gate 20261118-063527-2645 exit 0 at 98fc53c (1243 tests OK) | done |
 
 ## Next act
 
-F3: `make check` through the gate on this head.
+None: the fix of review 1 is built; review 2 is the coordinator's.
 
 ## Handover
 
@@ -31,4 +31,4 @@ F3: `make check` through the gate on this head.
 
 ## Exit
 
-Open.
+The fix of review 1 built, C1 to C5, gate green at 98fc53c; this line left uncommitted so the checked head stays the branch's.
