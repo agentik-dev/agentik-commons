@@ -49,7 +49,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.inbox`: List what waits on you in each checkout: questions, and what needs a hand.
 - `verb.issue`: Draft a scrubbed report of a problem; it is sent only when you type send.
 - `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
-- `verb.records`: Print where a repo keeps its working records, and whether a tool may use them.
+- `verb.records`: Print where a repo keeps its working records, and in what state.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -754,7 +754,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 - `records.row`: `{key}`: `{value}`
 - `records.none`: none
-- `records.why.no_key`: the repo keeps its records out of the clone, and this clone sets no agentik.records
+- `records.why.no_key`: the repo keeps its records out, and this clone sets no agentik.records
 - `records.why.unread`: git cannot read this clone's agentik.records
 - `records.why.relative`: agentik.records is not an absolute path
 - `records.why.missing`: agentik.records names no folder that is there

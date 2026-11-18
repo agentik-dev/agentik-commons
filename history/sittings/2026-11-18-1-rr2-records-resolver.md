@@ -17,7 +17,7 @@
 | B R7: `scripts/sync` places `plugin/lib/agentik_records.py`, listed and named; `tests/test_sync.py`'s placed set; `test_rr2_records.SyncTest` (the copy runs under `-I`); test_sync and test_ak10b_term 22 OK; acceptance 2 by `cmp` with the pin's no-lib sums (61746a92); the README's rows | done |
 | C R8: the copy (byte-equal test), `records` (verb 14), the doctor row in `do_doctor`'s read only, 15 catalogue ids, suite 0.7.35, the kept ids re-pinned (46); the Home fixture and three in-process doctor runs stand in a temp folder; 160 tests of the touched files OK | done |
 | D R9: GUIDE §12, the key, the states, the checks, the verb and the row | done |
-| G hygiene over the branch; `make check` through the gate | open |
+| G gate 20261118-055421-2641 exit 2 on b5a1f26 (ic2-needs doctor test in the checkout; two catalogue lines over the width); both fixed, 52 OK directly; `make voice` and `make check` queued again on the fix | open |
 
 ## Next act
 

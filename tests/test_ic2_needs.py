@@ -73,7 +73,8 @@ class Home(unittest.TestCase):
                 "XDG_CACHE_HOME": os.path.join(self.home, "cache")}
 
     def run_both(self, argv, env=None):
-        p = subprocess.run(argv, cwd=str(ROOT), env=env or self.env(), stdin=subprocess.DEVNULL,
+        # a command but ./setup stands in a folder of no repository: doctor's records row reads no real config (rr2)
+        p = subprocess.run(argv, cwd=str(ROOT) if argv[0] == "./setup" else tempfile.gettempdir(), env=env or self.env(), stdin=subprocess.DEVNULL,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=300)
         return p.returncode, p.stdout
 
