@@ -15,11 +15,11 @@
 | P the packet and this charter | done |
 | G1 to G4, the scanner (one commit, one change of `scripts/hygiene` and its byte copy): `tests/test_hygiene_records.py` 32 tests, 25 red at 8ff5214, 32 OK; the hygiene, commits, rp1 and rr2 tests 86 OK | done |
 | G5, G6 the words: the docstring's `records` paragraph (and the byte copy), GUIDE §12's guard paragraph (where it runs: each `make check`, the landing's and the publish's scans, a pre-push hook where the repo has one), NICE n256 for lead 4; recordlint held | done |
-| V `make check` through the gate | open |
+| V `make check` through the gate: 20261118-075259-2655 exit 2 (one unrelated flake, `test_up2_suite_origin` test_12, git clone `hardlink different from source`, 3 of 3 OK alone); 20261118-080414-2657 exit 0 at 1e54c91, 1275 tests OK | done |
 
 ## Next act
 
-V: `make check` through the gate queue on the head.
+None: every ruling is built; review 1 is the coordinator's.
 
 ## Handover
 
@@ -31,4 +31,4 @@ V: `make check` through the gate queue on the head.
 
 ## Exit
 
-Open.
+Build 1 done, G1 to G6, gate 20261118-080414-2657 exit 0 at 1e54c91; this line left uncommitted so the checked head stays the branch's.
