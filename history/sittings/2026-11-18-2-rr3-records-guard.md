@@ -19,11 +19,11 @@
 
 | F1 C4: the resolver runs git with `--no-replace-objects`; the suite's copy; suite 0.7.36 | done |
 | F2 C1 to C3, C5: a merge's records against its first parent; the declaration's read never fails (no regular file declares nothing, `surrogateescape`); root names case-folded; 11 FixTest cases, 9 red at 1e54c91, 43 OK under python3 and /usr/bin/python3; the words | done |
-| F3 `make check` through the gate | open |
+| F3 `make check` through the gate: 20261118-083055-2658 exit 0 at 17b140c, 1286 tests OK | done |
 
 ## Next act
 
-F3: `make check` through the gate queue on the head.
+None: the fix of review 1 is built; review 2 is the coordinator's.
 
 ## Handover
 
@@ -37,4 +37,4 @@ F3: `make check` through the gate queue on the head.
 
 ## Exit
 
-Build 1 done at 1e54c91 (gate 20261118-080414-2657 exit 0); the fix of review 1 in flight.
+The fix of review 1 built, C1 to C5, gate 20261118-083055-2658 exit 0 at 17b140c; this line left uncommitted so the checked head stays the branch's.
