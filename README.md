@@ -48,7 +48,7 @@ A clone and its `setup` set a machine up, the steps above included: `git clone h
 | `scripts/door-probe` | run by hand, never by `make check`: clones, at main, each checkout beside this one that writes the `agentik` door (a plugin launcher's `install-cli`, or the door's line of `make -n install`) into a temp folder and asks whether each leaves a newer door in place: `kept` and `absent` pass or fail; a FIFO, a non-UTF-8 version line and a race against a newer clone are notes |
 | `scripts/agentik_install.py` | the canonical `install-cli`: freeze, launcher, prune and forward refresh, generic by name, stdlib at Python 3.9 (GUIDE §10) |
 | `scripts/plugin-launcher` | the canonical launcher a plugin keeps in `plugin/bin/agentik-<tool>`; its names come from `plugin/lib/agentik-tool.conf` (GUIDE §10) |
-| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/readme-top`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above and the door, listed there too |
+| `scripts/sync <repo>` | copies `bin/agentik`, `scripts/hygiene`, `scripts/recordlint`, `scripts/readme-top`, `scripts/bounded`, `scripts/plugin-version-check` and `scripts/plugin-description-bytes` into `<repo>/scripts/` and writes `scripts/vendored.sha256`; in a repo with a `plugin/lib/`, also the two above, the door and the writer as the package `plugin/lib/agentik_term/` (the suite's `term.py` and `catalogue.py`, and an `__init__.py`), listed there too, and once, when absent, that package's `messages.md`, the tool's own catalogue (GUIDE §10) |
 
 ## The agentik-suite command
 
