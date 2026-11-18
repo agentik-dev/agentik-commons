@@ -13,14 +13,13 @@
 | act | done-ness |
 |---|---|
 | P the packet and this charter | done |
-| G1 the declaration, G2 the group, G3 the tree scan (one commit) | open |
-| G4 the range scan | open |
+| G1 to G4, the scanner (one commit, one change of `scripts/hygiene` and its byte copy): `tests/test_hygiene_records.py` 32 tests, 25 red at 8ff5214, 32 OK; the hygiene, commits, rp1 and rr2 tests 86 OK | done |
 | G5, G6 the words: docstring, GUIDE §12, NICE row for lead 4 | open |
 | V `make check` through the gate | open |
 
 ## Next act
 
-G1 to G3: the failing tests in `tests/test_hygiene_records.py`, then the scanner.
+G5, G6: the docstring, GUIDE §12's guard paragraph, the NICE row for lead 4.
 
 ## Handover
 
