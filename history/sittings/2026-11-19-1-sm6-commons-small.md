@@ -14,11 +14,11 @@
 |---|---|
 | n76 settings.read through `read_regular`: a FIFO, a folder, bytes not UTF-8 a Fault at once; 2 tests, 1 red at ca83060 (a 10 s timeout), 2 OK; sc6, sc7, fk1, ak3d, su1 70 OK | done |
 | n197 `doctor.asks`, the one rule of `config.asks` and `_closes`: quotes stripped, case folded, `--assume-yes`, a `-` cluster holding `y`; 1 test, red at 99b2214, OK; ak9b, sc10, sc5, ic1 74 OK | done |
-| V `make check` through the gate | open |
+| V `make check` through the gate: 20261119-082556-2680 exit 0 at a39c059 | done |
 
 ## Next act
 
-V, the gate.
+None: both items built; the landing is the coordinator's.
 
 ## Handover
 
@@ -27,4 +27,4 @@ V, the gate.
 
 ## Exit
 
-Open.
+n76 and n197 built, gate 20261119-082556-2680 exit 0 at a39c059; this line left uncommitted so the checked head stays the branch's.
