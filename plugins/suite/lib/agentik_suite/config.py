@@ -68,9 +68,9 @@ def reason(t, row):
 
 def asks(remedy):
     """A remedy that answers a question for the person (`--yes`, `-y`) or removes: it stands on
-    its own line, never behind `next:` (row sc5 R8, ruled for config by ak9b review 1 lead 1)."""
-    from . import cli
-    return any(w.partition("=")[0] in cli.SKIPS or w == "remove" for w in remedy.split())
+    its own line, never behind `next:` (row sc5 R8, ruled for config by ak9b review 1 lead 1),
+    by doctor's one rule (NICE n197)."""
+    return doctor.asks(remedy.split())
 
 
 def silent(rows):

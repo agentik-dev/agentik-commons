@@ -11,7 +11,7 @@ from pathlib import Path
 
 LIB = Path(__file__).resolve().parent.parent / "plugins" / "suite" / "lib"
 sys.path.insert(0, str(LIB))
-from agentik_suite import settings  # noqa: E402
+from agentik_suite import config, doctor, settings  # noqa: E402
 
 READ = ("import sys\nsys.path.insert(0, sys.argv[1])\nfrom agentik_suite import settings\n"
         "try:\n    print(settings.read(sys.argv[2])[0])\nexcept settings.Fault as e:\n    print('fault', e.why)\n")
@@ -45,6 +45,20 @@ class SettingsRead(unittest.TestCase):
             fh.write(b"checkouts: \xff\n")
         self.assertEqual(self.read(path), "fault a file that cannot be read")
         self.assertEqual(self.read(self.dir), "fault a file that cannot be read")
+
+
+class OneWordRule(unittest.TestCase):
+    """n197: a quoted flag, a cluster, a case or `--assume-yes` answers or removes, in both."""
+
+    def test_03_config_and_the_close_share_the_rule(self):
+        for remedy in ("murmur reset -yq", "murmur reset -qy", "murmur reset '-y'", 'murmur reset "--yes"',
+                       "murmur reset --yes=1", "murmur reset --YES", "murmur REMOVE all",
+                       "murmur reset --assume-yes", "murmur 'remove' all", "murmur reset -y"):
+            self.assertTrue(config.asks(remedy), remedy)
+            self.assertFalse(doctor._closes(remedy), remedy)
+        for remedy in ("murmur reset", "murmur reset -q", "murmur reset --quiet", "murmur removed x"):
+            self.assertFalse(config.asks(remedy), remedy)
+            self.assertTrue(doctor._closes(remedy), remedy)
 
 
 if __name__ == "__main__":

@@ -592,12 +592,23 @@ def _left(checks, low, high):
                and c["step"]["mid"] not in HELD for c in checks)
 
 
-def _closes(remedy):
-    """A tool's remedy the close may name: a shell line with no word that answers a question for
-    the person (cli.SKIPS) and not `remove` (row sc5 R8); a write such as install-cli is the fix."""
+def asks(words):
+    """A word of `words` answers a question for the person or removes (row sc5 R8), the one rule
+    of `config.asks` and `_closes` (NICE n197): quotes stripped, case folded, a value after `=`
+    dropped, it is a flag of cli.SKIPS, `--assume-yes` or `remove`, or a cluster such as `-yq`."""
     from . import cli
+    for w in words:
+        w = w.replace("'", "").replace('"', "").lower().partition("=")[0]
+        if w in cli.SKIPS or w in ("--assume-yes", "remove") or re.match(r"-[a-z]*y[a-z]*\Z", w):
+            return True
+    return False
+
+
+def _closes(remedy):
+    """A tool's remedy the close may name: a shell line with no word that `asks` finds; a write
+    such as install-cli is the fix."""
     words = remedy.split() if _is_shell(remedy) else []
-    return bool(words) and not any(w.partition("=")[0] in cli.SKIPS or w == "remove" for w in words)
+    return bool(words) and not asks(words)
 
 
 def close_command(cmd, groups):
