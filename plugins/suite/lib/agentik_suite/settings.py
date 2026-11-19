@@ -21,6 +21,8 @@ import json
 import os
 import re
 
+import agentik_install
+
 KEY = re.compile(r"([A-Za-z0-9_][A-Za-z0-9_-]*):(?:[ ]+(.*))?\Z")
 NUMBER = re.compile(r"-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
 REFUSED = "&*|>!%@`"
@@ -172,13 +174,18 @@ def parse(text):
 
 
 def read(path):
-    """(present, tree, lines); a Fault for a file outside the subset or one that cannot be read."""
+    """(present, tree, lines); a Fault for a file outside the subset or one that cannot be read. A
+    path that is no regular file, a FIFO say, is never opened, so no read blocks (NICE n76)."""
     try:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
+        os.stat(path)
     except FileNotFoundError:
         return False, {}, {}
-    except (OSError, UnicodeDecodeError):
+    except (OSError, ValueError):
+        raise Fault(0, "a file that cannot be read")
+    data = agentik_install.read_regular(path)
+    try:
+        text = data.decode("utf-8")
+    except (AttributeError, UnicodeDecodeError):
         raise Fault(0, "a file that cannot be read")
     tree, lines = parse(text)
     return True, tree, lines
