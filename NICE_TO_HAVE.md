@@ -24,7 +24,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n76 | S3 | `plugins/suite` `settings.py` `read` | a FIFO at the user settings file hangs `doctor` and `status --check` with no deadline: the read opens it; refuse a file that is not regular, as `read_regular` does for the plan's reads | ak3d review 1's R1-F1: doctor past 15 s; the same read ak2b fix round 1 left alone | 2026-11-13, ak3d review 1 |
 
 ## From packet sc4-errors (build 1 and review 2)
 
