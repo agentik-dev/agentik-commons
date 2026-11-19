@@ -34,11 +34,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n186 | S4 | `plugins/suite` `update.py` `runner_pid` | the hold tries every prefix of a process line as the program, so a `make` or a `git -C` in the runner's checkout whose later word is `run`, `gate` or `plan` holds an update; narrow the walk to a prefix that is an executable file | review 2 lead, probe 2A test_a3 | 2026-11-14, ak4a review 2 |
-| n187 | S4 | `plugins/suite` `update.py` `do_update` | after a plugin update drops a tool's entry, the next `update` reads the tool as absent and says everything is current, with nothing about the tool that was lost | review 2 lead, F4 rerun without mending | 2026-11-14, ak4a review 2 |
-| n188 | S4 | `plugins/suite` `update.py` `--json` | `update NAME --json` for a listed tool that is not installed prints an object that does not name it: `tools` and `skipped` are both `[]` | review 2 lead | 2026-11-14, ak4a review 2 |
-| n189 | S4 | `plugins/suite` `update.py` `update.skip.id` | the skip row for an id that is no plugin id gives no next step | review 2 lead | 2026-11-14, ak4a review 2 |
-| n190 | S4 | `plugins/suite` `update.py` `err.update.left` | a run that leaves a step 3 row to do prints an ok row for the same tool above it, and that row's words are setup's (`setup would install it again`) | review 2 lead, F5's run | 2026-11-14, ak4a review 2 |
 
 ## From packet ak9c-plug-rest (build 1)
 
@@ -148,3 +143,12 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n253 | S4 | `scripts/sync` | the seed's temp file, `messages.md.sync.$$`, has no leading dot; a kill before its rename leaves it in the package, where a later run keeps it and `install-cli` would freeze it; lead: `.messages.md.sync.$$` | review 1 of ak10b-term | 2026-11-17, ak10b-term review 1 |
 | n254 | S4 | `scripts/sync` | where `agentik_term` or a placed name stands as a file, a folder or a dangling link, the run ends in exit 1 after part of the tree is written, a code the header does not list; lead: refuse with exit 2 before any write | review 1 of ak10b-term | 2026-11-17, ak10b-term review 1 |
 | n255 | S4 | `scripts/sync` | a `plugin/lib/agentik_term` that is a link to a folder outside the tree is followed and written through; lead: refuse a link with exit 2 | review 1 of ak10b-term | 2026-11-17, ak10b-term review 1 |
+
+## From row ak12-polish (the design's D7)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n257 | S4 | `plugins/suite` `completion.py` | a tool typed by its own name (`agentik-quill <Tab>`) is not completed: the scripts register `agentik` and `agentik-suite` alone; lead: register each `agentik-<tool>` the finder lists, its words from the cache | row ak12-polish D7 | 2026-11-19, ak12-polish |
+| n258 | S4 | `plugins/suite` `completion.py` | `config <tool>.<Tab>` offers no key, since a tool's keys need its config read and so a process; lead: keep the keys of each config read beside the describe cache | row ak12-polish D7 | 2026-11-19, ak12-polish |
+| n259 | S4 | `plugins/suite` `completion.py` | past a tool's first word nothing is offered, its second-level words and its flags included, since P10's `describe` carries first-level verbs alone | row ak12-polish D7 | 2026-11-19, ak12-polish |
+| n260 | S4 | `plugins/suite` `completion.py` | no fish: `completion fish` is refused; lead: a third script on the same callback | row ak12-polish D7 | 2026-11-19, ak12-polish |
