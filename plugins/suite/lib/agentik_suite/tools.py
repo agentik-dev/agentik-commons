@@ -474,6 +474,16 @@ def _cached(folder, name, stamp):
     return None
 
 
+def cached(name, exe, env):
+    """The counted describe of `name` in the cache whose stamp matches `exe`, else None: a stat and
+    a read, no process (row ak12-polish R3)."""
+    try:
+        stamp = _stamp(exe)
+    except OSError:
+        return None
+    return _cached(cache_dir(env), name, stamp)
+
+
 def _keep(folder, name, stamp, answer):
     """Written by a rename, so a reader sees the old file or the new one; a failure keeps none."""
     try:

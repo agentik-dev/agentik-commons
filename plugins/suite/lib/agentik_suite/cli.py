@@ -8,7 +8,8 @@ settings drilled down to one, describe, the suite's own answer to that read, sta
 on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
 status_screen.py draws each as it is read), the object alone with --json, and with --check only
 the declared watchers (status.py), install-cli, which places this command and the agentik door
-under a prefix's bin (install.py), and doctor, the machine checked in one read (doctor.py).
+under a prefix's bin (install.py), doctor, the machine checked in one read (doctor.py), and
+completion, a shell's script that calls `completion words` back at each Tab (completion.py).
 Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup, update and install-cli, the
 verbs that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
 --all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
@@ -34,9 +35,10 @@ import time
 import agentik_install
 import agentik_records
 
-from . import apply, config, doctor, inbox, init, install, issue, plan, prog, remove, status, term, tools, update
+from . import apply, completion, config, doctor, inbox, init, install, issue, plan, prog, remove, status, term, tools, update
 
-VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue", "init", "records")
+VERBS = ("help", "version", "setup", "update", "remove", "config", "describe", "status", "install-cli", "doctor", "inbox", "issue", "init", "records",
+         "completion")
 KEPT = ("rows", "guard")  # words kept for one tool's claim, named in kept.json beside the package (row ak9c R2)
 WRITES = ("setup", "update", "remove", "install-cli", "issue", "init")
 FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", None, "no_color"),
@@ -67,6 +69,7 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
                "--expected": ("expected", "issue"), "--as": ("as_login", "issue"),
                "--draft": ("draft", "issue"),
                "--kind": ("kind", "init")}
+HOOKS = ("--ps", "--now")  # the test hooks of VALUE_FLAGS: never offered at a Tab (row ak12-polish R4)
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
              + ISSUE_FLAGS + INSTALL_FLAGS
              for f in (long, short) if f}
@@ -93,7 +96,10 @@ EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run")
                      (("help",), " <tool>", "help.eg.help_tool")),
             "update": ((("update",), "", "help.eg.update"), (("update", "--dry-run"), "", "help.eg.update_dry")),
             "remove": ((("remove",), " <plugin>...", "help.eg.remove_names"),
-                       (("remove", "--all", "--dry-run"), "", "help.eg.remove_all"))}
+                       (("remove", "--all", "--dry-run"), "", "help.eg.remove_all")),
+            "completion": ((("completion", "zsh"), "", "help.eg.completion_zsh"),
+                           (("completion", "bash"), "", "help.eg.completion_bash"))}
+WRAPS = {"completion": 'eval "$(%s)"'}  # an example's command inside the line a person adds
 ROWS = {"setup": "help.row.setup", "doctor": "help.row.doctor", "config": "help.row.config",
         "status": "help.row.status", "help": "help.row.help"}
 
@@ -188,6 +194,8 @@ def _takes(verb, o, nouns):
         return not nouns
     if verb == "records":
         return len(nouns) <= 1
+    if verb == "completion":
+        return completion.takes(nouns)
     if verb == "install-cli":
         return not nouns and o["prefix"] != ""
     if verb in ("setup", "update"):
@@ -590,7 +598,7 @@ class Command:
         found = []
         for words, tail, gloss in EXAMPLES.get(verb, ()):
             words = [own if w is OWN else w for w in words]
-            found.append((self.say(*words) + tail, self.t.text(gloss)))
+            found.append((WRAPS.get(verb, "%s") % (self.say(*words) + tail), self.t.text(gloss)))
         return found
 
     def _show_examples(self, examples):
@@ -749,6 +757,11 @@ class Command:
 
     def do_init(self, nouns):
         return init.do_init(self, nouns)
+
+    # ---- completion -----------------------------------------------------------------------
+
+    def do_completion(self, nouns):
+        return completion.do_completion(self, nouns)
 
     # ---- records --------------------------------------------------------------------------
 

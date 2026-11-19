@@ -35,6 +35,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.update_dry`: the plan; nothing is written
 - `help.eg.remove_names`: those plugins and their commands, after one question
 - `help.eg.remove_all`: the plan for every tool, the marketplace and the suite; nothing is written
+- `help.eg.completion_zsh`: add this line to ~/.zshrc, then open a new terminal
+- `help.eg.completion_bash`: add this line to ~/.bashrc, then open a new terminal
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
@@ -50,6 +52,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `verb.issue`: Draft a scrubbed report of a problem; it is sent only when you type send.
 - `verb.init`: Write a new coordinating repo, an hq, into an empty folder.
 - `verb.records`: Print where a repo keeps its working records, and in what state.
+- `verb.completion`: Print the script that completes the agentik words at a Tab, for zsh or bash.
 - `usage.help`: usage: `{help}` [<verb>] [flags]
 - `usage.version`: usage: `{prog}` version [flags]
 - `usage.setup`: usage: `{setup}` [<plugin>...] [flags]
@@ -63,6 +66,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.issue`: usage: `{issue}` [new|show|strike WORD|drop SECTION|edit|reword FILE|send|discard]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `usage.records`: usage: `{prog}` records [<dir>] [flags]
+- `usage.completion`: usage: `{prog}` completion zsh|bash [flags]
 - `flag.json`: Print one JSON object on stdout, and nothing else there.
 - `flag.quiet`: Print no hints and no progress.
 - `flag.no_color`: Print no colour, on a terminal too.
@@ -80,6 +84,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.prefix`: Place the command under this folder's bin, not under ~/.local.
 - `flag.force`: Place this command even where the one in place is newer.
 - `flag.kind`: What to write. The one kind is hq.
+- `flag.ran`: The command that went wrong, as you ran it.
+- `flag.exit`: The exit code that command gave.
+- `flag.output`: A file that holds the last lines that command printed.
+- `flag.expected`: What you expected that command to do.
+- `flag.as_login`: The gh account to send the issue as.
+- `flag.draft`: The draft to work on, by its id, where more than one waits.
 
 ## Version
 
@@ -136,6 +146,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.status.path`: `{path}` is not a folder
 - `err.config.both`: --changed and --user-files are two answers
 - `err.describe.json`: describe prints JSON for other tools, so it needs --json
+- `err.completion.none`: completion needs a shell: zsh or bash
+- `err.completion.shell`: `{word}` is not a shell completion knows: zsh or bash
+- `err.completion.extra`: completion takes one shell; `{word}` is one more
 
 ## Config
 

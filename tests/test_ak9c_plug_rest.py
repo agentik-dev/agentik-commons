@@ -148,10 +148,10 @@ class RunTest(Claims):
     def test_4_the_suites_words_and_the_kept_words(self):
         h = self.blank()
         place(h, "quill", body(claiming("quill", "doctor", "completion", "rows")))
-        for word in ("completion", "rows"):
+        for word in ("completion", "rows"):  # completion a verb of the suite's own (row ak12-polish)
             code, out, err = self.cli(h, word)
             self.assertEqual(code, 2, out + err)
-            self.assertIn("%s is not a verb" % word, err)
+            self.assertIn("completion needs a shell" if word == "completion" else "%s is not a verb" % word, err)
         code, out, err = self.cli(h, "doctor", "--json")
         self.assertEqual(json.loads(out)["schema"], "agentik.doctor/1")
         self.assertFalse([l for l in ran(h) if l.startswith(("[completion]", "[rows]"))], ran(h))
