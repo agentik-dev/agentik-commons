@@ -13,14 +13,14 @@
 | act | done-ness |
 |---|---|
 | P the packet | done |
-| T the failing tests, acceptance 1 to 6 | open |
+| T the failing tests, acceptance 1 to 6: `CheckTest`, six tests, red at the pin (exit 2, usage); the pin's 16 pass | done |
 | A R1 to R4: the table, the check, the exits in `scripts/sync` | open |
 | B R5: the header comment and GUIDE's sync paragraph | open |
 | V acceptance 8 by hand; `make check` through the gate | open |
 
 ## Next act
 
-T: the `CheckTest` class in `tests/test_sync.py`.
+A: the table and the check in `scripts/sync`.
 
 ## Handover
 
