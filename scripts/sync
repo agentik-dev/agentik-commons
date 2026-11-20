@@ -2,6 +2,7 @@
 # sync: refresh the vendored copies in a tool repo (agentik-r1 7.3, hq design/04 §7 item 4).
 #
 #   scripts/sync <repo>
+#   scripts/sync --check <repo>
 #
 # Copies bin/agentik to <repo>/scripts/agentik, and scripts/hygiene,
 # scripts/recordlint, scripts/readme-top, scripts/bounded, scripts/plugin-version-check and
@@ -27,13 +28,25 @@
 # A plugin/ with no lib/ gets the set a repo with no plugin/ gets.
 # Exit 0 done; 2 usage, a target that is not a git checkout (or is this repo),
 # a plugin/lib/ that names no tool, or a seed id commons' messages.md lacks, with nothing written. CDPATH is never followed.
+#
+# --check reads the same table and writes nothing (packet sy4-sync-check): `behind <path>` for a
+# listed copy that is absent or differs from commons' file in bytes or mode, `unlisted <path>`
+# where vendored.sha256 lacks a listed path or names one sync would not list (no file: every
+# path), sorted, behind first, on stdout; agentik-tool.conf and messages.md, the tool's own, are
+# never compared. Exit 0 every copy is commons' (one line says so), 1 a behind or unlisted line,
+# 2 usage and the refusals above, with nothing on stdout.
 set -eu
 
 usage() {
-	echo "usage: scripts/sync <repo>" >&2
+	echo "usage: scripts/sync [--check] <repo>" >&2
 	exit 2
 }
 
+check=
+if [ $# -ge 1 ] && [ "$1" = --check ]; then
+	check=1
+	shift
+fi
 [ $# -eq 1 ] || usage
 case $1 in -*) usage ;; esac
 here=$(CDPATH= cd -P -- "$(dirname -- "$0")/.." >/dev/null && pwd -P)
@@ -103,57 +116,114 @@ if [ -n "$tool" ]; then
 	done
 fi
 
-place() { # source under this repo, destination under the target, mode
+# sync's own bytes for the package's __init__.py, listed like a copy.
+init_text='"""agentik_term: the one writer, term, and its catalogue, placed by agentik-commons scripts/sync (GUIDE section 10); messages.md beside them is the tool'"'"'s own."""'
+
+# The one table the write path and the check both read (packet sy4-sync-check R1): a line a file,
+# its source under this repo, its destination under the target, its mode, and y where
+# vendored.sha256 lists it, in the file's order. :init is init_text; :messages and :conf are the
+# tool's own, seeded once when absent, never listed and never compared (n, mode -).
+table() {
+	for f in agentik hygiene recordlint readme-top bounded plugin-version-check plugin-description-bytes; do
+		case $f in agentik) src=bin/agentik ;; *) src=scripts/$f ;; esac
+		echo "$src scripts/$f 755 y"
+	done
+	[ -n "$tool" ] || return 0
+	echo "scripts/agentik_install.py plugin/lib/agentik_install.py 644 y"
+	echo "scripts/agentik_records.py plugin/lib/agentik_records.py 644 y"
+	echo ":init plugin/lib/agentik_term/__init__.py 644 y"
+	echo "$writer/term.py plugin/lib/agentik_term/term.py 644 y"
+	echo "$writer/catalogue.py plugin/lib/agentik_term/catalogue.py 644 y"
+	echo "scripts/plugin-launcher plugin/bin/$tool 755 y"
+	echo "bin/agentik plugin/bin/agentik 755 y"
+	echo ":messages plugin/lib/agentik_term/messages.md - n"
+	echo ":conf plugin/lib/agentik-tool.conf - n"
+}
+rows=$(table)
+listed=$(printf '%s\n' "$rows" | awk '$4 == "y" { print $2 }')
+
+if [ -n "$check" ]; then
+	# Reads only: nothing is created, changed or removed, here or in the target.
+	behind=
+	while read -r src dst mode mark; do
+		[ "$mark" = y ] || continue
+		f=$target/$dst
+		if [ -L "$f" ] || ! [ -f "$f" ]; then
+			behind="$behind$dst
+"
+		elif [ "$src" = :init ] && ! printf '%s\n' "$init_text" | cmp -s - "$f"; then
+			behind="$behind$dst
+"
+		elif [ "$src" != :init ] && ! cmp -s "$here/$src" "$f"; then
+			behind="$behind$dst
+"
+		elif [ -z "$(find "$f" -prune -perm "$mode")" ]; then
+			behind="$behind$dst
+"
+		fi
+	done <<EOF
+$rows
+EOF
+	have=
+	if [ -f "$target/scripts/vendored.sha256" ]; then
+		have=$(sed -n 's/^[^ ]* [ *]//p' "$target/scripts/vendored.sha256" | sort -u)
+	fi
+	unlisted=$(printf '%s\n%s\n' "$have" "$(printf '%s\n' "$listed" | sort -u)" | sed '/^$/d' | sort | uniq -u)
+	behind=$(printf '%s' "$behind" | sort -u)
+	if [ -z "$behind$unlisted" ]; then
+		echo "sync: $target: every copy is commons'"
+		exit 0
+	fi
+	[ -z "$behind" ] || printf '%s\n' "$behind" | sed 's/^/behind /'
+	[ -z "$unlisted" ] || printf '%s\n' "$unlisted" | sed 's/^/unlisted /'
+	exit 1
+fi
+
+place() { # source under this repo (or :init), destination under the target, mode
 	dir=$target/${2%/*}
 	temp=$dir/.${2##*/}.sync.$$
 	mkdir -p "$dir"
-	cp "$here/$1" "$temp"
+	if [ "$1" = :init ]; then
+		printf '%s\n' "$init_text" >"$temp"
+	else
+		cp "$here/$1" "$temp"
+	fi
 	chmod "$3" "$temp"
 	mv -f "$temp" "$target/$2"
 }
 
-place bin/agentik scripts/agentik 755
-place scripts/hygiene scripts/hygiene 755
-place scripts/recordlint scripts/recordlint 755
-place scripts/readme-top scripts/readme-top 755
-place scripts/bounded scripts/bounded 755
-place scripts/plugin-version-check scripts/plugin-version-check 755
-place scripts/plugin-description-bytes scripts/plugin-description-bytes 755
-listed="scripts/agentik scripts/hygiene scripts/recordlint scripts/readme-top scripts/bounded scripts/plugin-version-check scripts/plugin-description-bytes"
-said="agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
-if [ -n "$tool" ]; then
-	place scripts/agentik_install.py plugin/lib/agentik_install.py 644
-	place scripts/agentik_records.py plugin/lib/agentik_records.py 644
-	place scripts/plugin-launcher "plugin/bin/$tool" 755
-	place bin/agentik plugin/bin/agentik 755
-	place "$writer/term.py" plugin/lib/agentik_term/term.py 644
-	place "$writer/catalogue.py" plugin/lib/agentik_term/catalogue.py 644
-	pkg=$target/plugin/lib/agentik_term
-	printf '%s\n' '"""agentik_term: the one writer, term, and its catalogue, placed by agentik-commons scripts/sync (GUIDE section 10); messages.md beside them is the tool'"'"'s own."""' \
-		>"$pkg/.__init__.py.sync.$$"
-	chmod 644 "$pkg/.__init__.py.sync.$$"
-	mv -f "$pkg/.__init__.py.sync.$$" "$pkg/__init__.py"
-	if ! [ -e "$pkg/messages.md" ] && ! [ -L "$pkg/messages.md" ]; then
-		{
-			printf '# Messages\n\n'
-			printf '%s\n\n' "This catalogue is the tool's own, not a vendored copy: scripts/sync wrote it once and never writes it again. Each message the tool prints through term is one item here, by its id (GUIDE section 10)."
-			printf '%s' "$seed"
-		} >"$pkg/messages.md.sync.$$"
-		mv -f "$pkg/messages.md.sync.$$" "$pkg/messages.md"
-	fi
-	if ! [ -f "$conf" ]; then
-		cat >"$conf.sync.$$" <<EOF
+while read -r src dst mode mark; do
+	case $src in
+	:messages)
+		pkg=$target/${dst%/*}
+		if ! [ -e "$pkg/messages.md" ] && ! [ -L "$pkg/messages.md" ]; then
+			{
+				printf '# Messages\n\n'
+				printf '%s\n\n' "This catalogue is the tool's own, not a vendored copy: scripts/sync wrote it once and never writes it again. Each message the tool prints through term is one item here, by its id (GUIDE section 10)."
+				printf '%s' "$seed"
+			} >"$pkg/messages.md.sync.$$"
+			mv -f "$pkg/messages.md.sync.$$" "$pkg/messages.md"
+		fi
+		;;
+	:conf)
+		if ! [ -f "$conf" ]; then
+			cat >"$conf.sync.$$" <<CONF
 # This tool's names, for the canonical install-cli and launchers (GUIDE §10); not a vendored copy.
 tool_name=$tool
 remedy=/$word:install-cli
 runner=$tool
 old_name=
 old_state=
+CONF
+			mv -f "$conf.sync.$$" "$conf"
+		fi
+		;;
+	*) place "$src" "$dst" "$mode" ;;
+	esac
+done <<EOF
+$rows
 EOF
-		mv -f "$conf.sync.$$" "$conf"
-	fi
-	listed="$listed plugin/lib/agentik_install.py plugin/lib/agentik_records.py plugin/lib/agentik_term/__init__.py plugin/lib/agentik_term/term.py plugin/lib/agentik_term/catalogue.py plugin/bin/$tool plugin/bin/agentik"
-fi
+said="agentik, hygiene, recordlint, readme-top, bounded, plugin-version-check, plugin-description-bytes, vendored.sha256"
 # shellcheck disable=SC2086 # the paths are this script's own, with no space
 (CDPATH= cd -P -- "$target" >/dev/null && sum $listed) >"$target/scripts/.vendored.sync.$$"
 mv -f "$target/scripts/.vendored.sync.$$" "$target/scripts/vendored.sha256"

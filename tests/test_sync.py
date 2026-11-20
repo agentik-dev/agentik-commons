@@ -289,5 +289,113 @@ class PluginTest(unittest.TestCase):
         self.assertEqual((p.returncode, p.stdout), (0, "1.2.3\n"))
 
 
+def tree(top, skip=(".git", ".claude", ".venv", "__pycache__")):
+    """Every file and folder under top: its bytes (files), mode and mtime."""
+    seen = {}
+    for base, dirs, files in os.walk(top):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for name in [*dirs, *files]:
+            path = os.path.join(base, name)
+            st = os.lstat(path)
+            body = Path(path).read_bytes() if name in files and not os.path.islink(path) else None
+            seen[os.path.relpath(path, top)] = (st.st_mode, st.st_mtime_ns, body)
+    return seen
+
+
+class CheckTest(unittest.TestCase):
+    """scripts/sync --check <repo> (packet sy4-sync-check): which copies are behind, and nothing written."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = os.path.realpath(self.tmp.name)
+        self.repo = os.path.join(base, "tool repo")
+        self.plain = os.path.join(base, "plain repo")
+        for repo in (self.repo, self.plain):
+            os.mkdir(repo)
+            subprocess.run(["git", "-C", repo, "init", "-q"], check=True)
+        manifest = Path(self.repo, "plugin", ".claude-plugin", "plugin.json")
+        manifest.parent.mkdir(parents=True)
+        Path(self.repo, "plugin", "lib").mkdir()
+        manifest.write_text(json.dumps({"name": "x", "version": "1.2.3"}))
+
+    def check(self, repo):
+        """sync --check, and the fixture and commons as before the call: nothing written (acceptance 4)."""
+        before = (tree(repo), tree(ROOT))
+        result = sync("--check", repo)
+        self.assertEqual((tree(repo), tree(ROOT)), before, "sync --check wrote")
+        return result
+
+    def manifest_rows(self, repo):
+        return Path(repo, "scripts", "vendored.sha256").read_text().splitlines(keepends=True)
+
+    def test_check_after_sync_is_clean(self):
+        for repo in (self.repo, self.plain):
+            self.assertEqual(sync(repo)[0], 0)
+            self.assertEqual(self.check(repo), (0, "sync: %s: every copy is commons'\n" % repo, ""))
+
+    def test_check_a_copy_changed_with_its_line(self):
+        sync(self.repo)
+        copy = Path(self.repo, "scripts", "hygiene")
+        copy.write_bytes(copy.read_bytes() + b"# an older scanner\n")
+        digest = hashlib.sha256(copy.read_bytes()).hexdigest()
+        rows = ["%s  scripts/hygiene\n" % digest if r.endswith("  scripts/hygiene\n") else r
+                for r in self.manifest_rows(self.repo)]
+        Path(self.repo, "scripts", "vendored.sha256").write_text("".join(rows))
+        self.assertEqual(verify(self.repo)[0], 0)
+        self.assertEqual(self.check(self.repo), (1, "behind scripts/hygiene\n", ""))
+
+    def test_check_absent_and_unlisted(self):
+        sync(self.repo)
+        Path(self.repo, "plugin/lib/agentik_term/term.py").unlink()
+        door = Path(self.repo, "plugin/bin/agentik")
+        door.write_bytes(door.read_bytes()[:-1])
+        rows = [r for r in self.manifest_rows(self.repo) if not r.endswith("  scripts/bounded\n")]
+        rows.append("%s  scripts/extra\n" % ("0" * 64))
+        Path(self.repo, "scripts", "vendored.sha256").write_text("".join(rows))
+        self.assertEqual(self.check(self.repo), (1, "behind plugin/bin/agentik\nbehind plugin/lib/agentik_term/term.py\n"
+                                                 "unlisted scripts/bounded\nunlisted scripts/extra\n", ""))
+        # the mode alone
+        sync(self.plain)
+        Path(self.plain, "scripts", "agentik").chmod(0o644)
+        self.assertEqual(self.check(self.plain), (1, "behind scripts/agentik\n", ""))
+        # no manifest: every listed path unlisted
+        sync(self.plain)
+        Path(self.plain, "scripts", "vendored.sha256").unlink()
+        self.assertEqual(self.check(self.plain), (1, "".join("unlisted %s\n" % c for c in sorted(COPIES)), ""))
+
+    def test_check_writes_nothing_on_a_repo_never_synced(self):
+        code, out, err = self.check(self.repo)
+        self.assertEqual((code, err), (1, ""))
+        listed = sorted([*COPIES, *PLACED, TERM_INIT])
+        self.assertEqual(out, "".join("behind %s\n" % c for c in listed) + "".join("unlisted %s\n" % c for c in listed))
+        self.assertFalse(Path(self.repo, "plugin/lib/agentik-tool.conf").exists())
+
+    def test_check_skips_the_tools_own(self):
+        sync(self.repo)
+        conf = Path(self.repo, "plugin/lib/agentik-tool.conf")
+        conf.write_text(conf.read_text().replace("old_name=\n", "old_name=agentik-old\n"))
+        own = Path(self.repo, TERM_OWN)
+        own.write_text(own.read_text() + "- `x.made`: a made-up line of the tool's own.\n")
+        self.assertEqual(self.check(self.repo), (0, "sync: %s: every copy is commons'\n" % self.repo, ""))
+
+    def test_check_usage(self):
+        not_git = os.path.join(os.path.realpath(self.tmp.name), "not a checkout")
+        os.mkdir(not_git)
+        for args in (("--check",), ("--check", self.repo, self.plain), ("--bogus", self.repo),
+                     ("--check", "--check", self.repo), (self.repo, "--check"), ("--check", not_git)):
+            with self.subTest(args=args):
+                before = tree(self.repo)
+                code, out, _ = sync(*args)
+                self.assertEqual((code, out), (2, ""))
+                self.assertEqual(tree(self.repo), before)
+        # each refusal the write path has, the same words on stderr
+        Path(self.plain, "plugin", "lib").mkdir(parents=True)
+        for target in (not_git, str(ROOT), self.plain):
+            with self.subTest(target=target):
+                self.assertEqual(self.check(target)[:2], (2, ""))
+                self.assertEqual(sync("--check", target)[2], sync(target)[2])
+
+
 if __name__ == "__main__":
     unittest.main()
