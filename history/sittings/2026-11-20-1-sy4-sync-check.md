@@ -14,17 +14,19 @@
 |---|---|
 | P the packet | done |
 | T the failing tests, acceptance 1 to 6: `CheckTest`, six tests, red at the pin (exit 2, usage); the pin's 16 pass | done |
-| A R1 to R4: the table, the check, the exits in `scripts/sync` | open |
+| A R1 to R4: `table` read by both paths, the check, the exits; `tests.test_sync` 22 OK; the write path's stdout, files, modes and bytes equal the pin's on four shapes (plain, lib, lib with conf, plugin with no lib), twice each | done |
 | B R5: the header comment and GUIDE's sync paragraph | open |
 | V acceptance 8 by hand; `make check` through the gate | open |
 
 ## Next act
 
-A: the table and the check in `scripts/sync`.
+B: the header comment and GUIDE's sync sentence.
 
 ## Handover
 
 - choice: `--check` is read only as the first word; `<repo> --check` is two words, usage as at the pin. Consumer: review.
+- choice: mode is compared as the exact permission bits (`find -perm 755`), as the write path's `chmod` sets them; a checkout made under umask 002 (775) reads `behind`. Consumer: review, hq suite status.
+- choice: a symlink at a destination is `behind`, since the write path replaces it with a file. Consumer: review.
 
 ## Exit
 
