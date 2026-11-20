@@ -16,7 +16,7 @@
 | T the failing tests, acceptance 1 to 6: `CheckTest`, six tests, red at the pin (exit 2, usage); the pin's 16 pass | done |
 | A R1 to R4: `table` read by both paths, the check, the exits; `tests.test_sync` 22 OK; the write path's stdout, files, modes and bytes equal the pin's on four shapes (plain, lib, lib with conf, plugin with no lib), twice each | done |
 | B R5: the header comment; GUIDE's sync sentence, which is in §6 at the pin, not §5 as the brief has it; voice and hygiene clean | done |
-| V acceptance 8 by hand; `make check` through the gate | open |
+| V acceptance 8 by hand: session exit 1, `behind scripts/hygiene` among nine lines, its `git status` unchanged; relay exit 1 (`behind scripts/hygiene`); decisions exit 1 (`behind plugin/lib/agentik_term/term.py`). `make check` through the gate | open |
 
 ## Next act
 
