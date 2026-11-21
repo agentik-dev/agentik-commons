@@ -312,3 +312,15 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n188 | S4 | `plugins/suite` `update.py` `--json` | `update NAME --json` for a listed tool that is not installed prints an object that does not name it: `tools` and `skipped` are both `[]` | review 2 lead | 2026-11-14, ak4a review 2 |
 | n189 | S4 | `plugins/suite` `update.py` `update.skip.id` | the skip row for an id that is no plugin id gives no next step | review 2 lead | 2026-11-14, ak4a review 2 |
 | n190 | S4 | `plugins/suite` `update.py` `err.update.left` | a run that leaves a step 3 row to do prints an ok row for the same tool above it, and that row's words are setup's (`setup would install it again`) | review 2 lead, F5's run | 2026-11-14, ak4a review 2 |
+
+## From packets ak9b-plug-reader and ak9c-plug-rest (n191 to n194, n200 to n202, moved by rr7-way-in)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n191 | S4 | `plugins/suite` `update.py` | with output sent to a file, `agentik update` prints its `running claude plugin marketplace update agentik` line above the plan's first line, since the two streams are not flushed in order; not fixed | the first real run of `agentik update`, in ak9b-plug-reader's start line | 2026-11-14, ak9b-plug-reader build 1 |
+| n192 | S4 | `plugins/suite` `config.py` `_list` | in `agentik config`, R3's reason is a cell after the state, in the settings column, so where one reason shows every row's `N settings` pads by about 27 columns | review 1 lead, the config table at the pin and at head | 2026-11-14, ak9b-plug-reader review 1 |
+| n193 | S4 | `tests/test_sc10_doctor_checks.py` a10, `tests/test_ak3d_doctor.py` line 5 | the two timing tests set `tools.WALL` to 0.5 s, so no test holds the describe wall R5 adds before the doctor's deadline at its real 2 s (a worst case of 32 s, against 30 s at the pin) | review 1 lead, six hung tools: 5.0 s at head, 3.0 s at the pin, the deadline at 3 | 2026-11-14, ak9b-plug-reader review 1 |
+| n194 | S4 | `plugins/suite` `cli.py` `help` | where a plugin's command sits under its root off PATH (fk_homes hD), `agentik help T` exits 3 while `agentik T --help` runs the tool's file (R1) | review 1 lead, the exit code alone seen | 2026-11-14, ak9b-plug-reader review 1 |
+| n200 | S4 | `plugins/suite` `cli.py` help | `help` lists no claimed verb: a word a tool claims runs from `agentik <word>`, and no help screen names it | brief R9; design/15 P2 | 2026-11-14, ak9c build 1 |
+| n201 | S4 | `plugins/suite` `tools.py` `claims` | a claim of a word that is a tool's or a plugin's name reads as counting in `config T --json`, though `_not_a_verb` settles that word first and never runs the claim | read; `cli.py` `_not_a_verb` | 2026-11-14, ak9c build 1 |
+| n202 | S4 | `plugins/suite` `tools.py` `describe_all` | a describe that hangs is never cached, so a word that is nothing pays the whole wall each time while a tool hangs: 2.06 s against the pin's 0.05 s with six hanging tools; inside R6's wall | review 1's lead, probe `cost` | 2026-11-14, ak9c review 1 |
