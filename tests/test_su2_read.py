@@ -326,7 +326,8 @@ class FailingSourceTest(ReadHome):
 class TableTest(ReadHome):
     def test_8_the_pins_reads_from_describe(self):
         """Re-based (ak10c5 R8): the table's reads, each from its tool's describe, are drawn as the
-        table drew them; with no tool on PATH no source is listed and no part is read."""
+        table drew them; with no tool on PATH each read public.json names is `not installed`, as at
+        the pin, and no part is read (review 1 F2)."""
         os.unlink(os.path.join(self.stubs, "agentik-demo"))
         stubs = []
         for name, reads in PIN_READS.items():
@@ -346,7 +347,7 @@ class TableTest(ReadHome):
         start = time.monotonic()
         obj = self.read()
         self.assertLess(time.monotonic() - start, 0.5)
-        self.assertEqual(obj["sources"], [])
+        self.assertEqual([s["state"] for s in obj["sources"]], ["not installed"] * 6)
         self.assertEqual([obj[p]["state"] for p in status_read.PARTS[1:]], ["not read"] * 6)
 
 

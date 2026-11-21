@@ -218,6 +218,17 @@
    "fields": null
   },
   {
+   "name": "charter",
+   "tool": "session",
+   "argv": [],
+   "state": "not installed",
+   "ms": null,
+   "exit": null,
+   "stderr": null,
+   "wall_s": 1.0,
+   "fields": null
+  },
+  {
    "name": "weather",
    "tool": "demo",
    "argv": [

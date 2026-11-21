@@ -602,17 +602,21 @@ SUITE_KEY = "suite"  # public.json's own row, the suite, which is no tool it pla
 
 def public(lib):
     """public.json beside the package, read leniently: {"tools": {name: OWNER/REPO}, "needs":
-    {name: [word]}, "own_command": [name]}, each part empty where the file lacks it or holds
-    another shape (row ak10c5-table-gone R4); the issue's strict read is gather.load_public."""
+    {name: [word]}, "own_command": [name], "reads": {name: [status read name]}}, each part empty
+    where the file lacks it or holds another shape (row ak10c5-table-gone R4, review 1 F2); the
+    issue's strict read is gather.load_public."""
     found = plan._read_json(os.path.join(_lib(lib), PUBLIC))
     found = found if isinstance(found, dict) else {}
     repos = found.get("tools") if isinstance(found.get("tools"), dict) else {}
     needs = found.get("needs") if isinstance(found.get("needs"), dict) else {}
     own = found.get("own_command") if isinstance(found.get("own_command"), list) else []
+    reads = found.get("reads") if isinstance(found.get("reads"), dict) else {}
     return {"tools": {k: v for k, v in repos.items() if isinstance(v, str) and k != SUITE_KEY},
             "needs": {k: [w for w in v if isinstance(w, str)] for k, v in needs.items()
                       if isinstance(v, list)},
-            "own_command": [n for n in own if isinstance(n, str)]}
+            "own_command": [n for n in own if isinstance(n, str)],
+            "reads": {k: [w for w in v if isinstance(w, str)] for k, v in reads.items()
+                      if isinstance(v, list)}}
 
 
 def page(lib, name):

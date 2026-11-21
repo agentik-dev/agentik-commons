@@ -462,6 +462,11 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     on_path = tools.runs(env, {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}, cwd)
     srcs, given = [], set()
     jobs, keys = [], {}
+    # a tool public.json names with no file that runs: its reads by name, `not installed` once no
+    # tool here gives them, as at the pin (review 1 F2)
+    known = tools.public(cmd.lib)
+    absent = [_source(rname, name, [], WALL, None) for name, names in known["reads"].items()
+              if name in known["tools"] and name != own and name not in on_path for rname in names]
 
     def unread(name):
         """A read not run here: backlog and charter under rule none, rows with no hq."""
@@ -521,6 +526,12 @@ def compose(cmd, paths, now, ps_text, on_part=None):
                 if read.get("kind") == "status" and isinstance(read.get("name"), str):
                     found.extend(add(_source(read["name"], entry["name"], read["argv"],
                                              _described_wall(read.get("wall_s")), entry["exe"])))
+        if all(e["settled"] for e in asked):
+            for src in absent:
+                if src["name"] in READS and src["name"] not in given and not unread(src["name"]):
+                    given.add(src["name"])
+                    srcs.append(dict(src, state="not installed", settled=True))
+            del absent[:]
         return found
 
     jobs.extend(release())
