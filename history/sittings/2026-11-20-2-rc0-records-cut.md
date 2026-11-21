@@ -16,7 +16,7 @@
 | T the failing tests, acceptance 1 to 7: ten tests in `tests/test_records_cut.py`, red at the pin (no script) | done |
 | A R1 to R6: `scripts/records-cut`; `tests.test_records_cut` 10 OK | done |
 | B R7: the script's header; GUIDE §12's new paragraph `The cut.`; NICE n261 (no `--undo`); recordlint and hygiene clean | done |
-| V acceptance 9: the dry run against one sibling tool checkout, exit 2: 96 records, refused on 6 branches with record commits and a scanner behind commons'; its `git status` unchanged. Acceptance 8: the gate | open |
+| V acceptance 9: the dry run against one sibling tool checkout, exit 2: 96 records, refused on 6 branches with record commits and a scanner behind commons'; its `git status` unchanged. Acceptance 8: gate 20261120-172023-2860 exit 2 at 82de088, one failure, the known flake `test_up2_suite_origin` test_12 (OK alone), NICE n262; queued again | open |
 
 ## Next act
 
