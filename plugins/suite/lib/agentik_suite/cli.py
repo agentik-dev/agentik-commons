@@ -79,6 +79,7 @@ NEVER_MENDED = WRITES  # a word that is no verb is never mended into one of thes
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 SCHEMA = "agentik.%s/1"
+HELP_DONE = ("hint.setup.done", "hint.setup.rest")  # setup's closes on which the help says the doctor line (hn1 R1)
 SLOTS = (("prog", ()), ("setup", ("setup",)), ("doctor", ("doctor",)), ("config", ("config",)),
          ("status", ("status",)), ("help", ("help",)), ("describe", ("describe",)),
          ("install", ("install-cli",)), ("issue", ("issue",)), ("update", ("update",)),
@@ -541,8 +542,11 @@ class Command:
             names, _, setup = doctor.planned(self)
             steps = plan.build(names or plan.default_set(self.lib), self.env, self.lib, self.tool,
                                self.version)
-            t.hint("hint.help" if any(s["n"] <= 5 and s["state"] != "ok" for s in steps)
-                   else "hint.help.done", **dict(self.slots(), setup=self.say("setup", *setup)))
+            # setup's own question over the same steps (row hn1-help-next R1): the setup line
+            # where its close names something to run or to do, the doctor line where it is done
+            mid = self._closing(steps, setup)[0]
+            t.hint("hint.help.done" if mid in HELP_DONE else "hint.help",
+                   **dict(self.slots(), setup=self.say("setup", *setup)))
         return 0
 
     def first_screen(self):

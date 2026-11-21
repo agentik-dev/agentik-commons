@@ -5,7 +5,7 @@
 | from | agentik-hq's brief hn1-help-next of 2026-11-20, R1 to R5, on the row's designs D1 to D3 (an advisor's runners-up 1 and 4, and sy4-sync-check's review 1, lead L1); level S3 |
 | pin | agentik-commons main b4b4cc8 (suite 0.7.37); worktree `.claude/worktrees/hn1-help-next`, branch `hn1-help-next`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; no tool synced or written; no test reads the live home or state; made-up names in fixtures |
-| may touch | `plugins/suite/lib/agentik_suite/cli.py`, `plugins/suite/lib/agentik_suite/status_read.py`, `scripts/sync`, `tests/test_hn1_help_next.py`, `GUIDE.md` (the sentences R2 and R3 make false), `design/packets/hn1-help-next.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
+| may touch | `plugins/suite/lib/agentik_suite/cli.py`, `plugins/suite/lib/agentik_suite/status_read.py`, `scripts/sync`, `tests/test_hn1_help_next.py`, `tests/test_sm2_setup_next.py` (R1 contradicts sm2 R3's PATH-line close), `GUIDE.md` (the sentences R2 and R3 make false), `design/packets/hn1-help-next.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
 | verify | `python3 -m unittest tests.test_hn1_help_next tests.test_sync tests.test_su2_read` and `-k test_r2_the_closing_hint_by_state` directly; `make check` once, last, through the gate queue; `scripts/hygiene --require-private` on the tree and on `--commits main..HEAD` |
 | acceptance | 1 to 10 below |
 

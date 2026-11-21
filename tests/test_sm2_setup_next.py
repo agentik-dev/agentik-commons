@@ -140,9 +140,13 @@ class FirstScreenTest(Home):
         for argv in ([str(LAUNCHER)], [str(LAUNCHER), "help"]):
             self.assertEqual(self.last(argv, env), "next: agentik doctor", argv)
 
-    def test_r3_only_the_path_line_left_ends_on_doctor(self):
+    def test_r3_only_the_path_line_left_ends_on_setup(self):
+        # row hn1-help-next R1: setup's own close names the PATH line (hint.setup.path), so the
+        # help says the setup line, where sm2 R3 said the doctor line
         env = self.finished(on_path=False)
-        self.assertEqual(self.last([str(LAUNCHER)], env), "next: ~/.local/bin/agentik doctor")
+        self.assertEqual(self.last([str(LAUNCHER)], env), "next: ~/.local/bin/agentik setup")
+        out, err = self.screen([str(LAUNCHER), "setup", "--dry-run"], env)
+        self.assertIn("The line below mends this terminal", err)  # setup.path.why, above hint.setup.path
 
     def test_r3_help_with_a_verb_prints_no_hint(self):  # hint.verb left the catalogue (row sc5 R5)
         self.assertEqual(self.screen([str(LAUNCHER), "help", "setup"], self.env())[1], "")
