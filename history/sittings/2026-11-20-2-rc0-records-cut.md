@@ -13,14 +13,14 @@
 | act | done-ness |
 |---|---|
 | P the packet | done |
-| T the failing tests, acceptance 1 to 7 | open |
+| T the failing tests, acceptance 1 to 7: ten tests in `tests/test_records_cut.py`, red at the pin (no script) | done |
 | A R1 to R6: the script | open |
 | B R7: the header, GUIDE §12, a NICE row | open |
 | V acceptance 8 and 9 | open |
 
 ## Next act
 
-T: `tests/test_records_cut.py`.
+A: `scripts/records-cut`, R1 to R6.
 
 ## Handover
 
