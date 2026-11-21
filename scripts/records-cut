@@ -274,6 +274,17 @@ def survey_clone(s, refuse, listing):
         if bad:
             refuse(where, "holds a records row or a near declaration, which the scanner refuses "
                    "(line %s)" % ", ".join(bad))
+    work = os.path.join(repo, ALLOW_FILE)
+    if mode is not None and (mode not in MODES or old is None):
+        pass  # refused above
+    elif os.path.lexists(work) and mode is None:
+        refuse(where, "exists in the tree but not at HEAD (untracked or ignored); it is never"
+               " overwritten")
+    elif os.path.lexists(work) and not working_is(work, old):
+        refuse(where, "differs from HEAD's (an edit git status may hide); it is never overwritten")
+    elif mode is None and git(repo, "check-ignore", "-q", "--no-index", "--",
+                              ALLOW_FILE).returncode == 0:
+        refuse(where, "the clone ignores it, so the cut's commit could not add it")
     s.update(allow_mode=mode, allow=old)
     if not s["records"]:
         refuse(repo, "no record found at HEAD")
@@ -282,6 +293,17 @@ def survey_clone(s, refuse, listing):
     elif not same_names(os.path.join(repo, SCANNER)):
         refuse(os.path.join(repo, SCANNER), "holds other record names than this script, so the "
                "move cannot be proved: sync it from commons first")
+
+
+def working_is(path, data):
+    """True where the working file at `path` is a regular file holding `data`."""
+    try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            return False
+        with open(path, "rb") as fh:
+            return fh.read() == data
+    except OSError:
+        return False
 
 
 def flagged_records(repo):

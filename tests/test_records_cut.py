@@ -345,6 +345,19 @@ class RefusalTest(Fixture):
                 write(self.clone, {"HANDOFF.md": "# Handoff, an edit git status hides\n"})
             return setup
 
+        def allow_ignored(text):
+            def setup():
+                git(self.clone, "rm", "-q", "--", ".hygiene-allow")
+                write(self.clone, {".gitignore": ".hygiene-allow\n"})
+                commit(self.clone)
+                if text is not None:
+                    write(self.clone, {".hygiene-allow": text})
+            return setup
+
+        def allow_hidden_edit():
+            git(self.clone, "update-index", "--assume-unchanged", ".hygiene-allow")
+            write(self.clone, {".hygiene-allow": "docs/*.md: host   # an edit git status hides\n"})
+
         return [
             ("a worktree", lambda: (self.worktree("wt", "-b", "side"), None), "not a main checkout"),
             ("a bare repo", lambda: (self.origin, None), "not a main checkout"),
@@ -387,6 +400,11 @@ class RefusalTest(Fixture):
             # F3: a record whose edit the index hides from git status
             ("an assume-unchanged record", flagged("--assume-unchanged"), "assume-unchanged"),
             ("a skip-worktree record", flagged("--skip-worktree"), "skip-worktree"),
+            # F4: a .hygiene-allow that is not HEAD's is never overwritten
+            ("an ignored allow file not at HEAD", allow_ignored("docs/*.md: host   # mine\n"),
+             "not at HEAD"),
+            ("an allow file the clone ignores", allow_ignored(None), "the clone ignores it"),
+            ("an allow file edited past HEAD", allow_hidden_edit, "differs from HEAD's"),
         ]
 
     def test_each_refusal_alone(self):

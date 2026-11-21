@@ -15,7 +15,7 @@
 | F1 a symlink in the destination's path; the destination outside the holder or inside the clone | done: refused in the survey; two cases in `test_each_refusal_alone` |
 | F2 a destination path the holder ignores | done: `git check-ignore --no-index` on each destination path; two cases; the stray case now excludes its one file, not `repos/` |
 | F3 a record flagged assume-unchanged or skip-worktree | done: the flags refused (`git ls-files -v`: a lowercase tag or `S`), not a compare of bytes; two cases |
-| F4 a `.hygiene-allow` that is not HEAD's | open |
+| F4 a `.hygiene-allow` that is not HEAD's | done: a working file absent at HEAD, one whose bytes differ from HEAD's, or an absent one the clone ignores, refused; three cases |
 | F5, L3 a HEAD behind its upstream; a remote-tracking branch with a record commit | open |
 | L4 a holder sharing a remote URL with the clone | open |
 | L7 a submodule at or under a record name | open |
@@ -26,7 +26,7 @@
 
 ## Next act
 
-F4.
+F5 and L3.
 
 ## Handover
 
