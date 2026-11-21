@@ -511,10 +511,9 @@ class ReviewOneTest(Base):
 
     def test_20_an_unattended_answer_holds_whatever_its_exit(self):
         h = self.two_behind()
-        session = os.path.join(h.bin, "agentik-session")
         for body, held in (("echo '{\"id\": \"u1\"}'; exit 1", True), ("echo '[]'; exit 3", True),
                            ("echo 'not json'", False), ("echo null; exit 3", False), ("exit 1", False)):
-            h.file(session, "#!/bin/sh\n[ \"$1 $2 $3\" = 'unattended status --json' ] || exit 2\n%s\n" % body)
+            runner_stubs(h, body)  # the `unattended` read named by describe, not the table (ak10c5 R5)
             self.assertEqual(update.hold(h.command("update")) is not None, held, body)
 
 
