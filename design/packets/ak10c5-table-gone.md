@@ -3,9 +3,9 @@
 | item | value |
 |---|---|
 | from | agentik-hq's brief ak10c5-table-gone of 2026-11-21, on the parent row's eight rulings (the coordinating repo's design of the `agentik` command, P11: the table goes once every tool says what it has); level S3 |
-| pin | agentik-commons main 65e15b8, the merge of rr7-way-in, with hn1-help-next's merge behind it; worktree `.claude/worktrees/ak10c5-table-gone`, branch `ak10c5-table-gone`; nothing linked from main |
+| pin | agentik-commons main 65e15b8, the merge of rr7-way-in, with hn1-help-next's merge behind it; phase 2 merges main 6a2155c (rc0-records-cut); worktree `.claude/worktrees/ak10c5-table-gone`, branch `ak10c5-table-gone`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; no test reads the live home or state; made-up names in fixtures; setup, update and remove only with `--dry-run` against this Mac |
-| may touch | `plugins/suite/lib/agentik_suite/{tools,plan,cli,update,status,status_read,status_screen,inbox,remove,config,doctor,gather}.py`, `plugins/suite/lib/agentik_suite/messages.md`, `plugins/suite/lib/public.json`, `plugins/suite/lib/fallback.json` (removed), `GUIDE.md` §11, `README.md` (one line), `.hygiene-allow`, `NICE_TO_HAVE.md` (n249), the tests that pin the table, `tests/test_ak10c5_table_gone.py`, this packet, `history/sittings/*.md` |
+| may touch | `plugins/suite/lib/agentik_suite/{tools,plan,cli,update,status,status_read,status_screen,inbox,remove,config,doctor,gather}.py`, `plugins/suite/lib/agentik_suite/messages.md`, `plugins/suite/lib/public.json`, `plugins/suite/lib/fallback.json` (removed), `GUIDE.md` §11, `README.md` (one line), `.hygiene-allow`, `NICE_TO_HAVE.md` (n249; phase 2: n268 out, n278 to n280 in for rc0's review 3, n216 and n217 to `history/NICE-overflow.md` for the bound), `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json` (the version), the tests that pin the table, `tests/test_ak10c5_table_gone.py`, this packet, `history/sittings/*.md` |
 | verify | `python3 -m unittest` of the touched tests directly; `scripts/hygiene --require-private --commits main..HEAD`; `make check` once, last, through the gate queue |
 | acceptance | 1 to 10 below |
 
