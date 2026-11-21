@@ -189,10 +189,15 @@ class _Stream:
         try:
             self.raw.flush()
             fd = self.raw.fileno()
-            while data and select.select([], [fd], [], 0)[1]:
-                data = data[os.write(fd, data[:512]):]
-        except (BlockingIOError, InterruptedError):
-            pass
+            blocking = os.get_blocking(fd)
+            os.set_blocking(fd, False)  # a write takes what the screen takes, never more
+            try:
+                while data and select.select([], [fd], [], 0)[1]:
+                    data = data[os.write(fd, data[:512]):]
+            except (BlockingIOError, InterruptedError):
+                pass
+            finally:
+                os.set_blocking(fd, blocking)
         except (AttributeError, ValueError, OSError):
             self.drop()
             return b""

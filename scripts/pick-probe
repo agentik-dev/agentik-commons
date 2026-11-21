@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""pick-probe: the picker on a real terminal (row sc12-picker R10, design/23 section 4a).
+
+Usage: pick-probe [--python PATH]
+
+Run by hand, never by `make check`, which runs `layout`'s unit tests and this probe's shape.
+Each case starts a child, under PATH (--python, else this interpreter) in isolated mode, that
+asks a made-up set of three questions, one list with an `other` row, or a yes or no, through
+`agentik_suite.pick` from this checkout. The child's stdin and stderr are a pty it holds as its
+controlling terminal, at 80x24 or 50x24; its stdout, the answer, is a pipe. The probe reads the
+pty's modes before, while open and after, sends keys and signals, and reads what was drawn. It
+also runs the child on a pipe and under NO_COLOR, TERM=dumb, AGENTIK_PLAIN=1, CI=1 and a Latin-1
+locale. Nothing is written outside a temp HOME, which is removed.
+
+Output: one line per case, `ok`, `FAIL` or `note`, and last `pick-probe: go` or
+`pick-probe: stop: <n> failed`. Exit 0 go, 1 a case failed, 2 usage. Stdlib only.
+"""
+import fcntl
+import json
+import os
+import re
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+from pathlib import Path
+
+USAGE = "usage: pick-probe [--python PATH]"
+ROOT = Path(__file__).resolve().parents[1]
+LIB = str(ROOT / "plugins" / "suite" / "lib")
+FAILS = []
+SGR = re.compile(rb"\x1b\[[0-9;]*m")
+DRIVER = r'''
+import json, sys, time
+sys.path.insert(0, sys.argv[1])
+from agentik_suite import pick, term
+how = sys.argv[2]
+words = {"p.tools": "Which tools does the kit add?", "p.effort": "How hard does it think?",
+         "p.shell": "Which shell's profile gets the line?", "p.run": "Run these {count} commands now?",
+         "p.yes": "Run them", "p.no": "Don't run anything",
+         "p.typed": "Run these {count} commands now? y for yes, n or Enter for no."}
+t = term.Term(messages=dict(term.catalogue.load(), **words))
+def check(text):
+    if text == "boom":
+        raise RuntimeError("a check that raises")
+    return "" if text.isalpha() and text.islower() else "%s is not a tool's name" % text
+tools = {"id": "tools", "tab": "Tools", "prompt": "p.tools", "kind": "many", "least": 1,
+         "default": ["anvil", "beacon"], "options": [{"value": v, "label": v, "note": n} for v, n in (
+             ("anvil", "Shapes the work before it starts"), ("beacon", "Says where each run stands"),
+             ("cinder", "Keeps what a run left behind, for a while"), ("dune", "Moves old records away"),
+             ("ember", "Warms a cache before the first run"))],
+         "other": {"label": "other", "note": "a tool's name, typed", "check": check}}
+effort = {"id": "effort", "tab": "Effort", "prompt": "p.effort", "kind": "one", "default": "medium",
+          "options": [{"value": v, "label": v, "note": v + " thought"} for v in ("low", "medium", "high")]}
+shell = {"id": "shell", "tab": "Shell", "prompt": "p.shell", "kind": "one",
+         "options": [{"value": v, "label": v, "note": "~/." + v + "rc"} for v in ("zsh", "bash", "fish")]}
+if how.startswith("late"):
+    time.sleep(1.5)
+try:
+    if how.endswith("confirm"):
+        got = pick.confirm(t, "p.run", "p.yes", "p.no", "p.typed", count=2)
+    elif how.endswith("three"):
+        got = pick.ask(t, [tools, effort, shell], lambda a: ["kit", "set"] + a["tools"] + [a["effort"], a["shell"]])
+    else:
+        got = pick.ask(t, [tools], lambda a: ["kit", "add"] + a["tools"])
+except pick.NoTerminal:
+    sys.exit(3)
+except pick.Cancelled:
+    sys.exit(4)
+except KeyboardInterrupt:
+    sys.exit(130)
+except RuntimeError:
+    sys.exit(5)
+print(json.dumps(got))
+'''
+UP, DOWN, ESC, ENTER = b"\x1b[A", b"\x1b[B", b"\x1b", b"\r"
+
+
+def say(kind, text):
+    print("%-4s %s" % (kind, text), flush=True)
+    if kind == "FAIL":
+        FAILS.append(text)
+
+
+def check(cond, text, why=""):
+    say("ok" if cond else "FAIL", text if cond or not why else "%s: %s" % (text, why))
+    return cond
+
+
+class Child:
+    def __init__(self, python, home, how, cols=80, rows=24, env=None, argv=None):
+        self.master, self.slave = os.openpty()
+        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        self.before = termios.tcgetattr(self.master)
+        r, w = os.pipe()
+        full = {"PATH": "/usr/bin:/bin", "HOME": home, "TERM": "xterm-256color", "LANG": "en_US.UTF-8"}
+        full.update(env or {})
+        full = {k: v for k, v in full.items() if v is not None}
+        self.pid = os.fork()
+        if self.pid == 0:
+            try:
+                os.setsid()
+                fcntl.ioctl(self.slave, termios.TIOCSCTTY, 0)
+                os.dup2(self.slave, 0)
+                os.dup2(w, 1)
+                os.dup2(self.slave, 2)
+                argv = argv or [python, "-I", "-c", DRIVER, LIB, how]
+                os.execve(argv[0], argv, full)
+            finally:
+                os._exit(99)
+        os.close(w)
+        self.out, self.seen, self.status = r, b"", None
+
+    def read(self, wait=0.2):
+        while select.select([self.master], [], [], wait)[0]:
+            try:
+                chunk = os.read(self.master, 65536)
+            except OSError:
+                break
+            if not chunk:
+                break
+            self.seen += chunk
+            wait = 0.05
+        return self.seen
+
+    def until(self, needle, timeout=5.0, start=0):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if needle in self.read(0.1)[start:]:
+                return True
+            if self.done():
+                return needle in self.read(0.1)[start:]
+        return False
+
+    def send(self, *keys, gap=0.05):
+        for k in keys:
+            os.write(self.master, k)
+            time.sleep(gap)
+
+    def done(self):
+        if self.status is None:
+            pid, status = os.waitpid(self.pid, os.WNOHANG)
+            if pid:
+                self.status = -os.WTERMSIG(status) if os.WIFSIGNALED(status) else os.WEXITSTATUS(status)
+        return self.status is not None
+
+    def wait(self, timeout=5.0, reading=True):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end and not self.done():
+            self.read(0.05) if reading else time.sleep(0.05)
+        self.read(0.1)
+        return self.status
+
+    def stopped(self, timeout=2.0):
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            pid, status = os.waitpid(self.pid, os.WNOHANG | os.WUNTRACED)
+            if pid and os.WIFSTOPPED(status):
+                return True
+            time.sleep(0.05)
+        return False
+
+    def answer(self):
+        data = b""
+        while select.select([self.out], [], [], 0.2)[0]:
+            chunk = os.read(self.out, 4096)
+            if not chunk:
+                break
+            data += chunk
+        return data.decode()
+
+    def modes(self):
+        return termios.tcgetattr(self.master)
+
+    def close(self):
+        if not self.done():
+            os.kill(self.pid, signal.SIGKILL)
+            self.wait(2)
+        for fd in (self.master, self.slave, self.out):
+            os.close(fd)
+
+
+def tail_ok(seen):
+    """The last bytes show the cursor and turn paste mode off."""
+    return seen.rfind(b"\x1b[?25h") > seen.rfind(b"\x1b[?25l") and \
+        seen.rfind(b"\x1b[?2004l") > seen.rfind(b"\x1b[?2004h")
+
+
+def cases(python, home):
+    def child(how, **kw):
+        return Child(python, home, how, **kw)
+
+    for cols in (80, 50):  # the set of three, through the strip and the review
+        c = child("three", cols=cols)
+        try:
+            opened = c.until(b"\x1b[?2004h")
+            lf = c.modes()[3]
+            raw = not lf & termios.ICANON and not lf & termios.ECHO and lf & termios.ISIG
+            c.send(b"\t", b"\t", DOWN, ENTER, ENTER)
+            status = c.wait()
+            got = c.answer()
+            same = b"same as: kit set anvil beacon medium bash" in c.seen
+            check(opened and raw and status == 0 and same and c.modes() == c.before and tail_ok(c.seen),
+                  "three questions at %dx24: Tab, Tab, Down, Enter, Enter; modes back; same as:" % cols,
+                  "status %s, open %s, raw %s, same %s, modes %s, tail %r" % (
+                      status, opened, bool(raw), same, c.modes() == c.before, c.seen[-60:]))
+        finally:
+            c.close()
+
+    ways = [("Enter", [ENTER], 0), ("Esc", [ESC], 4), ("Ctrl-C", [b"\x03"], 130),
+            ("Ctrl-\\", [b"\x1c"], -signal.SIGQUIT), ("SIGTERM", [signal.SIGTERM], -signal.SIGTERM),
+            ("SIGHUP", [signal.SIGHUP], -signal.SIGHUP), ("SIGQUIT", [signal.SIGQUIT], -signal.SIGQUIT),
+            ("a check that raises", [b"\x1b[F", b"boom", ENTER], 5)]
+    for name, keys, want in ways:  # acceptance 4
+        c = child("one")
+        try:
+            c.until(b"\x1b[?2004h")
+            for k in keys:
+                os.kill(c.pid, k) if isinstance(k, int) else c.send(k)
+            status = c.wait()
+            check(status == want and c.modes() == c.before and tail_ok(c.seen),
+                  "%s: status %s, the modes as before, the cursor shown, paste off" % (name, status),
+                  "want %s, modes %s, tail %r" % (want, c.modes() == c.before, c.seen[-40:]))
+        finally:
+            c.close()
+
+    for name, how, early in (("Ctrl-S before it opens", "late-one", True),
+                             ("Ctrl-S while it is open", "one", False)):  # acceptance 5
+        c = child(how)
+        try:
+            if early:
+                time.sleep(0.3)
+                c.send(b"\x13")
+                time.sleep(1.6)
+            else:
+                c.until(b"\x1b[?2004h")
+                c.send(b"\x13", DOWN)
+            os.kill(c.pid, signal.SIGTERM)
+            status = c.wait(3)
+            check(status == -signal.SIGTERM, "%s, then SIGTERM: status 143" % name, "status %s" % status)
+        finally:
+            c.close()
+    c = child("one")
+    try:
+        c.until(b"\x1b[?2004h")
+        c.send(DOWN * 300, gap=0)
+        time.sleep(1.0)
+        os.kill(c.pid, signal.SIGTERM)
+        status = c.wait(3, reading=False)
+        check(status == -signal.SIGTERM, "300 arrows to a screen nobody reads, then SIGTERM: status 143",
+              "status %s" % status)
+    finally:
+        c.close()
+
+    c = child("one")  # acceptance 6
+    try:
+        c.until(b"\x1b[?2004h")
+        os.kill(c.pid, signal.SIGSTOP)
+        c.stopped()
+        termios.tcsetattr(c.master, termios.TCSANOW, c.before)
+        mark = len(c.read())
+        os.kill(c.pid, signal.SIGCONT)
+        drawn = c.until(b"Which tools", start=mark)
+        retaken = not c.modes()[3] & termios.ICANON
+        mark = len(c.read())
+        c.send(DOWN)
+        moved = c.until(b"\x1b[2K", start=mark)
+        c.send(ESC)
+        status = c.wait()
+        check(drawn and retaken and moved and status == 4 and c.modes() == c.before,
+              "SIGSTOP, the modes set back from outside, SIGCONT: a frame, retaken, a move",
+              "drawn %s, retaken %s, moved %s, status %s" % (drawn, retaken, moved, status))
+    finally:
+        c.close()
+    driver = os.path.join(home, "driver.py")  # Ctrl-Z, bg, fg under a shell's own job control
+    with open(driver, "w") as fh:
+        fh.write(DRIVER)
+    c = Child(python, home, "", argv=["/bin/sh", "-i"], env={"PS1": "$ ", "ENV": None})
+    try:
+        c.until(b"$ ")
+        c.send(("%s -I %s %s one\n" % (python, driver, LIB)).encode())
+        opened = c.until(b"\x1b[?2004h")
+        c.send(b"\x1a")
+        stopped = c.until(b"top", timeout=3)
+        c.send(b"bg\n")
+        time.sleep(1.0)
+        mark = len(c.read())
+        c.send(b"fg\n")
+        drawn = c.until(b"Which tools", start=mark)
+        mark = len(c.read())
+        c.send(ESC)
+        c.until(b"$ ", start=mark)
+        ended = c.until(b"$ ", start=mark)
+        c.send(b"exit\n")
+        check(opened and stopped and drawn and ended and b"Traceback" not in c.seen,
+              "Ctrl-Z, bg, fg under /bin/sh: a frame again, no traceback",
+              "opened %s, stopped %s, drawn %s, ended %s, tail %r" % (opened, stopped, drawn, ended, c.seen[-120:]))
+    finally:
+        c.close()
+
+    yes, no = b"Run these 2 commands now?  Run them", b"Run these 2 commands now?  Don't run anything"
+    for cols in (80, 50):  # acceptance 8
+        for name, keys, want, line in (("Enter alone", [ENTER], "false", no), ("y, Enter", [b"y", ENTER], "true", yes),
+                                       ("n, Enter", [b"n", ENTER], "false", no), ("Esc", [ESC], "false", no),
+                                       ("Ctrl-D", [b"\x04"], "false", no), ("k, Enter", [b"k", ENTER], "true", yes)):
+            c = child("confirm", cols=cols)
+            try:
+                c.until(b"\x1b[?2004h")
+                c.send(*keys)
+                status = c.wait()
+                got = c.answer().strip()
+                after = c.seen[c.seen.rfind(b"\x1b[?25h"):]
+                check(status == 0 and got == want and line in after and after.count(b"\n") == 1,
+                      "the yes or no at %dx24, %s: %s and its one line" % (cols, name, want),
+                      "status %s, answer %r, after %r" % (status, got, after))
+            finally:
+                c.close()
+    c = child("confirm")
+    try:
+        c.until(b"\x1b[?2004h")
+        c.send(b"y")
+        time.sleep(0.5)
+        alone = not c.done()
+        c.send(ESC)
+        c.wait()
+        check(alone and c.answer().strip() == "false", "the yes or no: y alone answers nothing")
+    finally:
+        c.close()
+    c = child("late-confirm")
+    try:
+        time.sleep(0.4)
+        c.send(ENTER)
+        opened = c.until(b"\x1b[?2004h")
+        time.sleep(0.5)
+        waiting = not c.done()
+        c.send(b"y", ENTER)
+        c.wait()
+        check(opened and waiting and c.answer().strip() == "true",
+              "the yes or no: Enter sent 1 s before it shows answers nothing")
+    finally:
+        c.close()
+
+    for name, env, cols in (("TERM=dumb", {"TERM": "dumb"}, 80), ("30 columns", {}, 30),
+                            ("AGENTIK_PLAIN=1", {"AGENTIK_PLAIN": "1"}, 80)):  # acceptance 9
+        c = child("confirm", cols=cols, env=env)
+        try:
+            asked = c.until(b"n or Enter for no.")
+            c.send(b"Yes\n")
+            status = c.wait()
+            got = c.answer().strip()
+            check(asked and status == 0 and got == "true" and b"\x1b" not in c.seen and
+                  c.seen.count(b"Run these") == 1,
+                  "the typed question under %s: one message, no escape byte, one line read" % name,
+                  "asked %s, status %s, answer %r, seen %r" % (asked, status, got, c.seen[:120]))
+        finally:
+            c.close()
+
+    for how in ("one", "confirm"):  # acceptance 10
+        p = subprocess.run([python, "-I", "-c", DRIVER, LIB, how], input=b"1\ny\n", capture_output=True,
+                           env={"PATH": "/usr/bin:/bin", "HOME": home, "TERM": "xterm-256color"}, timeout=30)
+        check((p.returncode, p.stdout, p.stderr) == (3, b"", b""), "%s on a pipe: NoTerminal, no byte" % how)
+        c = child(how, env={"CI": "1"})
+        try:
+            status = c.wait()
+            check(status == 3 and c.read() == b"", "%s with CI=1 on a pty: NoTerminal, no byte" % how)
+        finally:
+            c.close()
+
+    for name, env, need, never in (("NO_COLOR=1", {"NO_COLOR": "1"}, b"\xe2\x9d\xaf", SGR),
+                                   ("colour", {}, b"\xe2\x9d\xaf", None),
+                                   ("LANG=en_US.ISO8859-1", {"LANG": "en_US.ISO8859-1"}, b"> [x] anvil",
+                                    re.compile(b"\xe2\x9d\xaf"))):
+        c = child("one", env=env)
+        try:
+            c.until(b"\x1b[?2004h")
+            c.read(0.3)
+            c.send(ENTER)
+            status = c.wait()
+            colour = bool(SGR.search(c.seen))
+            check(status == 0 and need in SGR.sub(b"", c.seen) and (not never.search(c.seen) if never else colour),
+                  "the list under %s: its marks, %s" % (name, "colour" if colour else "no colour byte"),
+                  "status %s" % status)
+        finally:
+            c.close()
+    c = child("one", env={"TERM": "dumb"})
+    try:
+        asked = c.until(b"Enter keeps 1 2:")
+        c.send(b"9\n")
+        c.until(b"not a number from 1 to 6")
+        c.send(b"1 6\n")
+        c.until(b"other:")
+        c.send(b"forge\n")
+        status = c.wait()
+        check(asked and status == 0 and c.answer().strip() == '{"tools": ["anvil", "forge"]}' and
+              b"\x1b" not in c.seen and b"same as: kit add anvil forge" in c.seen,
+              "the plain prompt under TERM=dumb: a wrong line, then 1 6 and a typed name",
+              "status %s, seen %r" % (status, c.seen[-200:]))
+    finally:
+        c.close()
+
+
+def main(argv):
+    python = sys.executable
+    args = list(argv)
+    if args in (["--help"], ["-h"]):
+        print(USAGE)
+        return 0
+    while args:
+        if args[0] == "--python" and len(args) > 1:
+            python, args = args[1], args[2:]
+        else:
+            sys.stderr.write(USAGE + "\n")
+            return 2
+    if not shutil.which(python):
+        sys.stderr.write("pick-probe: no python at %s\n" % python)
+        return 2
+    version = subprocess.run([python, "-I", "-c", "import sys; print(sys.version.split()[0])"],
+                             capture_output=True, text=True).stdout.strip()
+    say("note", "the child is %s, Python %s" % (python, version))
+    home = tempfile.mkdtemp(prefix="pick-probe-")
+    try:
+        cases(python, home)
+    finally:
+        shutil.rmtree(home, ignore_errors=True)
+    if FAILS:
+        print("pick-probe: stop: %d failed" % len(FAILS))
+        return 1
+    print("pick-probe: go")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

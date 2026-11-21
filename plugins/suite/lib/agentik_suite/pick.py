@@ -27,7 +27,7 @@ UTF = {"pointer": "❯", "up": "↑", "down": "↓", "cut": "…", "ok": "✓", 
 ASC = {"pointer": ">", "up": "^", "down": "v", "cut": "...", "ok": "ok", "left": "<",
        "right": ">", "updown": "up/down"}
 MIN_COLS, MIN_ROWS, WINDOW, TRIES, TAB_MAX = 40, 13, 10, 3, 12
-ESC_WAIT, PASTE_WAIT, CLOSE_MAX = 0.05, 1.0, 64
+ESC_WAIT, PASTE_WAIT, CLOSE_WAIT = 0.05, 1.0, 0.25
 BOLD, DIM, FOCUS, ACTIVE, WARN = "1", "2", "1;36", "7", "33"
 MARK = term.GLYPH["warn"]
 EINTR, EIO = 4, 5  # the POSIX numbers, the same on macOS and Linux
@@ -762,12 +762,26 @@ class _Screen:
             signal.pthread_sigmask(signal.SIG_SETMASK, mask)
 
     def _close(self, line):
-        """The frame erased, paste mode off, the cursor shown, and the closing line: one write,
-        dropped where the screen does not take it."""
+        """The frame in flight, then the frame erased, paste mode off, the cursor shown, and the
+        closing line: offered for at most CLOSE_WAIT; what the screen has not taken by then is
+        dropped, with the output queued, so a screen stopped or unread holds nothing up."""
         tail_ = ("\x1b[%dA" % self.up if self.up else "") + "\r\x1b[J\x1b[?2004l\x1b[?25h"
-        self.t.put(tail_, wait=False)
-        if line:
-            self.t.put(line + "\n", wait=False)
+        data = self.left + self.t.err.encode(tail_ + (line + "\n" if line else ""))
+        end = time.monotonic() + CLOSE_WAIT
+        while data and not self.t.err.gone:
+            data = self.t.put(data, wait=False)
+            rest = end - time.monotonic()
+            if not data or rest <= 0:
+                break
+            try:
+                select.select([], [self.out_fd], [], rest)
+            except (InterruptedError, OSError, ValueError):
+                break
+        if data:  # what the picker queued goes too, so no exit waits on a screen nobody reads
+            try:
+                self.tm.tcflush(self.fd, self.tm.TCOFLUSH)
+            except (self.tm.error, OSError):
+                pass
         self.up, self.left, self.dirty = 0, b"", True
 
     def leave(self, line):
