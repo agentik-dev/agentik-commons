@@ -52,11 +52,13 @@ SAYS = {"setup." + k: "update.say." + k for k in (
 PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
-def reader(lib, read):
-    """(the tool, the argv) of the suite's table whose status reads hold one named `read`, or None."""
-    for name, row in sorted(tools.fallback(lib).items()):
-        for r in row.get("status") or ():
-            if isinstance(r, dict) and r.get("name") == read and isinstance(r.get("argv"), list):
+def reader(answers, read):
+    """(the tool, the argv) of the first tool by name whose counted describe answer names a status
+    read `read`, or None (row ak10c5-table-gone R5)."""
+    for name, answer in sorted(answers.items()):
+        for r in (answer or {}).get("reads") or ():
+            if isinstance(r, dict) and r.get("kind") == "status" and r.get("name") == read \
+                    and isinstance(r.get("argv"), list):
                 return name, [str(w) for w in r["argv"]]
     return None
 
@@ -116,23 +118,32 @@ def listing(env):
     return agentik_install.processes(ps, timeout=PS_WALL) if ps else (None, "ps is not on PATH")
 
 
-def holding(cmd):
+def asked(cmd):
+    """({name: counted describe answer}, [name whose file runs and gave none], {name: finder
+    row}) of every tool the suite knows, the cache first (row ak10c5-table-gone R5)."""
+    rows = tools.rows(cmd.env, cmd.lib, cmd.cwd)
+    answers, _, silent = tools.answered(cmd.env, rows)
+    return answers, silent, rows
+
+
+def holding(cmd, told=None):
     """(the held text or None, whether it is a list that cannot be read) (R3). It starts the
-    process list and, where the finder says a file runs for the `unattended` read's tool, that
-    file; it reads nothing else. A list that cannot be read says why (row lx1-ps-linux R3)."""
+    process list and, where the finder says a file runs for the tool whose describe names the
+    `unattended` read, that file; the tools that name `run` and `unattended` are found from the
+    describes (`told`, else asked here). A list that cannot be read says why (row lx1-ps-linux R3)."""
     env = cmd.env
     text, why = listing(env)
     if text is None:
         return cmd.t.text("update.held.ps", why=why), True
-    runner = reader(cmd.lib, "run")
+    answers, _, rows = asked(cmd) if told is None else told
+    runner = reader(answers, "run")
     pid = runner and runner_pid(text, runner[0])
     if pid:
         return cmd.t.text("update.held.run", tool=runner[0], pid=pid), False
-    found = reader(cmd.lib, "unattended")
+    found = reader(answers, "unattended")
     if not found:
         return None, False
-    row = tools.rows(env, cmd.lib, cmd.cwd, names=[found[0]])[found[0]]
-    path = (row["runs"] or {}).get("path")
+    path = ((rows.get(found[0]) or {}).get("runs") or {}).get("path")
     if path and _unattended(path, found[1], env):
         return cmd.t.text("update.held.unattended"), False
     return None, False
@@ -385,9 +396,12 @@ class Update:
             if not tools.NAME.match(name):
                 raise self.cmd.Refusal("bad_name", "err.setup.name", self.cmd.say("update", "--dry-run"),
                                        name=name)
-        what, unread = holding(self.cmd)
+        told = asked(self.cmd)
+        what, unread = holding(self.cmd, told)
         if what:
             return self.held(what, unread)
+        if told[1] and not self.o["json"] and not self.t.quiet:  # R5: no answer holds nothing
+            self.t.line("update.unasked", err=True, style="hint", names=", ".join(told[1]))
         self.scope()
         steps = self.detail(self.head() + self.tail())
         blocked = [s for s in self.prereqs if s["state"] == "blocked"]
@@ -620,12 +634,12 @@ class Update:
 
     def pages(self):
         """{tool: (its page, the file the finder says runs for it, or None)} for each tool in scope
-        whose table row holds a `page`, read from step 3's rows as the finder reads now (up4 R2)."""
-        table = tools.fallback(self.cmd.lib)
+        that installs its own command (public.json, row ak10c5 R4), read from step 3's rows as the
+        finder reads now (up4 R2)."""
         found = {}
         for s in self.tail():
             name = s["values"].get("name")
-            page = name and tools.page(table, name)
+            page = name and tools.page(self.cmd.lib, name)
             if page and s["mid"] in ("setup.launcher.theirs", "setup.launcher.page"):
                 found[name] = (page, s["values"].get("path"))
         return found

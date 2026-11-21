@@ -148,6 +148,7 @@ class Remove:
         self.slots = dict(cmd.slots(), setup=cmd.say("remove"))
         self.tools, self.others, self.extra, self.keep = [], [], [], []
         self.spare, self.suite_rows, self.cache, self.cache_root = (), [], (None, ""), None
+        self.user_files = {}  # {tool: the `user` layer its config read names, or None} (ak10c5 R6)
         self.guard = []  # every path R7 names, standing or not: the cache walk reaches none (F1)
         self.soft = set()  # kept rows named only where they stand: gone after the run, no fault
         self.remedy = cmd.say("remove")  # every word the close prints, filled before step 5 (R6)
@@ -168,7 +169,11 @@ class Remove:
                                        name=name)
         names = [n for n in known if n != SUITE] if self.all else self.nouns
         rows = tools.rows(self.env, self.cmd.lib, self.cmd.cwd, names=[n for n in names if n != SUITE])
-        table = tools.fallback(self.cmd.lib)
+        # each tool's user file, from the `user` layer of its config read, asked before anything is
+        # removed; a tool that gives no answer has none (row ak10c5-table-gone R6)
+        configs = tools.answered(self.env, rows, read=True)[1]
+        self.user_files.update({n: tools.user_layer(tools.counted_config(*configs[n][:2]))
+                                for n in configs if configs[n][2] == "ran"})
         for name in names:
             if name == SUITE:
                 self.others.append(plan._step(1, "kept", "ok", name, "remove.kept.suite"))
@@ -177,7 +182,7 @@ class Remove:
             own = row["kind"] == "own" and row["scope"] == "user" and row["plugin"] == name + "@agentik"
             if own or (row["kind"] == "absent" and os.path.lexists(self.launcher(name))):
                 self.tools.append({"name": name, "plugin": row["plugin"] if own else None,
-                                   "keep": self.kept(name, row, table.get(name) or {})})
+                                   "keep": self.kept(name, row, self.user_files.get(name))})
             elif row["kind"] != "absent":
                 self.others.append(plan._step(1, "kept", "ok", name, KIND.get(row["kind"], "remove.kept.plugin"),
                                               name=name, id=term.clean(row["plugin"] or name),
@@ -197,11 +202,11 @@ class Remove:
                 return conf.get("old_state") or ""
         return ""
 
-    def kept(self, name, row, entry):
+    def kept(self, name, row, user_file):
         state = os.path.dirname(os.path.dirname(apply.journal_path(self.env, self.home)))
         base = os.path.dirname(os.path.dirname(settings.user_path(self.env)))
         found = [(os.path.join(base, name), "remove.keep.config")]
-        user = user_path(self.home, entry.get("user_file"))
+        user = user_path(self.home, user_file)
         if user:
             found.append((user, "remove.keep.config"))
         found.append((os.path.join(state, "agentik-" + name), "remove.keep.state"))
@@ -263,8 +268,8 @@ class Remove:
             steps += self.rows_steps(5, self.suite_rows)
             state = os.path.dirname(apply.journal_path(self.env, self.home))
             self.guard += [settings.user_path(self.env), state]
-            self.guard += [p for p in (user_path(self.home, e.get("user_file"))  # every tool's, taken off or not (G1)
-                                       for e in tools.fallback(self.cmd.lib).values()) if p]
+            self.guard += [p for p in (user_path(self.home, u)  # every tool's that answered, taken off or not (G1)
+                                       for u in self.user_files.values()) if p]
             self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
             self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
             cache = os.path.join(self.config, "plugins", "cache", plan.MARKETPLACE, SUITE)  # rm1 R5

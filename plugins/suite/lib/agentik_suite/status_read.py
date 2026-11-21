@@ -1,8 +1,7 @@
 """`status --json`: the sources read at once into one `agentik.status/1` object.
 
-A read comes from the fallback table's `status` list of a tool that has a row (never asked
-`describe`), else from the `status` reads of any other `agentik-*` on PATH, asked through ak1b's
-describe cache. Every read, every describe and one `ps` run in one `tools.run_all` call, each
+A read comes from the `status` reads of each `agentik-*` on PATH, asked through ak1b's describe
+cache (row ak10c5-table-gone R1). Every read, every describe and one `ps` run in one `tools.run_all` call, each
 under its own wall. A read is held to its pins: a missing one is `changed` and its values null,
 the rest drawn. The object holds no sentence; the screen says every word (packet su2-read).
 
@@ -72,17 +71,6 @@ def _source(name, tool, argv, wall_s, exe):
     return {"name": name, "tool": tool, "argv": list(argv), "state": None, "ms": None, "exit": None,
             "stderr": None, "wall_s": wall_s, "exe": exe, "answer": None, "changed": False,
             "fields": [], "settled": False}
-
-
-def _table_reads(row):
-    found = []
-    for read in row.get("status") if isinstance(row.get("status"), list) else ():
-        if not (isinstance(read, dict) and isinstance(read.get("name"), str)
-                and isinstance(read.get("argv"), list) and all(isinstance(w, str) for w in read["argv"])):
-            continue
-        wall = read.get("wall_s")
-        found.append((read["name"], read["argv"], wall if _kind_ok(wall, (NUM,)) and wall > 0 else None))
-    return found
 
 
 def _described_wall(value):
@@ -472,8 +460,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     # the finder's file where it passes PATH's first over, so no file under the root of a plugin
     # that does not stand is started (row fk2-plan R3)
     on_path = tools.runs(env, {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}, cwd)
-    table = tools.fallback(cmd.lib)
-    srcs, absent, given = [], [], set()
+    srcs, given = [], set()
     jobs, keys = [], {}
 
     def unread(name):
@@ -503,17 +490,9 @@ def compose(cmd, paths, now, ps_text, on_part=None):
         keys[key] = src
         return [(key, argv)]
 
-    for name, row in table.items():
-        for rname, argv, wall in _table_reads(row):
-            src = _source(rname, name, argv, wall or WALL, on_path.get(name))
-            if src["exe"]:
-                jobs.extend(add(src))
-            else:
-                absent.append(src)
-
     folder, asked, stamps = tools.cache_dir(env), [], {}
     for name in sorted(on_path):
-        if name in table or name == own or not tools.NAME.match(name):
+        if name == own or not tools.NAME.match(name):
             continue
         entry = {"name": name, "exe": on_path[name], "answer": None, "settled": False}
         asked.append(entry)
@@ -542,12 +521,6 @@ def compose(cmd, paths, now, ps_text, on_part=None):
                 if read.get("kind") == "status" and isinstance(read.get("name"), str):
                     found.extend(add(_source(read["name"], entry["name"], read["argv"],
                                              _described_wall(read.get("wall_s")), entry["exe"])))
-        if all(e["settled"] for e in asked):
-            for src in absent:
-                if src["name"] in READS and src["name"] not in given and not unread(src["name"]):
-                    given.add(src["name"])
-                    srcs.append(dict(src, state="not installed", settled=True))
-            del absent[:]
         return found
 
     jobs.extend(release())

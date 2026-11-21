@@ -35,10 +35,27 @@ FLOOR = (3, 9)
 DOOR = agentik_install.DOOR
 SUITE = "agentik-suite"  # the command the door hands a word it has no tool for
 PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
-# How each word of a plugin's `needs` (fallback.json) is read: a command on PATH, and the Python it
-# must run when there is one (row ic2-needs R1). A word with no reading makes no row.
+# How each word of a plugin's need is read: a command on PATH, and the Python it must run when there
+# is one (row ic2-needs R1). A word with no reading makes no row. The word comes from public.json's
+# `needs` for a tool with no answer, else from a `needs` row of its describe whose `name` is the
+# word in any case and whose `optional` is not true (row ak10c5-table-gone R4).
 NEEDS = {"Go": ("go", None), "PyYAML": ("python3", "import yaml")}
 NEED_WALL = 2.0
+
+
+def needs_of(answer, words):
+    """The need words of one tool: from a counted describe `answer`, each `needs` row not optional
+    whose `name` is a word of NEEDS in any case; with no answer, `words` (public.json's) as given."""
+    if answer is None:
+        return list(words or ())
+    by_case = {w.lower(): w for w in NEEDS}
+    found = []
+    for row in answer.get("needs") or ():
+        name = row.get("name") if isinstance(row, dict) else None
+        word = by_case.get(name.lower()) if isinstance(name, str) else None
+        if word and row.get("optional") is not True and word not in found:
+            found.append(word)
+    return found
 
 
 def _read_json(path):
@@ -93,7 +110,7 @@ def default_set(lib):
 
 def known(env, lib):
     """The names setup plans, sorted (row ic2-needs R2): each name the suite knows (tools.known:
-    the marketplace file's, the fallback table's, each installed `<name>@agentik`, each `sources`
+    the marketplace file's, public.json's, each installed `<name>@agentik`, each `sources`
     line's) and the suite's own."""
     from . import tools  # tools imports this module at its top
     return sorted(set(tools.known(env, lib)) | {manifest(lib).get("name") or "suite"})
@@ -288,9 +305,12 @@ def build(names, env, lib, tool, version, cwd=None):
     else:
         steps.append(_step(1, "prereqs", "blocked", "python3", "setup.python.low",
                            version=ver, path=sys.executable, floor=floor))
-    table = tools.fallback(lib)
-    for name in names:  # each chosen plugin's need, named when it is not met (row ic2-needs R1)
-        for need in (table.get(name) or {}).get("needs") or ():
+    # each chosen plugin's need, named when it is not met (row ic2-needs R1): its describe's rows
+    # where a file runs and answers, else public.json's words (row ak10c5 R4)
+    rows = tools.rows(env, lib, _cwd(cwd), names=names)
+    told, listed = tools.answered(env, rows)[0], tools.public(lib)["needs"]
+    for name in names:
+        for need in needs_of(told.get(name), listed.get(name)):
             if isinstance(need, str) and need_met(need, search, env) is False:
                 program, module = NEEDS[need]
                 if module and shutil.which(program, path=search):  # what was read (review 1 F2)
@@ -311,7 +331,6 @@ def build(names, env, lib, tool, version, cwd=None):
     # installed when its installPath folder is there, else installed from it; another source ok
     # when found, else a row with no command; two or a repo's lone one, one held row in place of
     # steps 3, 4 and 7. One may ship no launcher.
-    rows = tools.rows(env, lib, _cwd(cwd), names=names)
     have = {}
     for name in names:
         row = rows[name]
@@ -334,7 +353,7 @@ def build(names, env, lib, tool, version, cwd=None):
 
     # 4: each plugin's launcher on the terminal's PATH, placed by the plugin's own install-cli; a
     # tool with a page installs its own, so setup names the page or the file the finder names (fh13)
-    pages = {n: p for n, p in ((n, tools.page(table, n)) for n in names) if p}
+    pages = {n: p for n, p in ((n, tools.page(lib, n)) for n in names) if p}
     placed = []
     inplace = in_place({n: have[n][1] for n in names if n in have and have[n][1] and n not in pages
                         and agentik_install.read_launcher(os.path.join(bindir, "agentik-" + n)) is None},

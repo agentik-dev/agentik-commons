@@ -61,9 +61,10 @@ RAN, LINES, LINE, EXPECTED = 200, 20, 200, 600
 
 def load_public(lib):
     """{"marketplace": NAME, "tools": {tool: "OWNER/REPO"}} from `lib`/public.json; ValueError for
-    an absent file or any other shape."""
+    an absent file or any other shape. Its `needs` and `own_command`, setup's (row ak10c5 R4), are
+    tools.public's to read and are not returned here."""
     found = plan._read_json(os.path.join(lib, PUBLIC))
-    if not isinstance(found, dict) or set(found) != {"marketplace", "tools"}:
+    if not isinstance(found, dict) or set(found) - {"needs", "own_command"} != {"marketplace", "tools"}:
         raise ValueError("%s: not {marketplace, tools}" % PUBLIC)
     market, tools = found["marketplace"], found["tools"]
     if not isinstance(market, str) or not NAME.match(market):

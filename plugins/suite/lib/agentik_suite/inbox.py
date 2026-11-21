@@ -3,9 +3,9 @@
 The checkouts are covers.covers' (design P13's one rule), with a second naming of one folder on
 the command line dropped and an entry of the user file's list that is neither absolute nor under
 `~/` left out with a note. Three reads, by name: `questions` and `charter`, one call each with
-every checkout after the argv, and `backlog`, one call a checkout; each is found in the fallback
-table's `inbox` list of a row whose tool is on PATH, else among the `status` reads of the other
-tools' describe answers, and all run at once under one wall of WALL seconds. What waits: each open
+every checkout after the argv, and `backlog`, one call a checkout; each is found among the `status`
+reads of the describe answers of the tools on PATH (row ak10c5-table-gone R1), and all run at once
+under one wall of WALL seconds. What waits: each open
 question, each line of a charter's Waits part, each build-order step waiting on the owner.
 
 It is a read: it writes nothing but the describe cache, starts no process but a listed tool's,
@@ -23,7 +23,6 @@ from . import covers as covering, plan, settings, status, term, tools
 
 WALL = 5.0
 READS = ("questions", "backlog", "charter")
-TABLE = "inbox"  # the fallback table's list of a row's inbox reads
 NUMBER = re.compile(r"[1-9][0-9]*\Z")  # ASCII digits with no leading zero
 STATES = ("open", "answered", "unreadable")
 Q_KEYS = ("n", "title", "line", "state", "why", "proposed", "recommended", "text")
@@ -84,20 +83,14 @@ def _listed(reads):
 
 
 def _reads(cmd):
-    """{read: {tool, exe, argv}}: first each row of the fallback table whose tool is on PATH, by
-    name, its `inbox` list; then, for a read still not found, the `status` reads of the other
-    tools on PATH by name, from their describe answers (cache and wall: tools.describe_all). A
-    tool with a row is never asked describe."""
+    """{read: {tool, exe, argv}}: the `status` reads of the tools on PATH by name, from their
+    describe answers (cache and wall: tools.describe_all), the first read of a name winning."""
     on_path = {e["name"][len("agentik-"):]: e["path"] for e in cmd._on_path()}
     own = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
-    table, found = tools.fallback(cmd.lib), {}
-    for name in sorted(table):
-        for read, argv in _listed(table[name].get(TABLE)) if name in on_path else ():
-            if read in READS and read not in found:
-                found[read] = {"tool": name, "exe": on_path[name], "argv": argv}
+    found = {}
     asked = [{"name": n, "exe": on_path[n]} for n in sorted(on_path)
-             if n not in table and n != own and tools.NAME.match(n)]
-    if asked and any(r not in found for r in READS):
+             if n != own and tools.NAME.match(n)]
+    if asked:
         answers = tools.describe_all(asked, cmd.env)[0]
         for entry in asked:
             answer = answers.get(entry["name"], (None, None))[1] or {}

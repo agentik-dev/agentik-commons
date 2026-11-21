@@ -541,11 +541,15 @@ def own_doctors(cmd, entries, described=None):
         if not e["exe"]:
             group.update(nocmd=True, checks=lead + [_check("doctor", "note", t.text("doctor.tool.nocmd"))])
             continue
+        if described.get(name, (None, None))[0] != "answers" and name not in answers:
+            group["one"] = False  # the describe's row and the doctor's: two the suite wrote
         if name in answers:  # `own` marks R5's read alone: R6 and R7 reach no other (review 1 F1)
             group.update(one=False, checks=lead + answers[name])
             if name in reads:
                 group["own"] = answers[name]
             continue
+        if described.get(name, (None, None))[0] != "answers":  # too old to answer (row ak10c5 R7)
+            lead = lead + [_check("describe", "warn", t.text("doctor.tool.nodescribe"), cmd.say("update", name))]
         again = tool_doctor(cmd, name, e["exe"])
         if name in reads:
             code, out, state = results[(name, "read")]

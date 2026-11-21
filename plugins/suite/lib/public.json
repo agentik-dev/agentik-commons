@@ -7,5 +7,7 @@
     "relay": "agentik-dev/agentik-relay",
     "agents": "agentik-dev/agentik-agents",
     "suite": "agentik-dev/agentik-commons"
-  }
+  },
+  "needs": {"relay": ["Go"], "respeak": ["PyYAML"]},
+  "own_command": ["relay"]
 }
