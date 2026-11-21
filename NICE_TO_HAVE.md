@@ -8,7 +8,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n256 | S4 | `scripts/hygiene` `records` | a repo may extend the record names from its own `.hygiene-allow`, as a tree that keeps `.claude/` out wants | hq design/28 §11 lead 4 | 2026-11-18, rr3-records-guard |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
-| n209 | S4 | `tests/test_ak4b_uninstall.py` | `_lock`'s `fstat` regular-file check is pinned by no test, and `test_a_lock_fifo_or_folder_keeps_all` raises `TimeoutError` from its alarm, an `OSError` that `uninstall` keeps, so it cannot fail on a hang | ak4b-uninstall's last read | 2026-11-14 ak4-remove |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
 
@@ -26,16 +25,16 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 
+## From packet ak9c-plug-rest (build 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+
 ## From packet ak11-init (build 1 and review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n210 | S4 | `scripts/sync`, `plugins/suite/lib/scaffold/hq` | `sync` places no record check in a scaffolded hq: `init --kind hq` writes a copy of `scripts/recordlint` and its sha256 line, and nothing says how an hq takes a newer one; a later row, or a line in the scaffold's README | the scaffold's `Makefile`, target `recordlint`; `scripts/sync`'s usage | 2026-11-15, ak11-init build 1 |
-| n211 | S4 | `plugins/suite` `init.py` `parent_shown`, `--dry-run` | DIR `.` in a parent init cannot write: `--dry-run` exits 0, then the write exits 1 naming `.`, not its parent; name the real parent, and have the dry run check that it can write there | ak11-init review 1, F3 | 2026-11-15, ak11-init review 1 |
 | n212 | S3 | `plugins/suite` `init.py` `_write` | a SIGTERM while `git init` runs leaves the whole stage beside DIR as `tmpXXXXXXXX` (exit 143), and a `KeyboardInterrupt` in the move leaves part of the scaffold, as the undo runs on `OSError` alone; a stage named for DIR, SIGTERM handled, an undo on `BaseException`, re-raised | ak11-init review 1, F4 | 2026-11-15, ak11-init review 1 |
-| n213 | S4 | `plugins/suite` `init.py` wording | a dangling link at DIR is called a file (`not_a_folder`), and a failed rename of the whole stage names `<dir>/.` (`pear/.`); a line of its own for a link, and DIR as typed | ak11-init review 1, F6 | 2026-11-15, ak11-init review 1 |
-| n214 | S4 | `plugins/suite` `status.py` rows part | `pushed` rows with owed lines lead the part: sort the rows by stage, `building` first, so the work in flight shows before the work that waits | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
-| n215 | S4 | `plugins/suite` `status.py` rows read | the rows read is the slowest status source and grows with the rows (3.8 s for 38 rows, under a 6 s wall); read only the rows not closed, or cache the read | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
 
 ## From packet sc6-config (review 1)
 
@@ -135,24 +134,45 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n258 | S4 | `plugins/suite` `completion.py` | `config <tool>.<Tab>` offers no key, since a tool's keys need its config read and so a process; lead: keep the keys of each config read beside the describe cache | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n259 | S4 | `plugins/suite` `completion.py` | past a tool's first word nothing is offered, its second-level words and its flags included, since P10's `describe` carries first-level verbs alone | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n260 | S4 | `plugins/suite` `completion.py` | no fish: `completion fish` is refused; lead: a third script on the same callback | row ak12-polish D7 | 2026-11-19, ak12-polish |
-| n261 | S4 | `scripts/records-cut` | a refused or failed move has no `--undo`: a failed commit leaves the staged removal and the copies, and its line names `git reset -q --hard HEAD` and the copies to remove; lead: an undo that checks the clone still stands at the cut's commit | packet rc0-records-cut R5 | 2026-11-20, rc0-records-cut |
-| n262 | S4 | `tests/test_up2_suite_origin.py` | `test_12_the_printed_line_pulls_the_clone_and_runs_its_setup` fails now and then in a full `make check` (git clone into the temp origin: `failed to copy file`, or a hardlink differing from its source) and passes alone; lead: `--no-local` | gate 20261120-172023-2860 log; sitting 2026-11-18-2 | 2026-11-20, rc0-records-cut |
+
+## From row hn1-help-next (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n261 | S4 | `plugins/suite` `status_read.py` `compose` | the status screen has no deadline over all its reads, so described `wall_s` of up to 10 s each can hold it for their sum; lead: one deadline over the screen's reads, as the inbox has | review 1 L2: 10.14 s with one read sleeping 9 s under a `wall_s` of 10 | 2026-11-20, hn1-help-next review 1 |
+
+## From row rr7-way-in (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n262 | S4 | `scripts/sync` `table` | a private sync target with a regular `LICENSE` gets `SECURITY.md`, which points at a form its host does not serve for a private repo; lead: a rule for a public repo alone (a marker or a list) | review 1 F2: a private target's `--check` said `behind` and `unlisted` for both pages; the host's form read 404 there | 2026-11-20, rr7-way-in review 1 |
+| n263 | S4 | `scripts/sync` `table` | the `LICENSE` test follows the volume's case: where it is case-insensitive a repo with only `license` gets both pages, where it is not, neither; lead: match the exact name | review 1 F5: a scratch repo with a file `license` held both pages after `sync` | 2026-11-20, rr7-way-in review 1 |
+| n264 | S4 | `scripts/sync` `place` | `sync` overwrites a repo's own `CONTRIBUTING.md` without a word, and its stdout names no page; lead: name the two pages on the stdout line where it places them | review 1 F6: a hand-written page read `# Contributing` after `sync`, exit 0 | 2026-11-20, rr7-way-in review 1 |
+| n265 | S4 | `scripts/sync` `--check` | a repo that drops its `LICENSE` keeps both pages: `--check` says `unlisted` for each, and the next `sync` makes it quiet with the pages still there; lead: `stale <page>` | review 1 F7: a second `sync` printed `every copy is commons'`, exit 0, both pages at the root | 2026-11-20, rr7-way-in review 1 |
+| n266 | S4 | `scripts/sync` `place` | a folder at a destination (`CONTRIBUTING.md/`) ends the run in exit 1 and leaves `.CONTRIBUTING.md.sync.<pid>` and `scripts/.vendored.sync.<pid>`; lead: refuse a folder at a destination before any write | review 1 F8: `shasum: CONTRIBUTING.md: Is a directory`; a folder at `scripts/<x>` at the pin not checked | 2026-11-20, rr7-way-in review 1 |
+
+## From row rc0-records-cut (build 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n267 | S4 | `scripts/records-cut` | a refused or failed move has no `--undo`: a failed commit leaves the staged removal and the copies, and its line names `git reset -q --hard HEAD` and the copies to remove; lead: an undo that checks the clone still stands at the cut's commit | packet rc0-records-cut R5 | 2026-11-20, rc0-records-cut |
+| n268 | S4 | `tests/test_up2_suite_origin.py` | `test_12_the_printed_line_pulls_the_clone_and_runs_its_setup` fails now and then in a full `make check` (git clone into the temp origin: `failed to copy file`, or a hardlink differing from its source) and passes alone; lead: `--no-local` | gate 20261120-172023-2860 log; sitting 2026-11-18-2 | 2026-11-20, rc0-records-cut |
 
 ## From row rc0-records-cut (review 1)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n263 | S4 | `scripts/records-cut` | a stash or a local tag holding record changes past HEAD is not refused (`tips` reads branches and worktrees alone), so a later `stash pop` or `push --tags` brings a record back or publishes it | review 1 lead L1: a stash editing `HANDOFF.md` and a tag adding `bugs/t.md`, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
-| n264 | S4 | `scripts/records-cut` | a linked worktree with an uncommitted record edit is not refused: the dirty check reads the main checkout alone | review 1 lead L2: an edited `HANDOFF.md` in a linked worktree, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
-| n265 | S4 | `scripts/records-cut` `--go` | the repo's own commit hooks run during the cut's commit, and one may push, though the script never pushes; ruled: hooks stay on, as a refusing hook is how a failed step is tested | review 1 lead L5: a post-commit hook pushed a branch to the origin in a run that exited 0 | 2026-11-20, rc0-records-cut review 1 |
-| n266 | S4 | `scripts/records-cut` | a record the clone ignores (untracked) stays in the clone and is not moved, so the move is not whole for it, though it is not public | review 1 lead L6: an ignored `history/private/n.md` left in the clone, absent at the destination, exit 0 | 2026-11-20, rc0-records-cut review 1 |
-| n267 | S4 | `scripts/records-cut` `first_line` | a failed git step's line takes git's last stderr line, which with advice on is a `hint:`, not the cause | review 1 lead L8: `failed: git add .hygiene-allow: hint: Disable this message ...` | 2026-11-20, rc0-records-cut review 1 |
-| n268 | S4 | `scripts/records-cut` | a kill partway leaves a state that a rerun refuses but cannot mend, and nothing prints the undo (see n261, no undo verb) | review 1 lead L9: killed after `git rm`, and after the commit, each rerun exit 2 with the key unset | 2026-11-20, rc0-records-cut review 1 |
+| n269 | S4 | `scripts/records-cut` | a stash or a local tag holding record changes past HEAD is not refused (`tips` reads branches and worktrees alone), so a later `stash pop` or `push --tags` brings a record back or publishes it | review 1 lead L1: a stash editing `HANDOFF.md` and a tag adding `bugs/t.md`, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n270 | S4 | `scripts/records-cut` | a linked worktree with an uncommitted record edit is not refused: the dirty check reads the main checkout alone | review 1 lead L2: an edited `HANDOFF.md` in a linked worktree, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n271 | S4 | `scripts/records-cut` `--go` | the repo's own commit hooks run during the cut's commit, and one may push, though the script never pushes; ruled: hooks stay on, as a refusing hook is how a failed step is tested | review 1 lead L5: a post-commit hook pushed a branch to the origin in a run that exited 0 | 2026-11-20, rc0-records-cut review 1 |
+| n272 | S4 | `scripts/records-cut` | a record the clone ignores (untracked) stays in the clone and is not moved, so the move is not whole for it, though it is not public | review 1 lead L6: an ignored `history/private/n.md` left in the clone, absent at the destination, exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n273 | S4 | `scripts/records-cut` `first_line` | a failed git step's line takes git's last stderr line, which with advice on is a `hint:`, not the cause | review 1 lead L8: `failed: git add .hygiene-allow: hint: Disable this message ...` | 2026-11-20, rc0-records-cut review 1 |
+| n274 | S4 | `scripts/records-cut` | a kill partway leaves a state that a rerun refuses but cannot mend, and nothing prints the undo (see n267, no undo verb) | review 1 lead L9: killed after `git rm`, and after the commit, each rerun exit 2 with the key unset | 2026-11-20, rc0-records-cut review 1 |
 
 ## From row rc0-records-cut (review 2)
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n269 | S4 | `scripts/records-cut` | a stale remote-tracking ref walks around the behind check: an unfetched record commit on the origin, `--go` exit 0, then the push is rejected; lead: `git ls-remote` against the upstream's sha (needs the network) | review 2 L1: `! [rejected] main -> main (fetch first)` | 2026-11-20, rc0-records-cut review 2 |
-| n270 | S4 | `scripts/records-cut` the survey | an edit hidden by a `core.fsmonitor` hook reporting no change passes the survey; `--go` then loses it and fails half done; lead: `ls-files -f -v`, or `-c core.fsmonitor=false` on the status | review 2 L2 (a lying hook) | 2026-11-20, rc0-records-cut review 2 |
-| n271 | S4 | `scripts/records-cut` the sums | the holder's `* text=auto` stores a CRLF record with LF ends; the sha256 proof reads the copy on disk, not what the holder stores; lead: `git hash-object --path` in the holder | review 2 L4, `history/crlf.md` | 2026-11-20, rc0-records-cut review 2 |
+| n275 | S4 | `scripts/records-cut` | a stale remote-tracking ref walks around the behind check: an unfetched record commit on the origin, `--go` exit 0, then the push is rejected; lead: `git ls-remote` against the upstream's sha (needs the network) | review 2 L1: `! [rejected] main -> main (fetch first)` | 2026-11-20, rc0-records-cut review 2 |
+| n276 | S4 | `scripts/records-cut` the survey | an edit hidden by a `core.fsmonitor` hook reporting no change passes the survey; `--go` then loses it and fails half done; lead: `ls-files -f -v`, or `-c core.fsmonitor=false` on the status | review 2 L2 (a lying hook) | 2026-11-20, rc0-records-cut review 2 |
+| n277 | S4 | `scripts/records-cut` the sums | the holder's `* text=auto` stores a CRLF record with LF ends; the sha256 proof reads the copy on disk, not what the holder stores; lead: `git hash-object --path` in the holder | review 2 L4, `history/crlf.md` | 2026-11-20, rc0-records-cut review 2 |

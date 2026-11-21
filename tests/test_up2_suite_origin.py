@@ -251,8 +251,17 @@ class UpdateRow(tu.Base):
 class EndToEnd(tu.Base):
     """Acceptance 1: a made-up clone of a local bare repo, its setup, update's line run as printed."""
 
+    # No background maintenance. With Apple Git 2.54, `commit` on these ~75 loose objects starts a
+    # detached `maintenance run --auto` (a repack -d) that packs and deletes src's objects while the
+    # bare clone copies them ("hardlink different from source", "failed to copy file") and while
+    # tearDown removes the temp dir. Every git here runs without it, and each clone keeps it off in
+    # its own config, for the push into origin.git and the printed line's pull into the clone.
+    QUIET = ("-c", "maintenance.auto=false", "-c", "gc.auto=0")
+    KEEP_QUIET = ("--config", "maintenance.auto=false", "--config", "gc.auto=0")
+
     def git(self, *args, cwd=None):
-        p = subprocess.run(["git", "-c", "user.name=maker", "-c", "user.email=maker", *args], cwd=cwd,
+        p = subprocess.run(["git", "-c", "user.name=maker", "-c", "user.email=maker", *self.QUIET, *args],
+                           cwd=cwd,
                            capture_output=True, text=True, timeout=60,
                            env={"HOME": self.tmp, "PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1"})
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -272,9 +281,9 @@ class EndToEnd(tu.Base):
         self.git("add", ".", cwd=src)
         self.git("commit", "-q", "-m", "one", cwd=src)
         origin = os.path.join(self.tmp, "origin.git")
-        self.git("clone", "-q", "--bare", src, origin)
+        self.git("clone", "-q", "--bare", *self.KEEP_QUIET, src, origin)
         clone = os.path.join(h.home, "agentik-commons")
-        self.git("clone", "-q", origin, clone)
+        self.git("clone", "-q", *self.KEEP_QUIET, origin, clone)
         code, out, err = h.run("--yes", "murmur", exe=os.path.join(clone, "setup"))
         self.assertEqual(code, 0, out + err)
         launcher = os.path.join(h.bindir, "agentik-suite")
