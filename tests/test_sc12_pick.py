@@ -1,0 +1,585 @@
+"""Row sc12-picker: the picker as a component (design/23 section 4a). The screens are checked
+through the pure `layout`, the keys through the parser and the key handler, and the doors off a
+full terminal in a child process on a pipe or a pty. The terminal's modes and the signals are
+`scripts/pick-probe`'s, run by hand; here only its shape. The plugins fixture uses the suite's
+own plugin names, as the design's screens draw them; every other name is made up."""
+import ast
+import io
+import os
+import pty
+import re
+import select
+import shlex
+import subprocess
+import sys
+import time
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+LIB = ROOT / "plugins" / "suite" / "lib"
+PACKAGE = LIB / "agentik_suite"
+PROBE = ROOT / "scripts" / "pick-probe"
+sys.path.insert(0, str(LIB))
+
+from agentik_suite import catalogue, pick, term  # noqa: E402
+
+EXTRA = {"t.plugins": "Which plugins does setup install?", "t.effort": "How hard does the model think?",
+         "t.key": "Which key?", "t.run": "Run these {count} commands now?", "t.yes": "Run them",
+         "t.no": "Don't run anything",
+         "t.typed": "Run these {count} commands now? y for yes, n or Enter for no."}
+# The four reads the brief allows outside pick.py, each by file and function; a later row
+# moves each onto pick.
+ALLOWED = {("apply.py", "_before"), ("issue.py", "_ask"), ("remove.py", "Remove.ask"),
+           ("update.py", "Update.ask")}
+
+
+def a_term(env=None):
+    messages = dict(catalogue.load())
+    messages.update(EXTRA)
+    return term.Term(env=env or {"LANG": "en_US.UTF-8"}, out=io.StringIO(), err=io.StringIO(),
+                     messages=messages)
+
+
+def plugins(least=1):
+    def check(text):
+        return "" if re.fullmatch("[a-z][a-z0-9-]*", text) else "%s is not a plugin's name" % text
+    return {"id": "plugins", "tab": "Plugins", "prompt": "t.plugins", "kind": "many",
+            "least": least, "default": ["session", "decisions", "relay"],
+            "options": [{"value": v, "label": v, "note": n} for v, n in (
+                ("session", "Profiles, the budget and the charter for a sitting"),
+                ("decisions", "One ledger per repo, and the questions put to its owner"),
+                ("agents", "Every agent on this machine, and helpers on a local model"),
+                ("relay", "Queued runs, one child per worktree"),
+                ("respeak", "Agent output as a narrative for a named reader"))],
+            "other": {"label": "other", "note": "a plugin's name, typed", "check": check}}
+
+
+def keys28():
+    return {"id": "key", "tab": "Key", "prompt": "t.key", "kind": "one", "filter": True,
+            "noun": "keys", "options": [{"value": "k%02d" % i, "label": "tool.part.key%02d" % i,
+                                         "note": "What key %d does, said at some length here." % i}
+                                        for i in range(28)] +
+            [{"value": "effort", "label": "session.effort", "note": "How hard the model thinks."}]}
+
+
+def effort():
+    return {"id": "effort", "tab": "Effort", "prompt": "t.effort", "kind": "one", "default": "medium",
+            "options": [{"value": v, "label": v, "note": v + " thought"} for v in
+                        ("low", "medium", "high", "xhigh", "max")]}
+
+
+def shown(t, lines, cols):
+    plain = term.Term(env={}, out=io.StringIO(), err=io.StringIO(), messages=t.messages)
+    return [pick._painted(plain, segs, cols - 1, "…") for segs in lines]
+
+
+def press(handler, *keys):
+    got = (False, None)
+    for k in keys:
+        got = handler(*k) if isinstance(k, tuple) else handler("text", k)
+    return got
+
+
+def feed(handler, data, utf8=True):
+    """Every byte through the parser, as the loop does once the 50 ms wait is over."""
+    buf = data
+    while buf:
+        event, used = pick.parse(buf, True, utf8)
+        buf = buf[used:]
+        if event[0] != "none":
+            handler(*event)
+
+
+def child(code, stdin=None, env=None, tty=False):
+    """A child Python running `code` with the package on its path: (exit, stdout, stderr)."""
+    env = dict(env or {}, PATH="/usr/bin:/bin", LANG="en_US.UTF-8")
+    head = "import sys; sys.path.insert(0, %r)\n" % str(LIB)
+    if not tty:
+        p = subprocess.run([sys.executable, "-I", "-c", head + code], input=stdin or b"",
+                           capture_output=True, env=env, timeout=30)
+        return p.returncode, p.stdout, p.stderr
+    master, slave = pty.openpty()
+    p = subprocess.Popen([sys.executable, "-I", "-c", head + code], stdin=slave, stdout=subprocess.PIPE,
+                         stderr=slave, env=env)
+    os.close(slave)
+    seen = b""
+
+    def drain(wait):
+        got = b""
+        while select.select([master], [], [], wait)[0]:
+            try:
+                chunk = os.read(master, 4096)
+            except OSError:
+                break
+            if not chunk:
+                break
+            got += chunk
+            wait = 0.2
+        return got
+    if stdin:
+        seen += drain(5)  # the question shows first: a line typed ahead is dropped by design
+        os.write(master, stdin)
+    out = p.communicate(timeout=30)[0]
+    seen += drain(0.2)
+    os.close(master)
+    return p.returncode, out, seen
+
+
+class Screens(unittest.TestCase):
+    def test_a2_each_key_at_both_widths(self):
+        t = a_term()
+        sets = [[plugins()], [keys28()], [plugins(), effort(), keys28()]]
+        keys = [("down", None), ("down", None), ("up", None), ("pagedown", None), ("end", None),
+                ("home", None), ("pageup", None), "j", "k", " ", "e", "f", ("back", None),
+                ("clear", None), ("tab", None), ("right", None), ("backtab", None),
+                ("left", None), ("enter", None), ("esc", None)]
+        for cols in (80, 50):
+            for qs in sets:
+                st = pick.State(t, qs, utf8=True)
+                handler, heights = pick._Ask(st), set()
+                for k in keys:
+                    try:
+                        press(handler, k)
+                    except pick.Cancelled:
+                        st = pick.State(t, qs, utf8=True)
+                        handler = pick._Ask(st)
+                    lines, cursor = pick.layout(st, cols, 24)
+                    heights.add(len(lines))
+                    for line in shown(t, lines, cols):
+                        self.assertLessEqual(term.columns(line), cols - 1, (cols, k, line))
+                    if cursor:
+                        self.assertLess(cursor[0], len(lines))
+                        self.assertLess(cursor[1], cols)
+                self.assertEqual(len(heights), 1, (cols, [q["id"] for q in qs], heights))
+
+    def test_a2_the_yes_or_no_frames(self):
+        t = a_term()
+        for cols in (80, 50):
+            st = pick.Confirm(t, t.text("t.run", count=2), t.text("t.yes"), t.text("t.no"))
+            rest = ["Run these 2 commands now?", "  Run them", "❯ Don't run anything",
+                    "↑↓ move  Enter choose  Esc cancel"]
+            self.assertEqual(shown(t, pick.layout(st, cols, 24)[0], cols), rest)
+            yes = pick._Yes(st)
+            self.assertEqual(press(yes, "y"), (False, None))
+            self.assertEqual(shown(t, pick.layout(st, cols, 24)[0], cols)[1:3],
+                             ["❯ Run them", "  Don't run anything"])
+            self.assertEqual(press(yes, ("enter", None)), (True, True))
+        long_ = pick.Confirm(t, "Run these 2 commands now, each one in its own repository, one by one?",
+                             "Run them, each in the order the plan gives, and stop at the first error",
+                             "Don't run anything, and say what each command would have done here")
+        for cols in (80, 50, 41, 40):  # layout's own lines, before any painter cuts them
+            lines = pick.layout(long_, cols, 24)[0]
+            for line in lines:
+                self.assertLessEqual(sum(term.columns(text) for text, _ in line), cols - 1, (cols, line))
+            self.assertEqual(lines[0][0][0].endswith("…"), cols < 72, lines[0])
+        ascii_ = pick.Confirm(t, "Q?", "Yes", "No", utf8=False)
+        self.assertEqual(shown(t, pick.layout(ascii_, 50, 24)[0], 50)[2:],
+                         ["> No", "up/down move  Enter choose  Esc cancel"])
+
+    def test_a2_the_strip_the_review_and_the_marks(self):
+        t = a_term()
+        st = pick.State(t, [plugins(), effort(), keys28()], utf8=True)
+        h = pick._Ask(st)
+        press(h, ("tab", None))
+        top = shown(t, pick.layout(st, 50, 24)[0], 50)
+        self.assertTrue(top[0].startswith(" Plugins ✓  [Effort ✓]"), top[0])
+        self.assertIn("❯ (x) medium", "\n".join(top))
+        press(h, ("backtab", None), ("backtab", None))
+        review = shown(t, pick.layout(st, 50, 24)[0], 50)
+        self.assertEqual(review[1], "Check your answers")
+        self.assertIn("! not answered", review[4])
+        press(h, ("enter", None))
+        self.assertEqual(st.tab, 2)
+        self.assertEqual(st.error, "Key needs an answer")
+        ascii_ = shown(t, pick.layout(pick.State(t, [plugins()], utf8=False), 50, 24)[0], 50)
+        self.assertTrue(any(x.startswith("> [x] session") for x in ascii_), ascii_)
+        self.assertEqual(shown(t, pick.layout(st, 39, 24)[0], 39), ["! needs 40 columns by 13 rows"])
+
+    def test_a2_a_label_is_cut_in_its_middle(self):
+        self.assertEqual(pick.middle("session.budget.turns", 11, "…"), "sessi…turns")
+        self.assertEqual(pick.middle("short", 11, "…"), "short")
+
+    def test_filter_and_no_match(self):
+        t = a_term()
+        st = pick.State(t, [keys28()], utf8=True)
+        h = pick._Ask(st)
+        press(h, "e", "f", "f")
+        lines = shown(t, pick.layout(st, 50, 24)[0], 50)
+        self.assertEqual(lines[0], "Which key?  1 of 29 keys")
+        self.assertIn("❯ session.effort", "\n".join(lines))
+        self.assertEqual(press(h, ("enter", None)), (True, {"key": "effort"}))
+        st = pick.State(t, [keys28()], utf8=True)
+        h = pick._Ask(st)
+        press(h, "z", "z", "z")
+        self.assertIn("  no keys match zzz", shown(t, pick.layout(st, 80, 24)[0], 80))
+        self.assertEqual(press(h, ("enter", None)), (False, None))
+        self.assertEqual(st.error, "no keys match zzz")
+
+
+class Keys(unittest.TestCase):
+    def test_a3_escape_forms_leave_the_filter_empty(self):
+        t = a_term()
+        forms = [b"\x1b\x1b[A", b"\x1b[[A", b"\x1b]11;rgb:0000/0000/0000\x07",
+                 b"\x1b]11;rgb:0000/0000/0000\x1b\\", b"\x1bP1$r0m\x1b\\", b"\x1b[M !!",
+                 b"\x1b_x\x1b\\", b"\x1b^x\x07", b"\x1bOP", b"\x1b[1;5A", b"\x1bx"]
+        for form in forms:
+            st = pick.State(t, [keys28()], utf8=True)
+            feed(pick._Ask(st), form)
+            self.assertEqual(st.qs[0].filter, "", form)
+
+    def test_f2_no_key_acts_while_the_frame_is_the_size_line(self):
+        def screen(state, keys, size):
+            s = pick._Screen.__new__(pick._Screen)
+            s.t, s.st, s.keys, s.paste, s.prefix = state.t, state, keys, None, ""
+            s.up, s.clear, s.dirty, s.out_fd, s.small = 0, False, True, 1, False
+            old = os.get_terminal_size
+            os.get_terminal_size = lambda fd=None: os.terminal_size(size)
+            try:
+                s._frame()
+            finally:
+                os.get_terminal_size = old
+            return s
+        st = pick.Confirm(a_term(), "Q?", "Yes", "No")
+        s = screen(st, pick._Yes(st), (30, 24))
+        self.assertEqual([s._event(k) for k in (("text", "y"), ("enter", None))], [(False, None)] * 2)
+        self.assertEqual(st.focus, 1)
+        s = screen(st, pick._Yes(st), (80, 24))  # the window grown, the frame drawn again
+        self.assertEqual([s._event(k) for k in (("text", "y"), ("enter", None))], [(False, None), (True, True)])
+        st = pick.State(a_term(), [effort()], utf8=True)
+        s = screen(st, pick._Ask(st), (80, 5))
+        self.assertEqual(s._event(("down", None)), (False, None))
+        self.assertEqual(s._event(("enter", None)), (False, None))
+        s._event(("paste_on", None))
+        s._event(("text", "x"))
+        s._event(("paste_off", None))
+        self.assertEqual(st.qs[0].focus, 1)  # the default, medium, untouched
+        with self.assertRaises(pick.Cancelled):
+            s._event(("esc", None))
+
+    def test_a3_a_split_sequence_waits(self):
+        self.assertEqual(pick.parse(b"\x1b[", False, True), (None, 0))
+        self.assertEqual(pick.parse(b"\x1b[A", False, True), (("up", None), 3))
+        self.assertEqual(pick.parse(b"\x1b", True, True), (("esc", None), 1))
+        self.assertEqual(pick.parse(b"\x1b[200~", False, True), (("paste_on", None), 6))
+        self.assertEqual(pick.parse("é".encode(), False, True), (("text", "é"), 2))
+        self.assertEqual(pick.parse("é".encode("latin-1"), False, False), (("text", "é"), 1))
+
+    def test_f1_a_run_of_esc_is_one_esc(self):
+        self.assertEqual(pick.parse(b"\x1b\x1b\x1b", True, True), (("esc", None), 3))
+        self.assertEqual(pick.parse(b"\x1b" * 1100, True, True), (("esc", None), 1100))
+        self.assertEqual(pick.parse(b"\x1b\x1b", False, True), (None, 0))  # an Alt prefix, perhaps
+        event, used = pick.parse(b"\x1b" * 1100, False, True)  # held: no wait for an end
+        self.assertEqual(event, ("esc", None))
+        self.assertEqual(pick.parse(b"\x1b\x1b[A", False, True), (("none", None), 4))
+        st = pick.Confirm(a_term(), "Q?", "Yes", "No")
+        feed(pick._Yes(st), b"\x1b" * 1100)
+        self.assertEqual(st.focus, 1)
+        st = pick.State(a_term(), [keys28()], utf8=True)
+        with self.assertRaises(pick.Cancelled):
+            feed(pick._Ask(st), b"\x1b\x1b\x1b")
+
+
+class SameAs(unittest.TestCase):
+    def plain(self, qs, lines, command):
+        t = a_term()
+        old, sys.stdin = sys.stdin, io.StringIO(lines)
+        where, pick._where = pick._where, lambda t_: "plain"
+        try:
+            got = pick.ask(t, qs, command)
+        finally:
+            sys.stdin, pick._where = old, where
+        return got, t.err.raw.getvalue()
+
+    def test_a7_a_typed_value_is_one_word(self):
+        q = plugins()
+        q["other"]["check"] = lambda text: ""
+        got, err = self.plain([q], "1 6\n/tmp/my profile; echo $HOME\n",
+                              lambda a: ["agentik", "setup"] + list(a["plugins"]))
+        self.assertEqual(got["plugins"], ["session", "/tmp/my profile; echo $HOME"])
+        self.assertIsInstance(got["plugins"][1], pick.Other)
+        line = err[err.index("same as: "):].rstrip("\n")
+        self.assertEqual(line, "same as: agentik setup session '/tmp/my profile; echo $HOME'")
+        words = line[len("same as: "):]
+        p = subprocess.run(["sh", "-c", "printf '<%s>' " + words], capture_output=True, text=True)
+        self.assertEqual(p.stdout, "<agentik><setup><session></tmp/my profile; echo $HOME>")
+
+    def test_f4_a_typed_character_passes_clean(self):
+        q = {"id": "name", "tab": "Name", "prompt": "t.key", "kind": "one",
+             "options": [{"value": "alpha", "label": "alpha"}],
+             "other": {"label": "other", "note": "a name, typed", "check": lambda s: ""}}
+        typed = "my name x​"
+        t = a_term()
+        st = pick.State(t, [dict(q)], True)
+        h = pick._Ask(st)
+        h("down", None)
+        feed(h, typed.encode())  # typed, a key at a time
+        h.paste(" y")  # and pasted
+        self.assertFalse(any(c in s for line in pick.layout(st, 80, 24)[0] for s, _ in line
+                             for c in "  "))
+        done, got = h("enter", None)
+        self.assertEqual((done, got), (True, {"name": "mynamexy"}))
+        err = io.StringIO()
+        out = term.Term(env={"LANG": "en_US.UTF-8"}, out=io.StringIO(), err=err, messages=t.messages)
+        argv = ["kit", "name", got["name"]]
+        out.line("pick.same", err=True, command=shlex.join(argv))
+        printed = err.getvalue().split("same as: ", 1)[1].rstrip("\n")
+        p = subprocess.run(["sh", "-c", "printf '<%s>' " + printed], capture_output=True, text=True)
+        self.assertEqual(p.stdout, "".join("<%s>" % a for a in argv))
+        plain, _ = self.plain([dict(q)], "2\n" + typed + "y\n", lambda a: ["kit", "name", a["name"]])
+        self.assertEqual(plain, got)  # the picker and the plain prompt answer alike
+
+    def test_a7_a_refused_other_stays_wherever_the_focus_is(self):
+        t = a_term()
+        st = pick.State(t, [plugins()], utf8=True)
+        h = pick._Ask(st)
+        press(h, *[("down", None)] * 5)
+        self.assertEqual(st.qs[0].row(), "other")
+        press(h, *"Bad Name")
+        press(h, ("up", None))
+        self.assertEqual(press(h, ("enter", None)), (False, None))
+        self.assertEqual(st.error, "Bad Name is not a plugin's name")
+        self.assertEqual(st.qs[0].row(), "other")
+        self.assertIn("! Bad Name is not a plugin's name", shown(t, pick.layout(st, 50, 24)[0], 50))
+
+    def test_a7_least_one_stays_and_refuses_none(self):
+        t = a_term()
+        st = pick.State(t, [plugins()], utf8=True)
+        h = pick._Ask(st)
+        press(h, " ", ("down", None), " ", ("down", None), ("down", None), " ")
+        self.assertEqual(press(h, ("enter", None)), (False, None))
+        self.assertEqual(st.error, "tick at least one")
+        with self.assertRaises(pick.Cancelled):
+            self.plain([plugins()], "none\nnone\nnone\n", lambda a: ["x"])
+        got, err = self.plain([plugins()], "none\n\n", lambda a: ["agentik", "setup"] + a["plugins"])
+        self.assertIn("! tick at least one", err)
+        self.assertIn("Numbers (1 3, 2-4 or none); Enter keeps 1 2 4:", err)
+        self.assertEqual(got["plugins"], ["session", "decisions", "relay"])
+
+    def test_a7_the_plain_prompt_reads_a_name_past_its_window(self):
+        old = os.get_terminal_size
+        os.get_terminal_size = lambda fd=None: os.terminal_size((80, 5))
+        try:
+            got, err = self.plain([keys28()], "nope\nsession.effort\n", lambda a: ["agentik", a["key"]])
+        finally:
+            os.get_terminal_size = old
+        self.assertEqual(got, {"key": "effort"})
+        self.assertIn("! nope is not one of the names above", err)
+        self.assertNotIn("  1  ", err)
+        self.assertNotIn("\x1b", err)
+
+    def test_l5_a_range_is_checked_before_it_is_built(self):
+        start = time.monotonic()
+        self.assertIsNone(pick._numbers("1-9999999999", 6, True, False))
+        self.assertIsNone(pick._numbers("9999999999-9999999999", 6, True, False))
+        self.assertLess(time.monotonic() - start, 0.05)
+        self.assertEqual(pick._numbers("2-4", 6, True, False), [1, 2, 3])
+        got, err = self.plain([plugins()], "1-9999999999\n1\n", lambda a: ["kit"] + a["plugins"])
+        self.assertIn("! not a number from 1 to 6", err)
+        self.assertEqual(got["plugins"], ["session"])
+
+    def test_f8_a_typed_digit_that_is_no_decimal_is_a_wrong_number(self):
+        self.assertIsNone(pick._numbers("²", 6, False, False))
+        self.assertIsNone(pick._numbers("1-²", 6, True, False))
+        self.assertEqual(pick._numbers("٢", 6, False, False), [1])
+        got, err = self.plain([effort()], "²\n3\n", lambda a: ["kit", a["effort"]])
+        self.assertIn("! not a number from 1 to 5", err)
+        self.assertEqual(got["effort"], "high")
+
+    def test_f3_a_label_that_holds_a_blank_is_named_whole(self):
+        q = {"id": "p", "tab": "Profiles", "prompt": "t.plugins", "kind": "many", "least": 0,
+             "options": [{"value": v, "label": label, "note": ""} for v, label in (
+                 ("w", "work profile"), ("h", "home profile"), ("s", "spare"))] +
+             [{"value": "x%02d" % i, "label": "spare %02d" % i, "note": ""} for i in range(24)]}
+        old = os.get_terminal_size  # a list longer than its window, so the name form
+        os.get_terminal_size = lambda fd=None: os.terminal_size((80, 5))
+        try:
+            for line, want in (("work profile\n", ["w"]), ("spare, work profile\n", ["w", "s"]),
+                               ("spare home profile\nspare\n", ["s"]), ("none\n", [])):
+                got, err = self.plain([dict(q)], line, lambda a: ["kit"] + a["p"])
+                self.assertEqual(got["p"], want, (line, err))
+                if line.startswith("spare home"):
+                    self.assertIn("! home is not one of the names above", err)
+        finally:
+            os.get_terminal_size = old
+
+
+class Doors(unittest.TestCase):
+    ASK = ("from agentik_suite import pick, term\n"
+           "t = term.Term(messages=dict(term.catalogue.load(), q='Which?', y='Yes', n='No', ty='Go? y or n.'))\n"
+           "qs = [{'id': 'a', 'prompt': 'q', 'kind': 'one', 'options': [{'value': 'x', 'label': 'x'}]}]\n"
+           "try:\n"
+           "    %s\n"
+           "except pick.NoTerminal:\n"
+           "    sys.exit(3)\n")
+
+    def test_a10_no_terminal_writes_no_byte(self):
+        for call in ("pick.ask(t, qs, lambda a: ['x'])", "pick.confirm(t, 'q', 'y', 'n', 'ty')"):
+            code, out, err = child(self.ASK % call, stdin=b"1\ny\n")
+            self.assertEqual((code, out, err), (3, b"", b""), call)
+            code, out, seen = child(self.ASK % call, stdin=b"", env={"CI": "1", "TERM": "xterm"}, tty=True)
+            self.assertEqual((code, out, seen), (3, b"", b""), call)
+
+    def test_a11_no_termios_still_imports_and_asks_plain(self):
+        code = "sys.modules['termios'] = None\n" + (self.ASK % "print(pick.ask(t, qs, lambda a: ['x']))")
+        rc, out, seen = child(code, stdin=b"1\n", env={"TERM": "xterm-256color"}, tty=True)
+        self.assertEqual((rc, out), (0, b"{'a': 'x'}\n"), seen)
+        self.assertIn(b"Number:", seen)
+        self.assertNotIn(b"\x1b", seen)
+
+    def test_a9_the_typed_form_reads_one_line(self):
+        for env in ({"TERM": "dumb"}, {"TERM": "xterm", "AGENTIK_PLAIN": "1"}):
+            rc, out, seen = child(self.ASK % "print(pick.confirm(t, 'q', 'y', 'n', 'ty'))",
+                                  stdin=b"  YES \n", env=env, tty=True)
+            self.assertEqual((rc, out), (0, b"True\n"), seen)
+            self.assertIn(b"Go? y or n.", seen)
+            self.assertNotIn(b"\x1b", seen)
+
+
+STDIN = ("stdin", "__stdin__")
+IMPORTERS = ("__import__", "import_module")
+
+
+def _stdin(node):
+    """True when an attribute chain names stdin: `sys.stdin`, `sys.stdin.buffer`, `sys.__stdin__`."""
+    while isinstance(node, ast.Attribute):
+        if node.attr in STDIN:
+            return True
+        node = node.value
+    return isinstance(node, ast.Name) and node.id in STDIN
+
+
+def _termios_named(call):
+    """True when a call of `__import__` or `import_module` is handed the string `termios`."""
+    f = call.func
+    name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+    if name not in IMPORTERS:
+        return False
+    args = call.args[:1] + [k.value for k in call.keywords if k.arg == "name"]
+    return any(isinstance(a, ast.Constant) and isinstance(a.value, str)
+               and a.value.split(".")[0] == "termios" for a in args)
+
+
+def is_read(node):
+    """A read of a person, found in the syntax tree, so a comment or a string names none: a
+    call of `input`; a `readline` of stdin, called or only named; an import of `termios`, by
+    statement or by its name handed to `__import__` or `import_module`."""
+    if isinstance(node, ast.Attribute):
+        return node.attr == "readline" and _stdin(node.value)
+    if isinstance(node, ast.Call):
+        f = node.func
+        if isinstance(f, ast.Name) and f.id == "input" or isinstance(f, ast.Attribute) and f.attr == "input":
+            return True
+        return _termios_named(node)
+    if isinstance(node, ast.Import):
+        return any(a.name.split(".")[0] == "termios" for a in node.names)
+    return isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "termios"
+
+
+def reads(source):
+    """Each read in the source: (function, line), the function by its dotted name, '' at the top."""
+    hits = []
+
+    def walk(node, prefix):
+        for child_ in ast.iter_child_nodes(node):
+            inner = prefix
+            if isinstance(child_, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                inner = (prefix + "." if prefix else "") + child_.name
+            if is_read(child_):
+                hits.append((prefix, child_.lineno))
+            walk(child_, inner)
+    walk(ast.parse(source), "")
+    return hits
+
+
+def reads_outside_pick(path, source):
+    """Each read of a person outside pick.py that no allow line names: (file, function, line)."""
+    return [(path, fn, n) for fn, n in reads(source) if (path, fn) not in ALLOWED]
+
+
+class OneReader(unittest.TestCase):
+    def test_a12_pick_is_the_one_reader(self):
+        for p in sorted(PACKAGE.glob("*.py")):
+            if p.name != "pick.py":
+                self.assertEqual(reads_outside_pick(p.name, p.read_text()), [], p.name)
+
+    def test_a12_a_planted_read_is_red(self):
+        source = (PACKAGE / "config.py").read_text()
+        self.assertEqual(reads_outside_pick("config.py", source), [])
+        self.assertTrue(reads_outside_pick("config.py", source + "\ndef planted():\n    return input('x')\n"))
+        self.assertTrue(reads_outside_pick("apply.py", "def other():\n    import termios\n"))
+        for plant in ("return print('#') or input('x')", "s = '#'; return sys.stdin.readline()",
+                      "x = f'{1}#'; import termios", "from termios import tcgetattr",
+                      "return sys.stdin.buffer.readline()",
+                      "return [l for l in iter(sys.stdin.readline, '')]", "f = sys.stdin.readline; return f()",
+                      "return __import__('termios').tcgetattr(0)",
+                      "import importlib; return importlib.import_module('termios')",
+                      "return sys.__stdin__.readline()", "return __import__(name='termios.x')"):
+            self.assertTrue(reads_outside_pick("config.py", source + "\ndef planted():\n    " + plant + "\n"),
+                            plant)
+        for named in ("pass  # input('x') and sys.stdin.readline() and import termios",
+                      "return 'input(x) sys.stdin.readline termios'", '"""import termios"""',
+                      "print('termios'); return __import__('os')", "return sys.stdin.read, 'readline'"):
+            self.assertEqual(reads_outside_pick("config.py", source + "\ndef planted():\n    " + named + "\n"),
+                             [], named)
+
+    def test_the_four_allowed_reads_are_there(self):
+        found = {(path, fn) for path in {p for p, _ in ALLOWED}
+                 for fn, _ in reads((PACKAGE / path).read_text())}
+        self.assertEqual(found, ALLOWED)
+
+
+class Words(unittest.TestCase):
+    def test_r9_the_pick_section(self):
+        text = (PACKAGE / "messages.md").read_text()
+        section = text.split("\n## Pick\n", 1)[1].split("\n## ", 1)[0]
+        ids = re.findall(r"^- `(pick\.[a-z.]+)`: (.*)$", section, re.M)
+        self.assertLess(len(ids), 30)
+        for mid, body in ids:
+            self.assertLessEqual(len(re.sub(r"`\{[^}]*\}`", "", body).replace("`", "")), 76, mid)
+            self.assertNotIn("!", body, mid)
+        used = set(re.findall(r'"(pick\.[a-z.]+)"', (PACKAGE / "pick.py").read_text()))
+        self.assertLessEqual(used, {m for m, _ in ids})
+        self.assertEqual(used, {m for m, _ in ids})
+
+    def test_r1_clean_drops_the_zero_width_and_direction_controls(self):
+        self.assertEqual(term.clean("a​b‏c﻿d‮e⁦f"), "abcdef")
+
+    def test_r1_put_has_no_line_break_and_need_not_wait(self):
+        t = a_term()
+        t.put("one")
+        t.put("two", err=False)
+        self.assertEqual((t.err.raw.getvalue(), t.out.raw.getvalue()), ("one", "two"))
+        r, w = os.pipe()
+        try:
+            with os.fdopen(w, "w", closefd=False) as fh:
+                s = term._Stream(fh, True)
+                left = s.put(b"x" * 200000, wait=False)
+                self.assertTrue(0 < len(left) < 200000)
+        finally:
+            os.close(r)
+            os.close(w)
+
+    def test_a_tab_is_at_most_twelve(self):
+        q = effort()
+        q["tab"] = "a" * 13
+        with self.assertRaises(ValueError):
+            pick.State(a_term(), [q])
+
+
+class Probe(unittest.TestCase):
+    def test_r10_shape(self):
+        self.assertTrue(PROBE.read_text().startswith("#!/usr/bin/env python3\n"))
+        self.assertTrue(os.access(PROBE, os.X_OK))
+        p = subprocess.run([str(PROBE), "--help"], capture_output=True, text=True, timeout=30)
+        self.assertEqual((p.returncode, p.stdout), (0, "usage: pick-probe [--python PATH]\n"))
+        for args in (["--bogus"], ["--python"]):
+            p = subprocess.run([str(PROBE), *args], capture_output=True, text=True, timeout=30)
+            self.assertEqual((p.returncode, p.stdout), (2, ""), args)
+
+    def test_r10_make_never_runs_it(self):
+        self.assertNotIn("pick-probe", (ROOT / "Makefile").read_text())
+
+
+if __name__ == "__main__":
+    unittest.main()

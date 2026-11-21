@@ -11,11 +11,14 @@ A stream that is closed, or whose reader has gone, takes nothing more and raises
 write or at the interpreter's exit; a character a stream cannot encode is replaced; a value has
 its control characters (C0, DEL, C1) removed, so no file or variable puts an escape byte out; a
 tab or a line break in it is one space, and the line and direction controls (U+2028, U+2029,
-U+202A to U+202E, U+2066 to U+2069) are removed.
+U+202A to U+202E, U+2066 to U+2069) and the zero-width characters (U+200B to U+200F, U+FEFF) are
+removed. `put` is the one write with no line break, and the one that need not wait (row
+sc12-picker R1): the picker draws through it.
 """
 import json
 import os
 import re
+import select
 import sys
 import unicodedata
 
@@ -35,14 +38,16 @@ JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survi
 
 
 LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
+ZERO_CONTROL = re.compile("[\u200b-\u200f\ufeff]")  # zero-width (row sc12-picker R1)
 BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
 
 
 def clean(value):
     """The value as text, with its control characters removed: a tab or a line break becomes one
     space, so no value splits a row or glues two words, and the line and direction controls go,
-    so no value reorders a row or starts another."""
-    return LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value))))
+    so no value reorders a row or starts another, and the zero-width characters go, so two
+    values that look alike are alike (row sc12-picker R1)."""
+    return ZERO_CONTROL.sub("", LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value)))))
 
 
 def columns(text):
@@ -155,17 +160,48 @@ class _Stream:
         shown = GLYPH[status] if self.glyphs else WORD[status]
         return shown, self.paint(shown, MARK_SGR[status])
 
-    def write(self, line):
-        if self.gone:
-            return
+    def encode(self, text):
+        """The text as this stream's bytes, a character it cannot encode replaced."""
         try:
-            line = line.encode(self.encoding, "replace").decode(self.encoding)
+            return text.encode(self.encoding, "replace")
         except LookupError:
-            line = line.encode("ascii", "replace").decode("ascii")
+            return text.encode("ascii", "replace")
+
+    def write(self, line):
+        self.put(line + "\n")
+
+    def put(self, data, wait=True):
+        """A write with no line break of its own (row sc12-picker R1). With `wait`, text written
+        as `write` writes it. Without, text or bytes go to the descriptor only as `select` says it
+        takes them at once, 512 bytes at a time, and the bytes left are returned (b"" when all
+        went), so no write waits on a screen that is stopped or unread (design/23 4a.5)."""
+        if self.gone:
+            return b""
+        if wait:
+            try:
+                self.raw.write(self.encode(data).decode(self.encoding))
+            except LookupError:
+                self.raw.write(self.encode(data).decode("ascii"))
+            except (AttributeError, ValueError, OSError):
+                self.drop()
+            return b""
+        data = self.encode(data) if isinstance(data, str) else data
         try:
-            self.raw.write(line + "\n")
+            self.raw.flush()
+            fd = self.raw.fileno()
+            blocking = os.get_blocking(fd)
+            os.set_blocking(fd, False)  # a write takes what the screen takes, never more
+            try:
+                while data and select.select([], [fd], [], 0)[1]:
+                    data = data[os.write(fd, data[:512]):]
+            except (BlockingIOError, InterruptedError):
+                pass
+            finally:
+                os.set_blocking(fd, blocking)
         except (AttributeError, ValueError, OSError):
             self.drop()
+            return b""
+        return data
 
     def flush(self):
         try:
@@ -217,6 +253,10 @@ class Term:
     def line(self, mid, err=False, style=None, **values):
         stream = self._stream(err)
         stream.write(stream.paint(self.text(mid, **values), STYLE_SGR.get(style)))
+
+    def put(self, data, err=True, wait=True):
+        """Text with no line break added, on stderr unless told; see `_Stream.put`."""
+        return self._stream(err).put(data, wait)
 
     def blank(self, err=False):
         self._stream(err).write("")

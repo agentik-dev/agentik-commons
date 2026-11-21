@@ -81,6 +81,7 @@ plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed
 # the plug reader's test names a plugin's fallback row (row ic2-needs, the coordinator's ruling)
 tests/test_ic2_needs.py: sibling
 tests/test_sn1_need_notread.py: sibling
+tests/test_sc12_pick.py: sibling
 tests/test_ak9b_plug_reader.py: sibling
 
 # the suite's own tool names in the fixtures that stand in for the old table's tools, each now

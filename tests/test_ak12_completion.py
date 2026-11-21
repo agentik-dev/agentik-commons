@@ -250,7 +250,8 @@ class HostileTest(Home):
 
     def test_5_a_summary_is_one_plain_line_of_80_columns(self):
         self.assertEqual(completion.summary("a\tb\nc\x1b[1md"), "a b c[1md")
-        self.assertEqual(completion.summary("x​y"), "")
+        self.assertEqual(completion.summary("x\u200by"), "xy")  # term.clean drops the hidden mark
+        self.assertEqual(completion.summary("x\u00ady"), "")  # a format character clean keeps is refused
         self.assertEqual(completion.summary(None), "")
         self.assertEqual(len(completion.summary("w" * 300)), 80)
         self.assertEqual(len(completion.summary("字" * 300)), 40)  # wide: two columns each

@@ -363,3 +363,12 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n218 | S4 | `plugins/suite` `config.py` prefix form `--json` | `config loom.ink --json` prints the whole-tool object cut to the prefix's keys, with no prefix field and unfiltered warnings (`inq.weight` stays), which the text form filters; the pin refused it | `config loom.ink --json \| grep inq.weight` finds it; `config loom.ink` does not show it | 2026-11-15, sc6-config review 1 |
+
+## From packet sc6-config (review 1) (n219 to n222, moved by sc12-picker)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n219 | S4 | `plugins/suite` `settings.read`, R5's line | one duplicate key makes `settings.read` fault, so every key of that file shows the bare path; a child of a flow mapping (`ink: {weight: bold}`) shows the path alone too; both within R5's letter | a file with `mode` set twice: `mode`, `ink.weight` and `page.width` all print the path with no `:line` | 2026-11-15, sc6-config review 1 |
+| n220 | S4 | `plugins/suite` `config.py` groups | a key that is also a group's head (`ink` beside `ink.colour`) shows as `ink` in the `ink` group row, and `config loom.ink` prints that key's card, not the group flat | a loom with `ink` and `ink.colour` keys: `config loom` shows the `ink` group row; `config loom.ink` prints one card | 2026-11-15, sc6-config review 1 |
+| n221 | S4 | `plugins/suite` `config.py` refusal | `config loom ink ''` is refused as `loom has no key ink.` with `next: config loom.ink.dry`; now that `loom.ink` is a prefix, `next: config loom.ink` is the better hint | `agentik-suite config loom ink ''` prints the refusal and the `.dry` next | 2026-11-15, sc6-config review 1 |
+| n222 | S4 | `plugins/suite` `config.py` step 1 after-line | on an 80-column terminal the row of a suite whose user file does not read has an after-line of 103 columns (`... cannot be read at line 1: a tab; the subset indents with spaces`); not compared with the pin | a user config file that opens with a tab, `config` on a pty at 80 columns | 2026-11-15, sc6-config review 1 |
