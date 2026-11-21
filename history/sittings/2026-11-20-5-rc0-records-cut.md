@@ -19,16 +19,18 @@
 | F5, L3 a HEAD behind its upstream; a remote-tracking branch with a record commit | done: `upstream...HEAD` counted both ways; the remote-tracking branches but the upstream and symrefs join the tips; two cases |
 | L4 a holder sharing a remote URL with the clone | done: each fetch and push URL compared, a local path by its real path, others case-folded, less a trailing `/` or `.git`; two cases |
 | L7 a submodule at or under a record name | done: mode 160000 joins 120000 at, under or above a record name; one case |
-| N the NICE rows from review 1 | open |
+| N the NICE rows from review 1 | done: n263 to n268 (L1, L2, L5, L6, L8, L9) in "From row rc0-records-cut (review 1)"; n191 to n194 and n200 to n202, the oldest S4, to `history/NICE-overflow.md` for the 24,576 B bound; recordlint held, 67 rows |
 | W the packet, the help, GUIDE §12 | open |
 | V the probes, hygiene, the gate | open |
 | P2 the phase 2, if rr7-way-in is on main | open |
 
 ## Next act
 
-N, the NICE rows.
+W, the words.
 
 ## Handover
+
+- decide, owner: coordinator. The six NICE rows pass `NICE_TO_HAVE.md`'s 24,576 B bound, so seven of its oldest S4 rows moved to `history/NICE-overflow.md` (outside build 1's may touch), as ak12-polish did; the packet's may touch now names it. Consumer: the landing.
 
 ## Exit
 

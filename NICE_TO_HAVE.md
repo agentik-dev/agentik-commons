@@ -7,10 +7,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n256 | S4 | `scripts/hygiene` `records` | a repo may extend the record names from its own `.hygiene-allow`, as a tree that keeps `.claude/` out wants | hq design/28 §11 lead 4 | 2026-11-18, rr3-records-guard |
-| n194 | S4 | `plugins/suite` `cli.py` `help` | where a plugin's command sits under its root off PATH (fk_homes hD), `agentik help T` exits 3 while `agentik T --help` runs the tool's file (R1) | review 1 lead, the exit code alone seen | 2026-11-14, ak9b-plug-reader review 1 |
-| n193 | S4 | `tests/test_sc10_doctor_checks.py` a10, `tests/test_ak3d_doctor.py` line 5 | the two timing tests set `tools.WALL` to 0.5 s, so no test holds the describe wall R5 adds before the doctor's deadline at its real 2 s (a worst case of 32 s, against 30 s at the pin) | review 1 lead, six hung tools: 5.0 s at head, 3.0 s at the pin, the deadline at 3 | 2026-11-14, ak9b-plug-reader review 1 |
-| n192 | S4 | `plugins/suite` `config.py` `_list` | in `agentik config`, R3's reason is a cell after the state, in the settings column, so where one reason shows every row's `N settings` pads by about 27 columns | review 1 lead, the config table at the pin and at head | 2026-11-14, ak9b-plug-reader review 1 |
-| n191 | S4 | `plugins/suite` `update.py` | with output sent to a file, `agentik update` prints its `running claude plugin marketplace update agentik` line above the plan's first line, since the two streams are not flushed in order; not fixed | the first real run of `agentik update`, in ak9b-plug-reader's start line | 2026-11-14, ak9b-plug-reader build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
 | n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
@@ -34,14 +30,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-
-## From packet ak9c-plug-rest (build 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n200 | S4 | `plugins/suite` `cli.py` help | `help` lists no claimed verb: a word a tool claims runs from `agentik <word>`, and no help screen names it | brief R9; design/15 P2 | 2026-11-14, ak9c build 1 |
-| n201 | S4 | `plugins/suite` `tools.py` `claims` | a claim of a word that is a tool's or a plugin's name reads as counting in `config T --json`, though `_not_a_verb` settles that word first and never runs the claim | read; `cli.py` `_not_a_verb` | 2026-11-14, ak9c build 1 |
-| n202 | S4 | `plugins/suite` `tools.py` `describe_all` | a describe that hangs is never cached, so a word that is nothing pays the whole wall each time while a tool hangs: 2.06 s against the pin's 0.05 s with six hanging tools; inside R6's wall | review 1's lead, probe `cost` | 2026-11-14, ak9c review 1 |
 
 ## From packet ak11-init (build 1 and review 1)
 
@@ -154,3 +142,14 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n260 | S4 | `plugins/suite` `completion.py` | no fish: `completion fish` is refused; lead: a third script on the same callback | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n261 | S4 | `scripts/records-cut` | a refused or failed move has no `--undo`: a failed commit leaves the staged removal and the copies, and its line names `git reset -q --hard HEAD` and the copies to remove; lead: an undo that checks the clone still stands at the cut's commit | packet rc0-records-cut R5 | 2026-11-20, rc0-records-cut |
 | n262 | S4 | `tests/test_up2_suite_origin.py` | `test_12_the_printed_line_pulls_the_clone_and_runs_its_setup` fails now and then in a full `make check` (git clone into the temp origin: `failed to copy file`, or a hardlink differing from its source) and passes alone; lead: `--no-local` | gate 20261120-172023-2860 log; sitting 2026-11-18-2 | 2026-11-20, rc0-records-cut |
+
+## From row rc0-records-cut (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n263 | S4 | `scripts/records-cut` | a stash or a local tag holding record changes past HEAD is not refused (`tips` reads branches and worktrees alone), so a later `stash pop` or `push --tags` brings a record back or publishes it | review 1 lead L1: a stash editing `HANDOFF.md` and a tag adding `bugs/t.md`, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n264 | S4 | `scripts/records-cut` | a linked worktree with an uncommitted record edit is not refused: the dirty check reads the main checkout alone | review 1 lead L2: an edited `HANDOFF.md` in a linked worktree, the dry run exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n265 | S4 | `scripts/records-cut` `--go` | the repo's own commit hooks run during the cut's commit, and one may push, though the script never pushes; ruled: hooks stay on, as a refusing hook is how a failed step is tested | review 1 lead L5: a post-commit hook pushed a branch to the origin in a run that exited 0 | 2026-11-20, rc0-records-cut review 1 |
+| n266 | S4 | `scripts/records-cut` | a record the clone ignores (untracked) stays in the clone and is not moved, so the move is not whole for it, though it is not public | review 1 lead L6: an ignored `history/private/n.md` left in the clone, absent at the destination, exit 0 | 2026-11-20, rc0-records-cut review 1 |
+| n267 | S4 | `scripts/records-cut` `first_line` | a failed git step's line takes git's last stderr line, which with advice on is a `hint:`, not the cause | review 1 lead L8: `failed: git add .hygiene-allow: hint: Disable this message ...` | 2026-11-20, rc0-records-cut review 1 |
+| n268 | S4 | `scripts/records-cut` | a kill partway leaves a state that a rerun refuses but cannot mend, and nothing prints the undo (see n261, no undo verb) | review 1 lead L9: killed after `git rm`, and after the commit, each rerun exit 2 with the key unset | 2026-11-20, rc0-records-cut review 1 |
