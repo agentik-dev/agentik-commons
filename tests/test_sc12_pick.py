@@ -333,6 +333,23 @@ class SameAs(unittest.TestCase):
         self.assertNotIn("  1  ", err)
         self.assertNotIn("\x1b", err)
 
+    def test_f3_a_label_that_holds_a_blank_is_named_whole(self):
+        q = {"id": "p", "tab": "Profiles", "prompt": "t.plugins", "kind": "many", "least": 0,
+             "options": [{"value": v, "label": label, "note": ""} for v, label in (
+                 ("w", "work profile"), ("h", "home profile"), ("s", "spare"))] +
+             [{"value": "x%02d" % i, "label": "spare %02d" % i, "note": ""} for i in range(24)]}
+        old = os.get_terminal_size  # a list longer than its window, so the name form
+        os.get_terminal_size = lambda fd=None: os.terminal_size((80, 5))
+        try:
+            for line, want in (("work profile\n", ["w"]), ("spare, work profile\n", ["w", "s"]),
+                               ("spare home profile\nspare\n", ["s"]), ("none\n", [])):
+                got, err = self.plain([dict(q)], line, lambda a: ["kit"] + a["p"])
+                self.assertEqual(got["p"], want, (line, err))
+                if line.startswith("spare home"):
+                    self.assertIn("! home is not one of the names above", err)
+        finally:
+            os.get_terminal_size = old
+
 
 class Doors(unittest.TestCase):
     ASK = ("from agentik_suite import pick, term\n"

@@ -1009,6 +1009,15 @@ def _numbers(line, count, many, kept):
     return sorted(set(picked))
 
 
+def _names(line, labels):
+    """A `many` line's names, each label whole: split on commas where the line holds one; with
+    none, the whole line as one label first, then split on blanks."""
+    if "," in line:
+        return [w.strip() for w in line.split(",") if w.strip()]
+    whole = " ".join(line.split())
+    return [whole] if whole in labels else line.split()
+
+
 def _plain_one(t, q, room, height):
     rows = q.options + ([q.other] if q.other else [])
     named = len(rows) + 3 > height  # a list longer than its window reads a name
@@ -1033,7 +1042,7 @@ def _plain_one(t, q, room, height):
         line = _read(t)
         text = None
         if named:
-            words = line.split() if q.many else ([line.strip()] if line.strip() else [])
+            words = _names(line, labels) if q.many else ([line.strip()] if line.strip() else [])
             if not words:
                 picked = "keep" if kept or q.many else None
             elif q.many and words == ["none"]:
