@@ -781,6 +781,40 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.records.unset`: unset: `{why}`; set it with git config agentik.records and a folder
 - `doctor.records.broken`: broken: `{why}`
 
+## Pick
+
+The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark, not a word here.
+
+- `pick.key.move`: `{arrows}` move
+- `pick.key.filter`: type to filter
+- `pick.key.tick`: space tick
+- `pick.key.next`: Tab next  Enter next
+- `pick.key.choose`: Enter choose
+- `pick.key.done`: Enter done
+- `pick.key.cancel`: Esc cancel
+- `pick.key.review`: Enter submit  Tab back
+- `pick.more`: `{mark}` `{count}` more
+- `pick.filter`: filter
+- `pick.count`: `{count}` `{noun}`
+- `pick.count.of`: `{count}` of `{total}` `{noun}`
+- `pick.none`: no `{noun}` match `{text}`
+- `pick.review`: Check your answers
+- `pick.unanswered`: not answered
+- `pick.needs`: `{tab}` needs an answer
+- `pick.least`: tick at least one
+- `pick.small`: needs `{columns}` columns by `{rows}` rows
+- `pick.submit`: Submit
+- `pick.interrupted`: interrupted
+- `pick.same`: same as: `{command}`
+- `pick.plain.ask`: `{what}`; Enter keeps `{kept}`:
+- `pick.plain.bare`: `{what}`:
+- `pick.plain.numbers`: Numbers (1 3, 2-4 or none)
+- `pick.plain.number`: Number
+- `pick.plain.names`: Names, or none
+- `pick.plain.name`: Name
+- `pick.plain.wrong`: not a number from 1 to `{count}`
+- `pick.plain.unknown`: `{text}` is not one of the names above
+
 ## Issue
 
 - `issue.screen.head`: The issue exactly as send files it; its first line is the title.
@@ -892,37 +926,3 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `issue.render.stopped`: The render was stopped, so the template stands unchanged in draft `{id}`.
 - `issue.render.left`: The render's temporary folder `{path}` could not be removed; do it by hand.
 - `issue.render.contract`: Technical. Render only the Happened and Expected lines of this issue, two sentences a line at most. Keep each error text verbatim. Add nothing the issue does not say: no name, path, version or word of your own context. Answer with two lines and nothing else: `Happened: ...` and `Expected: ...`.
-
-## Pick
-
-The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark, not a word here.
-
-- `pick.key.move`: `{arrows}` move
-- `pick.key.filter`: type to filter
-- `pick.key.tick`: space tick
-- `pick.key.next`: Tab next  Enter next
-- `pick.key.choose`: Enter choose
-- `pick.key.done`: Enter done
-- `pick.key.cancel`: Esc cancel
-- `pick.key.review`: Enter submit  Tab back
-- `pick.more`: `{mark}` `{count}` more
-- `pick.filter`: filter
-- `pick.count`: `{count}` `{noun}`
-- `pick.count.of`: `{count}` of `{total}` `{noun}`
-- `pick.none`: no `{noun}` match `{text}`
-- `pick.review`: Check your answers
-- `pick.unanswered`: not answered
-- `pick.needs`: `{tab}` needs an answer
-- `pick.least`: tick at least one
-- `pick.small`: needs `{columns}` columns by `{rows}` rows
-- `pick.submit`: Submit
-- `pick.interrupted`: interrupted
-- `pick.same`: same as: `{command}`
-- `pick.plain.ask`: `{what}`; Enter keeps `{kept}`:
-- `pick.plain.bare`: `{what}`:
-- `pick.plain.numbers`: Numbers (1 3, 2-4 or none)
-- `pick.plain.number`: Number
-- `pick.plain.names`: Names, or none
-- `pick.plain.name`: Name
-- `pick.plain.wrong`: not a number from 1 to `{count}`
-- `pick.plain.unknown`: `{text}` is not one of the names above
