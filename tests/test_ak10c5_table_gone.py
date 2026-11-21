@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_su2_read as su2  # noqa: E402
 import test_su6_rows_part as su6  # noqa: E402
 from test_agentik_suite import LIB  # noqa: E402
+from test_ak4_remove import Remove  # noqa: E402
 from test_ak4a_update import Base, runner_stubs  # noqa: E402
 from test_su2_read import text  # noqa: E402
 from agentik_suite import plan  # noqa: E402
@@ -116,6 +117,51 @@ class SilentToolTest(Base):
         self.assertIn("no command on PATH gives a read the inbox needs", err)
         self.assertNotIn("Traceback", err)
         self.assertNotIn("relay", out + err)
+
+
+# tool x's runner, answering describe and its config read as a tool that says what it has
+X_RUNNER = """import json, os, sys
+a = sys.argv[1:]
+if a == ["describe", "--json"]:
+    print(json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": "x", "version": "1.0.0",
+                      "summary": "A stand-in.", "repo": "example-org/x", "plugin": "x@agentik",
+                      "needs": [], "verbs": [],
+                      "reads": [{"kind": "config", "name": "config", "argv": ["config", "--json"]}]}))
+elif a == ["config", "--json"]:
+    print(json.dumps({"schema": "agentik.config/1", "ok": True, "settings": [], "layers": [
+        {"name": "user", "path": os.path.join(os.environ["HOME"], ".x-user", "settings.yaml")}]}))
+else:
+    sys.exit(2)
+"""
+
+
+class RemoveKeepTest(Base):
+    home, x = Remove.home, Remove.x  # ak4's remove homes, without running its tests here
+
+    def test_a4_the_keep_line_from_describe_config_and_the_guard_without_it(self):
+        """remove's keep line names the user file of x's `describe config` (R6); with no answer the
+        guard on the two config folders still keeps them, as at the pin."""
+        h, _ = self.x()
+        h.file(os.path.join(h.tree(), "agentik-x"), X_RUNNER)  # the runner the placed launcher starts
+        mine = h.file(os.path.join(h.home, ".x-user", "settings.yaml"), "mine\n")
+        code, out, err = h.go("remove", "x", "--dry-run", "--json")
+        self.assertEqual(code, 0, out + err)
+        keep = [(s["subject"], s["detail"]) for s in json.loads(out)["steps"] if s["id"] == "keep"]
+        self.assertIn(("~/.x-user/settings.yaml", "kept: your config"), keep)
+        code, out, err = h.go("remove", "x", "--dry-run")
+        line = [l for l in out.splitlines() if "~/.x-user/settings.yaml" in l]
+        self.assertEqual(len(line), 1, out)
+        self.assertIn("kept: your config", line[0])
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(mine))
+        h2, _ = self.x(name="h2")  # x's own runner gives no answer: no user file; the guard stands
+        cfg = os.path.join(h2.home, ".config")
+        code, out, err = h2.go("remove", "--all", "--yes", XDG_CACHE_HOME=cfg, XDG_CONFIG_HOME=cfg)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(os.path.isfile(os.path.join(cfg, "agentik", "x", "config.yaml")))
+        self.assertNotIn("~/.config/agentik  removed", out)
+        self.assertNotIn(".x-user", out)
 
 
 class PublicTest(unittest.TestCase):
