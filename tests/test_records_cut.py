@@ -326,6 +326,13 @@ class RefusalTest(Fixture):
             git(self.clone, "rm", "-q", "scripts/hygiene")
             commit(self.clone)
 
+        def link_repos(inside):
+            def setup():
+                target = os.path.join(self.clone if inside else self.top, "public")
+                os.makedirs(target)
+                os.symlink(target, os.path.join(self.holder, "repos"))
+            return setup
+
         return [
             ("a worktree", lambda: (self.worktree("wt", "-b", "side"), None), "not a main checkout"),
             ("a bare repo", lambda: (self.origin, None), "not a main checkout"),
@@ -357,6 +364,10 @@ class RefusalTest(Fixture):
             ("a records row", allow("HANDOFF.md: records\n"), "records row"),
             ("no record", no_record, "no record found"),
             ("no scanner", no_scanner, "scripts/hygiene"),
+            # review 1, F1: a symlink above the destination, into the clone or out of every repo
+            ("repos a symlink into the clone", link_repos(True), "a symlink in the destination's path"),
+            ("repos a symlink out of the holder", link_repos(False),
+             "a symlink in the destination's path"),
         ]
 
     def test_each_refusal_alone(self):

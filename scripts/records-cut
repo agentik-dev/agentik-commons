@@ -218,7 +218,7 @@ def survey(repo_arg, holder_arg):
         elif agentik_records._inside(htop, [s["repo"]] + trees):
             refuse(htop, "the holder lies inside the clone or one of its worktrees")
         else:
-            survey_destination(s, refuse)
+            survey_destination(s, refuse, trees)
     if agentik_records._declares(htop):
         refuse(htop, "the holder declares records: out itself")
     return s, refused
@@ -326,11 +326,25 @@ def listed(names):
     return ", ".join(names[:MOST]) + (", and %d more" % more if more > 0 else "")
 
 
-def survey_destination(s, refuse):
+def survey_destination(s, refuse, trees):
     htop, name = s["holder"], s["name"]
     dest = os.path.join(htop, "repos", name)
     s["dest"] = dest
-    if os.path.islink(dest) or (os.path.lexists(dest) and not os.path.isdir(dest)):
+    links = [p for p in (os.path.join(htop, "repos"), dest) if os.path.islink(p)]
+    real = os.path.realpath(dest)
+    if links:
+        refuse(links[0], "a symlink in the destination's path, so the records could land outside"
+               " the holder's tree or in the clone")
+        return
+    if os.path.lexists(os.path.dirname(dest)) and not os.path.isdir(os.path.dirname(dest)):
+        refuse(os.path.dirname(dest), "exists and is no folder, so the destination cannot be made")
+        return
+    if not agentik_records._inside(real, [htop]) or real == htop or agentik_records._inside(
+            real, [s["repo"]] + trees):
+        refuse(dest, "the destination's real path %s lies outside the holder's tree or inside the"
+               " clone" % real)
+        return
+    if os.path.lexists(dest) and not os.path.isdir(dest):
         refuse(dest, "the destination exists and is no folder")
     elif os.path.isdir(dest) and os.listdir(dest):
         refuse(dest, "the destination exists and is not empty")
