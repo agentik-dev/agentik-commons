@@ -92,3 +92,7 @@ tests/test_dr1_door_ahead.py: sibling
 # rr2-records-resolver's fixtures commit as a made-up author at the reserved `.invalid`
 # domain; an early commit of the branch held the address whole, the tree splits it
 tests/test_rr2_records.py: email
+# rc0-records-cut's remote test commit 169e93b held made-up ssh and https remote URLs at the
+# reserved `.invalid` domain, user and host whole, which the email group reads; six made-up
+# hosts in a test, no address (9a4df85 splits them)
+tests/test_records_cut.py: email

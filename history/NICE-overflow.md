@@ -324,3 +324,29 @@ The oldest S4 rows of `NICE_TO_HAVE.md`, moved here whole when the file passes i
 | n200 | S4 | `plugins/suite` `cli.py` help | `help` lists no claimed verb: a word a tool claims runs from `agentik <word>`, and no help screen names it | brief R9; design/15 P2 | 2026-11-14, ak9c build 1 |
 | n201 | S4 | `plugins/suite` `tools.py` `claims` | a claim of a word that is a tool's or a plugin's name reads as counting in `config T --json`, though `_not_a_verb` settles that word first and never runs the claim | read; `cli.py` `_not_a_verb` | 2026-11-14, ak9c build 1 |
 | n202 | S4 | `plugins/suite` `tools.py` `describe_all` | a describe that hangs is never cached, so a word that is nothing pays the whole wall each time while a tool hangs: 2.06 s against the pin's 0.05 s with six hanging tools; inside R6's wall | review 1's lead, probe `cost` | 2026-11-14, ak9c review 1 |
+
+## From the Open table (n203, n205 to n208, moved by rc0-records-cut)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
+| n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
+| n206 | S4 | `agentik_install.py` `_lock` | the re-check loop (`while True`) has no bound: it spins while something replaces `.lock` on every turn, which neither install-cli nor uninstall does | review 2's lead; read, not reproduced | 2026-11-14, ak4b-uninstall review 2 |
+| n207 | S4 | `agentik_install.py` `_plan` | one share under two prefixes: where `<prefix>/share` links to another prefix's share, uninstall removes that prefix's trees and share and leaves its launcher naming a gone tree; as at 93e3eb0 | review 2's lead, `share-parent-link-to-A-share` | 2026-11-14, ak4b-uninstall review 2 |
+| n208 | S4 | `agentik_install.py` `_ours` | a launcher that sets TREE by `unset`, `read` or `eval` after the template's `TREE=` line still reads as install-cli's; comparing the file with the template rendered whole would close it | ak4b-uninstall's last read | 2026-11-14 ak4-remove |
+
+## From the Open table (n209, moved by rc0-records-cut)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n209 | S4 | `tests/test_ak4b_uninstall.py` | `_lock`'s `fstat` regular-file check is pinned by no test, and `test_a_lock_fifo_or_folder_keeps_all` raises `TimeoutError` from its alarm, an `OSError` that `uninstall` keeps, so it cannot fail on a hang | ak4b-uninstall's last read | 2026-11-14 ak4-remove |
+
+## From packet ak11-init (build 1 and review 1) (n210, n211, n213 to n215, moved by rc0-records-cut)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n210 | S4 | `scripts/sync`, `plugins/suite/lib/scaffold/hq` | `sync` places no record check in a scaffolded hq: `init --kind hq` writes a copy of `scripts/recordlint` and its sha256 line, and nothing says how an hq takes a newer one; a later row, or a line in the scaffold's README | the scaffold's `Makefile`, target `recordlint`; `scripts/sync`'s usage | 2026-11-15, ak11-init build 1 |
+| n211 | S4 | `plugins/suite` `init.py` `parent_shown`, `--dry-run` | DIR `.` in a parent init cannot write: `--dry-run` exits 0, then the write exits 1 naming `.`, not its parent; name the real parent, and have the dry run check that it can write there | ak11-init review 1, F3 | 2026-11-15, ak11-init review 1 |
+| n213 | S4 | `plugins/suite` `init.py` wording | a dangling link at DIR is called a file (`not_a_folder`), and a failed rename of the whole stage names `<dir>/.` (`pear/.`); a line of its own for a link, and DIR as typed | ak11-init review 1, F6 | 2026-11-15, ak11-init review 1 |
+| n214 | S4 | `plugins/suite` `status.py` rows part | `pushed` rows with owed lines lead the part: sort the rows by stage, `building` first, so the work in flight shows before the work that waits | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
+| n215 | S4 | `plugins/suite` `status.py` rows read | the rows read is the slowest status source and grows with the rows (3.8 s for 38 rows, under a 6 s wall); read only the rows not closed, or cache the read | su6-rows-part review 1 | 2026-11-15, su6-rows-part review 1 |
