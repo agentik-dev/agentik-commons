@@ -15,11 +15,13 @@
 | 1 the packet, measured at the pin | done |
 | 2 R1: `plan.PYTHONS`, the walk, `setup.need.module` names the tried; tests a1, a2; ic2's f2 reworded | done; the sidecar waits on `make voice` (act 4) |
 | 3 R2: `status_read.not_read(parts)`; `_not_read` says a part once; tests a3, a4; su6 test_d, test_e, su2-join's labels and e2e.piped.txt by ruling | done |
-| 4 NICE n281; `make voice`; the version; doclint, recordlint, hygiene; `make check` through the gate queue | open |
+| 4a NICE n281, n218 to the overflow for the bound; `make voice` (gate 20261121-090053-3030 exit 0), the sidecar; recordlint | done |
+| 4b the suite's version alone in the last commit under plugins/ | open |
+| 4c hygiene `--commits main..HEAD`; `make check` through the gate queue | open |
 
 ## Next act
 
-Act 4: NICE n281 (and the bound), `make voice` through the gate, the version, recordlint, hygiene, then `make check` through the gate.
+Act 4b: the version 0.7.40 alone; then 4c, `make check` through the gate queue.
 
 ## Handover
 
