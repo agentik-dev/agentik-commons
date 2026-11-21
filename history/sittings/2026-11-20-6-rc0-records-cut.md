@@ -17,13 +17,13 @@
 | A `.hygiene-allow` (L3) | done: HEAD's where `git diff --quiet HEAD` finds no change and `git hash-object --path` is HEAD's blob (so a flag-hidden edit is still refused); `LineEndTest`, an `eol=crlf` attribute and `core.autocrlf` |
 | U the riding fix (the coordinator's, 2026-11-20) | done: `test_up2_suite_origin` test 12's bare clone takes `--no-hardlinks`; the packet's may touch names the file |
 | N the NICE rows (L1, L2, L4) | done: n269 to n271 in "From row rc0-records-cut (review 2)"; n203, n205 to n208, the next oldest S4, to the overflow for the bound; recordlint held, 65 rows |
-| W the packet, the header, GUIDE §12 | open |
+| W the packet, the header, GUIDE §12 | done: the header and GUIDE §12 say the proof, the new refusals, the remotes and `.hygiene-allow` as built; the packet gains R4b and acceptance 11 |
 | P2 the phase 2, if rr7-way-in is on main | open: not on main at open |
 | V the probes, hygiene, the gate | open |
 
 ## Next act
 
-The words: the packet, the header, GUIDE §12.
+The probes on scratch fixtures, hygiene; the phase 2 if rr7-way-in is on main; the gate.
 
 ## Handover
 

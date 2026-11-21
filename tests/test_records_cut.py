@@ -525,7 +525,8 @@ class HolderTakesTest(Fixture):
              "repos/widget/" + EXECUTABLE, False),
             ("a nested repo at repos", nested, "not the holder's", True),
             ("a submodule at the destination", submodule, "tracks a submodule here", True),
-            ("a sparse checkout without repos", sparse, "outside the holder's sparse checkout", True),
+            ("a sparse checkout without repos", sparse, "outside the holder's sparse checkout",
+             True),
         ]
 
     def each(self, check):
