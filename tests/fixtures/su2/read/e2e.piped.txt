@@ -15,6 +15,5 @@ ok    runs      none since yesterday
 note  rows      not read: no hq among the checkouts read
 note  owner     hand lines in charters not counted; 0 build order rows waiting on the owner
       sources   5 read in 0.1 s; the slowest, agentik-demo, took 0.1 s
-                not installed: agentik-session
                 not drawn: agentik-demo weather
       not read  the rows in flight

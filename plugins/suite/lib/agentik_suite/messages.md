@@ -395,7 +395,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
 - `update.held.ps`: the process list cannot be read: `{why}`
-- `update.unasked`: warn: `{names}` gave no `describe` answer, so update could not ask whether its run is live, and nothing holds it
+- `update.unasked`: warn: `{names}` gave no `describe` answer, so nothing it runs holds update
 - `err.update.held`: held install: `{what}`
 - `hint.update.held`: next: `{command}`
 - `hint.update.setup`: next: `{command}`

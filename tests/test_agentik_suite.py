@@ -978,8 +978,9 @@ class ConfigTest(ConfigHome):
         self.assertTrue(err.endswith(" config demo.colour\n"), err)
 
     def test_a8_a_tool_that_does_not_answer(self):
-        """Re-based (ak10c5 R7): no table block; the state, and no file, as the tool gives none."""
-        name = "session"
+        """Re-based (ak10c5 R7): no table block; the state and its reason, as for any tool that
+        gives no answer, and no file, as the tool gives none."""
+        name = "quill"
         self.stub("agentik-" + name, "#!/bin/sh\nexit 2\n")
         market = os.path.join(self.side, "market")
         self.write(os.path.join(market, ".claude-plugin", "marketplace.json"), json.dumps(
@@ -990,7 +991,7 @@ class ConfigTest(ConfigHome):
         self.assertEqual(code, 0, err)
         # sc6-config R2: it did not answer; no file and no description
         row = [l for l in out.splitlines() if l.split()[1:2] == [name]][0]
-        self.assertRegex(row, r"^warn +%s +did not answer$" % name)
+        self.assertRegex(row, r"^warn +%s +did not answer +its command gave no answer that reads$" % name)
         code, out, err = self.cfg("config", name)
         self.assertEqual(code, 0, err)
         self.assertNotIn("A made-up description.", out)

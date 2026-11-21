@@ -507,6 +507,7 @@ def own_doctors(cmd, entries, described=None):
     t = cmd.t
     exes = {e["name"]: e["exe"] for e in entries if e["exe"]}
     described = describes(cmd, entries) if described is None else described
+    listed = tools.public(cmd.lib)["tools"]
     reads = {}
     for name in exes:
         r = doctor_read(described.get(name, (None, None))[1])
@@ -541,14 +542,17 @@ def own_doctors(cmd, entries, described=None):
         if not e["exe"]:
             group.update(nocmd=True, checks=lead + [_check("doctor", "note", t.text("doctor.tool.nocmd"))])
             continue
-        if described.get(name, (None, None))[0] != "answers" and name not in answers:
+        # too old to answer: a tool public.json lists whose describe gives no answer; a tool it does
+        # not list keeps the pin's rows, as one outside the old table did (row ak10c5 R7, build 2)
+        old = name in listed and described.get(name, (None, None))[0] != "answers"
+        if old and name not in answers:
             group["one"] = False  # the describe's row and the doctor's: two the suite wrote
         if name in answers:  # `own` marks R5's read alone: R6 and R7 reach no other (review 1 F1)
             group.update(one=False, checks=lead + answers[name])
             if name in reads:
                 group["own"] = answers[name]
             continue
-        if described.get(name, (None, None))[0] != "answers":  # too old to answer (row ak10c5 R7)
+        if old:  # too old to answer (row ak10c5 R7)
             lead = lead + [_check("describe", "warn", t.text("doctor.tool.nodescribe"), cmd.say("update", name))]
         again = tool_doctor(cmd, name, e["exe"])
         if name in reads:
