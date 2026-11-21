@@ -20,13 +20,13 @@
 | L4 a holder sharing a remote URL with the clone | done: each fetch and push URL compared, a local path by its real path, others case-folded, less a trailing `/` or `.git`; two cases |
 | L7 a submodule at or under a record name | done: mode 160000 joins 120000 at, under or above a record name; one case |
 | N the NICE rows from review 1 | done: n263 to n268 (L1, L2, L5, L6, L8, L9) in "From row rc0-records-cut (review 1)"; n191 to n194 and n200 to n202, the oldest S4, to `history/NICE-overflow.md` for the 24,576 B bound; recordlint held, 67 rows |
-| W the packet, the help, GUIDE §12 | open |
+| W the packet, the help, GUIDE §12 | done: the header lists every refusal and says the hooks run; GUIDE §12 the same in its sentence; the packet gains R4a, acceptance 10 and the overflow in may touch |
 | V the probes, hygiene, the gate | open |
 | P2 the phase 2, if rr7-way-in is on main | open |
 
 ## Next act
 
-W, the words.
+V, the probes and the gate.
 
 ## Handover
 

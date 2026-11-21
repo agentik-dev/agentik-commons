@@ -5,9 +5,9 @@
 | from | the coordinating repo's brief rc0-records-cut of 2026-11-20, R1 to R7, on the row's design D1 to D4 (entry 63, design/28 §3 items 2, 3, 5, 7, 10 and 20); level S3 |
 | pin | agentik-commons main b4b4cc8; worktree `.claude/worktrees/rc0-records-cut`, branch `rc0-records-cut`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; `--go` only inside a test's temp folders; no vendored script edited; made-up names in fixtures |
-| may touch | `scripts/records-cut`, `tests/test_records_cut.py`, `GUIDE.md` (new sentences in §12), `NICE_TO_HAVE.md` (one row), `design/packets/rc0-records-cut.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
+| may touch | `scripts/records-cut`, `tests/test_records_cut.py`, `GUIDE.md` (new sentences in §12), `NICE_TO_HAVE.md` (rows), `history/NICE-overflow.md` (its oldest S4 rows, for the bound), `design/packets/rc0-records-cut.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
 | verify | `python3 -m unittest tests.test_records_cut` directly; `make check` once, last, through the gate queue; `scripts/hygiene --require-private` on the tree and on `--commits main..HEAD` |
-| acceptance | 1 to 9 below |
+| acceptance | 1 to 10 below |
 
 ## 1. The owner's words
 
@@ -19,6 +19,7 @@ Entry 63 of the coordinating repo's ledger: "Each of agentik's public tools keep
 - R2, the names: the scanner's `records` group, root only, case-folded; held once in the script, a test holds them equal to `scripts/hygiene`'s.
 - R3, the destination: `<holder's top>/repos/<the clone's main checkout's folder name>/`, each record at its relative path.
 - R4, the refusals, each one line naming what and where: not a main checkout (a worktree, bare, no repo); a dirty tree; `HEAD` ahead of its upstream or with none; a local branch or worktree whose commits past `HEAD` add or change a record (at most ten listed); a record path that is a symlink or holds one; a destination that exists and is not empty; a holder that is no repo, is the clone or shares its git folder, is dirty under the destination, or declares `records: out`; `agentik.records` already set; `.hygiene-allow` already declaring or holding a `records` row; no record found.
+- R4a, review 1's round (each refused before anything is written, in the dry run and under `--go`, one line naming the path or ref): F1, a symlink at `<holder>/repos` or `repos/<name>`, or a destination whose real path is outside the holder's tree or inside the clone; F2, a destination path the holder's ignore rules match (`git check-ignore --no-index`); F3, a record the index flags assume-unchanged or skip-worktree (the flags are refused, the bytes not compared); F4, a `.hygiene-allow` in the tree that is absent at HEAD or differs from HEAD's, or an absent one the clone ignores, never overwritten; F5 and L3, a HEAD behind its upstream, and a remote-tracking branch other than the upstream with a record commit past HEAD; L4, a holder with a fetch or push URL equal to one of the clone's (a local path by its real path); L7, a submodule at, under or holding a record name, as a symlink is. L5 is ruled: the repo's commit hooks stay on. L1, L2, L5, L6, L8 and L9 are NICE n263 to n268.
 - R5, `--go`, stopping at the first failed step with one line of what was done and what to undo: copy each blob at `HEAD` with its mode and compare sha256s; `git rm` the records, add `records: out` to `.hygiene-allow`, stage by explicit paths, one commit with a one-line message naming no holder; set the key; then the proofs (resolver `out` with that folder; the clone's `scripts/hygiene` green in tree mode and over `HEAD^..HEAD`; `HEAD^`'s tree less the records equals `HEAD`'s less the new line). A failed proof exits 1 and reverts nothing. Last, the holder's commit line and the push order: the clone first.
 - R6, never: a commit in the holder, a push, a history rewrite, a remote, a tag, a worktree, another branch, a git identity, or a file that is not a record at `HEAD`.
 - R7, the words: `GUIDE.md` §12 gains the cut; the script's header says the same; a `NICE_TO_HAVE.md` row where one is seen.
@@ -42,3 +43,4 @@ Entry 63 of the coordinating repo's ledger: "Each of agentik's public tools keep
 | 7 | `-k test_the_folder_name_not_the_remotes`: the destination takes the folder's name; resolver `out` | no script |
 | 8 | `scripts/hygiene --require-private --commits main..HEAD` exit 0; `make check` through the gate queue | green at b4b4cc8 (sy4's gate) |
 | 9 | not a test: the dry run against one sibling tool checkout, read only | no script |
+| 10 | R4a: `-k test_each_refusal_alone` gains 14 cases (F1 2, F2 2, F3 2, F4 3, F5 and L3 2, L4 2, L7 1), each refused alone in the dry run and `--go`, nothing written; the review's probes now refuse on scratch fixtures | each case red at 6cf05fa |

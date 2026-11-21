@@ -11,16 +11,23 @@ the name the resolver (`agentik_records.py`) requires.
 
 Without `--go` it is a dry run and writes nothing anywhere: it prints the records found at HEAD
 (counted by name, in files and bytes, then one line a path), the destination, every refusal that
-applies, and the plan `--go` would run. It refuses, each in one line on stderr naming what and
-where: a `--repo` that is no main checkout (a worktree, a bare repo, no repo); a dirty tree
-(anything `git status --porcelain` prints, untracked files included); a HEAD with no upstream or
-ahead of it; a local branch or a worktree whose commits past HEAD add or change a record (at most
-ten named); a record path that is a symlink or holds one; a destination that exists and is not
-empty; a holder that is no repo, is the clone, shares its git folder or lies inside it, is dirty
-under the destination, or declares `records: out` itself; `agentik.records` already set in the
-clone; a `.hygiene-allow` that already declares or holds a `records` row; no record at HEAD; and
-a clone whose own `scripts/hygiene` is absent or holds other names, so the move could not be
-proved.
+applies, and the plan `--go` would run. Every refusal is made before anything is written, in the
+dry run and under `--go` alike, each in one line on stderr naming what and where: a `--repo` that
+is no main checkout (a worktree, a bare repo, no repo); a dirty tree (anything `git status
+--porcelain` prints, untracked files included); a record the index flags assume-unchanged or
+skip-worktree, whose edit git status would hide; a HEAD with no upstream, or ahead of it or behind
+it; a local branch, a remote-tracking branch other than the upstream, or a worktree whose commits
+past HEAD add or change a record (at most ten named); a record path that is a symlink or a
+submodule, or lies under or holds one; a destination that exists and is not empty, has a symlink
+in its path (`repos` or the folder itself), or whose real path lies outside the holder's tree or
+inside the clone; a destination path the holder's ignore rules match, so its commit would leave
+it out; a holder that is no repo, is the clone, shares its git folder or lies inside it, is dirty
+under the destination, declares `records: out` itself, or has a remote whose URL is one of the
+clone's remotes' (its commit would republish the records); `agentik.records` already set in the
+clone; a `.hygiene-allow` that already declares or holds a `records` row, that exists in the tree
+but not at HEAD or differs from HEAD's (it is never overwritten), or that is absent and ignored;
+no record at HEAD; and a clone whose own `scripts/hygiene` is absent or holds other names, so the
+move could not be proved.
 
 With `--go`, in this order, stopping at the first failed step with one line that says what was
 done and what to undo: copy each record's blob at HEAD to the destination with its mode and
@@ -33,7 +40,8 @@ at HEAD less the new line. A failed proof exits 1 and reverts nothing. Last it p
 that commits the destination in the holder by explicit path, and the push order: the clone first,
 then the holder, so the clone's push range holds no record commit of its own.
 
-It never commits in the holder, pushes, rewrites history, touches a remote, a tag, a worktree or
+The repo's own commit hooks run on the cut's commit, as on any. It never commits in the holder,
+pushes, rewrites history, touches a remote, a tag, a worktree or
 another branch, sets a git identity, or removes a file that is not a record at HEAD. Git runs
 with the repository's environment variables dropped, as the resolver drops them, and without
 optional locks, so the dry run leaves even the index as it was. Exit 0 a clean dry run or a
