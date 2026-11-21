@@ -7,5 +7,9 @@
     "relay": "agentik-dev/agentik-relay",
     "agents": "agentik-dev/agentik-agents",
     "suite": "agentik-dev/agentik-commons"
-  }
+  },
+  "needs": {"relay": ["Go"], "respeak": ["PyYAML"]},
+  "own_command": ["relay"],
+  "reads": {"session": ["gate", "unattended", "charter"], "relay": ["run"],
+            "decisions": ["backlog", "rows"], "agents": ["sessions"]}
 }

@@ -282,7 +282,7 @@ def _full(cmd, nouns, now, text):
             raise BrokenPipeError("stdout closed")
 
     obj = status_read.compose(cmd, nouns, now, text, on_part)
-    status_screen.foot(t, obj, slots)
+    status_screen.foot(t, obj, slots, tools.public(cmd.lib)["tools"])
     return 0
 
 

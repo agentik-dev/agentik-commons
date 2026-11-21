@@ -278,14 +278,13 @@ def do_config(cmd, nouns):
     row = r.survey([entry], key=key or None)[0]
     if row["fault"]:  # no command mends a file that does not parse (R7)
         raise Refusal("bad_file", "err.config.file", None, fault=row["fault"])
-    table = tools.fallback(cmd.lib).get(name)
     cfg = row["config"]
     if cfg is None:
         if key:
             state = row["state"] + (": " + reason(t, row) if row.get("reason") else "")
             raise Refusal("no_answer", KEY_LINE[why(row)], _again(cmd, name), name=name, key=key,
                           state=state, message=(row["error"] or {}).get("message"), **cmd.slots())
-        return _silent(cmd, r, row, table)
+        return _silent(cmd, r, row)
     if not key:
         return _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"], row["source"])
     found = [s for s in cfg["settings"] if s["key"] == key]
@@ -316,7 +315,6 @@ def _counts(row):
 
 def _list(cmd, r, rows):
     t = cmd.t
-    table, words = tools.fallback(cmd.lib), None
     if cmd.opts["json"]:
         out = []
         for row in rows:
@@ -333,10 +331,6 @@ def _list(cmd, r, rows):
                 item["error"] = row["error"]
             if row["reason"]:
                 item["reason"] = row["reason"]
-            if row["state"] != "answers" and row["name"] in table:
-                words = words if words is not None else tools.descriptions(cmd.env)
-                item["table"] = table[row["name"]]
-                item["description"] = words.get(row["name"])
             item["source"] = row["source"]
             out.append(item)
         t.json({"schema": "agentik.config/1", "ok": True, "tools": out})
@@ -360,10 +354,9 @@ def _list(cmd, r, rows):
             status = "warn"  # a mark only where something is wrong (R2)
             note = t.text(READ_CELL[row["read_state"]]) if row["read_state"] else reason(t, row) or \
                 (t.text(ANSWER_CELL[row["state"]]) if row["state"] in ANSWER_CELL else None)
-            known = (table.get(row["name"]) or {}).get("user_file")  # the suite's table, where it has one
-            cells += [t.text("config.silent"), term.path(plan.shown(str(known), r.home)) if known else note or ""]
+            cells += [t.text("config.silent"), note or ""]
         else:  # it answers with none, names no read, or ships no command: its file still shows
-            user = r.user_file(row["config"]) or (table.get(row["name"]) or {}).get("user_file")
+            user = r.user_file(row["config"])
             cells += [t.text("config.nokeys"), term.path(plan.shown(str(user), r.home)) if user else ""]
         source, extra = row["source"], None
         if source and source["kind"] == "undecided":
@@ -382,8 +375,8 @@ def _list(cmd, r, rows):
     return 0
 
 
-def _silent(cmd, r, row, table):
-    """A tool that gives no settings: its row of the fallback table, else its state."""
+def _silent(cmd, r, row):
+    """A tool that gives no settings: its state, reason and remedy (row ak10c5-table-gone R7)."""
     t, name = cmd.t, row["name"]
     if cmd.opts["json"]:
         obj = {"schema": "agentik.config/1", "ok": True, "tool": name, "state": row["state"],
@@ -396,9 +389,6 @@ def _silent(cmd, r, row, table):
             obj["reason"] = row["reason"]
         if row["claims"]:
             obj["claims"] = row["claims"]
-        if table:
-            obj["table"] = table
-            obj["description"] = tools.descriptions(cmd.env).get(name)
         cmd.t.json(obj)
         return 0
     _titled(cmd, STATE_LINE[why(row)], _from(row["source"], r.home), name=name,
@@ -412,20 +402,6 @@ def _silent(cmd, r, row, table):
     else:
         close = ("hint.config.remedy", {"remedy": remedy}) if remedy else \
             ("hint.config.back", {"command": cmd.say("config")})  # a command alone (review 1 F1)
-    if table:
-        desc = tools.descriptions(cmd.env).get(name)
-        t.line("config.table.title", name=name)
-        if desc:
-            t.line("config.table.description", description=desc, style="hint")
-        rows = [("note", [t.text("config.label.run"), line], None)
-                for line in table.get("lines") or () if isinstance(line, str)]
-        if not rows:
-            rows.append(("note", [t.text("config.label.run"), t.text("config.table.nocmd")], None))
-        if table.get("user_file"):
-            rows.append(("note", [t.text("config.label.file"), term.path(str(table["user_file"]))], None))
-        for need in table.get("needs") or ():
-            rows.append(("note", [t.text("config.label.needs"), str(need)], None))
-        t.table(rows)
     _claims(cmd, name, row["claims"], row["source"])
     if held:
         t.line("config.remedy", remedy=remedy)

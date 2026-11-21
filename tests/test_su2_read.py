@@ -49,6 +49,27 @@ sys.exit(2)
 """
 
 
+# The status reads the suite's table gave at the pin of row ak10c5-table-gone, each now given by
+# its tool's describe (R1, R8): the screens the table drew are drawn from these.
+PIN_READS = {
+    "session": [{"name": "gate", "argv": ["gate", "status", "--json"]},
+                {"name": "unattended", "argv": ["unattended", "status", "--json"]},
+                {"name": "charter", "argv": ["charter", "show", "--json"]}],
+    "relay": [{"name": "run", "argv": ["status", "--json"], "wall_s": 2.5}],
+    "decisions": [{"name": "backlog", "argv": ["backlog", "--json"]},
+                  {"name": "rows", "argv": ["rows", "--json"], "wall_s": 6},
+                  {"name": "questions", "argv": ["questions", "--json"]}],
+    "agents": [{"name": "sessions", "argv": ["status", "--json"]}],
+    "respeak": []}
+
+
+def describe_of(name, reads):
+    """A counted `agentik.describe/1` answer of the made-up repo whose status reads are `reads`."""
+    return {"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
+            "summary": "A stand-in.", "repo": "example-org/" + name, "plugin": None, "needs": [],
+            "verbs": [], "reads": [dict(r, kind="status") for r in reads]}
+
+
 def text(path):
     with open(path) as fh:
         return fh.read()
@@ -83,6 +104,11 @@ class ReadHome(StatusHome):
                   % (os.path.join(self.side, "pyc"), self.stub_py, answers, calls))
         self.write(answers, "{}")
         return answers, calls
+
+    def described(self, name, answers, reads=None):
+        """`name`'s describe answer: `reads`, else the pin's reads of PIN_READS."""
+        path = self.saved(name + "-describe.json", describe_of(name, PIN_READS[name] if reads is None else reads))
+        self.answer(answers, describe={"file": path})
 
     def answer(self, answers=None, **more):
         """Each read by its argv's first word (`describe` is `describe --json`)."""
@@ -298,21 +324,25 @@ class FailingSourceTest(ReadHome):
 
 
 class TableTest(ReadHome):
-    def test_8_the_table(self):
+    def test_8_the_pins_reads_from_describe(self):
+        """Re-based (ak10c5 R8): the table's reads, each from its tool's describe, are drawn as the
+        table drew them; with no tool on PATH each read public.json names is `not installed`, as at
+        the pin, and no part is read (review 1 F2)."""
         os.unlink(os.path.join(self.stubs, "agentik-demo"))
-        table = json.loads((LIB / "fallback.json").read_text())
         stubs = []
-        for name, row in table.items():
+        for name, reads in PIN_READS.items():
             answers, calls = self.tool(name)
             stubs.append(calls)
-            for read in row.get("status") or ():
-                self.answer(answers, **{" ".join(read["argv"]): SAVED[read["name"]]})
+            self.described(name, answers)
+            for read in reads:
+                if read["name"] in SAVED:
+                    self.answer(answers, **{" ".join(read["argv"]): SAVED[read["name"]]})
         obj = self.read()
         drawn = [s for s in obj["sources"] if s["state"] != "not drawn"]
         self.assertEqual([s["state"] for s in drawn], ["ok"] * 6)
         for calls in stubs:
-            self.assertNotIn("describe --json", text(calls) if os.path.exists(calls) else "")
-        for name in table:
+            self.assertIn("describe --json", text(calls))
+        for name in PIN_READS:
             os.unlink(os.path.join(self.stubs, "agentik-" + name))
         start = time.monotonic()
         obj = self.read()

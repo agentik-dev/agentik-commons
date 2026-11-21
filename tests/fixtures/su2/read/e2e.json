@@ -220,11 +220,7 @@
   {
    "name": "charter",
    "tool": "session",
-   "argv": [
-    "charter",
-    "show",
-    "--json"
-   ],
+   "argv": [],
    "state": "not installed",
    "ms": null,
    "exit": null,

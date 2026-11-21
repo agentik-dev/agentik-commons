@@ -23,21 +23,16 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, version  # noqa: E402
+from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, add_public, version  # noqa: E402
 from agentik_suite import cli, plan  # noqa: E402
 
 # Setup refuses a name the suite does not know (row ic2-needs R2), so these tests run a copy of the
-# plugin whose fallback table holds a row for each made-up plugin, as test_fh13_relay_plan does.
+# plugin whose public.json names each made-up plugin, as test_fh13_relay_plan does.
 _COPY = os.path.realpath(tempfile.mkdtemp(prefix="ak3-suite-"))
 atexit.register(shutil.rmtree, _COPY, True)
 shutil.copytree(str(PLUGIN), os.path.join(_COPY, "suite"), ignore=shutil.ignore_patterns("__pycache__"))
 LAUNCHER = Path(_COPY) / "suite" / "bin" / "agentik-suite"
-with open(os.path.join(_COPY, "suite", "lib", "fallback.json")) as _fh:
-    _TABLE = json.load(_fh)
-for _name in ("alpha", "beta"):
-    _TABLE[_name] = {"lines": ["agentik %s doctor" % _name], "user_file": None, "needs": [], "status": []}
-with open(os.path.join(_COPY, "suite", "lib", "fallback.json"), "w") as _fh:
-    json.dump(_TABLE, _fh)
+add_public(os.path.join(_COPY, "suite", "lib"), {"alpha": {}, "beta": {}})
 
 try:
     from agentik_suite import apply

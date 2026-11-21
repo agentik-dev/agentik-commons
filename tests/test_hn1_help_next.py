@@ -2,7 +2,7 @@
 learned from `describe` keeps its `wall_s` (R2), and `scripts/sync --check` compares a copy's
 mode as git keeps it, the owner's executable bit alone (R3).
 
-The help's tests run the plugin's launcher, a copy of it whose fallback table gives the made-up
+The help's tests run the plugin's launcher, a copy of it whose public.json gives the made-up
 `alpha` a need, in a temp HOME; the read's tests are su2's ReadHome; the sync tests are sy4's
 fixture, two temp checkouts. Nothing here reads or writes the live home or state.
 """
@@ -26,35 +26,30 @@ _COPY = {}
 
 
 def plugin_copy(key, row):
-    """A copy of the plugin whose fallback table holds `row` for the made-up `alpha`."""
+    """A copy of the plugin whose public.json holds `row` for the made-up `alpha`."""
     if key not in _COPY:
         import atexit
         top = os.path.realpath(tempfile.mkdtemp(prefix="hn1-suite-"))
         atexit.register(shutil.rmtree, top, True)
         root = os.path.join(top, "suite")
         shutil.copytree(str(base.PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
-        table = os.path.join(root, "lib", "fallback.json")
-        with open(table) as fh:
-            rows = json.load(fh)
-        rows["alpha"] = row
-        with open(table, "w") as fh:
-            json.dump(rows, fh)
+        base.add_public(os.path.join(root, "lib"), {"alpha": row})
         _COPY[key] = Path(root)
     return _COPY[key]
 
 
-ROW = {"lines": ["agentik alpha doctor"], "user_file": None, "needs": [], "status": []}
+ROW = {"needs": []}
 
 
 def needy_plugin():
-    """A copy of the plugin whose fallback table knows `alpha`, which needs Go: no `go` on the
+    """A copy of the plugin whose public.json knows `alpha`, which needs Go: no `go` on the
     test's PATH, so step 1 reads `warn` and names no line setup would run (ic2-needs R1)."""
     return plugin_copy("needy", dict(ROW, needs=["Go"]))
 
 
 def paged_plugin():
     """A copy whose `alpha` has a page: it installs its own command (row fh13 R1)."""
-    return plugin_copy("paged", dict(ROW, page="https://example.com/alpha#install"))
+    return plugin_copy("paged", dict(ROW, own=True))
 
 
 class HelpHome(base.Home):

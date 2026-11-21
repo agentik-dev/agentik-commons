@@ -23,9 +23,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import LIB  # noqa: E402
 from test_su1_status_check import NOW  # noqa: E402
-from test_su2_read import FIX, text  # noqa: E402
+from test_su2_read import FIX, PIN_READS, text  # noqa: E402
 from test_su2_read_fix import LAUNCHER, FixHome, gone  # noqa: E402
-from agentik_suite import catalogue, status_read, status_screen, term  # noqa: E402
+from agentik_suite import catalogue, status_read, status_screen, term, tools  # noqa: E402
 
 SCREEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su2", "screen")
 WORDS = catalogue.load()
@@ -249,13 +249,21 @@ class WayOutTest(JoinHome):
     """The row's join item 2: a closed pipe or an interrupt while it draws ends every read."""
 
     def slow_row(self):
-        """The table's row with the longest wall, as a stub whose read sleeps 10 s with a child."""
-        table = json.loads((LIB / "fallback.json").read_text())
-        name, read = max(((n, r) for n, row in table.items() for r in row.get("status") or ()
+        """The pin's read with the longest wall, from its tool's describe (ak10c5 R8), as a stub
+        whose read sleeps 10 s with a child."""
+        name, read = max(((n, r) for n, reads in PIN_READS.items() for r in reads
                           if r["name"] != "rows"),  # su6: the rows read runs only with an hq
                          key=lambda p: p[1].get("wall_s") or 0)
         self.assertGreater(read.get("wall_s") or 0, 2.0)
+        # demo gives up its own `run` read, as the table's read came before PATH's, and the
+        # describe cache is read again (re-based, ak10c5 R8)
+        demo = json.loads(text(os.path.join(FIX, "describe.json")))
+        demo["reads"] = [r for r in demo["reads"] if r["name"] != read["name"]]
+        self.answer(describe={"file": self.saved("demo-describe.json", demo)})
+        os.unlink(os.path.join(tools.cache_dir(self.env()), "demo.json"))
         answers, _ = self.tool(name)
+        self.described(name, answers, [read])
+        self.read()
         path = os.path.join(self.side, "pids")
         self.answer(answers, **{" ".join(read["argv"]): {"file": os.path.join(FIX, "run-old.json"),
                                                          "sleep": 10, "child": path}})

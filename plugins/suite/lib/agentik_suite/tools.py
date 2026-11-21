@@ -51,7 +51,7 @@ def _cwd(cwd):
 
 
 def _lib(lib):
-    """The folder of fallback.json: `lib`, else the one this package sits in."""
+    """The folder of public.json: `lib`, else the one this package sits in."""
     return lib or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -77,10 +77,10 @@ def _own(env):
 
 
 def known(env, lib=None, lines=None):
-    """The names the suite knows (row fk2-plan R1): the marketplace file's, the fallback table's,
-    each installed `<name>@agentik` and each `sources` line's, sorted."""
+    """The names the suite knows (row fk2-plan R1): the marketplace file's, public.json's tools
+    (row ak10c5 R4), each installed `<name>@agentik` and each `sources` line's, sorted."""
     lines = _lines(env) if lines is None else lines
-    names = set(descriptions(env)) | set(fallback(_lib(lib))) | set(_own(env)) | set(lines)
+    names = set(descriptions(env)) | set(public(lib)["tools"]) | set(_own(env)) | set(lines)
     return sorted(n for n in names if NAME.match(n))
 
 
@@ -594,22 +594,64 @@ def config_read(answer):
     return None
 
 
-# ---- the fallback table ---------------------------------------------------------------------
+# ---- what the suite knows before a tool is installed (public.json) ---------------------------
 
-def fallback(lib):
-    found = plan._read_json(os.path.join(lib, "fallback.json"))
-    return {k: v for k, v in found.items() if isinstance(v, dict)} if isinstance(found, dict) else {}
+PUBLIC = "public.json"
+SUITE_KEY = "suite"  # public.json's own row, the suite, which is no tool it plans as one
 
 
-def page(table, name):
-    """The `page` of `name`'s row of the table (row fh13 R1): the tool installs its own
-    command, and this page has the line. A string that starts https:// and holds no whitespace and
-    no character that is not printable (a control or format one), else None; never opened (row
-    fh13 review 1)."""
-    value = (table.get(name) or {}).get("page")
-    if not (isinstance(value, str) and value.startswith("https://") and len(value) > 8):
+def public(lib):
+    """public.json beside the package, read leniently: {"tools": {name: OWNER/REPO}, "needs":
+    {name: [word]}, "own_command": [name], "reads": {name: [status read name]}}, each part empty
+    where the file lacks it or holds another shape (row ak10c5-table-gone R4, review 1 F2); the
+    issue's strict read is gather.load_public."""
+    found = plan._read_json(os.path.join(_lib(lib), PUBLIC))
+    found = found if isinstance(found, dict) else {}
+    repos = found.get("tools") if isinstance(found.get("tools"), dict) else {}
+    needs = found.get("needs") if isinstance(found.get("needs"), dict) else {}
+    own = found.get("own_command") if isinstance(found.get("own_command"), list) else []
+    reads = found.get("reads") if isinstance(found.get("reads"), dict) else {}
+    return {"tools": {k: v for k, v in repos.items() if isinstance(v, str) and k != SUITE_KEY},
+            "needs": {k: [w for w in v if isinstance(w, str)] for k, v in needs.items()
+                      if isinstance(v, list)},
+            "own_command": [n for n in own if isinstance(n, str)],
+            "reads": {k: [w for w in v if isinstance(w, str)] for k, v in reads.items()
+                      if isinstance(v, list)}}
+
+
+def page(lib, name):
+    """The page of a tool that installs its own command (row fh13 R1, ak10c5 R4):
+    `https://github.com/<repo>#install` for a name public.json's `own_command` lists, built from
+    the repo it names there; else None. A repo of OWNER/REPO whose page holds no whitespace and no
+    character that is not printable (a control or format one); never opened (row fh13 review 1)."""
+    found = public(lib)
+    repo = found["tools"].get(name) if name in found["own_command"] else None
+    if not (isinstance(repo, str) and re.match(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z", repo)):
         return None
+    value = "https://github.com/%s#install" % repo
     return value if value.isprintable() and not any(c.isspace() for c in value) else None
+
+
+def answered(env, rows_, deadline=None, read=False):
+    """({name: counted describe answer}, {name: config result}, [name that gave none]) for each
+    finder row in `rows_` ({name: row}) whose file runs: the cache first, else its describe, under
+    the describes' wall (row ak10c5 R5, R6). A name whose file does not run is in no part."""
+    entries = [{"name": n, "exe": r["runs"]["path"]} for n, r in sorted(rows_.items())
+               if isinstance(r.get("runs"), dict) and r["runs"].get("path")]
+    if not entries:
+        return {}, {}, []
+    found, configs = describe_all(entries, env, read=read,
+                                  deadline=deadline if deadline is not None else time.monotonic() + WALL)
+    answers = {n: a for n, (state, a) in found.items() if state == "answers" and a is not None}
+    return answers, configs, [e["name"] for e in entries if e["name"] not in answers]
+
+
+def user_layer(cfg):
+    """The path of the first `user` layer of a config answer, or None (GUIDE §11.4)."""
+    for layer in (cfg or {}).get("layers") or ():
+        if isinstance(layer, dict) and layer.get("name") == "user" and isinstance(layer.get("path"), str):
+            return layer["path"]
+    return None
 
 
 def descriptions(env):

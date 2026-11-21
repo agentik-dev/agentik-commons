@@ -17,10 +17,6 @@ scripts/marketplace-check: sibling
 tests/test_marketplace.py: sibling
 plugins/suite/.claude-plugin/plugin.json: sibling
 
-# the suite's fallback table, beside its package, names the published tools it reads for
-# one that does not answer (packet ak1b R7)
-plugins/suite/lib/fallback.json: sibling
-
 # the tools an issue may name and the repo each files to, made from the marketplace (packet rp3-gather R2)
 plugins/suite/lib/public.json: sibling
 
@@ -85,6 +81,12 @@ plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed
 # the plug reader's test names a plugin's fallback row (row ic2-needs, the coordinator's ruling)
 tests/test_ic2_needs.py: sibling
 tests/test_ak9b_plug_reader.py: sibling
+
+# the suite's own tool names in the fixtures that stand in for the old table's tools, each now
+# answering describe, and public.json's pages (row ak10c5-table-gone, the coordinator's ruling)
+tests/test_ak10c5_table_gone.py: sibling
+tests/test_in4_inbox.py: sibling
+tests/test_su2_read.py: sibling
 
 # the hq scaffold test's stub checks the verb a new hq runs, as the scaffold names it (row
 # dr1-door-ahead, the coordinator's ruling)

@@ -375,7 +375,7 @@ class Command:
             runs = (row["runs"] or {}).get("path")
             if runs and at == 0 and row["kind"] not in ("absent", "undecided"):
                 self._run_tool(runs, self.argv[at + 1:])  # the word runs (row ak9b R1)
-            page = tools.page(tools.fallback(self.lib), word)  # it installs its own (row fh13 R8)
+            page = tools.page(self.lib, word)  # it installs its own (row fh13 R8)
             if page and runs:
                 page = None  # a file runs: the pin's refusal
             more = {"page": page} if page else {}

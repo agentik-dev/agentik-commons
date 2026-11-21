@@ -195,15 +195,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.label.edit`: edit
 - `config.label.note`: note
 - `config.label.holds`: takes hold
-- `config.label.run`: run
-- `config.label.file`: user file
-- `config.label.needs`: needs
 - `config.label.seen`: seen
 - `config.live`: now
 - `config.later`: at the next start of Claude Code
-- `config.table.title`: The suite's table shows where `{name}` keeps its keys.
-- `config.table.description`: `{description}`
-- `config.table.nocmd`: no command; the user file below holds the keys
 - `config.state.timed_out`: `{name}` gives no keys: its answer ran past 2 s, so it was stopped.
 - `config.state.unreadable`: `{name}` gives no keys: its answer cannot be read.
 - `config.state.no_command`: `{name}` is installed but ships no command, so it gives no keys.
@@ -401,6 +395,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `update.held.run`: a `{tool}` run is live (pid `{pid}`)
 - `update.held.unattended`: an unattended run is live
 - `update.held.ps`: the process list cannot be read: `{why}`
+- `update.unasked`: warn: `{names}` gave no `describe` answer, so nothing it runs holds update
 - `err.update.held`: held install: `{what}`
 - `hint.update.held`: next: `{command}`
 - `hint.update.setup`: next: `{command}`
@@ -645,6 +640,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.tool.said`: its doctor failed, and said: `{last}`
 - `doctor.tool.slow`: its doctor ran past `{secs}` s, so it was stopped
 - `doctor.tool.unreadable`: its doctor could not start, or printed more than 1 MiB
+- `doctor.tool.nodescribe`: it gives no `describe` answer, so status and inbox read nothing of it
 - `doctor.tool.nocmd`: no command on PATH, so no doctor
 - `doctor.tool.checks`: `{n}` checks read ok
 - `doctor.tool.check`: 1 check read ok

@@ -17,7 +17,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_install import APPLE_PY, DOOR, MODULE, RUNNER, conf  # noqa: E402
 from test_agentik_install import LAUNCHER as TOOL_LAUNCHER  # noqa: E402
-from test_ak4a_update import LAUNCHER, Base, Home  # noqa: E402
+from test_ak4a_update import LAUNCHER, Base, Home, runner_stubs  # noqa: E402
 from test_ak4b_uninstall import snapshot  # noqa: E402
 
 LIVE = os.path.realpath(os.path.expanduser("~"))
@@ -47,6 +47,19 @@ if a[:3] == ["plugin", "marketplace", "remove"] and len(a) == 4:
     sys.exit(0)
 sys.exit(2)
 '''
+
+
+def user_stub(h, name, user):
+    """A stand-in `agentik-<name>` whose describe names a config read and whose config read names
+    `user` (`~/` the home) as its `user` layer: the file remove keeps (re-based, ak10c5 R6)."""
+    answer = {"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
+              "summary": "A stand-in.", "repo": "example-org/" + name, "plugin": None, "needs": [],
+              "verbs": [], "reads": [{"kind": "config", "name": "config", "argv": ["config", "--json"]}]}
+    config = {"schema": "agentik.config/1", "ok": True, "settings": [],
+              "layers": [{"name": "user", "path": os.path.join(h.home, user[2:])}]}
+    h.file(os.path.join(h.bin, "agentik-" + name),
+           "#!/bin/sh\ncase \"$1 $2\" in\n'describe --json') echo '%s';;\n'config --json') echo '%s';;\n"
+           "*) exit 2;;\nesac\n" % (json.dumps(answer), json.dumps(config)))
 
 
 class RHome(Home):
@@ -209,6 +222,7 @@ class Remove(Base):
         for line in ("77 /usr/bin/python3 {share}/{tree}/agentik-x status\n",
                      "88 /opt/tools/agentik-relay run plan.md\n"):
             h, _ = self.x()
+            runner_stubs(h)  # the relay's `run` read found through its describe (re-based, ak10c5 R5)
             share = os.path.join(h.home, ".local", "share", "agentik-x")
             tree = [n for n in os.listdir(share) if not n.startswith(".")][0]
             h.ps("1 /sbin/launchd\n" + line.format(share=share, tree=tree))
@@ -509,6 +523,7 @@ class Remove(Base):
 
     def test_h1_every_settings_file_and_both_claude_folders_are_kept(self):
         h, _ = self.x()  # the session tool's settings file, CLAUDE_CONFIG_DIR elsewhere, the cache home ~/.claude
+        user_stub(h, "session", "~/.claude/agentik/profiles.yaml")
         prof = h.file(os.path.join(h.home, ".claude", "agentik", "profiles.yaml"), "mine\n")
         os.makedirs(os.path.join(h.home, "cw"))
         more = {"XDG_CACHE_HOME": os.path.join(h.home, ".claude"), "CLAUDE_CONFIG_DIR": os.path.join(h.home, "cw")}
@@ -518,6 +533,7 @@ class Remove(Base):
         self.assertEqual(code, 0, out + err)
         self.assertTrue(os.path.isfile(prof))
         h2, _ = self.x(name="h2")  # a tool not taken off: its settings file, the config home elsewhere
+        user_stub(h2, "relay", "~/.config/agentik/relay/config.yaml")
         relay = h2.file(os.path.join(h2.home, ".config", "agentik", "relay", "config.yaml"), "mine\n")
         more = {"XDG_CACHE_HOME": os.path.join(h2.home, ".config"), "XDG_CONFIG_HOME": os.path.join(self.tmp, "cfg2")}
         code, out, err = h2.go("remove", "--all", "--dry-run", "--json", **more)

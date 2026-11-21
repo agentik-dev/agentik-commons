@@ -42,6 +42,18 @@ PIN_CHECKS = [("ok", "shadow"), ("ok", "settings"), ("ok", "prereqs claude"), ("
               ("ok", "door ~/.local/bin/agentik"), ("ok", "path ~/.local/bin")]
 
 
+# row ak10c5-table-gone R8: a default install's stand-ins that answer `describe` as the suite's
+# tools do, each with its own name, so the doctor reads them as at the pin, when the table spared
+# them the ask; the shared PLUGIN_BIN stays silent for every other test
+DESCRIBING_BIN = PLUGIN_BIN.replace("doctor) exit 0 ;;", (
+    "doctor) exit 0 ;;\n"
+    "describe) printf '{\"schema\": \"agentik.describe/1\", \"ok\": true, \"tool\": \"%s\", "
+    "\"version\": \"1.0.0\", \"summary\": \"A stand-in.\", \"repo\": \"acme/stand-in\", "
+    "\"plugin\": null, \"needs\": [], \"verbs\": [{\"name\": \"install-cli\", "
+    "\"summary\": \"Place the launcher.\", \"top\": false}], \"reads\": []}\\n' "
+    "\"${0##*/agentik-}\" ;;"))
+
+
 class Home(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(prefix="ic2-")
@@ -119,11 +131,11 @@ class Home(unittest.TestCase):
 
 
 class NeedTest(Home):
-    def test_r1_the_table_names_respeaks_need(self):
-        with open(str(LIB / "fallback.json")) as fh:
+    def test_r1_public_json_names_respeaks_need(self):
+        with open(str(LIB / "public.json")) as fh:  # re-based (ak10c5 R4)
             table = json.load(fh)
-        self.assertEqual(table["respeak"]["needs"], ["PyYAML"])
-        self.assertEqual(table["relay"]["needs"], ["Go"])
+        self.assertEqual(table["needs"]["respeak"], ["PyYAML"])
+        self.assertEqual(table["needs"]["relay"], ["Go"])
 
     def test_r1_the_dry_run_names_the_need_in_step_1(self):
         code, text = self.run_both(["./setup", "--dry-run", "respeak"])
@@ -233,6 +245,7 @@ class DoctorTest(Home):
         self.assertNotIn("need PyYAML", names)  # its own doctor names it (R1)
 
     def test_r4_a_default_install_reads_as_at_the_pin(self):
+        self.stub("plugin-bin", DESCRIBING_BIN, at=os.path.join(self.home, "plugin-bin"))  # ak10c5 R8
         code, text = self.run_both(["./setup", "--yes"])
         self.assertEqual(code, 0, text)
         code, out = self.doctor("--json")

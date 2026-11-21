@@ -47,8 +47,25 @@ def version():
 _KNOWN = []
 
 
+def add_public(lib, rows):
+    """Each made-up tool of `rows` ({name: {"needs": [word], "own": bool}}) into the public.json of
+    the plugin copy at `lib`, of the made-up repo `example-org/<name>`: known to setup, its needs
+    and, where `own`, its page, `https://github.com/example-org/<name>#install` (ak10c5 R4, R8)."""
+    path = os.path.join(str(lib), "public.json")
+    with open(path) as fh:
+        data = json.load(fh)
+    for name, row in rows.items():
+        data["tools"][name] = "example-org/" + name
+        if row.get("needs"):
+            data.setdefault("needs", {})[name] = list(row["needs"])
+        if row.get("own"):
+            data.setdefault("own_command", []).append(name)
+    with open(path, "w") as fh:
+        json.dump(data, fh)
+
+
 def known_plugin():
-    """A copy of the plugin whose fallback table holds a row for the made-up `alpha` and `beta`,
+    """A copy of the plugin whose public.json names the made-up `alpha` and `beta`,
     made once and removed at exit: setup refuses a name the suite does not know (row ic2-needs R2),
     so a test that plans one where nothing else names it runs this copy, as test_ak3_setup does."""
     if not _KNOWN:
@@ -57,13 +74,7 @@ def known_plugin():
         atexit.register(shutil.rmtree, top, True)
         root = os.path.join(top, "suite")
         shutil.copytree(str(PLUGIN), root, ignore=shutil.ignore_patterns("__pycache__"))
-        table = os.path.join(root, "lib", "fallback.json")
-        with open(table) as fh:
-            rows = json.load(fh)
-        for name in ("alpha", "beta"):
-            rows[name] = {"lines": ["agentik %s doctor" % name], "user_file": None, "needs": [], "status": []}
-        with open(table, "w") as fh:
-            json.dump(rows, fh)
+        add_public(os.path.join(root, "lib"), {"alpha": {}, "beta": {}})
         _KNOWN.append(Path(root))
     return _KNOWN[0]
 
@@ -966,9 +977,10 @@ class ConfigTest(ConfigHome):
         self.assertIn("demo has no key colr\nnext: ", err)
         self.assertTrue(err.endswith(" config demo.colour\n"), err)
 
-    def test_a8_the_fallback_table(self):
-        table = json.loads((LIB / "fallback.json").read_text())
-        name = next(iter(table))
+    def test_a8_a_tool_that_does_not_answer(self):
+        """Re-based (ak10c5 R7): no table block; the state and its reason, as for any tool that
+        gives no answer, and no file, as the tool gives none."""
+        name = "quill"
         self.stub("agentik-" + name, "#!/bin/sh\nexit 2\n")
         market = os.path.join(self.side, "market")
         self.write(os.path.join(market, ".claude-plugin", "marketplace.json"), json.dumps(
@@ -977,13 +989,13 @@ class ConfigTest(ConfigHome):
                    json.dumps({"agentik": {"installLocation": market}}))
         code, out, err = self.cfg("config")
         self.assertEqual(code, 0, err)
-        # sc6-config R2: it did not answer, and its file is the table's; no description
+        # sc6-config R2: it did not answer; no file and no description
         row = [l for l in out.splitlines() if l.split()[1:2] == [name]][0]
-        self.assertRegex(row, r"^warn +%s +did not answer +%s$" % (name, re.escape(str(table[name]["user_file"]))))
+        self.assertRegex(row, r"^warn +%s +did not answer +its command gave no answer that reads$" % name)
         code, out, err = self.cfg("config", name)
         self.assertEqual(code, 0, err)
-        for line in table[name]["lines"]:
-            self.assertIn(line, out)
+        self.assertNotIn("A made-up description.", out)
+        self.assertNotIn("table", out)
         code, out, err = self.cfg("config", name + ".x")
         self.assertEqual(code, 2)
 

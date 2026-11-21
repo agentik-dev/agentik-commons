@@ -40,8 +40,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n216 | S4 | `plugins/suite` `config.py` step 1's `next:` | step 1's `next:` counts a tool with 0 keys: on a tie it names `emptytool` over `loom`; prefer a tool with `n > 0` (R2's tie rule holds) | `emptytool` (0 keys) beside `loom` (24), none changed, suite silent: `next: config emptytool`, a screen with no `next:` | 2026-11-15, sc6-config review 1 |
-| n217 | S4 | `plugins/suite` `config.py` states | step 1 says `failtool  did not answer` while step 2 says `failtool answers, but the answer of its keys cannot be read.`: the two screens give one state two accounts (`config.state.read_unreadable` and its kin) | `config` then `config failtool`, a stub whose `describe config --json` exits 1 | 2026-11-15, sc6-config review 1 |
 | n218 | S4 | `plugins/suite` `config.py` prefix form `--json` | `config loom.ink --json` prints the whole-tool object cut to the prefix's keys, with no prefix field and unfiltered warnings (`inq.weight` stays), which the text form filters; the pin refused it | `config loom.ink --json \| grep inq.weight` finds it; `config loom.ink` does not show it | 2026-11-15, sc6-config review 1 |
 | n219 | S4 | `plugins/suite` `settings.read`, R5's line | one duplicate key makes `settings.read` fault, so every key of that file shows the bare path; a child of a flow mapping (`ink: {weight: bold}`) shows the path alone too; both within R5's letter | a file with `mode` set twice: `mode`, `ink.weight` and `page.width` all print the path with no `:line` | 2026-11-15, sc6-config review 1 |
 | n220 | S4 | `plugins/suite` `config.py` groups | a key that is also a group's head (`ink` beside `ink.colour`) shows as `ink` in the `ink` group row, and `config loom.ink` prints that key's card, not the group flat | a loom with `ink` and `ink.colour` keys: `config loom` shows the `ink` group row; `config loom.ink` prints one card | 2026-11-15, sc6-config review 1 |
@@ -113,7 +111,7 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n248 | S4 | respeak's doctor's `fix:` for PyYAML | where `python3` on PATH is Homebrew's, `python3 -m pip install pyyaml` is refused by pip: that Python is externally managed; setup's step-1 warn names the need, no command | finding 7 of the first-install review; the `EXTERNALLY-MANAGED` file, read, not run | 2026-11-16, ic2-needs R1 |
-| n249 | S4 | `plugins/suite` setup, doctor | ic2-needs' leads: a HOME set but not absolute plans; `update nosuch` calls it no plugin name; the doctor runs the 2 s need probe to drop it; all else done, the need shows in respeak's doctor alone; a shared need, a row a plugin; a name in `fallback.json` alone fails at install | review 1 leads 2 to 8 | 2026-11-16, ic2-needs review 1 |
+| n249 | S4 | `plugins/suite` setup, doctor | ic2-needs' leads: a HOME set but not absolute plans; `update nosuch` calls it no plugin name; the doctor runs the 2 s need probe to drop it; all else done, the need shows in respeak's doctor alone; a shared need, a row a plugin; the old table's lead left with it (ak10c5) | review 1 leads 2 to 8 | 2026-11-16, ic2-needs review 1 |
 | n250 | S4 | `plugins/suite` `plan.py` `need_met` | PyYAML is read from the `python3` first on PATH alone, while respeak looks at several Pythons and one `RESPEAK_PYTHON` names, so the warn can stand where respeak works | review 1 F2, `python3.12` with yaml | 2026-11-16, ic2-needs review 1 |
 | n251 | S4 | `plugins/suite` `doctor.py` `door()` | the door's rows whose remedy is `setup` (no `agentik` on PATH; an older one, the suite's command off PATH) say a bare `setup`, so with only a plugin outside the default set and such a door, the close installs the default set; `planned`'s words fit there | read, not run | 2026-11-17, ic2-needs review 2 L1 |
 
@@ -156,7 +154,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n267 | S4 | `scripts/records-cut` | a refused or failed move has no `--undo`: a failed commit leaves the staged removal and the copies, and its line names `git reset -q --hard HEAD` and the copies to remove; lead: an undo that checks the clone still stands at the cut's commit | packet rc0-records-cut R5 | 2026-11-20, rc0-records-cut |
-| n268 | S4 | `tests/test_up2_suite_origin.py` | `test_12_the_printed_line_pulls_the_clone_and_runs_its_setup` fails now and then in a full `make check` (git clone into the temp origin: `failed to copy file`, or a hardlink differing from its source) and passes alone; lead: `--no-local` | gate 20261120-172023-2860 log; sitting 2026-11-18-2 | 2026-11-20, rc0-records-cut |
 
 ## From row rc0-records-cut (review 1)
 
@@ -176,3 +173,11 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n275 | S4 | `scripts/records-cut` | a stale remote-tracking ref walks around the behind check: an unfetched record commit on the origin, `--go` exit 0, then the push is rejected; lead: `git ls-remote` against the upstream's sha (needs the network) | review 2 L1: `! [rejected] main -> main (fetch first)` | 2026-11-20, rc0-records-cut review 2 |
 | n276 | S4 | `scripts/records-cut` the survey | an edit hidden by a `core.fsmonitor` hook reporting no change passes the survey; `--go` then loses it and fails half done; lead: `ls-files -f -v`, or `-c core.fsmonitor=false` on the status | review 2 L2 (a lying hook) | 2026-11-20, rc0-records-cut review 2 |
 | n277 | S4 | `scripts/records-cut` the sums | the holder's `* text=auto` stores a CRLF record with LF ends; the sha256 proof reads the copy on disk, not what the holder stores; lead: `git hash-object --path` in the holder | review 2 L4, `history/crlf.md` | 2026-11-20, rc0-records-cut review 2 |
+
+## From row rc0-records-cut (review 3)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n278 | S4 | `scripts/records-cut` the holder proof | it reads `git add --dry-run`'s lines as `add '<path>'`, so a record whose name git quotes is not found, and the move refuses with every copy taken back | review 3's read of the proof | 2026-11-21, rc0-records-cut review 3 |
+| n279 | S4 | `scripts/records-cut` the holder proof | it starts one `git rev-parse` a record path where one a folder would do | review 3's read of the proof | 2026-11-21, rc0-records-cut review 3 |
+| n280 | S4 | `scripts/records-cut` the remotes | a remote's path is case-folded when the clone's and the holder's remotes are compared, so two repositories whose paths differ in case alone read as one and the cut refuses | review 3's read of the compare | 2026-11-21, rc0-records-cut review 3 |

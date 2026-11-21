@@ -2,7 +2,7 @@
 for its worktree, and counts what waits on the owner from two reads.
 
 Each run is su2-read's ReadHome with its stand-in `agentik-demo` removed and two stand-ins in its
-place, the fallback table's tools that give the gate read and the rows read, each answering from
+place, the tools whose describes give the gate read and the rows read, each answering from
 tests/fixtures/su6 and recording every call. The checkout is a made-up hq, `acme-hq`, named on the command line. Made-up names
 only; nothing here writes outside its temp folders.
 """
@@ -12,23 +12,19 @@ import subprocess
 import sys
 import time
 import unittest
-from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import LIB  # noqa: E402
 from test_su1_status_check import NOW  # noqa: E402
-from test_su2_read import ReadHome, text  # noqa: E402
+from test_su2_read import PIN_READS, ReadHome, text  # noqa: E402
 from agentik_suite import tools  # noqa: E402
 
 FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su6")
 WT = "/srv/acme/acme-lamp/.claude/worktrees/kb2-lamp"
 GATE_ID = "20261112-101500-0042"
-TABLE = json.loads((LIB / "fallback.json").read_text())
-
-
 def giver(read):
-    """The table's tool whose `status` list holds `read`."""
-    return next(n for n, row in TABLE.items() if any(r["name"] == read for r in row.get("status") or ()))
+    """The tool whose pin's status reads (su2's PIN_READS, ak10c5 R8) hold `read`."""
+    return next(n for n, reads in PIN_READS.items() if any(r["name"] == read for r in reads))
 
 
 GATE, ROWS = giver("gate"), giver("rows")
@@ -48,6 +44,8 @@ class RowsHome(ReadHome):
         self.write(os.path.join(self.hq, ".claude", "agentik", "config.yaml"), "suite:\n  kind: hq\n")
         self.sess, _ = self.tool(GATE)
         self.dec, _ = self.tool(ROWS)
+        self.described(GATE, self.sess)
+        self.described(ROWS, self.dec)
         self.answer(self.sess, **{
             "gate status --json --repo " + WT: {"file": os.path.join(FIX, "gate-wt.json")},
             "gate status --json": "gate.json",
@@ -168,20 +166,13 @@ class FailingTest(RowsHome):
         self.assertIn("charter", names)
 
     def test_f_the_rows_read_past_its_wall(self):
+        short = [dict(r, wall_s=0.5) if r["name"] == "rows" else r for r in PIN_READS[ROWS]]
+        self.described(ROWS, self.dec, short)  # re-based (ak10c5 R8): the describe names the wall
         self.read(self.hq)  # the describe cache
         pids = os.path.join(self.side, "pids")
         self.rows_answer(sleep=10, child=pids)
-        real = tools.fallback
-
-        def short(lib):
-            table = real(lib)
-            for read in table[ROWS]["status"]:
-                if read["name"] == "rows":
-                    read["wall_s"] = 0.5
-            return table
         start = time.monotonic()
-        with mock.patch.object(tools, "fallback", short):
-            obj = self.compose(text(self.ps), paths=[self.hq])
+        obj = self.compose(text(self.ps), paths=[self.hq])
         self.assertLess(time.monotonic() - start, 2.0)
         src = self.source(obj, "rows")
         self.assertEqual((src["state"], src["ms"], obj["rows"]["state"]), ("timed out", 500, "not read"))
@@ -190,8 +181,7 @@ class FailingTest(RowsHome):
         for pid in map(int, text(pids).split()):
             with self.assertRaises(OSError):
                 os.kill(pid, 0)
-        self.assertGreater([r for r in real(str(LIB))[ROWS]["status"] if r["name"] == "rows"][0]["wall_s"],
-                           3.8)
+        self.assertGreater([r for r in PIN_READS[ROWS] if r["name"] == "rows"][0]["wall_s"], 3.8)
 
 
 class CapTest(RowsHome):

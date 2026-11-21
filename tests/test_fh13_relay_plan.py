@@ -1,6 +1,7 @@
 """Row fh13-relay-plan: setup says which command it cannot place and names the tool's page.
 
-`murmur` is a made-up tool whose table row in a temp copy of the suite's plugin holds a `page`;
+`murmur` is a made-up tool that installs its own command, by the public.json of a temp copy of
+the suite's plugin, so it has a page;
 `plain` is one with none. Each home is fk_homes' in a temp HOME: `h0` empty, `hL` the tool's
 `@agentik` plugin with no `bin/`, `hM` that with an executable stub at `~/.local/bin`. The
 terminal's PATH is `~/.local/bin:/usr/bin:/bin` and a folder holding a stub `claude` that logs its
@@ -20,14 +21,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fk_homes import RAN, build  # noqa: E402
-from test_agentik_suite import PLUGIN, version  # noqa: E402
+from test_agentik_suite import PLUGIN, add_public, version  # noqa: E402
 from test_sc3_table import plain as unpaint, pty_run  # noqa: E402
 from agentik_suite import apply, plan  # noqa: E402
 
 T, P = "murmur", "plain"
-PAGE = "https://example.com/murmur#install"
+PAGE = "https://github.com/example-org/murmur#install"
 SUITE = "agentik-suite"
-ROW = {"lines": ["agentik murmur doctor"], "user_file": None, "needs": [], "status": []}
 PAGE_LINE = "its page has the line: %s" % PAGE
 LAUNCHER_PAGE = "not placed, and not setup's to place: murmur installs its own command"
 DOCTOR_PAGE = "not checked: its command is not installed yet"
@@ -39,8 +39,6 @@ PIN = {"h0": ("setup.launcher.wait", "setup.doctor.wait"),
 
 
 class Base(unittest.TestCase):
-    page = PAGE
-
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -49,13 +47,7 @@ class Base(unittest.TestCase):
         shutil.copytree(str(PLUGIN), self.root, ignore=shutil.ignore_patterns("__pycache__"))
         self.lib = os.path.join(self.root, "lib")
         self.launcher = os.path.join(self.root, "bin", SUITE)
-        path = os.path.join(self.lib, "fallback.json")
-        with open(path) as fh:
-            table = json.load(fh)
-        table[T] = dict(ROW, page=self.page)
-        table[P] = dict(ROW, lines=["agentik plain doctor"])
-        with open(path, "w") as fh:
-            json.dump(table, fh)
+        add_public(self.lib, {T: {"own": True}, P: {}})
 
     def home(self, name, tool=T):
         self.count = getattr(self, "count", 0) + 1
@@ -331,28 +323,37 @@ class PageTest(Base):
 
 
 class NotAPageTest(Base):
-    """Line 8: a `page` that is not an https string, or that holds whitespace or a control
-    character, is read as absent."""
+    """Line 8: a page is built from the repo public.json names for a tool that installs its own
+    command (row ak10c5 R4); a repo that is not an `owner/name` string, or whose page would hold
+    whitespace or a control character, gives no page, and the tool is planned as one with none.
+    Setup reads public.json leniently, so each such row reaches the screen (re-based at row
+    ak10c5-table-gone: the bad values were the old table's `page`)."""
 
-    def assert_no_page(self, page):
-        self.page = page
+    def assert_no_page(self, repo):
         self.setUp()
+        path = os.path.join(self.lib, "public.json")
+        with open(path) as fh:
+            data = json.load(fh)
+        data["tools"][T] = repo
+        with open(path, "w") as fh:
+            json.dump(data, fh)
         for name, (four, seven) in PIN.items():
             h = self.home(name)
             steps = self.plan(h)
-            self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (page, name))
+            self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (repo, name))
             self.assertFalse([s for s in steps if "page" in s])
 
     def test_8_a_number_a_list_or_another_scheme_is_no_page(self):
-        for page in (7, [PAGE], "http://example.com/murmur", ""):
-            self.assert_no_page(page)
+        # a repo of another kind than a string is no row setup reads (tools.public drops it), so
+        # the tool is one the suite does not know where it is not installed: not this screen
+        for repo in ("http://example.com/murmur", "", "example-org", "example-org/", "/murmur"):
+            self.assert_no_page(repo)
 
     def test_8_whitespace_or_a_control_character_is_no_page(self):
-        for page in ("https://example.com/a b", "https://example.com/murmur\nnext: touch x",
-                     "https://example.com/\tx", "https://example.com/\x1b[2J", "https://example.com/\x00",
-                     "https://example.com/\x07", "https://example.com/" + chr(0x202E) + "x",
-                     "https://example.com/" + chr(0xA0) + "x"):
-            self.assert_no_page(page)
+        for repo in ("example-org/a b", "example-org/murmur\nnext: touch x", "example-org/\tx",
+                     "example-org/\x1b[2J", "example-org/\x00", "example-org/\x07",
+                     "example-org/" + chr(0x202E) + "x", "example-org/" + chr(0xA0) + "x"):
+            self.assert_no_page(repo)
 
 
 if __name__ == "__main__":
