@@ -326,23 +326,42 @@ def survey_clone(s, refuse, listing):
 
 
 def remote_urls(top):
-    """[(remote, its URL as compared)] of each fetch and push URL of each remote of `top`: a
-    local path or file URL by its real path, any other case-folded; less a trailing / or .git."""
+    """[(remote, its key)] of each fetch and push URL of each remote of `top` (git applies
+    insteadOf and pushInsteadOf): a local path or file URL by its real path; any other as
+    (host, path), whatever its scheme, user name, port or short `host:path` form."""
     found = []
     for name in text(top, "remote")[1].splitlines():
         for more in ([], ["--push"]):
             for url in text(top, "remote", "get-url", "--all", *more, "--", name)[1].splitlines():
-                url = url.strip()
-                if url.startswith("file://"):
-                    url = url[len("file://"):]
-                head = url.split("/", 1)[0]
-                if "://" in url or (":" in head and not os.path.isabs(url)):
-                    url = url.casefold()
-                else:
-                    url = os.path.realpath(os.path.join(top, url))
-                url = url.rstrip("/")
-                found.append((name, url[:-len(".git")] if url.endswith(".git") else url))
+                found.append((name, remote_key(top, url.strip())))
     return found
+
+
+def remote_key(top, url):
+    """One remote's key: ("", real path) for a local one, else (host case-folded, path
+    case-folded), each less a trailing / and .git, so ssh, https and `host:path` read as one."""
+    if url.startswith("file://"):
+        url = url[len("file://"):]
+    head = url.split("/", 1)[0]
+    if "://" in url:
+        rest = url.split("://", 1)[1]
+        host, _, path = rest.partition("/")
+    elif ":" in head and not os.path.isabs(url):
+        host, _, path = url.partition(":")
+    else:
+        return "", strip_git(os.path.realpath(os.path.join(top, url)))
+    host = host.rpartition("@")[2]
+    if host.startswith("["):
+        host = host[:host.find("]") + 1]
+    else:
+        host = host.partition(":")[0]
+    return host.casefold(), strip_git(path.strip("/").casefold())
+
+
+def strip_git(path):
+    path = path.rstrip("/")
+    path = path[:-len(".git")] if path.endswith(".git") else path
+    return path.rstrip("/")
 
 
 def working_is(path, data):

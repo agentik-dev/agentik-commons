@@ -585,6 +585,51 @@ class HolderTakesTest(Fixture):
         self.each(check)
 
 
+class RemoteSpellingTest(Fixture):
+    """Review 2, F5: one remote in two spellings is one remote; build 2's cases stay refused."""
+
+    def test_one_remote_in_any_spelling(self):
+        same = [
+            ("git@forge.invalid:o/widget.git", "https://forge.invalid/o/widget", None),
+            ("git@forge.invalid:o/widget.git", "ssh://git@forge.invalid/o/widget.git", None),
+            ("https://forge.invalid/o/widget", "https://user@forge.invalid/o/widget", None),
+            ("ssh://git@Forge.Invalid:22/o/widget", "git@forge.invalid:o/widget/", None),
+            ("git@forge.invalid:o/widget.git", "git@forge.invalid:o/widget", None),
+            ("https://forge.invalid/o/widget.git", "https://forge.invalid/o/widget/", None),
+            ("https://forge.invalid/o/widget", "https://forge.invalid/o/widget.git/", None),
+            ("https://forge.invalid/o/widget", "https://forge.invalid/o/private",
+             ("remote.origin.pushurl", "https://forge.invalid/o/widget.git")),
+            ("https://forge.invalid/o/widget", "fg:o/widget",
+             ("url.https://forge.invalid/.insteadOf", "fg:")),
+            ("https://forge.invalid/o/widget", "fg:o/widget",
+             ("url.https://forge.invalid/.pushInsteadOf", "fg:")),
+        ]
+        other = [("https://forge.invalid/o/widget", "https://forge.invalid/o/private", None),
+                 ("git@forge.invalid:o/widget", "git@other.invalid:o/widget", None)]
+        for mine, theirs, extra in same + other:
+            with self.subTest((mine, theirs, extra)):
+                self.fresh()
+                git(self.clone, "config", "remote.origin.url", mine)
+                git(self.holder, "remote", "add", "origin", theirs)
+                if extra:
+                    git(self.holder, "config", *extra)
+                code, out, err = run(*self.args())
+                if (mine, theirs, extra) in other:
+                    self.assertEqual(code, 0, out + err)
+                else:
+                    self.assertEqual(code, 2, out + err)
+                    self.assertEqual(len(refusals(err)), 1, err)
+                    self.assertIn("republish", refusals(err)[0])
+        with self.subTest("file:// through a symlink"):
+            self.fresh()
+            os.symlink(os.path.dirname(self.origin), os.path.join(self.top, "rl"))
+            git(self.holder, "remote", "add", "origin",
+                "file://" + os.path.join(self.top, "rl", "widget.git") + "/")
+            code, out, err = run(*self.args())
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("republish", refusals(err)[0])
+
+
 class FailedStepTest(Fixture):
     def test_a_failed_step(self):
         head = git(self.clone, "rev-parse", "HEAD")
