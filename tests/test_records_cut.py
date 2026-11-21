@@ -358,6 +358,18 @@ class RefusalTest(Fixture):
             git(self.clone, "update-index", "--assume-unchanged", ".hygiene-allow")
             write(self.clone, {".hygiene-allow": "docs/*.md: host   # an edit git status hides\n"})
 
+        def other_pushes(branch):
+            def setup():
+                other = os.path.join(self.top, "work", "other")
+                git(self.top, "clone", "-q", self.origin, other)
+                if branch:
+                    git(other, "checkout", "-q", "-b", branch)
+                write(other, {"history/sittings/2026-01-03-1.md": "# a later charter\n"})
+                commit(other, push=False)
+                git(other, "push", "-q", "origin", "HEAD")
+                git(self.clone, "fetch", "-q")
+            return setup
+
         return [
             ("a worktree", lambda: (self.worktree("wt", "-b", "side"), None), "not a main checkout"),
             ("a bare repo", lambda: (self.origin, None), "not a main checkout"),
@@ -405,6 +417,9 @@ class RefusalTest(Fixture):
              "not at HEAD"),
             ("an allow file the clone ignores", allow_ignored(None), "the clone ignores it"),
             ("an allow file edited past HEAD", allow_hidden_edit, "differs from HEAD's"),
+            # F5 and L3: an upstream past HEAD, and a remote-tracking branch with a record commit
+            ("behind its upstream", other_pushes(None), "1 commits behind its upstream origin/main"),
+            ("a remote branch", other_pushes("feat"), "remote branch origin/feat"),
         ]
 
     def test_each_refusal_alone(self):

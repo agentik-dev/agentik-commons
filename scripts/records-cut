@@ -240,14 +240,23 @@ def survey_clone(s, refuse, listing):
     if flagged:
         refuse(repo, "%d records are flagged assume-unchanged or skip-worktree, so git status cannot"
                " show their edits: %s" % (len(flagged), listed(flagged)))
-    code, upstream = text(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+    code, upstream = text(repo, "rev-parse", "--symbolic-full-name", "@{upstream}")
+    short = text(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")[1]
     if code != 0 or not upstream:
         refuse(repo, "HEAD has no upstream")
+        upstream = None
     else:
-        code, ahead = text(repo, "rev-list", "--count", upstream + "..HEAD")
-        if code != 0 or ahead != "0":
-            refuse(repo, "HEAD is %s commits ahead of its upstream %s" % (ahead or "?", upstream))
-    found = [w for w, tip in tips(repo, listing) if record_commit(repo, tip)]
+        code, counts = text(repo, "rev-list", "--left-right", "--count", upstream + "...HEAD")
+        behind, ahead = counts.split() if code == 0 and len(counts.split()) == 2 else ("?", "?")
+        if ahead != "0" and behind != "0":
+            refuse(repo, "HEAD is %s commits ahead of its upstream %s and %s behind it"
+                   % (ahead, short, behind))
+        elif ahead != "0":
+            refuse(repo, "HEAD is %s commits ahead of its upstream %s" % (ahead, short))
+        elif behind != "0":
+            refuse(repo, "HEAD is %s commits behind its upstream %s, whose records the cut would"
+                   " neither move nor remove" % (behind, short))
+    found = [w for w, tip in tips(repo, listing, upstream) if record_commit(repo, tip)]
     if found:
         refuse(repo, "%d branches or worktrees add or change a record past HEAD: %s"
                % (len(found), listed(found)))
@@ -334,13 +343,19 @@ def same_names(path):
         return False
 
 
-def tips(repo, listing):
-    """(what, sha) of each local branch and each detached worktree but the main checkout."""
+def tips(repo, listing, upstream=None):
+    """(what, sha) of each local branch, each remote-tracking branch but HEAD's upstream (its
+    commits past HEAD are refused as behind) and each detached worktree but the main checkout."""
     found = []
-    code, refs = text(repo, "for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/heads")
+    code, refs = text(repo, "for-each-ref",
+                      "--format=%(refname)%09%(refname:short)%09%(objectname)%09%(symref)",
+                      "refs/heads", "refs/remotes")
     for line in refs.splitlines():
-        name, _, sha = line.rpartition("\t")
-        found.append(("branch " + name, sha))
+        full, name, sha, symref = (line.split("\t") + ["", "", "", ""])[:4]
+        if symref or full == upstream:
+            continue
+        found.append(("branch " + name if full.startswith("refs/heads/") else
+                      "remote branch " + name, sha))
     path = head = None
     for item in listing + [""]:
         if item.startswith("worktree "):
