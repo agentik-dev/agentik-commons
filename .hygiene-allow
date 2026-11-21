@@ -82,6 +82,12 @@ plugins/suite/lib/scaffold/hq/CLAUDE.md: sibling,renamed
 tests/test_ic2_needs.py: sibling
 tests/test_ak9b_plug_reader.py: sibling
 
+# the suite's own tool names in the fixtures that stand in for the old table's tools, each now
+# answering describe, and public.json's pages (row ak10c5-table-gone, the coordinator's ruling)
+tests/test_ak10c5_table_gone.py: sibling
+tests/test_in4_inbox.py: sibling
+tests/test_su2_read.py: sibling
+
 # the hq scaffold test's stub checks the verb a new hq runs, as the scaffold names it (row
 # dr1-door-ahead, the coordinator's ruling)
 tests/test_dr1_door_ahead.py: sibling
