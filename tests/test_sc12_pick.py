@@ -163,6 +163,14 @@ class Screens(unittest.TestCase):
             self.assertEqual(shown(t, pick.layout(st, cols, 24)[0], cols)[1:3],
                              ["❯ Run them", "  Don't run anything"])
             self.assertEqual(press(yes, ("enter", None)), (True, True))
+        long_ = pick.Confirm(t, "Run these 2 commands now, each one in its own repository, one by one?",
+                             "Run them, each in the order the plan gives, and stop at the first error",
+                             "Don't run anything, and say what each command would have done here")
+        for cols in (80, 50, 41, 40):  # layout's own lines, before any painter cuts them
+            lines = pick.layout(long_, cols, 24)[0]
+            for line in lines:
+                self.assertLessEqual(sum(term.columns(text) for text, _ in line), cols - 1, (cols, line))
+            self.assertEqual(lines[0][0][0].endswith("…"), cols < 72, lines[0])
         ascii_ = pick.Confirm(t, "Q?", "Yes", "No", utf8=False)
         self.assertEqual(shown(t, pick.layout(ascii_, 50, 24)[0], 50)[2:],
                          ["> No", "up/down move  Enter choose  Esc cancel"])

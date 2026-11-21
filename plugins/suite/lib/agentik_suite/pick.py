@@ -401,12 +401,12 @@ def _review(st):
 
 
 def _confirm(st, cols):
-    t, g = st.t, st.g
-    lines = [[(st.question, BOLD)]]
+    t, g, room = st.t, st.g, cols - 1
+    lines = [[(cut(st.question, room, g["cut"]), BOLD)]]
     for i, label in enumerate(st.rows):
         here = i == st.focus
         lines.append([(g["pointer"] + " ", FOCUS) if here else ("  ", None),
-                      (label, FOCUS if here else None)])
+                      (cut(label, room - 2, g["cut"]), FOCUS if here else None)])
     keys = [t.text("pick.key.move", arrows=g["updown"]), t.text("pick.key.choose"),
             t.text("pick.key.cancel")]
     lines += [[(x, DIM)] for x in _flow(keys, cols - 1)]
