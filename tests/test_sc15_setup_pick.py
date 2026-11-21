@@ -22,13 +22,16 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_ak3_setup import LAUNCHER, SetupHome  # noqa: E402
 import test_sm1_setup_ask as sm1  # noqa: E402  (a module: its tests are not run twice)
-from agentik_suite import catalogue, term  # noqa: E402
+from agentik_suite import catalogue, plan, term, tools  # noqa: E402
 
 ESC, UP, DOWN, ENTER = b"\x1b", b"\x1b[A", b"\x1b[B", b"\r"
 DECLINED = "since the answer was not yes"
 NEEDS_YES = "since it cannot ask you here"
 TYPED_MANY = "Run these 5 commands now? y for yes, n or Enter for no."  # the pin's bytes, 205dbce
 TYPED_ONE = "Run this 1 command now? y for yes, n or Enter for no."
+# the copy's default set, then the rest of its public.json, by name: the list's order (R5)
+DEFAULT = plan.default_set(str(LAUNCHER.parent.parent / "lib"))
+PUBLIC = tools.public(str(LAUNCHER.parent.parent / "lib"))["tools"]
 CSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
@@ -271,13 +274,13 @@ class Pick(Base):
         self.assertEqual(code, 0, text)
         same = [l for l in screen(CSI.sub("", text)) if l.startswith("same as: ")]
         self.assertEqual(len(same), 1, text)
-        self.assertTrue(same[0].endswith("setup --dry-run session decisions agents relay"), same[0])
+        self.assertTrue(same[0].endswith("setup --dry-run %s relay" % " ".join(DEFAULT)), same[0])
         argv = shlex.split(same[0][len("same as: "):])
         p = subprocess.run(argv, capture_output=True, text=True, env=self.env(), timeout=60,
                            stdin=subprocess.DEVNULL)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(out, p.stdout)
-        self.assertIn("session, decisions, agents, relay", out)
+        self.assertIn(", ".join(DEFAULT + ["relay"]), out)
 
     def test_a6_from_the_clone_the_marketplace_s_names_and_notes(self):
         """The clone's own `setup`, so the list is its marketplace file's: relay is the fourth."""
@@ -294,7 +297,7 @@ class Pick(Base):
             c.close()
         self.assertEqual(code, 0, text)
         same = [l for l in screen(text) if l.startswith("same as: ")]
-        self.assertTrue(same and same[0].endswith("/setup --dry-run session decisions agents relay"), text)
+        self.assertTrue(same and same[0].endswith("/setup --dry-run %s relay" % " ".join(DEFAULT)), text)
         p = subprocess.run(shlex.split(same[0][len("same as: "):]), capture_output=True, text=True,
                            env=self.env(), timeout=60, stdin=subprocess.DEVNULL)
         self.assertEqual((p.returncode, p.stdout), (0, out), p.stderr)
@@ -312,7 +315,7 @@ class Pick(Base):
         self.assertIn("Which plugins does setup install?", text)
         rows = [l for l in screen(text) if "[x]" in l or "[ ]" in l]
         self.assertEqual([r.split("]", 1)[1].split()[0] for r in rows[:8]],
-                         ["session", "decisions", "agents", "alpha", "beta", "relay", "respeak", "other"], text)
+                         DEFAULT + sorted(set(PUBLIC) - set(DEFAULT)) + ["other"], text)
         self.assertIn("installed", [r for r in rows if "alpha" in r][0])
 
     def test_a7_no_tick_and_a_bad_name_stay(self):
@@ -344,7 +347,7 @@ class Pick(Base):
         self.assertEqual((p.returncode, p.stdout, p.stderr), (q.returncode, q.stdout, q.stderr))
         code, out, err = self.run_cli("setup", "--pick", "--yes", "--dry-run")
         self.assertEqual(code, 0, err)
-        self.assertIn("session, decisions, agents", out)
+        self.assertIn(", ".join(DEFAULT), out)
         code, out, err = self.run_cli("status", "--pick")
         self.assertEqual(code, 2)
         self.assertIn("--pick is not a flag of status", err)
