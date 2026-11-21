@@ -472,6 +472,119 @@ class RefusalTest(Fixture):
         self.assertEqual(snapshot(self.top), before)
 
 
+def work_tree(folder):
+    """The files under `folder` but its .git, with size, mode and mtime, its folders with their
+    mode, then its HEAD, its index's bytes and its status: what a refused move leaves in the
+    holder (a folder the copy wrote in and the index lock its `git add --dry-run` takes and drops
+    move a folder's mtime, and nothing else)."""
+    seen = []
+    for base, dirs, names in os.walk(folder):
+        dirs[:] = [d for d in dirs if not (base == folder and d == ".git")]
+        for name in sorted(dirs + names):
+            st = os.lstat(os.path.join(base, name))
+            seen.append((os.path.join(base, name), st.st_mode) if stat.S_ISDIR(st.st_mode) else
+                        (os.path.join(base, name), st.st_size, st.st_mode, st.st_mtime_ns))
+    seen.append(git(folder, "rev-parse", "HEAD"))
+    seen.append(hashlib.sha256(Path(folder, ".git", "index").read_bytes()).hexdigest())
+    seen.append(git(folder, "--no-optional-locks", "status", "--porcelain", "--untracked-files=all",
+                    "--ignored"))
+    return seen
+
+
+class HolderTakesTest(Fixture):
+    """Review 2, F1 to F4: under --go, after the copy and before the clone changes, the holder's
+    own `git add --dry-run` of the printed path must take every copy; else the copies go back."""
+
+    def cases(self):
+        """(name, a setup, the refusal's words, whether the dry run sees it)"""
+        def ignore_file(text, force):
+            def setup():
+                write(self.clone, {"history/.gitignore": text})
+                git(self.clone, "add", *(["-f"] if force else []), "--", "history/.gitignore")
+                commit(self.clone)
+            return setup
+
+        def nested():
+            git(self.top, "clone", "-q", self.origin, os.path.join(self.holder, "repos"))
+
+        def submodule():
+            os.makedirs(self.dest)
+            git(self.holder, "update-index", "--add", "--cacheinfo",
+                "160000,%s,repos/widget" % git(self.holder, "rev-parse", "HEAD"))
+            git(self.holder, "commit", "-q", "-m", "a submodule at the destination")
+
+        def sparse():
+            write(self.holder, {"docs/d.md": "d\n"})
+            commit(self.holder, push=False)
+            git(self.holder, "sparse-checkout", "set", "--cone", "docs")
+
+        return [
+            ("an ignore file among the records, force-added", ignore_file("*\n", True),
+             "the ignore rule repos/widget/history/.gitignore:1:* matches it", False),
+            ("an ignore file among the records", ignore_file("*.sh\n", False),
+             "repos/widget/" + EXECUTABLE, False),
+            ("a nested repo at repos", nested, "not the holder's", True),
+            ("a submodule at the destination", submodule, "tracks a submodule here", True),
+            ("a sparse checkout without repos", sparse, "outside the holder's sparse checkout", True),
+        ]
+
+    def each(self, check):
+        for index, case in enumerate(self.cases()):
+            with self.subTest(case[0]):
+                self.fresh()
+                name, setup, words, seen = self.cases()[index]
+                setup()
+                check(words, seen)
+
+    def unchanged(self, before):
+        self.assertEqual((snapshot(self.clone), work_tree(self.holder)), before)
+        self.assertEqual(git(self.clone, "config", "--local", "--get", "agentik.records",
+                             check=False), "")
+
+    def test_go_refuses_and_takes_the_copies_back(self):
+        def check(words, seen):
+            before = snapshot(self.clone), work_tree(self.holder)
+            code, out, err = run(*self.args(go=True))
+            self.assertEqual(code, 2, out + err)
+            self.assertEqual(len(refusals(err)), 1, err)
+            self.assertIn(words, refusals(err)[0])
+            self.unchanged(before)
+        self.each(check)
+
+    def test_the_dry_run_makes_the_checks_it_can(self):
+        def check(words, seen):
+            before = snapshot(self.clone), work_tree(self.holder)
+            code, out, err = run(*self.args())
+            if seen:
+                self.assertEqual(code, 2, out + err)
+                self.assertIn(words, refusals(err)[0])
+            else:
+                self.assertEqual(code, 0, out + err)
+                self.assertIn("add --dry-run -- repos/widget exits 0 and names each copy", out)
+            self.unchanged(before)
+        self.each(check)
+
+    def test_the_proof_after_the_copy_alone(self):
+        """With every check of the destination before the copy silenced, the proof alone refuses."""
+        def check(words, seen):
+            before = snapshot(self.clone), work_tree(self.holder)
+            cut = load("records_cut_rc0_proof", SCRIPT)
+            real = cut.survey_destination
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(cut, "survey_destination",
+                                   lambda s, refuse, trees: real(s, lambda *a: None, trees)), \
+                    mock.patch.dict(os.environ, QUIET, clear=True), \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = cut.main(["records-cut"] + self.args(go=True))
+            self.assertEqual(code, 2, out.getvalue() + err.getvalue())
+            said = refusals(err.getvalue())
+            self.assertEqual(len(said), 1, err.getvalue())
+            self.assertIn("the holder's add would not take it", said[0])
+            self.assertIn("nothing changed in " + self.clone, said[0])
+            self.unchanged(before)
+        self.each(check)
+
+
 class FailedStepTest(Fixture):
     def test_a_failed_step(self):
         head = git(self.clone, "rev-parse", "HEAD")
