@@ -15,6 +15,7 @@
 | P the proof (F1 to F4) | done: after the copy and its sums, before the clone changes, each copy's folder's top is the holder's and `git add --dry-run -- repos/<name>` exits 0 naming each copy, else the copies are taken back and it refuses (exit 2); before the copy, the nearest folder's top, a submodule at or above the destination and the sparse rules (`check-rules`) are refused; `HolderTakesTest`, 3 tests over review 2's 5 fixtures |
 | R the remotes (F5) | open |
 | A `.hygiene-allow` (L3) | open |
+| U the riding fix (the coordinator's, 2026-11-20) | done: `test_up2_suite_origin` test 12's bare clone takes `--no-hardlinks`; the packet's may touch names the file |
 | N the NICE rows (L1, L2, L4) | open |
 | W the packet, the header, GUIDE §12 | open |
 | P2 the phase 2, if rr7-way-in is on main | open: not on main at open |

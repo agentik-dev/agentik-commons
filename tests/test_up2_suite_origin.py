@@ -272,7 +272,8 @@ class EndToEnd(tu.Base):
         self.git("add", ".", cwd=src)
         self.git("commit", "-q", "-m", "one", cwd=src)
         origin = os.path.join(self.tmp, "origin.git")
-        self.git("clone", "-q", "--bare", src, origin)
+        # no hardlinks: a link into objects another process writes can break mid-clone
+        self.git("clone", "-q", "--bare", "--no-hardlinks", src, origin)
         clone = os.path.join(h.home, "agentik-commons")
         self.git("clone", "-q", origin, clone)
         code, out, err = h.run("--yes", "murmur", exe=os.path.join(clone, "setup"))

@@ -5,7 +5,7 @@
 | from | the coordinating repo's brief rc0-records-cut of 2026-11-20, R1 to R7, on the row's design D1 to D4 (entry 63, design/28 §3 items 2, 3, 5, 7, 10 and 20); level S3 |
 | pin | agentik-commons main b4b4cc8; worktree `.claude/worktrees/rc0-records-cut`, branch `rc0-records-cut`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; `--go` only inside a test's temp folders; no vendored script edited; made-up names in fixtures |
-| may touch | `scripts/records-cut`, `tests/test_records_cut.py`, `GUIDE.md` (new sentences in §12), `NICE_TO_HAVE.md` (rows), `history/NICE-overflow.md` (its oldest S4 rows, for the bound), `design/packets/rc0-records-cut.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
+| may touch | `scripts/records-cut`, `tests/test_records_cut.py`, `GUIDE.md` (new sentences in §12), `NICE_TO_HAVE.md` (rows), `history/NICE-overflow.md` (its oldest S4 rows, for the bound), `design/packets/rc0-records-cut.md`, `history/sittings/*.md`, `history/sessions/NEXT`, `tests/test_up2_suite_origin.py` (its bare clone takes `--no-hardlinks`, the coordinator's riding fix of 2026-11-20) |
 | verify | `python3 -m unittest tests.test_records_cut` directly; `make check` once, last, through the gate queue; `scripts/hygiene --require-private` on the tree and on `--commits main..HEAD` |
 | acceptance | 1 to 10 below |
 
