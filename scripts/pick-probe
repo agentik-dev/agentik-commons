@@ -352,6 +352,35 @@ def cases(python, home):
                   "status %s, answer %r, %d sent over %.2f s" % (status, got, sent, took))
         finally:
             c.close()
+    c = child("confirm")  # the size line: no key answers a question off the screen
+    try:
+        c.until(b"\x1b[?2004h")
+
+        def size(cols):  # False once the terminal is gone: the child answered and left
+            try:
+                fcntl.ioctl(c.slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
+                os.kill(c.pid, signal.SIGWINCH)
+            except OSError:
+                return False
+            return True
+        mark = len(c.read())
+        size(30)
+        small = c.until(b"needs 40 columns", start=mark)
+        c.send(b"y", ENTER, gap=0.2)
+        time.sleep(0.3)
+        open_, drawn = not c.done(), False
+        if open_:
+            mark = len(c.read())
+            drawn = size(80) and c.until(b"Run these 2 commands now?", start=mark)
+            if drawn:
+                c.send(b"y", ENTER, gap=0.2)
+        status = c.wait()
+        got = c.answer().strip()
+        check(small and open_ and drawn and status == 0 and got == "true",
+              "the yes or no cut to 30 columns: y, Enter answer nothing; grown again, y, Enter: yes",
+              "size line %s, still open %s, drawn %s, status %s, answer %r" % (small, open_, drawn, status, got))
+    finally:
+        c.close()
     c = child("late-confirm")
     try:
         time.sleep(0.4)

@@ -218,6 +218,35 @@ class Keys(unittest.TestCase):
             feed(pick._Ask(st), form)
             self.assertEqual(st.qs[0].filter, "", form)
 
+    def test_f2_no_key_acts_while_the_frame_is_the_size_line(self):
+        def screen(state, keys, size):
+            s = pick._Screen.__new__(pick._Screen)
+            s.t, s.st, s.keys, s.paste, s.prefix = state.t, state, keys, None, ""
+            s.up, s.clear, s.dirty, s.out_fd, s.small = 0, False, True, 1, False
+            old = os.get_terminal_size
+            os.get_terminal_size = lambda fd=None: os.terminal_size(size)
+            try:
+                s._frame()
+            finally:
+                os.get_terminal_size = old
+            return s
+        st = pick.Confirm(a_term(), "Q?", "Yes", "No")
+        s = screen(st, pick._Yes(st), (30, 24))
+        self.assertEqual([s._event(k) for k in (("text", "y"), ("enter", None))], [(False, None)] * 2)
+        self.assertEqual(st.focus, 1)
+        s = screen(st, pick._Yes(st), (80, 24))  # the window grown, the frame drawn again
+        self.assertEqual([s._event(k) for k in (("text", "y"), ("enter", None))], [(False, None), (True, True)])
+        st = pick.State(a_term(), [effort()], utf8=True)
+        s = screen(st, pick._Ask(st), (80, 5))
+        self.assertEqual(s._event(("down", None)), (False, None))
+        self.assertEqual(s._event(("enter", None)), (False, None))
+        s._event(("paste_on", None))
+        s._event(("text", "x"))
+        s._event(("paste_off", None))
+        self.assertEqual(st.qs[0].focus, 1)  # the default, medium, untouched
+        with self.assertRaises(pick.Cancelled):
+            s._event(("esc", None))
+
     def test_a3_a_split_sequence_waits(self):
         self.assertEqual(pick.parse(b"\x1b[", False, True), (None, 0))
         self.assertEqual(pick.parse(b"\x1b[A", False, True), (("up", None), 3))

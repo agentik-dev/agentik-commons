@@ -678,6 +678,7 @@ class _Screen:
         self.saved = self.raw = None
         self.up, self.left, self.dirty, self.clear, self.prefix = 0, b"", True, False, ""
         self.caught, self.leaving, self.ours, self.cont, self.resized = None, False, False, False, False
+        self.small = False  # the last frame drawn was the size line: no key but Esc acts
         self.paste, self.paste_at, self.handlers, self.wake, self.old_wake = None, 0.0, {}, None, -1
         self.held = [getattr(signal, n) for n in HELD if hasattr(signal, n)]
 
@@ -810,6 +811,7 @@ class _Screen:
         except OSError:
             cols, rows = 80, 24
         lines, cursor = layout(self.st, cols, rows)
+        self.small = cols < MIN_COLS or rows < MIN_ROWS
         g = self.st.g
         out = [self.prefix, "\x1b[?25l"]
         self.prefix = ""
@@ -855,7 +857,8 @@ class _Screen:
         if self.paste is not None:
             if name == "paste_off":
                 text, self.paste = "".join(self.paste), None
-                self.keys.paste(text)
+                if not self.small:
+                    self.keys.paste(text)
                 self.dirty = True
             elif name == "text":
                 self.paste.append(value)
@@ -868,6 +871,8 @@ class _Screen:
             return False, None
         if name in ("none", "paste_off"):
             return False, None
+        if self.small and name not in ("esc", "eof"):
+            return False, None  # the question is off the screen: nothing is answered unseen
         self.dirty = True
         return self.keys(name, value)
 
@@ -903,6 +908,9 @@ class _Screen:
                         return got
                     raise Cancelled()
                 buf += data
+            if buf and self.resized:  # a key read with a resize: the frame it acts on first
+                self._flags()
+                self._pump()
             while buf:
                 event, used = parse(buf, final, self.utf8)
                 if event is None:
