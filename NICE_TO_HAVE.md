@@ -36,16 +36,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 |---|---|---|---|---|---|
 | n212 | S3 | `plugins/suite` `init.py` `_write` | a SIGTERM while `git init` runs leaves the whole stage beside DIR as `tmpXXXXXXXX` (exit 143), and a `KeyboardInterrupt` in the move leaves part of the scaffold, as the undo runs on `OSError` alone; a stage named for DIR, SIGTERM handled, an undo on `BaseException`, re-raised | ak11-init review 1, F4 | 2026-11-15, ak11-init review 1 |
 
-## From packet sc6-config (review 1)
-
-| id | level | area | finding | evidence | from |
-|---|---|---|---|---|---|
-| n223 | S4 | `plugins/suite` `config.py` search | `config BETA`, where `beta` is a tool, is a search, not beta's screen (`config beta` shows it); R1 folds the match but not the tool-name check; fold the word before comparing with the tools' names | stubs `alpha` (key `beta.x`) and `beta`: `config BETA` lists `alpha.beta.x` | 2026-11-15, sc7-config-find review 1 |
-| n224 | S4 | `plugins/suite` `config.py` search | a hyphenated word never matches a summary: `\w+` splits at `-` and `'`; `alpha.cap`'s summary "Sets the max-turns cap for a sitting." is not found by `config max-turns`, which lists only key `alpha.max-turns`; within R1's letter | stub `alpha` with keys `max-turns` and `cap`: one row | 2026-11-15, sc7-config-find review 1 |
-| n225 | S4 | `term.py` `_wrap` | a key with a space wraps in two on a pty, so it cannot be read as one word: `alpha.$(touch` then `PWNED).tension` at 80 columns (28 columns, past a third); a pipe prints it whole; term's name wrapping at the pin | stub key `$(touch PWNED).tension`, `config tension` on a pty at 80 columns | 2026-11-15, sc7-config-find review 1 |
-| n226 | S4 | `term.py` `fit` | `fit` can leave a space before its mark: the cut `The turns this sitting is metered …` at 66 columns; rstrip the kept text before adding `…` | `config turns` on a pty at 66 columns with a stub `session.ceilings.turns` of that summary | 2026-11-15, sc7-config-find review 1 |
-| n227 | S4 | `scripts/agentik_install.py` `prune`, `uninstall` | a removed tree's bytecode stays under `<cache>/agentik/pycache/<its real path>`, the prune's and `remove <tool>`'s alike; only `remove --all` clears it | one machine: 95 MB in 4,798 files, 44 session trees' bytecode where 5 stand | 2026-11-16, the install and upgrade review, finding 14 |
-
 ## From packet up2-suite-origin (review 1)
 
 | id | level | area | finding | evidence | from |
@@ -192,3 +182,10 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n284 | S4 | `pick.py` the screen | a paste that starts under the size line and ends after the window grows lands whole in the filter; a form of 14 questions has a review screen of 17 lines against a 13-row window | sc12-picker review 2 L7, review 1 L4 | 2026-11-21, sc12-picker reviews 1 and 2 |
 | n285 | S4 | `pick.py` a caller's edges | a value with a tab, line break, control or zero-width character prints a `same as:` of another argv; a caller ignoring SIGHUP still has its picker cancelled; the non-waiting write sets the terminal non-blocking for a write; an 8-bit CSI types its letter in UTF-8 | sc12-picker review 1 L2, L6 and its observations | 2026-11-21, sc12-picker review 1 |
 | n286 | S4 | `tests/test_sc12_pick.py` the one-reader test | a read behind an alias with none of its three words passes: `from sys import stdin as s; s.readline()`, `getattr(sys.stdin, "readline")()` | sc12-picker review 2 L9 | 2026-11-21, sc12-picker review 2 |
+
+## From packet sc15-setup-pick (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n287 | S4 | `apply.py` `pick_names`, SIGTERM | SIGTERM at `setup --pick`'s list ends the process by the signal, with no closing line, where SIGTERM at the yes or no exits 2 with the no's line; nothing runs in either | sc15-setup-pick review 1's observation (its probe p10) | 2026-11-21, sc15-setup-pick review 1 |
+| n288 | S4 | `apply.py` `needs_yes` after a named run | the refusal after `setup alpha beta`, or `setup --pick alpha` under `CI`, names `setup --yes` without the names given; so at the pin too | sc15-setup-pick review 1's observation | 2026-11-21, sc15-setup-pick review 1 |
