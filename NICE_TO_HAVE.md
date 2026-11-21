@@ -7,10 +7,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n256 | S4 | `scripts/hygiene` `records` | a repo may extend the record names from its own `.hygiene-allow`, as a tree that keeps `.claude/` out wants | hq design/28 §11 lead 4 | 2026-11-18, rr3-records-guard |
-| n194 | S4 | `plugins/suite` `cli.py` `help` | where a plugin's command sits under its root off PATH (fk_homes hD), `agentik help T` exits 3 while `agentik T --help` runs the tool's file (R1) | review 1 lead, the exit code alone seen | 2026-11-14, ak9b-plug-reader review 1 |
-| n193 | S4 | `tests/test_sc10_doctor_checks.py` a10, `tests/test_ak3d_doctor.py` line 5 | the two timing tests set `tools.WALL` to 0.5 s, so no test holds the describe wall R5 adds before the doctor's deadline at its real 2 s (a worst case of 32 s, against 30 s at the pin) | review 1 lead, six hung tools: 5.0 s at head, 3.0 s at the pin, the deadline at 3 | 2026-11-14, ak9b-plug-reader review 1 |
-| n192 | S4 | `plugins/suite` `config.py` `_list` | in `agentik config`, R3's reason is a cell after the state, in the settings column, so where one reason shows every row's `N settings` pads by about 27 columns | review 1 lead, the config table at the pin and at head | 2026-11-14, ak9b-plug-reader review 1 |
-| n191 | S4 | `plugins/suite` `update.py` | with output sent to a file, `agentik update` prints its `running claude plugin marketplace update agentik` line above the plan's first line, since the two streams are not flushed in order; not fixed | the first real run of `agentik update`, in ak9b-plug-reader's start line | 2026-11-14, ak9b-plug-reader build 1 |
 | n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
 | n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
@@ -39,9 +35,6 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
-| n200 | S4 | `plugins/suite` `cli.py` help | `help` lists no claimed verb: a word a tool claims runs from `agentik <word>`, and no help screen names it | brief R9; design/15 P2 | 2026-11-14, ak9c build 1 |
-| n201 | S4 | `plugins/suite` `tools.py` `claims` | a claim of a word that is a tool's or a plugin's name reads as counting in `config T --json`, though `_not_a_verb` settles that word first and never runs the claim | read; `cli.py` `_not_a_verb` | 2026-11-14, ak9c build 1 |
-| n202 | S4 | `plugins/suite` `tools.py` `describe_all` | a describe that hangs is never cached, so a word that is nothing pays the whole wall each time while a tool hangs: 2.06 s against the pin's 0.05 s with six hanging tools; inside R6's wall | review 1's lead, probe `cost` | 2026-11-14, ak9c review 1 |
 
 ## From packet ak11-init (build 1 and review 1)
 
@@ -152,3 +145,13 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n258 | S4 | `plugins/suite` `completion.py` | `config <tool>.<Tab>` offers no key, since a tool's keys need its config read and so a process; lead: keep the keys of each config read beside the describe cache | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n259 | S4 | `plugins/suite` `completion.py` | past a tool's first word nothing is offered, its second-level words and its flags included, since P10's `describe` carries first-level verbs alone | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n260 | S4 | `plugins/suite` `completion.py` | no fish: `completion fish` is refused; lead: a third script on the same callback | row ak12-polish D7 | 2026-11-19, ak12-polish |
+
+## From row rr7-way-in (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n262 | S4 | `scripts/sync` `table` | a private sync target with a regular `LICENSE` gets `SECURITY.md`, which points at a form its host does not serve for a private repo; lead: a rule for a public repo alone (a marker or a list) | review 1 F2: a private target's `--check` said `behind` and `unlisted` for both pages; the host's form read 404 there | 2026-11-20, rr7-way-in review 1 |
+| n263 | S4 | `scripts/sync` `table` | the `LICENSE` test follows the volume's case: where it is case-insensitive a repo with only `license` gets both pages, where it is not, neither; lead: match the exact name | review 1 F5: a scratch repo with a file `license` held both pages after `sync` | 2026-11-20, rr7-way-in review 1 |
+| n264 | S4 | `scripts/sync` `place` | `sync` overwrites a repo's own `CONTRIBUTING.md` without a word, and its stdout names no page; lead: name the two pages on the stdout line where it places them | review 1 F6: a hand-written page read `# Contributing` after `sync`, exit 0 | 2026-11-20, rr7-way-in review 1 |
+| n265 | S4 | `scripts/sync` `--check` | a repo that drops its `LICENSE` keeps both pages: `--check` says `unlisted` for each, and the next `sync` makes it quiet with the pages still there; lead: `stale <page>` | review 1 F7: a second `sync` printed `every copy is commons'`, exit 0, both pages at the root | 2026-11-20, rr7-way-in review 1 |
+| n266 | S4 | `scripts/sync` `place` | a folder at a destination (`CONTRIBUTING.md/`) ends the run in exit 1 and leaves `.CONTRIBUTING.md.sync.<pid>` and `scripts/.vendored.sync.<pid>`; lead: refuse a folder at a destination before any write | review 1 F8: `shasum: CONTRIBUTING.md: Is a directory`; a folder at `scripts/<x>` at the pin not checked | 2026-11-20, rr7-way-in review 1 |
