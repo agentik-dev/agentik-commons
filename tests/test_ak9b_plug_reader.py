@@ -19,14 +19,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fk_homes import build  # noqa: E402
-from test_agentik_suite import ESC, LIB, PLUGIN  # noqa: E402
+from test_agentik_suite import ESC, LIB, PLUGIN, add_public  # noqa: E402
 from test_sc10_doctor_checks import MARK, ROW as CHECK_ROW, Checks  # noqa: E402
 from agentik_suite import cli, doctor, tools  # noqa: E402
 
 T = "murmur"
 SUITE = "agentik-suite"
-TABLE_ROW = {"lines": ["agentik murmur doctor"], "user_file": None, "needs": [], "status": []}
-PAGE = "https://example.com/murmur#install"
+PAGE = "https://github.com/example-org/murmur#install"
 LOG = 'echo "$*" >> "$HOME/ran.log"\n'
 MESSAGE = "line 3 of /opt/acme/murmur.yaml does not parse"
 REMEDY = "murmur-mend /opt/acme/murmur.yaml"
@@ -118,12 +117,7 @@ class Copy(unittest.TestCase):
         self.root = os.path.join(self.tmp, "suite")
         shutil.copytree(str(PLUGIN), self.root, ignore=shutil.ignore_patterns("__pycache__"))
         self.launcher = os.path.join(self.root, "bin", SUITE)
-        path = os.path.join(self.root, "lib", "fallback.json")
-        with open(path) as fh:
-            table = json.load(fh)
-        table[T] = dict(TABLE_ROW, page=self.page) if self.page else dict(TABLE_ROW)
-        with open(path, "w") as fh:
-            json.dump(table, fh)
+        add_public(os.path.join(self.root, "lib"), {T: {"own": bool(self.page)}})
 
     def home(self, name):
         self.count = getattr(self, "count", 0) + 1
@@ -469,13 +463,6 @@ class DoctorTest(Checks):
                 _, _, obj = self.json_of(PATH=path)
                 group = [g for g in obj["tools"] if g["name"] == T][0]
                 self.assertEqual([c["remedy"] for c in group["checks"] if c["status"] == "fail"], [None])
-
-
-class TableTest(unittest.TestCase):
-    def test_10_the_table_holds_five_rows(self):
-        table = tools.fallback(str(LIB))
-        self.assertEqual(len(table), 5)  # respeak's joined at row ic2-needs R1
-        self.assertTrue(all(row.get("lines") for row in table.values()))
 
 
 class UpdateTest(unittest.TestCase):

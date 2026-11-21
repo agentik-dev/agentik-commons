@@ -76,10 +76,10 @@ class PluginWordTest(Home):
         # the suite's own name is never a missing plugin
         self.assertEqual(self.run_cli("suite")[0], 2)
 
-    def test_a4_a_row_of_the_fallback_table_counts(self):
-        from test_agentik_suite import LIB
-        rows = json.loads((LIB / "fallback.json").read_text())
-        name = sorted(rows)[0]
+    def test_a4_a_tool_of_public_json_counts(self):
+        from test_agentik_suite import LIB  # re-based (ak10c5 R4): public.json names the tools
+        rows = json.loads((LIB / "public.json").read_text())["tools"]
+        name = sorted(n for n in rows if n != "suite")[0]
         code, _, err = self.run_cli(name)
         self.assertEqual(code, 3)
         self.assertIn("setup %s" % name, err)

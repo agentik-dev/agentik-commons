@@ -1,6 +1,7 @@
 """Row fh13-relay-plan: setup says which command it cannot place and names the tool's page.
 
-`murmur` is a made-up tool whose table row in a temp copy of the suite's plugin holds a `page`;
+`murmur` is a made-up tool that installs its own command, by the public.json of a temp copy of
+the suite's plugin, so it has a page;
 `plain` is one with none. Each home is fk_homes' in a temp HOME: `h0` empty, `hL` the tool's
 `@agentik` plugin with no `bin/`, `hM` that with an executable stub at `~/.local/bin`. The
 terminal's PATH is `~/.local/bin:/usr/bin:/bin` and a folder holding a stub `claude` that logs its
@@ -20,14 +21,13 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fk_homes import RAN, build  # noqa: E402
-from test_agentik_suite import PLUGIN, version  # noqa: E402
+from test_agentik_suite import PLUGIN, add_public, version  # noqa: E402
 from test_sc3_table import plain as unpaint, pty_run  # noqa: E402
 from agentik_suite import apply, plan  # noqa: E402
 
 T, P = "murmur", "plain"
-PAGE = "https://example.com/murmur#install"
+PAGE = "https://github.com/example-org/murmur#install"
 SUITE = "agentik-suite"
-ROW = {"lines": ["agentik murmur doctor"], "user_file": None, "needs": [], "status": []}
 PAGE_LINE = "its page has the line: %s" % PAGE
 LAUNCHER_PAGE = "not placed, and not setup's to place: murmur installs its own command"
 DOCTOR_PAGE = "not checked: its command is not installed yet"
@@ -49,13 +49,7 @@ class Base(unittest.TestCase):
         shutil.copytree(str(PLUGIN), self.root, ignore=shutil.ignore_patterns("__pycache__"))
         self.lib = os.path.join(self.root, "lib")
         self.launcher = os.path.join(self.root, "bin", SUITE)
-        path = os.path.join(self.lib, "fallback.json")
-        with open(path) as fh:
-            table = json.load(fh)
-        table[T] = dict(ROW, page=self.page)
-        table[P] = dict(ROW, lines=["agentik plain doctor"])
-        with open(path, "w") as fh:
-            json.dump(table, fh)
+        add_public(self.lib, {T: {"own": True}, P: {}})
 
     def home(self, name, tool=T):
         self.count = getattr(self, "count", 0) + 1

@@ -129,8 +129,7 @@ class HygieneTest(unittest.TestCase):
         self.assertTrue(sibling.search(text))
         rows = [l for l in (ROOT / ".hygiene-allow").read_text().splitlines()
                 if l and not l.startswith("#")]
-        at = rows.index("plugins/suite/lib/fallback.json: sibling")
-        self.assertEqual(rows[at + 1], "plugins/suite/lib/public.json: sibling")
+        self.assertIn("plugins/suite/lib/public.json: sibling", rows)  # re-based (ak10c5 R8)
 
 
 class ModuleTest(unittest.TestCase):

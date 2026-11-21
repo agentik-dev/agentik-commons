@@ -538,18 +538,24 @@ class CallTest(InboxHome):
         self.assertTrue(self.calls_of())
         self.assertFalse([c for c in self.calls_of() if self.plum in c])
 
-    def test_16_the_table(self):
-        with open(os.path.join(str(LIB), "fallback.json")) as fh:
-            table = json.load(fh)
-        rows = {name: row["inbox"] for name, row in table.items() if row.get("inbox")}
+    def test_16_the_pins_reads_from_describe(self):
+        """Re-based (ak10c5 R1, R8): the table's inbox reads at the pin (charter from the session,
+        questions and backlog from decisions), each now named by its tool's describe."""
+        from test_su2_read import PIN_READS, describe_of
+        rows = {"session": [r for r in PIN_READS["session"] if r["name"] == "charter"],
+                "decisions": [r for r in PIN_READS["decisions"] if r["name"] in ("questions", "backlog")]}
         self.assertEqual(sorted(r["name"] for rs in rows.values() for r in rs), ["backlog", "charter", "questions"])
         folder = os.path.join(self.side, "rec")
         os.mkdir(folder)
         calls = os.path.join(self.side, "rec-calls")
         for name in rows:
             path = os.path.join(folder, "agentik-" + name)
+            answer = os.path.join(self.side, name + "-describe.json")
+            with open(answer, "w") as fh:
+                json.dump(describe_of(name, PIN_READS[name]), fh)
             with open(path, "w") as fh:
-                fh.write(base.RECORDER % calls)
+                fh.write(base.RECORDER.replace("#!/bin/sh\n", "#!/bin/sh\nif [ \"$1 $2\" = 'describe --json' ]; "
+                                               "then cat '%s'; exit 0; fi\n" % answer) % calls)
             os.chmod(path, 0o755)
         code, out, err = self.inbox(self.pear, path="%s:%s" % (folder, SYSTEM))
         self.assertEqual(code, 0, err)
@@ -558,7 +564,6 @@ class CallTest(InboxHome):
         want = sorted("%s %s" % (os.path.join(folder, "agentik-" + name), " ".join(r["argv"] + [self.pear]))
                       for name, rs in rows.items() for r in rs)
         self.assertEqual(got, want)
-        self.assertNotIn("describe", "\n".join(got))
 
 
 class HelpTest(InboxHome):

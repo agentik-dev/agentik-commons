@@ -119,11 +119,11 @@ class Home(unittest.TestCase):
 
 
 class NeedTest(Home):
-    def test_r1_the_table_names_respeaks_need(self):
-        with open(str(LIB / "fallback.json")) as fh:
+    def test_r1_public_json_names_respeaks_need(self):
+        with open(str(LIB / "public.json")) as fh:  # re-based (ak10c5 R4)
             table = json.load(fh)
-        self.assertEqual(table["respeak"]["needs"], ["PyYAML"])
-        self.assertEqual(table["relay"]["needs"], ["Go"])
+        self.assertEqual(table["needs"]["respeak"], ["PyYAML"])
+        self.assertEqual(table["needs"]["relay"], ["Go"])
 
     def test_r1_the_dry_run_names_the_need_in_step_1(self):
         code, text = self.run_both(["./setup", "--dry-run", "respeak"])

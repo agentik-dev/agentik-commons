@@ -82,7 +82,7 @@ class Close(tu.Base):
         h = self.home(("murmur", "relay"))
         h.install("relay@agentik", "0.2.3", "0.2.4")
         h.file(os.path.join(h.bindir, "agentik-relay"), "#!/bin/sh\necho 0.2.2\n")  # a stand-in
-        page = tools.page(tools.fallback(str(PLUGIN / "lib")), "relay")
+        page = tools.page(str(PLUGIN / "lib"), "relay")  # re-based (ak10c5 R4)
         self.assertTrue(page)
         code, out, err = h.run("update", "--yes")
         self.assertEqual(code, 0, out + err)

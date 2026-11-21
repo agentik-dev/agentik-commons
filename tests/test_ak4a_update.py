@@ -217,6 +217,20 @@ class Base(unittest.TestCase):
         return h
 
 
+def runner_stubs(h, session_body="echo null"):
+    """The stand-ins whose describes name the `run` read (relay) and the `unattended` read
+    (session), as the real tools do: the hold finds both through describe (row ak10c5 R5)."""
+    for name, reads, body in (("relay", [["run", ["status", "--json"]]], "exit 2"),
+                              ("session", [["unattended", ["unattended", "status", "--json"]]],
+                               "[ \"$1 $2 $3\" = 'unattended status --json' ] || exit 2\n" + session_body)):
+        answer = {"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
+                  "summary": "A stand-in.", "repo": "example-org/" + name, "plugin": None, "needs": [],
+                  "verbs": [], "reads": [{"kind": "status", "name": n, "argv": a} for n, a in reads]}
+        h.file(os.path.join(h.bin, "agentik-" + name),
+               "#!/bin/sh\nif [ \"$1 $2\" = 'describe --json' ]; then echo '%s'; exit 0; fi\n%s\n"
+               % (json.dumps(answer), body))
+
+
 class UpdateTest(Base):
     def test_1_two_plugins_behind_are_moved_and_placed_then_the_doctor_reads(self):
         h = self.two_behind()
@@ -250,6 +264,7 @@ class UpdateTest(Base):
 
     def test_3_a_relay_run_holds_the_update(self):
         h = self.two_behind()
+        runner_stubs(h)  # re-based (ak10c5 R5): found through describe
         for line, what in (("4242 /opt/tools/relay run --row r1\n", "a relay run is live (pid 4242)"),
                            ("51 agentik relay gate\n", "a relay run is live (pid 51)"),
                            ("52 /usr/local/bin/agentik-relay plan x.md\n", "a relay run is live (pid 52)")):
@@ -279,9 +294,8 @@ class UpdateTest(Base):
 
     def test_5_the_session_tools_answer(self):
         h = self.two_behind()
-        session = os.path.join(h.bin, "agentik-session")
         for body, held in (("echo '{\"id\": \"u1\"}'", True), ("echo null", False), ("sleep 5; echo '{}'", False)):
-            h.file(session, "#!/bin/sh\n[ \"$1 $2 $3\" = 'unattended status --json' ] || exit 2\n%s\n" % body)
+            runner_stubs(h, body)  # re-based (ak10c5 R5): the session answers describe too
             with mock.patch.object(update, "SESSION_WALL", 0.5):
                 start = time.monotonic()
                 got = update.hold(h.command("update"))
@@ -404,6 +418,7 @@ class ReviewOneTest(Base):
 
     def test_13_a_held_run_with_json_prints_one_object(self):
         h = self.two_behind()
+        runner_stubs(h)  # re-based (ak10c5 R5): found through describe
         h.ps("4242 /opt/tools/relay run --row r1\n")
         for args, dry in ((("update", "--json"), False), (("update", "--dry-run", "--json"), True)):
             code, out, err = h.run(*args)
@@ -444,6 +459,7 @@ class ReviewOneTest(Base):
         for line in free:
             self.assertIsNone(update.runner_pid(line + "\n", "relay"), line)
         h = self.two_behind()
+        runner_stubs(h)  # re-based (ak10c5 R5): found through describe
         h.ps("4243 /Volumes/a b/bin/relay run --row r1\n")
         code, out, err = h.run("update", "--dry-run")
         self.assertEqual(code, 2, out + err)
