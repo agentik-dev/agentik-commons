@@ -496,12 +496,25 @@ def _sources(t, obj, named=()):
     return rows
 
 
+def _says_not_read(obj, w):
+    """True when the screen draws part `w` with its own not-read line: a part the object holds as
+    `not read`, or one of the five the object lacks (row sn1-need-notread R2)."""
+    if w not in BUILD:
+        return False
+    if w not in obj:
+        return w not in SU6
+    p = obj.get(w)
+    return isinstance(p, dict) and p.get("state") == "not read"
+
+
 def _not_read(t, obj):
+    """The words of `not_read` no part above says, so the screen says a part not read once."""
     words = []
     for w in seq(obj.get("not_read")):
         if not isinstance(w, str):
             raise Wrong(w)
-        words.append(t.messages.get("status.not_read." + w) or w)
+        if not _says_not_read(obj, w):
+            words.append(t.messages.get("status.not_read." + w) or w)
     return [row(", ".join(words), DIM)] if words else []
 
 

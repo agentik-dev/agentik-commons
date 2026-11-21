@@ -25,7 +25,6 @@ LISTED = ("watchers", "sessions", "gate", "runs")  # the parts held against the 
 WALL = 1.0
 STDERR_MAX = 300
 TEXT_MAX = 80  # a word an answer gives that the object holds as text: a run, a row, a reason
-NOT_READ = ("owner", "rows")  # the words of the parts that may read nothing, in the line's order
 CLOSED = ("closed", "done")  # a row's state that is not in flight
 OWNER_ON = re.compile(r"(the owner|owner(\s+[0-9]+)?)\Z")  # a waiting step's `on`
 UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z")
@@ -427,6 +426,12 @@ def _owner(charters, backlogs):
     return part
 
 
+def not_read(parts):
+    """The parts whose state is `not read`, in PARTS' order (row sn1-need-notread R2): every part
+    but `watchers`, which is a list of watcher rows and carries no state."""
+    return [p for p in PARTS if p != "watchers" and parts[p].get("state") == "not read"]
+
+
 def _watchers(watchers, procs, now, env, uid, hand):
     found = [status.check(w, procs, now, env, uid) for w in watchers]
     for r in found:
@@ -679,7 +684,7 @@ def compose(cmd, paths, now, ps_text, on_part=None):
     ranked = sorted(enumerate(srcs), key=lambda p: (
         p[1]["state"] == "not drawn", order.get(READS.get(p[1]["name"]), 99), p[0]))
     obj["sources"] = [_shown(s) for _, s in ranked]
-    obj["not_read"] = [w for w in NOT_READ if parts[w]["state"] == "not read"]
+    obj["not_read"] = not_read(parts)
     return obj
 
 

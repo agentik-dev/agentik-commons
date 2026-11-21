@@ -145,11 +145,17 @@ class FailingTest(RowsHome):
         self.assertEqual((self.source(obj, "rows")["state"], obj["rows"]["state"]), ("unreadable", "not read"))
         self.assertIn("rows", obj["not_read"])
         lines = self.screen()
-        self.assertEqual(self.not_read(lines)[-1].split(None, 2)[-1], "the rows in flight")
+        # said once, in its own part, never again in the foot (row sn1-need-notread R2)
+        self.assertFalse([l for l in self.not_read(lines) if "the rows in flight" in l], lines)
         self.assertTrue(self.part_lines(lines, "backlog"))
         self.assertTrue([l for l in self.part_lines(lines, "rows") if "failed" in l])
 
     def test_e_json_holds_both_parts(self):
+        obj = self.read(self.hq)
+        self.assertEqual(obj["not_read"], ["sessions"])  # no tool here gives it (row sn1 R2)
+        agents, _ = self.tool("agents")
+        self.described("agents", agents)
+        self.answer(agents, **{"status --json": {"file": os.path.join(FIX, "..", "su2", "read", "sessions.json")}})
         obj = self.read(self.hq)
         self.assertEqual(obj["not_read"], [])
         rows = obj["rows"]

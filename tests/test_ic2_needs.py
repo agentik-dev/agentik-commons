@@ -182,8 +182,9 @@ class NeedTest(Home):
 
     def test_f2_the_row_says_what_was_read(self):
         code, text = self.run_both(["./setup", "--dry-run", "respeak"])
-        self.assertIn("the python3 first on PATH has no PyYAML; setup goes on without it",
-                      self.need_lines(text)[0])
+        line = self.need_lines(text)[0]  # every interpreter tried, the one first on PATH first (row sn1 R1)
+        self.assertIn("respeak needs it, and none of python3, ", line)
+        self.assertIn(" has PyYAML; setup goes on without it", line)
 
     def test_r1_the_message(self):
         text = MESSAGES["setup.need.missing"]

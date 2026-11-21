@@ -29,7 +29,8 @@ from agentik_suite import catalogue, status_read, status_screen, term, tools  # 
 
 SCREEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "su2", "screen")
 WORDS = catalogue.load()
-LABELS = ("watchers", "sessions", "gate", "backlog", "runs", "sources", "not read")
+# the foot's `not read` label goes: the rows part says itself not read (row sn1-need-notread R2)
+LABELS = ("watchers", "sessions", "gate", "backlog", "runs", "sources")
 SLOTS = {"status": "agentik status", "doctor": "agentik doctor", "tool": "agentik"}  # cmd.slots()'s
 WHOLE = re.compile(r"^\s*(see: |start it: |and \d+ more: )")
 
