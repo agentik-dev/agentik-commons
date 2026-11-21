@@ -420,6 +420,12 @@ class RefusalTest(Fixture):
             # F5 and L3: an upstream past HEAD, and a remote-tracking branch with a record commit
             ("behind its upstream", other_pushes(None), "1 commits behind its upstream origin/main"),
             ("a remote branch", other_pushes("feat"), "remote branch origin/feat"),
+            # L4: a holder whose commit would go to the clone's own remote
+            ("a holder sharing the clone's remote", lambda: git(
+                self.holder, "remote", "add", "origin", self.origin) and None, "republish"),
+            ("a holder sharing it in another spelling", lambda: git(
+                self.holder, "remote", "add", "pub", "file://" + self.origin + "/") and None,
+             "republish"),
         ]
 
     def test_each_refusal_alone(self):

@@ -219,6 +219,13 @@ def survey(repo_arg, holder_arg):
             refuse(htop, "the holder lies inside the clone or one of its worktrees")
         else:
             survey_destination(s, refuse, trees)
+            mine = remote_urls(s["repo"])
+            for name, url in remote_urls(htop):
+                theirs = [n for n, u in mine if u == url]
+                if theirs:
+                    refuse(htop, "the holder's remote %s has the URL of the clone's remote %s, so"
+                           " its commit would republish the records" % (name, theirs[0]))
+                    break
     if agentik_records._declares(htop):
         refuse(htop, "the holder declares records: out itself")
     return s, refused
@@ -302,6 +309,26 @@ def survey_clone(s, refuse, listing):
     elif not same_names(os.path.join(repo, SCANNER)):
         refuse(os.path.join(repo, SCANNER), "holds other record names than this script, so the "
                "move cannot be proved: sync it from commons first")
+
+
+def remote_urls(top):
+    """[(remote, its URL as compared)] of each fetch and push URL of each remote of `top`: a
+    local path or file URL by its real path, any other case-folded; less a trailing / or .git."""
+    found = []
+    for name in text(top, "remote")[1].splitlines():
+        for more in ([], ["--push"]):
+            for url in text(top, "remote", "get-url", "--all", *more, "--", name)[1].splitlines():
+                url = url.strip()
+                if url.startswith("file://"):
+                    url = url[len("file://"):]
+                head = url.split("/", 1)[0]
+                if "://" in url or (":" in head and not os.path.isabs(url)):
+                    url = url.casefold()
+                else:
+                    url = os.path.realpath(os.path.join(top, url))
+                url = url.rstrip("/")
+                found.append((name, url[:-len(".git")] if url.endswith(".git") else url))
+    return found
 
 
 def working_is(path, data):
