@@ -82,6 +82,25 @@ def guarded(env, home, keep=()):
     return [p for p in found + list(keep) if p]
 
 
+def tool_folders(home, names):
+    """What a tool's config folder at the default config home holds, for each of `names` in turn
+    (public.json's tools): each entry of `~/.config/agentik/<name>` by name, then the folder, where
+    it is there, wherever XDG_CONFIG_HOME and XDG_CACHE_HOME point. The guard holds them whether or
+    not the tool answers, so its file is kept as at the pin (row ak10c5-table-gone review 1 F3)."""
+    found = []
+    for name in names:
+        folder = os.path.join(home, ".config", "agentik", name) if home else ""
+        if not folder or not os.path.lexists(folder):
+            continue
+        if agentik_install._real_dir(folder):
+            try:
+                found += [os.path.join(folder, n) for n in sorted(os.listdir(folder))]
+            except OSError:
+                pass
+        found.append(folder)
+    return found
+
+
 def user_path(home, user):
     """A catalogue entry's `user_file` as a path, `~/` read as the home; None where it names none."""
     if not isinstance(user, str) or not user:
@@ -270,6 +289,7 @@ class Remove:
             self.guard += [settings.user_path(self.env), state]
             self.guard += [p for p in (user_path(self.home, u)  # every tool's that answered, taken off or not (G1)
                                        for u in self.user_files.values()) if p]
+            self.guard += tool_folders(self.home, tools.public(self.cmd.lib)["tools"])  # F3
             self.keep += [(p, "remove.keep.config") for p in [settings.user_path(self.env)] if os.path.lexists(p)]
             self.keep += [(state, "remove.keep.state")] if os.path.lexists(state) else []
             cache = os.path.join(self.config, "plugins", "cache", plan.MARKETPLACE, SUITE)  # rm1 R5

@@ -192,6 +192,23 @@ class RemoveKeepTest(Base):
         self.assertNotIn("~/.config/agentik  removed", out)
         self.assertNotIn(".x-user", out)
 
+    def test_f3_with_no_answer_the_guard_holds_wherever_the_homes_point(self):
+        """No tool answers; the config home elsewhere and the cache home the default config folder:
+        the agentik cache folder is kept, since it reaches the relay's file, as at the pin (F3)."""
+        h = self.home()
+        for path in (".config/agentik/relay/config.yaml", ".config/agentik/agents/backends.json"):
+            h.file(os.path.join(h.home, path), "mine\n")
+        env = {"XDG_CONFIG_HOME": os.path.join(h.home, "cfg"), "XDG_CACHE_HOME": os.path.join(h.home, ".config")}
+        code, out, err = h.go("remove", "--all", "--dry-run", **env)
+        self.assertEqual(code, 0, out + err)
+        line = [l for l in out.splitlines() if "~/.config/agentik " in l]
+        self.assertEqual(len(line), 1, out)
+        self.assertEqual(line[0].split(), "6 ok ~/.config/agentik kept: it reaches ~/.config/agentik/relay/config.yaml,"
+                         " which remove keeps, so nothing there is deleted".split())
+        code, out, err = h.go("remove", "--all", "--dry-run", "--json", **env)
+        cache = [s for s in json.loads(out)["steps"] if s["id"] == "cache"]
+        self.assertEqual([s["state"] for s in cache], ["ok"], out)
+
 
 class PublicTest(unittest.TestCase):
     def test_a6_setup_reads_needs_and_the_page_from_public_json(self):
