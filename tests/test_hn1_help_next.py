@@ -22,13 +22,12 @@ import test_su2_read as su2  # noqa: E402
 import test_sync as sy  # noqa: E402
 from agentik_suite import tools  # noqa: E402
 
-_COPY = []
+_COPY = {}
 
 
-def needy_plugin():
-    """A copy of the plugin whose fallback table knows `alpha`, which needs Go: no `go` on the
-    test's PATH, so step 1 reads `warn` and names no line setup would run (ic2-needs R1)."""
-    if not _COPY:
+def plugin_copy(key, row):
+    """A copy of the plugin whose fallback table holds `row` for the made-up `alpha`."""
+    if key not in _COPY:
         import atexit
         top = os.path.realpath(tempfile.mkdtemp(prefix="hn1-suite-"))
         atexit.register(shutil.rmtree, top, True)
@@ -37,11 +36,25 @@ def needy_plugin():
         table = os.path.join(root, "lib", "fallback.json")
         with open(table) as fh:
             rows = json.load(fh)
-        rows["alpha"] = {"lines": ["agentik alpha doctor"], "user_file": None, "needs": ["Go"], "status": []}
+        rows["alpha"] = row
         with open(table, "w") as fh:
             json.dump(rows, fh)
-        _COPY.append(Path(root))
-    return _COPY[0]
+        _COPY[key] = Path(root)
+    return _COPY[key]
+
+
+ROW = {"lines": ["agentik alpha doctor"], "user_file": None, "needs": [], "status": []}
+
+
+def needy_plugin():
+    """A copy of the plugin whose fallback table knows `alpha`, which needs Go: no `go` on the
+    test's PATH, so step 1 reads `warn` and names no line setup would run (ic2-needs R1)."""
+    return plugin_copy("needy", dict(ROW, needs=["Go"]))
+
+
+def paged_plugin():
+    """A copy whose `alpha` has a page: it installs its own command (row fh13 R1)."""
+    return plugin_copy("paged", dict(ROW, page="https://example.com/alpha#install"))
 
 
 class HelpHome(base.Home):
@@ -93,20 +106,43 @@ class HelpCloseTest(HelpHome):
         code, out, err = self.run_cli(PATH=self.path)  # the bare first screen closes the same
         self.assertEqual(err.splitlines()[-1], help_)
 
+    def close_of(self, setup, steps):
+        """Setup's close by its words: done, rest, page, path (step 6's add line alone) or next."""
+        if DONE[0] in setup:
+            return "hint.setup.done"
+        if DONE[1] in setup:
+            return "hint.setup.rest"
+        if "step 4 names the page" in setup:
+            return "hint.setup.page"
+        add = [s["command"] for s in steps if s["n"] == 6 and s["command"]]
+        return "hint.setup.path" if add and setup == "next: %s" % add[0] else "hint.setup.next"
+
     def test_a2_the_help_agrees_with_setup(self):
-        setup_line = "next: %s setup alpha" % self.launcher
-        # each state test_r2_the_closing_hint_by_state covers: steps 1 to 6 ok; no claude on PATH
-        states = {"all ok": {"PATH": self.path}, "no claude": {}}
-        for name, more in states.items():
+        """The help says the setup line exactly where setup's close is hint.setup.next or
+        hint.setup.page, else the doctor line: the PATH line's close among the doctor's, as sm2
+        R3 ruled (review 1)."""
+        off_path = "%s:%s" % (self.stubs, base.SYSTEM)  # ~/.local/bin not on PATH
+        # test_r2_the_closing_hint_by_state's two states, then the PATH line alone and a page
+        states = (("all ok", None, {"PATH": self.path}, "hint.setup.done"),
+                  ("only the PATH line", None, {"PATH": off_path}, "hint.setup.path"),
+                  ("a page", paged_plugin(), {"PATH": self.path}, "hint.setup.page"),
+                  ("no claude", None, {}, "hint.setup.next"))
+        for name, plugin, more, want in states:
+            if plugin:
+                self.launcher = plugin / "bin" / "agentik-suite"
+                # alpha installs its own command, and has not yet: a page row at step 4
+                os.remove(os.path.join(self.bindir, "agentik-alpha"))
+                os.remove(os.path.join(self.home, "inst", "alpha", "1.0.0", "bin", "agentik-alpha"))
             if name == "no claude":
                 os.remove(os.path.join(self.stubs, "claude"))
             with self.subTest(state=name):
+                steps = self.plan("alpha", **more)["steps"]
                 setup, help_ = self.closes(**more)
-                if any(d in setup for d in DONE):
+                self.assertEqual(self.close_of(setup, steps), want, setup)
+                if want in ("hint.setup.next", "hint.setup.page"):
+                    self.assertEqual(help_, "next: %s setup alpha" % self.launcher)
+                else:
                     self.assertEqual(help_, "next: %s doctor" % self.launcher)
-                else:  # hint.setup.next, .path or .page: the setup line
-                    self.assertEqual(help_, setup_line)
-                self.assertEqual(name == "all ok", any(d in setup for d in DONE), setup)
 
     def test_a3_a_blocked_step_one(self):
         os.remove(os.path.join(self.stubs, "claude"))
