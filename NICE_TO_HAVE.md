@@ -7,12 +7,7 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | id | level | area | finding | evidence | from |
 |---|---|---|---|---|---|
 | n256 | S4 | `scripts/hygiene` `records` | a repo may extend the record names from its own `.hygiene-allow`, as a tree that keeps `.claude/` out wants | hq design/28 §11 lead 4 | 2026-11-18, rr3-records-guard |
-| n203 | S4 | `config.py` | an `unknown` or `choice` warning with a null `line` prints `<path>:None` | config.py:474 | 2026-11-14, ak9d |
 | n204 | S3 | `status_read.py` the draw | `status` asks only the tools whose `agentik-<tool>` is on PATH, so a tool installed as a plugin alone is read by `config` and `doctor` and never by `status`; `inbox` asks PATH alone too, and runs PATH's file with no pass of the finder | status_read.py:357, inbox.py:91; review 1 F1's repro | 2026-11-14, ak9d review 1 |
-| n205 | S4 | `agentik_install.py` `_lock` | the share swapped for a link between the plan and the lock: every row is kept, yet `.lock` is made in the link's target, as `O_NOFOLLOW` guards the last component alone. Fix if wanted: open the share `O_NOFOLLOW`, match the plan's inode, open `.lock` by `dir_fd` | review 2's lead, `race-share-to-link` | 2026-11-14, ak4b-uninstall review 2 |
-| n206 | S4 | `agentik_install.py` `_lock` | the re-check loop (`while True`) has no bound: it spins while something replaces `.lock` on every turn, which neither install-cli nor uninstall does | review 2's lead; read, not reproduced | 2026-11-14, ak4b-uninstall review 2 |
-| n207 | S4 | `agentik_install.py` `_plan` | one share under two prefixes: where `<prefix>/share` links to another prefix's share, uninstall removes that prefix's trees and share and leaves its launcher naming a gone tree; as at 93e3eb0 | review 2's lead, `share-parent-link-to-A-share` | 2026-11-14, ak4b-uninstall review 2 |
-| n208 | S4 | `agentik_install.py` `_ours` | a launcher that sets TREE by `unset`, `read` or `eval` after the template's `TREE=` line still reads as install-cli's; comparing the file with the template rendered whole would close it | ak4b-uninstall's last read | 2026-11-14 ak4-remove |
 | n209 | S4 | `tests/test_ak4b_uninstall.py` | `_lock`'s `fstat` regular-file check is pinned by no test, and `test_a_lock_fifo_or_folder_keeps_all` raises `TimeoutError` from its alarm, an `OSError` that `uninstall` keeps, so it cannot fail on a hang | ak4b-uninstall's last read | 2026-11-14 ak4-remove |
 
 ## From packet ak3p (the join of ak2b-reach, ak3-setup and ak3d-doctor)
@@ -153,3 +148,11 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n266 | S4 | `scripts/records-cut` | a record the clone ignores (untracked) stays in the clone and is not moved, so the move is not whole for it, though it is not public | review 1 lead L6: an ignored `history/private/n.md` left in the clone, absent at the destination, exit 0 | 2026-11-20, rc0-records-cut review 1 |
 | n267 | S4 | `scripts/records-cut` `first_line` | a failed git step's line takes git's last stderr line, which with advice on is a `hint:`, not the cause | review 1 lead L8: `failed: git add .hygiene-allow: hint: Disable this message ...` | 2026-11-20, rc0-records-cut review 1 |
 | n268 | S4 | `scripts/records-cut` | a kill partway leaves a state that a rerun refuses but cannot mend, and nothing prints the undo (see n261, no undo verb) | review 1 lead L9: killed after `git rm`, and after the commit, each rerun exit 2 with the key unset | 2026-11-20, rc0-records-cut review 1 |
+
+## From row rc0-records-cut (review 2)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n269 | S4 | `scripts/records-cut` | a stale remote-tracking ref walks around the behind check: an unfetched record commit on the origin, `--go` exit 0, then the push is rejected; lead: `git ls-remote` against the upstream's sha (needs the network) | review 2 L1: `! [rejected] main -> main (fetch first)` | 2026-11-20, rc0-records-cut review 2 |
+| n270 | S4 | `scripts/records-cut` the survey | an edit hidden by a `core.fsmonitor` hook reporting no change passes the survey; `--go` then loses it and fails half done; lead: `ls-files -f -v`, or `-c core.fsmonitor=false` on the status | review 2 L2 (a lying hook) | 2026-11-20, rc0-records-cut review 2 |
+| n271 | S4 | `scripts/records-cut` the sums | the holder's `* text=auto` stores a CRLF record with LF ends; the sha256 proof reads the copy on disk, not what the holder stores; lead: `git hash-object --path` in the holder | review 2 L4, `history/crlf.md` | 2026-11-20, rc0-records-cut review 2 |
