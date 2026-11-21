@@ -29,6 +29,8 @@ LOGGED = '#!/bin/sh\necho "$0" >> "%s"\n'
 NO_YAML = LOGGED + 'exec /usr/bin/python3 -I "$@"\n'
 WITH_YAML = LOGGED + 'PYTHONPATH=%s exec /usr/bin/python3 -s "$@"\n'
 HANGS = LOGGED + 'exec sleep 30\n'
+with open(os.path.join(str(LIB), "public.json")) as _fh:  # the tool whose need is the module
+    NEEDY = next(t for t, words in json.load(_fh)["needs"].items() if "PyYAML" in words)
 # the screen of e2e.json with its rows and owner parts read, drawn piped at the pin 2d96be7
 PIN_SCREEN = (
     "ok    watchers  lamp: running\n"
@@ -77,11 +79,12 @@ class NeedHome(unittest.TestCase):
         return self.stub(os.path.join(self.home, name, "python3"), body)
 
     def needs(self, pythons, wall=None):
-        """The plan's need rows of respeak with `pythons` as the tuple; the seconds they took."""
+        """The plan's need rows of the tool public.json says needs PyYAML, with `pythons` as the
+        tuple; the seconds they took."""
         with mock.patch.object(plan, "PYTHONS", pythons, create=True), \
                 mock.patch.object(plan, "NEED_WALL", plan.NEED_WALL if wall is None else wall):
             start = time.monotonic()
-            steps = plan.build(["respeak"], self.env, str(LIB), "agentik-suite", "0.0.1")
+            steps = plan.build([NEEDY], self.env, str(LIB), "agentik-suite", "0.0.1")
             took = time.monotonic() - start
         return [s for s in steps if s["id"] == "need"], took
 
@@ -131,7 +134,7 @@ class ModuleNeedTest(NeedHome):
         self.assertLess(took, 3 * 0.5 + 0.9)
         self.assertEqual([s["mid"] for s in rows], ["setup.need.module"])
 
-    def test_a2_the_tuple_is_respeaks_list(self):
+    def test_a2_the_tuple_and_go_stand(self):
         self.assertEqual(plan.PYTHONS, ("python3", "/usr/bin/python3", "/opt/homebrew/bin/python3",
                                         "/usr/local/bin/python3", "python3.13", "python3.12"))
         self.assertEqual(plan.NEEDS["Go"], ("go", None))  # R3

@@ -14,18 +14,19 @@
 |---|---|
 | 1 the packet, measured at the pin | done |
 | 2 R1: `plan.PYTHONS`, the walk, `setup.need.module` names the tried; tests a1, a2; ic2's f2 reworded | done; the sidecar waits on `make voice` (act 4) |
-| 3 R2: `not_read` from every part's state; `_not_read` says a part once; tests a3, a4 | open |
+| 3 R2: `status_read.not_read(parts)`; `_not_read` says a part once; tests a3, a4; su6 test_d, test_e, su2-join's labels and e2e.piped.txt by ruling | done |
 | 4 NICE n281; `make voice`; the version; doclint, recordlint, hygiene; `make check` through the gate queue | open |
 
 ## Next act
 
-Act 3: R2, `status_read.not_read(parts)` and `_not_read`'s once rule; su6 test_d, test_e and e2e.piped.txt by ruling.
+Act 4: NICE n281 (and the bound), `make voice` through the gate, the version, recordlint, hygiene, then `make check` through the gate.
 
 ## Handover
 
 - choice: `PYTHONS` is respeak's whole list, its two bare names included, so the two readers agree. Consumer: review.
-
 - choice: an interpreter met twice (one real path) is asked once; `{tried}` names the words of PYTHONS, not the paths. Consumer: review.
+
+- decide, owner: coordinator. Commit 97ac03d's `tests/test_sn1_need_notread.py` names the sibling tool three times (a docstring, `plan.build`'s argument, a test name), gone from the tree since; `--commits main..HEAD` counts it until an allow row `tests/test_sn1_need_notread.py: sibling` stands. Consumer: the landing.
 
 ## Exit
 

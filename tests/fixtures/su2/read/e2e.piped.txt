@@ -17,4 +17,3 @@ note  owner     hand lines in charters not counted; 0 build order rows waiting o
       sources   5 read in 0.1 s; the slowest, agentik-demo, took 0.1 s
                 not installed: agentik-session
                 not drawn: agentik-demo weather
-      not read  the rows in flight

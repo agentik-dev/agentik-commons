@@ -5,7 +5,7 @@
 | from | agentik-hq's brief sn1-need-notread of 2026-11-21, on two findings an advisor reproduced on 2026-11-20; level S3 |
 | pin | agentik-commons main 2d96be7, the merge of ak10c5-table-gone; worktree `.claude/worktrees/sn1-need-notread`, branch `sn1-need-notread`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; no test reads the live home or state; made-up names in fixtures; setup only with `--dry-run` against this Mac |
-| may touch | `plugins/suite/lib/agentik_suite/{plan,status_read,status_screen}.py`, `plugins/suite/lib/agentik_suite/messages.md`, `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json` (the version), `tests/test_sn1_need_notread.py`, `tests/test_ic2_needs.py`, `tests/test_su6_rows_part.py`, `NICE_TO_HAVE.md` (n281), `history/NICE-overflow.md` (the bound), this packet, `history/sittings/*.md` |
+| may touch | `plugins/suite/lib/agentik_suite/{plan,status_read,status_screen}.py`, `plugins/suite/lib/agentik_suite/messages.md`, `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json` (the version), `tests/test_sn1_need_notread.py`, `tests/test_ic2_needs.py`, `tests/test_su6_rows_part.py`, `tests/test_su2_join.py`, `tests/fixtures/su2/read/e2e.piped.txt`, `NICE_TO_HAVE.md` (n281), `history/NICE-overflow.md` (the bound), this packet, `history/sittings/*.md` |
 | verify | `python3 -m unittest` of the touched tests directly; `scripts/hygiene --require-private --commits main..HEAD`; `make check` once, last, through the gate queue |
 | acceptance | 1 to 6 below |
 
@@ -21,9 +21,9 @@ The owner's words (2026-11-20): "continue with the charter", and, giving the sit
 
 ## 3. Interfaces
 
-- `plan.PYTHONS` (the tuple a test patches); `plan.interpreters(search)` giving the `(word, path)` pairs of `PYTHONS` that stand, one a real path; `plan.need_met(need, search, env)` as at the pin.
+- `plan.PYTHONS` (the tuple a test patches); `plan.interpreters(search)` giving the `(word, path)` pairs of `PYTHONS` that stand, one a real path; `plan.need_met(need, search, env)` as at the pin; `status_read.not_read(parts)`, the list, where `NOT_READ` was.
 - Messages: `setup.need.module` gains `{tried}` and says it in place of "the `{program}` first on PATH"; no id added or removed.
-- One test changes by ruling: su6's `test_d` read the rows part's `not read` twice, once in its part and once in the foot; R2 says it once.
+- Changed by ruling: at the pin the rows part not read was said twice, in its part and in the foot (su6's `test_d`, su2-join's `e2e.piped.txt` last line and its label list); R2 says it once. su6's `test_e` home gives no sessions read, so it gains an agents stand-in before `not_read` is `[]`. ic2's `test_f2` reads the new words.
 
 ## 4. Acceptance
 
