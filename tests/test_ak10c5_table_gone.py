@@ -96,6 +96,21 @@ class HoldTest(Base):
         self.assertIn("held install: a relay run is live (pid 4242)", err)
         self.assertNotIn("gave no `describe` answer", err)
 
+    def test_l2_the_one_line_reaches_stderr_under_json(self):
+        """`update.unasked`'s one line on stderr under `--json` as on the text screen; `-q` keeps
+        it off, as it keeps the hints (review 1 L2)."""
+        h = self.two_behind()
+        h.file(os.path.join(h.bin, "agentik-relay"), SILENT)
+        h.ps("4242 /opt/tools/relay run --row r1\n")
+        code, out, err = h.run("update", "--dry-run", "--json")
+        self.assertEqual(code, 0, out + err)
+        self.assertIsNone(json.loads(out)["held"])
+        said = [l for l in err.splitlines() if "gave no `describe` answer" in l]
+        self.assertEqual(len(said), 1, err)
+        self.assertTrue(said[0].startswith("warn: ") and "relay" in said[0], said)
+        code, out, err = h.run("update", "--dry-run", "-q")
+        self.assertNotIn("gave no `describe` answer", err)
+
     def test_f1_a_second_tool_that_names_run_hides_no_live_run(self):
         """Every tool whose describe names `run`, then every one that names `unattended`, in name
         order: a tool that sorts first and says none live hides no live run (review 1 F1)."""
