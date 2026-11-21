@@ -128,6 +128,11 @@ table() {
 		case $f in agentik) src=bin/agentik ;; *) src=scripts/$f ;; esac
 		echo "$src scripts/$f 755 y"
 	done
+	# The two pages a stranger reads, for a repo offered under a licence (packet rr7-way-in R2).
+	if [ -f "$target/LICENSE" ] && ! [ -L "$target/LICENSE" ]; then
+		echo "templates/CONTRIBUTING.md CONTRIBUTING.md 644 y"
+		echo "templates/SECURITY.md SECURITY.md 644 y"
+	fi
 	[ -n "$tool" ] || return 0
 	echo "scripts/agentik_install.py plugin/lib/agentik_install.py 644 y"
 	echo "scripts/agentik_records.py plugin/lib/agentik_records.py 644 y"
@@ -180,7 +185,7 @@ EOF
 fi
 
 place() { # source under this repo (or :init), destination under the target, mode
-	dir=$target/${2%/*}
+	case $2 in */*) dir=$target/${2%/*} ;; *) dir=$target ;; esac
 	temp=$dir/.${2##*/}.sync.$$
 	mkdir -p "$dir"
 	if [ "$1" = :init ]; then

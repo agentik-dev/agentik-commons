@@ -15,7 +15,7 @@ The owner's words. Asked what a stranger's pull request gets (2026-11-19): "Read
 
 ## 2. Rulings
 
-- R1, the two templates: `templates/CONTRIBUTING.md` and `templates/SECURITY.md`, the brief's text byte for byte; no org, repo, person, address or link.
+- R1, the two templates: `templates/CONTRIBUTING.md` and `templates/SECURITY.md`, the brief's text byte for byte but one word; no org, repo, person, address or link. The brief's "its code, its decisions and its design" is a `sibling` hit (the scanner's `decision[s]`, a sibling tool's name) in every tool repo that carries the page, so acceptance 5 and 8 could not both hold with it: the page reads "its code, its decision record and its design". The other way, the brief's word and an allow row for `CONTRIBUTING.md` in commons and in each tool repo, is the coordinator's to take.
 - R2, the placing: `table()` gives a target whose root holds a regular file `LICENSE` two more rows, `templates/<page> <page> 644 y`, after the seven scripts and before the plugin rows, so the write path places them, `vendored.sha256` lists them and `--check` reads them. A `LICENSE` that is a folder or a symlink is not a regular file: neither page. A plugin with or without `lib/` is the same.
 - R3, commons' own: `CONTRIBUTING.md` and `SECURITY.md` at the root, equal to the templates, held so by a test.
 - R4, the words: a new paragraph in GUIDE §6 and a header line in `scripts/sync` say the rule. The README source gains nothing.
@@ -34,7 +34,7 @@ The owner's words. Asked what a stranger's pull request gets (2026-11-19): "Read
 | 2 | `-k test_check_says_behind_a_page`: one removed, one edited: `behind <page>`, exit 1 | exit 0 |
 | 3 | `-k test_no_licence_is_the_pins`: no `LICENSE`, a folder, a symlink: neither page, the pin's manifest and `--check` line | as now |
 | 4 | `-k test_commons_own_pages_are_the_templates` | no page |
-| 5 | `-k test_the_templates_name_nothing`, and `scripts/hygiene --require-private` on the tree and `--commits main..HEAD`: exit 0 | no template |
+| 5 | `-k test_the_templates_name_nothing` (no `@`, no `http`, and the scanner on a checkout of the two pages alone exits 0), and `scripts/hygiene --require-private` on the tree and `--commits main..HEAD`: exit 0 | no template; the brief's wording: 1 `sibling` hit |
 | 6 | `python3 -m unittest tests.test_sync`: the pin's 22 tests unchanged | 22 OK |
 | 7 | not a test: `scripts/sync --check` against a sibling checkout with a `LICENSE` and one without, read only | exit 1 each, no page line |
 | 8 | `make check` through the gate queue | green at b4b4cc8 |
