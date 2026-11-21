@@ -30,7 +30,6 @@ EXTRA = {"t.plugins": "Which plugins does setup install?", "t.effort": "How hard
 # moves each onto pick.
 ALLOWED = {("apply.py", "_before"), ("issue.py", "_ask"), ("remove.py", "Remove.ask"),
            ("update.py", "Update.ask")}
-READ = re.compile(r"\binput\(|stdin\.readline|termios")
 
 
 def a_term(env=None):
@@ -409,26 +408,47 @@ class Doors(unittest.TestCase):
             self.assertNotIn(b"\x1b", seen)
 
 
-def reads_outside_pick(path, source):
-    """Each read of a person outside pick.py that no allow line names: (file, function, line)."""
-    tree = ast.parse(source)
-    where = {}
+def _stdin(node):
+    """True when an attribute chain names `stdin`: `sys.stdin`, `sys.stdin.buffer`."""
+    while isinstance(node, ast.Attribute):
+        if node.attr == "stdin":
+            return True
+        node = node.value
+    return isinstance(node, ast.Name) and node.id == "stdin"
+
+
+def is_read(node):
+    """A read of a person, found in the syntax tree, so a comment or a string names none: a
+    call of `input`, a `readline` on stdin, an import of `termios`."""
+    if isinstance(node, ast.Call):
+        f = node.func
+        if isinstance(f, ast.Name) and f.id == "input" or isinstance(f, ast.Attribute) and f.attr == "input":
+            return True
+        return isinstance(f, ast.Attribute) and f.attr == "readline" and _stdin(f.value)
+    if isinstance(node, ast.Import):
+        return any(a.name.split(".")[0] == "termios" for a in node.names)
+    return isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "termios"
+
+
+def reads(source):
+    """Each read in the source: (function, line), the function by its dotted name, '' at the top."""
+    hits = []
 
     def walk(node, prefix):
         for child_ in ast.iter_child_nodes(node):
+            inner = prefix
             if isinstance(child_, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                name = prefix + child_.name
-                for n in range(child_.lineno, getattr(child_, "end_lineno", child_.lineno) + 1):
-                    where[n] = name
-                walk(child_, name + ".")
-            else:
-                walk(child_, prefix)
-    walk(tree, "")
-    hits = []
-    for n, line in enumerate(source.splitlines(), 1):
-        if READ.search(line.split("#")[0]) and (path, where.get(n, "")) not in ALLOWED:
-            hits.append((path, where.get(n, ""), n))
+                inner = (prefix + "." if prefix else "") + child_.name
+            if is_read(child_):
+                hits.append((prefix, child_.lineno))
+            walk(child_, inner)
+    walk(ast.parse(source), "")
     return hits
+
+
+def reads_outside_pick(path, source):
+    """Each read of a person outside pick.py that no allow line names: (file, function, line)."""
+    return [(path, fn, n) for fn, n in reads(source) if (path, fn) not in ALLOWED]
 
 
 class OneReader(unittest.TestCase):
@@ -442,17 +462,19 @@ class OneReader(unittest.TestCase):
         self.assertEqual(reads_outside_pick("config.py", source), [])
         self.assertTrue(reads_outside_pick("config.py", source + "\ndef planted():\n    return input('x')\n"))
         self.assertTrue(reads_outside_pick("apply.py", "def other():\n    import termios\n"))
+        for plant in ("return print('#') or input('x')", "s = '#'; return sys.stdin.readline()",
+                      "x = f'{1}#'; import termios", "from termios import tcgetattr",
+                      "return sys.stdin.buffer.readline()"):
+            self.assertTrue(reads_outside_pick("config.py", source + "\ndef planted():\n    " + plant + "\n"),
+                            plant)
+        for named in ("pass  # input('x') and sys.stdin.readline() and import termios",
+                      "return 'input(x) sys.stdin.readline termios'", '"""import termios"""'):
+            self.assertEqual(reads_outside_pick("config.py", source + "\ndef planted():\n    " + named + "\n"),
+                             [], named)
 
     def test_the_four_allowed_reads_are_there(self):
-        found = set()
-        for path, fn in ALLOWED:
-            source = (PACKAGE / path).read_text()
-            tree = ast.parse(source)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef) and fn.split(".")[-1] == node.name:
-                    seg = "\n".join(source.splitlines()[node.lineno - 1:node.end_lineno])
-                    if READ.search(seg):
-                        found.add((path, fn))
+        found = {(path, fn) for path in {p for p, _ in ALLOWED}
+                 for fn, _ in reads((PACKAGE / path).read_text())}
         self.assertEqual(found, ALLOWED)
 
 
