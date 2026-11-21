@@ -5,7 +5,7 @@
 | from | agentik-hq's brief sc12-picker, amended 2026-11-21, on design/23 §4a and its Amendment 1 (§14); the owner's answer A to §10 question 1, the standard library alone; level S2 |
 | pin | agentik-commons main b1894d8 (suite 0.7.40, `setup.ask.one` on it); worktree `.claude/worktrees/sc12-picker`, branch `sc12-picker`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase, merge or install; no bare `make`; no relay verb or binary; no `claude` process, no agent; no test reads the live home or state; made-up names in fixtures and the probe; nothing that calls `pick` |
-| may touch | `plugins/suite/lib/agentik_suite/pick.py`, `plugins/suite/lib/agentik_suite/term.py`, `plugins/suite/lib/agentik_suite/messages.md`, `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json` (the version), `scripts/pick-probe`, `tests/test_sc12_pick.py`, this packet, `history/sittings/*.md` |
+| may touch | `plugins/suite/lib/agentik_suite/pick.py`, `plugins/suite/lib/agentik_suite/term.py`, `plugins/suite/lib/agentik_suite/messages.md`, `design/voice/checked.sha256`, `plugins/suite/.claude-plugin/plugin.json` (the version), `scripts/pick-probe`, `tests/test_sc12_pick.py`, `tests/test_agentik_suite.py` (its `STDLIB` set gains `termios`, which R2 puts in `pick.py`), this packet, `history/sittings/*.md` |
 | verify | `python3 -m unittest tests.test_sc12_pick` and the term tests directly; `scripts/pick-probe` on both Pythons by hand; `scripts/hygiene --require-private --commits main..HEAD`; `make check` once, last, through the gate queue |
 | acceptance | 1 to 13 below |
 
@@ -26,7 +26,7 @@ The base is the designer's prototype, which the refuter broke in three ways (des
 
 ## 3. Interfaces
 
-- `pick.ask(t, questions, command)` gives `{id: answer}`; `pick.confirm(t, question, yes, no, typed, **values)` gives a bool; `pick.Other`, `pick.Cancelled`, `pick.NoTerminal`; `pick.layout(state, columns, rows)` gives `(lines, cursor)`, each line a list of `(text, sgr)`; `pick.State(questions, marks)` and `pick.parse(buf, final, utf8)`.
+- `pick.ask(t, questions, command)` gives `{id: answer}`; `pick.confirm(t, question, yes, no, typed, **values)` gives a bool; `pick.Other`, `pick.Cancelled`, `pick.NoTerminal`; `pick.layout(state, columns, rows)` gives `(lines, cursor)`, each line a list of `(text, sgr)` and the cursor `(line, column, shown)`; the states are `pick.State(t, questions, utf8)` and `pick.Confirm(t, question, yes, no, utf8)`; `pick.parse(buf, final, utf8)` gives one key.
 - `Term.put(data, err=True, wait=True)`: with `wait` false the bytes go only as `select` says the stream takes them, 512 at a time, and what is left comes back.
 - A question's `prompt` and `tab` and an option's `label` and `note` are text the caller gives; `prompt` is a message id filled by the caller's values (`values`).
 
