@@ -39,8 +39,6 @@ PIN = {"h0": ("setup.launcher.wait", "setup.doctor.wait"),
 
 
 class Base(unittest.TestCase):
-    page = PAGE
-
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -325,28 +323,37 @@ class PageTest(Base):
 
 
 class NotAPageTest(Base):
-    """Line 8: a `page` that is not an https string, or that holds whitespace or a control
-    character, is read as absent."""
+    """Line 8: a page is built from the repo public.json names for a tool that installs its own
+    command (row ak10c5 R4); a repo that is not an `owner/name` string, or whose page would hold
+    whitespace or a control character, gives no page, and the tool is planned as one with none.
+    Setup reads public.json leniently, so each such row reaches the screen (re-based at row
+    ak10c5-table-gone: the bad values were the old table's `page`)."""
 
-    def assert_no_page(self, page):
-        self.page = page
+    def assert_no_page(self, repo):
         self.setUp()
+        path = os.path.join(self.lib, "public.json")
+        with open(path) as fh:
+            data = json.load(fh)
+        data["tools"][T] = repo
+        with open(path, "w") as fh:
+            json.dump(data, fh)
         for name, (four, seven) in PIN.items():
             h = self.home(name)
             steps = self.plan(h)
-            self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (page, name))
+            self.assertEqual((self.one(steps, 4)["mid"], self.one(steps, 7)["mid"]), (four, seven), (repo, name))
             self.assertFalse([s for s in steps if "page" in s])
 
     def test_8_a_number_a_list_or_another_scheme_is_no_page(self):
-        for page in (7, [PAGE], "http://example.com/murmur", ""):
-            self.assert_no_page(page)
+        # a repo of another kind than a string is no row setup reads (tools.public drops it), so
+        # the tool is one the suite does not know where it is not installed: not this screen
+        for repo in ("http://example.com/murmur", "", "example-org", "example-org/", "/murmur"):
+            self.assert_no_page(repo)
 
     def test_8_whitespace_or_a_control_character_is_no_page(self):
-        for page in ("https://example.com/a b", "https://example.com/murmur\nnext: touch x",
-                     "https://example.com/\tx", "https://example.com/\x1b[2J", "https://example.com/\x00",
-                     "https://example.com/\x07", "https://example.com/" + chr(0x202E) + "x",
-                     "https://example.com/" + chr(0xA0) + "x"):
-            self.assert_no_page(page)
+        for repo in ("example-org/a b", "example-org/murmur\nnext: touch x", "example-org/\tx",
+                     "example-org/\x1b[2J", "example-org/\x00", "example-org/\x07",
+                     "example-org/" + chr(0x202E) + "x", "example-org/" + chr(0xA0) + "x"):
+            self.assert_no_page(repo)
 
 
 if __name__ == "__main__":
