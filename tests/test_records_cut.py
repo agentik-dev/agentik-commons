@@ -630,6 +630,29 @@ class RemoteSpellingTest(Fixture):
             self.assertIn("republish", refusals(err)[0])
 
 
+class LineEndTest(Fixture):
+    """Review 2, L3: a .hygiene-allow that git says is HEAD's moves, whatever its line ends."""
+
+    def test_a_crlf_checkout_moves(self):
+        for how in ("attribute", "autocrlf"):
+            with self.subTest(how):
+                self.fresh()
+                if how == "attribute":
+                    write(self.clone, {".gitattributes": ".hygiene-allow text eol=crlf\n"})
+                    commit(self.clone)
+                else:
+                    git(self.clone, "config", "core.autocrlf", "true")
+                os.unlink(os.path.join(self.clone, ".hygiene-allow"))
+                git(self.clone, "checkout", "-q", "--", ".hygiene-allow")
+                self.assertIn(b"\r\n", Path(self.clone, ".hygiene-allow").read_bytes())
+                self.assertEqual(git(self.clone, "status", "--porcelain"), "")
+                code, out, err = run(*self.args(go=True))
+                self.assertEqual(code, 0, out + err)
+                self.assertEqual(git(self.clone, "show", "HEAD:.hygiene-allow"),
+                                 KEEP[".hygiene-allow"] + "records: out")
+                self.assertEqual(git(self.clone, "status", "--porcelain"), "")
+
+
 class FailedStepTest(Fixture):
     def test_a_failed_step(self):
         head = git(self.clone, "rev-parse", "HEAD")

@@ -310,7 +310,7 @@ def survey_clone(s, refuse, listing):
     elif os.path.lexists(work) and mode is None:
         refuse(where, "exists in the tree but not at HEAD (untracked or ignored); it is never"
                " overwritten")
-    elif os.path.lexists(work) and not working_is(work, old):
+    elif os.path.lexists(work) and not allow_is_heads(repo, work):
         refuse(where, "differs from HEAD's (an edit git status may hide); it is never overwritten")
     elif mode is None and git(repo, "check-ignore", "-q", "--no-index", "--",
                               ALLOW_FILE).returncode == 0:
@@ -364,15 +364,17 @@ def strip_git(path):
     return path.rstrip("/")
 
 
-def working_is(path, data):
-    """True where the working file at `path` is a regular file holding `data`."""
-    try:
-        if os.path.islink(path) or not os.path.isfile(path):
-            return False
-        with open(path, "rb") as fh:
-            return fh.read() == data
-    except OSError:
+def allow_is_heads(repo, path):
+    """True where git says the working `.hygiene-allow` at `path` is HEAD's: a regular file,
+    `git diff --quiet HEAD` finds no change, and its cleaned form (`git hash-object --path`, the
+    line ends and filters git applies) is HEAD's blob, so an edit a flag hides is still seen."""
+    if os.path.islink(path) or not os.path.isfile(path):
         return False
+    if git(repo, "diff", "--quiet", "HEAD", "--", ":(literal)" + ALLOW_FILE).returncode != 0:
+        return False
+    code, heads = text(repo, "rev-parse", "--verify", "--quiet", "HEAD:" + ALLOW_FILE)
+    mine = text(repo, "hash-object", "--path=" + ALLOW_FILE, "--", path)
+    return code == 0 and mine[0] == 0 and mine[1] == heads
 
 
 def flagged_records(repo):
