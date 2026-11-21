@@ -436,23 +436,41 @@ class Doors(unittest.TestCase):
             self.assertNotIn(b"\x1b", seen)
 
 
+STDIN = ("stdin", "__stdin__")
+IMPORTERS = ("__import__", "import_module")
+
+
 def _stdin(node):
-    """True when an attribute chain names `stdin`: `sys.stdin`, `sys.stdin.buffer`."""
+    """True when an attribute chain names stdin: `sys.stdin`, `sys.stdin.buffer`, `sys.__stdin__`."""
     while isinstance(node, ast.Attribute):
-        if node.attr == "stdin":
+        if node.attr in STDIN:
             return True
         node = node.value
-    return isinstance(node, ast.Name) and node.id == "stdin"
+    return isinstance(node, ast.Name) and node.id in STDIN
+
+
+def _termios_named(call):
+    """True when a call of `__import__` or `import_module` is handed the string `termios`."""
+    f = call.func
+    name = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+    if name not in IMPORTERS:
+        return False
+    args = call.args[:1] + [k.value for k in call.keywords if k.arg == "name"]
+    return any(isinstance(a, ast.Constant) and isinstance(a.value, str)
+               and a.value.split(".")[0] == "termios" for a in args)
 
 
 def is_read(node):
     """A read of a person, found in the syntax tree, so a comment or a string names none: a
-    call of `input`, a `readline` on stdin, an import of `termios`."""
+    call of `input`; a `readline` of stdin, called or only named; an import of `termios`, by
+    statement or by its name handed to `__import__` or `import_module`."""
+    if isinstance(node, ast.Attribute):
+        return node.attr == "readline" and _stdin(node.value)
     if isinstance(node, ast.Call):
         f = node.func
         if isinstance(f, ast.Name) and f.id == "input" or isinstance(f, ast.Attribute) and f.attr == "input":
             return True
-        return isinstance(f, ast.Attribute) and f.attr == "readline" and _stdin(f.value)
+        return _termios_named(node)
     if isinstance(node, ast.Import):
         return any(a.name.split(".")[0] == "termios" for a in node.names)
     return isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "termios"
@@ -492,11 +510,16 @@ class OneReader(unittest.TestCase):
         self.assertTrue(reads_outside_pick("apply.py", "def other():\n    import termios\n"))
         for plant in ("return print('#') or input('x')", "s = '#'; return sys.stdin.readline()",
                       "x = f'{1}#'; import termios", "from termios import tcgetattr",
-                      "return sys.stdin.buffer.readline()"):
+                      "return sys.stdin.buffer.readline()",
+                      "return [l for l in iter(sys.stdin.readline, '')]", "f = sys.stdin.readline; return f()",
+                      "return __import__('termios').tcgetattr(0)",
+                      "import importlib; return importlib.import_module('termios')",
+                      "return sys.__stdin__.readline()", "return __import__(name='termios.x')"):
             self.assertTrue(reads_outside_pick("config.py", source + "\ndef planted():\n    " + plant + "\n"),
                             plant)
         for named in ("pass  # input('x') and sys.stdin.readline() and import termios",
-                      "return 'input(x) sys.stdin.readline termios'", '"""import termios"""'):
+                      "return 'input(x) sys.stdin.readline termios'", '"""import termios"""',
+                      "print('termios'); return __import__('os')", "return sys.stdin.read, 'readline'"):
             self.assertEqual(reads_outside_pick("config.py", source + "\ndef planted():\n    " + named + "\n"),
                              [], named)
 
