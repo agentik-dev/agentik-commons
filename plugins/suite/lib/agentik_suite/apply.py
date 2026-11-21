@@ -352,8 +352,9 @@ def pick_names(cmd, nouns):
     given = list(dict.fromkeys(nouns))
     if o["json"]:
         return given
-    default = plan.default_set(lib)
-    notes = _offered(env, lib)
+    known = set(plan.known(env, lib))  # a row only for a name setup takes (review 1 F2)
+    default = [n for n in plan.default_set(lib) if n in known]
+    notes = {n: d for n, d in _offered(env, lib).items() if n in known}
     names = list(dict.fromkeys(default + sorted(n for n in notes if n not in default)
                                + [n for n in given if n not in notes and n not in default]))
     own = set(tools._own(env))

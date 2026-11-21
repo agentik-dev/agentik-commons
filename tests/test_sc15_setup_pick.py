@@ -342,6 +342,40 @@ class Pick(Base):
                            env=self.env(), timeout=60, stdin=subprocess.DEVNULL)
         self.assertEqual((p.returncode, p.stdout), (0, out), p.stderr)
 
+    def test_f2_a_name_setup_does_not_take_is_no_row(self):
+        """A copy of the tree whose marketplace file names one plugin more than the suite knows
+        (review 1 F2): the list shows no row for it, so no ticked row is refused after it."""
+        import json
+        import shutil
+        import tempfile
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        copy = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, copy, True)
+        shutil.copy2(os.path.join(root, "setup"), copy)
+        shutil.copytree(os.path.join(root, ".claude-plugin"), os.path.join(copy, ".claude-plugin"))
+        shutil.copytree(os.path.join(root, "plugins", "suite"), os.path.join(copy, "plugins", "suite"),
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        path = os.path.join(copy, ".claude-plugin", "marketplace.json")
+        market = json.load(open(path))
+        market["plugins"].append({"name": "newtool", "source": "./newtool", "description": "A made-up tool."})
+        with open(path, "w") as f:
+            json.dump(market, f)
+        c = Child(self.term_env(), ["--pick", "--dry-run"], exe=os.path.join(copy, "setup"))
+        try:
+            self.assertTrue(c.until(b"Esc cancel"), c.seen)
+            time.sleep(0.3)
+            c.read()
+            text = CSI.sub("", c.seen.decode("utf-8", "replace"))
+            c.send(ESC)
+            self.assertEqual(c.wait(), 2, text)
+        finally:
+            c.close()
+        rows = [r.split("]", 1)[1].split()[0] for r in screen(text) if "[x]" in r or "[ ]" in r]
+        self.assertNotIn("newtool", rows, text)
+        self.assertNotIn("A made-up tool", text)
+        self.assertEqual(rows[:len(DEFAULT)], DEFAULT, text)
+        self.assertEqual(rows[-1], "other", text)
+
     def test_a6_the_options_their_notes_and_installed(self):
         self.installed("alpha")
         c = self.pick([ESC])
