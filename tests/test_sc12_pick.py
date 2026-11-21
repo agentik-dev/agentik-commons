@@ -378,6 +378,14 @@ class SameAs(unittest.TestCase):
         self.assertIn("! not a number from 1 to 6", err)
         self.assertEqual(got["plugins"], ["session"])
 
+    def test_f8_a_typed_digit_that_is_no_decimal_is_a_wrong_number(self):
+        self.assertIsNone(pick._numbers("²", 6, False, False))
+        self.assertIsNone(pick._numbers("1-²", 6, True, False))
+        self.assertEqual(pick._numbers("٢", 6, False, False), [1])
+        got, err = self.plain([effort()], "²\n3\n", lambda a: ["kit", a["effort"]])
+        self.assertIn("! not a number from 1 to 5", err)
+        self.assertEqual(got["effort"], "high")
+
     def test_f3_a_label_that_holds_a_blank_is_named_whole(self):
         q = {"id": "p", "tab": "Profiles", "prompt": "t.plugins", "kind": "many", "least": 0,
              "options": [{"value": v, "label": label, "note": ""} for v, label in (

@@ -1004,7 +1004,7 @@ def _numbers(line, count, many, kept):
     picked = []
     for word in words:
         lo, _, hi = word.partition("-")
-        if not lo.isdigit() or (hi and not hi.isdigit()):
+        if not lo.isdecimal() or (hi and not hi.isdecimal()):
             return None
         if not 1 <= int(lo) <= count or not 1 <= int(hi or lo) <= count:
             return None  # both ends in the list before a range is built
