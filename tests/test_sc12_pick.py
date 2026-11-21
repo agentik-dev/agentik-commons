@@ -28,10 +28,9 @@ EXTRA = {"t.plugins": "Which plugins does setup install?", "t.effort": "How hard
          "t.key": "Which key?", "t.run": "Run these {count} commands now?", "t.yes": "Run them",
          "t.no": "Don't run anything",
          "t.typed": "Run these {count} commands now? y for yes, n or Enter for no."}
-# The four reads the brief allows outside pick.py, each by file and function; a later row
-# moves each onto pick.
-ALLOWED = {("apply.py", "_before"), ("issue.py", "_ask"), ("remove.py", "Remove.ask"),
-           ("update.py", "Update.ask")}
+# The reads allowed outside pick.py, each by file and function; a later row moves each onto
+# pick. Row sc15-setup-pick moved apply.py's, setup's question.
+ALLOWED = {("issue.py", "_ask"), ("remove.py", "Remove.ask"), ("update.py", "Update.ask")}
 
 
 def a_term(env=None):
@@ -523,7 +522,7 @@ class OneReader(unittest.TestCase):
             self.assertEqual(reads_outside_pick("config.py", source + "\ndef planted():\n    " + named + "\n"),
                              [], named)
 
-    def test_the_four_allowed_reads_are_there(self):
+    def test_the_allowed_reads_are_there(self):
         found = {(path, fn) for path in {p for p, _ in ALLOWED}
                  for fn, _ in reads((PACKAGE / path).read_text())}
         self.assertEqual(found, ALLOWED)

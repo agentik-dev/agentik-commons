@@ -54,8 +54,10 @@ DOCTOR_FLAGS = (("--all", None, "all"),)
 REMOVE_FLAGS = (("--all", None, "remove_all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
                ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
+PICK_FLAGS = (("--pick", None, "pick"),)  # setup's list of plugins (row sc15-setup-pick R5)
 INSTALL_FLAGS = (("--force", None, "force"),)  # place over a newer command (row up3-forward-only R2)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
+VERB_FLAGS["setup"] = WRITE_FLAGS + PICK_FLAGS
 VERB_FLAGS["install-cli"] = WRITE_FLAGS + INSTALL_FLAGS
 VERB_FLAGS["config"] = CONFIG_FLAGS
 VERB_FLAGS["status"] = STATUS_FLAGS
@@ -71,10 +73,10 @@ VALUE_FLAGS = {"--ps": ("ps", "status"), "--now": ("now", "status"),  # test hoo
                "--kind": ("kind", "init")}
 HOOKS = ("--ps", "--now")  # the test hooks of VALUE_FLAGS: never offered at a Tab (row ak12-polish R4)
 ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS
-             + ISSUE_FLAGS + INSTALL_FLAGS
+             + ISSUE_FLAGS + INSTALL_FLAGS + PICK_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
-SKIPS = ("--yes", "-y")  # a flag that answers a question for the person: never offered (sc4 review 1)
+SKIPS = ("--yes", "-y", "--pick")  # answers a question for the person, or waits for one: never offered (sc4 review 1, sc15)
 NEVER_MENDED = WRITES  # a word that is no verb is never mended into one of these
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
@@ -179,7 +181,7 @@ def _flag_fault(opts, words, verb):
         return "--version"
     takes = {f[0] for f in VERB_FLAGS.get(verb, ())}
     for long, short, key in (WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + REMOVE_FLAGS + ISSUE_FLAGS
-                             + INSTALL_FLAGS):
+                             + INSTALL_FLAGS + PICK_FLAGS):
         if opts[key] and long not in takes:
             return long
     for flag, (key, owner) in VALUE_FLAGS.items():
@@ -642,7 +644,8 @@ class Command:
             t.blank()
         t.line("help.flags", style="name")
         shared = tuple(f for f in FLAGS if f[0] != "--help")
-        t.table(self._flag_rows(VERB_FLAGS.get(verb, ()))
+        plain = [(None, [term.name("AGENTIK_PLAIN=1"), t.text("help.plain")], None)] if verb == "setup" else []
+        t.table(self._flag_rows(VERB_FLAGS.get(verb, ())) + plain
                 + [(None, [term.name(t.text("help.also")), self._flag_words(shared)], None)])
         return 0
 
@@ -673,10 +676,14 @@ class Command:
         if not self.env.get("HOME"):  # no path to plan from (row ic2-needs R2)
             raise Refusal("no_home", "err.setup.home", None)
         known = plan.known(self.env, self.lib)
-        for noun in nouns:  # before any plan, the dry run's too (R2)
-            if noun not in known:
-                raise Refusal("unknown_plugin", "err.setup.unknown", self.say("setup", "--dry-run"),
-                              name=noun, names=", ".join(known))
+        for pass_ in (1, 2):
+            for noun in nouns:  # before any plan, the dry run's too (R2); the list's answer too
+                if noun not in known:
+                    raise Refusal("unknown_plugin", "err.setup.unknown", self.say("setup", "--dry-run"),
+                                  name=noun, names=", ".join(known))
+            if pass_ == 2 or not self.opts["pick"]:
+                break
+            nouns = apply.pick_names(self, nouns)  # as the same names typed (row sc15-setup-pick R5)
         names = list(dict.fromkeys(nouns)) or plan.default_set(self.lib)
         if not self.opts["dry_run"]:
             return apply.run(self, names)

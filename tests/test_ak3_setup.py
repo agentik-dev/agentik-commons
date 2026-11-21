@@ -128,10 +128,13 @@ class SetupHome(Home):
         p = subprocess.Popen([str(LAUNCHER), *args], stdin=slave, stdout=slave, stderr=slave,
                              env=self.env(), close_fds=True)
         os.close(slave)
-        os.write(master, answer.encode() + b"\n")
-        chunks = []
+        chunks, sent = [], False  # the answer once the question shows: one typed ahead is dropped (sc15)
         try:
             while True:
+                if not sent and b"now?" in b"".join(chunks):
+                    time.sleep(0.2)
+                    os.write(master, answer.encode() + b"\n")
+                    sent = True
                 ready, _, _ = select.select([master], [], [], 60)
                 if not ready:
                     break

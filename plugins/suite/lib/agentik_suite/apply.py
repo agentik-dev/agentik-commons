@@ -22,7 +22,9 @@ import signal
 import subprocess
 import sys
 
-from . import plan, term, tools
+import agentik_install
+
+from . import pick, plan, term, tools
 
 CLAUDE_WALL = 600
 WALL = 120
@@ -221,6 +223,8 @@ def journal_path(env, home):
 
 
 def _terminal(cmd):
+    if cmd.env.get("CI"):  # a pty there has nobody at it (design/23 4a.6; row sc15-setup-pick R2)
+        return False
     try:
         stdin = sys.stdin is not None and sys.stdin.isatty()
     except (AttributeError, ValueError, OSError):
@@ -300,19 +304,86 @@ def _before(cmd, names, build, the_plan, home, config):
         if not (terminal and not o["json"]):
             raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
         count = planned(steps)
+        one = count == 1
         t.flush()  # the plan whole above the question, where stdout is a pipe (row ic1-close R4)
-        t.line("setup.ask.one" if count == 1 else "setup.ask", err=True, count=count)
-        t.flush()
-        try:
-            answer = sys.stdin.readline()  # end of file reads "", a decline
-        except (OSError, ValueError):
-            answer = ""
+        try:  # the selector resting on no, else sm1's typed question (row sc15-setup-pick R1, R2)
+            yes = pick.confirm(t, "setup.confirm.one" if one else "setup.confirm",
+                               "setup.confirm.yes.one" if one else "setup.confirm.yes",
+                               "setup.confirm.no", "setup.ask.one" if one else "setup.ask", count=count)
+        except pick.NoTerminal:
+            raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
+        except pick.Cancelled:
+            yes = False
         except KeyboardInterrupt:  # a decline too, the terminal's ^C left on the line
-            answer = None
+            yes = False
             t.blank(err=True)
-        if (answer or "").strip().lower() not in ("y", "yes"):
+        if not yes:
+            if not cmd.words[1:] and not o.get("pick"):  # the selector of plugins (R4)
+                t.line("setup.other", err=True, command=cmd.say("setup", "--pick"))
             raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
     return steps
+
+
+def _offered(env, lib):
+    """{name: description} for each plugin of the agentik marketplace read with no network (R5):
+    a clone's own marketplace file three folders over the package's lib, the file of the
+    marketplace Claude Code knows, then public.json's names, with no description."""
+    found = {}
+    files = [] if agentik_install.is_frozen(lib) else [
+        os.path.join(lib, os.pardir, os.pardir, os.pardir, ".claude-plugin", "marketplace.json")]
+    for path in files:
+        market = plan._read_json(path)
+        if isinstance(market, dict) and market.get("name") == plan.MARKETPLACE:
+            for p in market.get("plugins") or ():
+                if isinstance(p, dict) and isinstance(p.get("name"), str):
+                    found[p["name"]] = p.get("description") if isinstance(p.get("description"), str) else ""
+    found.update(tools.descriptions(env))
+    for name in tools.public(lib)["tools"]:
+        found.setdefault(name, "")
+    suite = plan.manifest(lib).get("name") or "suite"
+    return {n: d for n, d in found.items() if tools.NAME.match(n) and n != suite}
+
+
+def pick_names(cmd, nouns):
+    """`setup --pick` (row sc15-setup-pick R5): the names to plan, as if typed after setup. One
+    `many` over the marketplace's plugins, the default set first, `least` 1; with no terminal,
+    or under --json, the names given, as with no --pick. Esc and Ctrl-C decline."""
+    t, o, env, lib = cmd.t, cmd.opts, cmd.env, cmd.lib
+    given = list(dict.fromkeys(nouns))
+    if o["json"]:
+        return given
+    default = plan.default_set(lib)
+    notes = _offered(env, lib)
+    names = list(dict.fromkeys(default + sorted(n for n in notes if n not in default)
+                               + [n for n in given if n not in notes and n not in default]))
+    own = set(tools._own(env))
+    options = [{"value": n, "label": n, "note": "; ".join(
+        x for x in (t.text("setup.pick.installed") if n in own else "", notes.get(n, "")) if x)}
+        for n in names]
+
+    def check(text):
+        return "" if tools.NAME.match(text) else t.text("err.setup.name", name=text)
+
+    home = env.get("HOME") or ""
+    flags = [f for f, key in (("--dry-run", "dry_run"), ("--yes", "yes")) if o[key]]
+
+    def command(answers):  # the hint's words split, as an argv: a `~/` word is given whole
+        line = cmd.say("setup", *(flags + [str(a) for a in answers["plugins"]]))
+        return [os.path.join(home, w[2:]) if w.startswith("~/") and home else w for w in shlex.split(line)]
+
+    question = {"id": "plugins", "prompt": "setup.pick", "kind": "many", "options": options,
+                "default": given or default, "least": 1,
+                "other": {"label": t.text("setup.pick.other"), "note": t.text("setup.pick.other.note"),
+                          "check": check}}
+    try:
+        got = pick.ask(t, [question], command)
+    except pick.NoTerminal:
+        return given
+    except (pick.Cancelled, KeyboardInterrupt) as e:
+        if isinstance(e, KeyboardInterrupt):
+            t.blank(err=True)
+        raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
+    return list(dict.fromkeys(str(a) for a in got["plugins"]))
 
 
 def _run(cmd, names):
