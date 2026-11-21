@@ -1,8 +1,9 @@
 """`update` (row ak4a-update): every installed tool and its command brought current in one call.
 
-The hold comes first, before any other read or write (R3). The two tools it asks of are named by
-the suite's table, never here: the runner, the tool whose status reads hold one named `run`, and
-the tool whose status reads hold one named `unattended`. A runner's `run`, `gate` or `plan` in the
+The hold comes first, before any other read or write (R3). The tools it asks of are found from
+each tool's describe, never named here (row ak10c5-table-gone R5): every runner, a tool whose
+status reads hold one named `run`, and every tool whose status reads hold one named `unattended`,
+in name order. A runner's `run`, `gate` or `plan` in the
 process list, read by the program's name and never by a path's or a value's text, or an
 `unattended` read that answers other than `null` inside SESSION_WALL, holds the update, as does a
 process list that cannot be read; then nothing runs and nothing is written. Then the plan of five
