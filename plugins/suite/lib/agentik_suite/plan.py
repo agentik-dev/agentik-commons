@@ -4,8 +4,9 @@ Every step is a read: it opens files and looks names up on PATH, and starts no p
 included, but one: a plugin that ships its command and has no launcher on PATH is asked
 `describe --json` through the suite's own reader (tools.describe_all, its cache and its wall), and
 one whose counted answer lists no `install-cli` verb runs from its own folder (row
-sp1-launcher-step); and a chosen plugin's need that is a module, which `python3` on PATH is asked to
-import, from `/`, under NEED_WALL seconds (row ic2-needs R1). Each need not met is a step-1 row of
+sp1-launcher-step); and a chosen plugin's need that is a module, which each interpreter of PYTHONS in
+turn is asked to import, from `/`, each under NEED_WALL seconds, until one does (rows ic2-needs R1,
+sn1-need-notread R1). Each need not met is a step-1 row of
 state `warn`, which setup runs on past. A plugin's files are Claude Code's own, under ${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/:
 known_marketplaces.json, an object keyed by marketplace name, and installed_plugins.json, read
 through the finder (`sources`, row fk1-sources): steps 3, 4 and 7 plan by the source that stands
@@ -41,6 +42,11 @@ PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
 # not true, else from public.json's `needs` (row ak10c5-table-gone R4); setup starts no describe.
 NEEDS = {"Go": ("go", None), "PyYAML": ("python3", "import yaml")}
 NEED_WALL = 2.0
+# The interpreters a module need is asked of, in order (row sn1-need-notread R1): the python3 first
+# on PATH, then those the needing tool's own launcher tries after it, in its order, so the plan finds
+# a module where the tool finds it. A bare name is looked up on PATH, a path stands as it is.
+PYTHONS = ("python3", "/usr/bin/python3", "/opt/homebrew/bin/python3", "/usr/local/bin/python3",
+           "python3.13", "python3.12")
 
 
 def needs_of(answer, words):
@@ -140,21 +146,38 @@ def door_off(env):
     return door if os.path.isfile(door) and os.access(door, os.X_OK) else None
 
 
-def need_met(need, search, env):
-    """True when `need` is met, False when not, None when it has no reading (NEEDS): its command
-    on PATH, and, for a module, that command imports it from `/`, stdin closed, within NEED_WALL."""
-    how = NEEDS.get(need)
-    if how is None:
-        return None
-    exe = shutil.which(how[0], path=search)
-    if not exe or how[1] is None:
-        return bool(exe)
+def interpreters(search):
+    """The `(word, path)` of each interpreter of PYTHONS that stands here, in its order, one a real
+    path: an interpreter met twice is asked once (row sn1-need-notread R1)."""
+    found, seen = [], set()
+    for word in PYTHONS:
+        exe = shutil.which(word, path=search)
+        real = os.path.realpath(exe) if exe else None
+        if exe and real not in seen:
+            seen.add(real)
+            found.append((word, exe))
+    return found
+
+
+def _imports(exe, code, env):
     try:
-        done = subprocess.run([exe, "-c", how[1]], cwd="/", env=env, stdin=subprocess.DEVNULL,
+        done = subprocess.run([exe, "-c", code], cwd="/", env=env, stdin=subprocess.DEVNULL,
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=NEED_WALL)
     except (OSError, ValueError, subprocess.SubprocessError):
         return False
     return done.returncode == 0
+
+
+def need_met(need, search, env):
+    """True when `need` is met, False when not, None when it has no reading (NEEDS): its command
+    on PATH; for a module, an interpreter of PYTHONS that imports it from `/`, stdin closed, each
+    within NEED_WALL, the walk stopping at the first that does."""
+    how = NEEDS.get(need)
+    if how is None:
+        return None
+    if how[1] is None:
+        return bool(shutil.which(how[0], path=search))
+    return any(_imports(exe, how[1], env) for _, exe in interpreters(search))
 
 
 def _step(n, sid, state, subject, mid, command=None, line="run", **values):
@@ -317,9 +340,10 @@ def build(names, env, lib, tool, version, cwd=None):
         for need in needs_of(told, listed.get(name)):
             if isinstance(need, str) and need_met(need, search, env) is False:
                 program, module = NEEDS[need]
-                if module and shutil.which(program, path=search):  # what was read (review 1 F2)
+                tried = [word for word, _ in interpreters(search)] if module else []
+                if tried:  # what was read (review 1 F2; row sn1 R1)
                     steps.append(_step(1, "need", "warn", need, "setup.need.module", name=name,
-                                       program=program, module=need))
+                                       program=program, module=need, tried=", ".join(tried)))
                 else:
                     steps.append(_step(1, "need", "warn", need, "setup.need.missing", name=name))
 

@@ -13,17 +13,19 @@
 | act | done-ness |
 |---|---|
 | 1 the packet, measured at the pin | done |
-| 2 R1: `plan.PYTHONS`, the walk, `setup.need.module` names the tried; tests a1, a2 | open |
+| 2 R1: `plan.PYTHONS`, the walk, `setup.need.module` names the tried; tests a1, a2; ic2's f2 reworded | done; the sidecar waits on `make voice` (act 4) |
 | 3 R2: `not_read` from every part's state; `_not_read` says a part once; tests a3, a4 | open |
 | 4 NICE n281; `make voice`; the version; doclint, recordlint, hygiene; `make check` through the gate queue | open |
 
 ## Next act
 
-Act 2: the failing tests of R1, then the change.
+Act 3: R2, `status_read.not_read(parts)` and `_not_read`'s once rule; su6 test_d, test_e and e2e.piped.txt by ruling.
 
 ## Handover
 
 - choice: `PYTHONS` is respeak's whole list, its two bare names included, so the two readers agree. Consumer: review.
+
+- choice: an interpreter met twice (one real path) is asked once; `{tried}` names the words of PYTHONS, not the paths. Consumer: review.
 
 ## Exit
 
