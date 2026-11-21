@@ -152,3 +152,9 @@ Findings that block nothing, one row each, in hq design/05 §2's table; `scripts
 | n258 | S4 | `plugins/suite` `completion.py` | `config <tool>.<Tab>` offers no key, since a tool's keys need its config read and so a process; lead: keep the keys of each config read beside the describe cache | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n259 | S4 | `plugins/suite` `completion.py` | past a tool's first word nothing is offered, its second-level words and its flags included, since P10's `describe` carries first-level verbs alone | row ak12-polish D7 | 2026-11-19, ak12-polish |
 | n260 | S4 | `plugins/suite` `completion.py` | no fish: `completion fish` is refused; lead: a third script on the same callback | row ak12-polish D7 | 2026-11-19, ak12-polish |
+
+## From row hn1-help-next (review 1)
+
+| id | level | area | finding | evidence | from |
+|---|---|---|---|---|---|
+| n261 | S4 | `plugins/suite` `status_read.py` `compose` | the status screen has no deadline over all its reads, so described `wall_s` of up to 10 s each can hold it for their sum; lead: one deadline over the screen's reads, as the inbox has | review 1 L2: 10.14 s with one read sleeping 9 s under a `wall_s` of 10 | 2026-11-20, hn1-help-next review 1 |

@@ -85,6 +85,12 @@ def _table_reads(row):
     return found
 
 
+def _described_wall(value):
+    """A status read's wall as its tool's describe names it (row hn1-help-next R2, GUIDE §11.3):
+    `wall_s` where it is a number, never a bool, above 0 and at most 10, else WALL."""
+    return value if _kind_ok(value, (NUM,)) and 0 < value <= 10 else WALL
+
+
 def _first_line(err):
     for line in (err or b"").decode("utf-8", "replace").splitlines():
         line = CONTROL.sub("", line).strip()
@@ -534,8 +540,8 @@ def compose(cmd, paths, now, ps_text, on_part=None):
             released.add(entry["name"])
             for read in (entry["answer"] or {}).get("reads") or ():
                 if read.get("kind") == "status" and isinstance(read.get("name"), str):
-                    found.extend(add(_source(read["name"], entry["name"], read["argv"], WALL,
-                                             entry["exe"])))
+                    found.extend(add(_source(read["name"], entry["name"], read["argv"],
+                                             _described_wall(read.get("wall_s")), entry["exe"])))
         if all(e["settled"] for e in asked):
             for src in absent:
                 if src["name"] in READS and src["name"] not in given and not unread(src["name"]):
