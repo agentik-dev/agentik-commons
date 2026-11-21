@@ -36,9 +36,9 @@ DOOR = agentik_install.DOOR
 SUITE = "agentik-suite"  # the command the door hands a word it has no tool for
 PROFILE_LINE = 'export PATH="$HOME/.local/bin:$PATH"'
 # How each word of a plugin's need is read: a command on PATH, and the Python it must run when there
-# is one (row ic2-needs R1). A word with no reading makes no row. The word comes from public.json's
-# `needs` for a tool with no answer, else from a `needs` row of its describe whose `name` is the
-# word in any case and whose `optional` is not true (row ak10c5-table-gone R4).
+# is one (row ic2-needs R1). A word with no reading makes no row. The word comes from a `needs` row
+# of the tool's describe in the cache, whose `name` is the word in any case and whose `optional` is
+# not true, else from public.json's `needs` (row ak10c5-table-gone R4); setup starts no describe.
 NEEDS = {"Go": ("go", None), "PyYAML": ("python3", "import yaml")}
 NEED_WALL = 2.0
 
@@ -306,11 +306,15 @@ def build(names, env, lib, tool, version, cwd=None):
         steps.append(_step(1, "prereqs", "blocked", "python3", "setup.python.low",
                            version=ver, path=sys.executable, floor=floor))
     # each chosen plugin's need, named when it is not met (row ic2-needs R1): its describe's rows
-    # where a file runs and answers, else public.json's words (row ak10c5 R4)
+    # where the describe cache holds its answer, else public.json's words (row ak10c5 R4); the plan
+    # starts no describe, so a placed launcher still starts nothing (row sp1 L3)
     rows = tools.rows(env, lib, _cwd(cwd), names=names)
-    told, listed = tools.answered(env, rows)[0], tools.public(lib)["needs"]
+    listed = tools.public(lib)["needs"]
     for name in names:
-        for need in needs_of(told.get(name), listed.get(name)):
+        runs = rows[name].get("runs") if isinstance(rows.get(name), dict) else None
+        exe = runs.get("path") if isinstance(runs, dict) else None
+        told = tools.cached(name, exe, env) if exe else None
+        for need in needs_of(told, listed.get(name)):
             if isinstance(need, str) and need_met(need, search, env) is False:
                 program, module = NEEDS[need]
                 if module and shutil.which(program, path=search):  # what was read (review 1 F2)
