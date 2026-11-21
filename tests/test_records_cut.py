@@ -339,6 +339,12 @@ class RefusalTest(Fixture):
                 commit(self.holder, push=False)
             return setup
 
+        def flagged(flag):
+            def setup():
+                git(self.clone, "update-index", flag, "HANDOFF.md")
+                write(self.clone, {"HANDOFF.md": "# Handoff, an edit git status hides\n"})
+            return setup
+
         return [
             ("a worktree", lambda: (self.worktree("wt", "-b", "side"), None), "not a main checkout"),
             ("a bare repo", lambda: (self.origin, None), "not a main checkout"),
@@ -378,6 +384,9 @@ class RefusalTest(Fixture):
             ("the holder ignores a record's name", holder_ignores("*.sh"),
              "the holder ignores 1 destination paths"),
             ("the holder ignores repos/", holder_ignores("repos/"), "the holder ignores 9"),
+            # F3: a record whose edit the index hides from git status
+            ("an assume-unchanged record", flagged("--assume-unchanged"), "assume-unchanged"),
+            ("a skip-worktree record", flagged("--skip-worktree"), "skip-worktree"),
         ]
 
     def test_each_refusal_alone(self):

@@ -236,6 +236,10 @@ def survey_clone(s, refuse, listing):
     if status[0] != 0 or status[1]:
         refuse(repo, "the tree is dirty (git status --porcelain prints %d lines)"
                % len(status[1].splitlines()))
+    flagged = flagged_records(repo)
+    if flagged:
+        refuse(repo, "%d records are flagged assume-unchanged or skip-worktree, so git status cannot"
+               " show their edits: %s" % (len(flagged), listed(flagged)))
     code, upstream = text(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
     if code != 0 or not upstream:
         refuse(repo, "HEAD has no upstream")
@@ -278,6 +282,19 @@ def survey_clone(s, refuse, listing):
     elif not same_names(os.path.join(repo, SCANNER)):
         refuse(os.path.join(repo, SCANNER), "holds other record names than this script, so the "
                "move cannot be proved: sync it from commons first")
+
+
+def flagged_records(repo):
+    """The records the index flags assume-unchanged (a lowercase tag) or skip-worktree (`S`)."""
+    p = git(repo, "ls-files", "-v", "-z")
+    if p.returncode != 0:
+        return ["(git ls-files fails: %s)" % first_line(p)]
+    found = []
+    for item in p.stdout.split(b"\0"):
+        tag, _, path = os.fsdecode(item).partition(" ")
+        if path and is_record(path) and (tag.islower() or tag == "S"):
+            found.append(path)
+    return found
 
 
 def same_names(path):
