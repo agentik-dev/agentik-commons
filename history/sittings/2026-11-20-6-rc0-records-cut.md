@@ -27,7 +27,7 @@ The probes on scratch fixtures, hygiene; the phase 2 if rr7-way-in is on main; t
 
 ## Handover
 
-(none yet)
+- decide, owner: coordinator. F5's test (169e93b) wrote ssh and https URLs with a user (`git@`, `user@` at `forge.invalid`), which the email group reads; the tree now splits them (hygiene's tree scan exit 0), the commit scan still counts 169e93b (6 hits). A row `tests/test_records_cut.py: email`, as fk1-sources' and rr2's, would hold it. Consumer: the landing.
 
 ## Exit
 

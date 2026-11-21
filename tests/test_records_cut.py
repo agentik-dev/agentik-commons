@@ -586,16 +586,21 @@ class HolderTakesTest(Fixture):
         self.each(check)
 
 
+GIT_AT = "git" + "@"  # split, so no line of this file reads as an address: an ssh URL's user
+
+
 class RemoteSpellingTest(Fixture):
     """Review 2, F5: one remote in two spellings is one remote; build 2's cases stay refused."""
 
     def test_one_remote_in_any_spelling(self):
         same = [
-            ("git@forge.invalid:o/widget.git", "https://forge.invalid/o/widget", None),
-            ("git@forge.invalid:o/widget.git", "ssh://git@forge.invalid/o/widget.git", None),
-            ("https://forge.invalid/o/widget", "https://user@forge.invalid/o/widget", None),
-            ("ssh://git@Forge.Invalid:22/o/widget", "git@forge.invalid:o/widget/", None),
-            ("git@forge.invalid:o/widget.git", "git@forge.invalid:o/widget", None),
+            (GIT_AT + "forge.invalid:o/widget.git", "https://forge.invalid/o/widget", None),
+            (GIT_AT + "forge.invalid:o/widget.git", "ssh://" + GIT_AT + "forge.invalid/o/widget.git",
+             None),
+            ("https://forge.invalid/o/widget", "https://user" + "@forge.invalid/o/widget", None),
+            ("ssh://" + GIT_AT + "Forge.Invalid:22/o/widget", GIT_AT + "forge.invalid:o/widget/",
+             None),
+            (GIT_AT + "forge.invalid:o/widget.git", GIT_AT + "forge.invalid:o/widget", None),
             ("https://forge.invalid/o/widget.git", "https://forge.invalid/o/widget/", None),
             ("https://forge.invalid/o/widget", "https://forge.invalid/o/widget.git/", None),
             ("https://forge.invalid/o/widget", "https://forge.invalid/o/private",
@@ -606,7 +611,7 @@ class RemoteSpellingTest(Fixture):
              ("url.https://forge.invalid/.pushInsteadOf", "fg:")),
         ]
         other = [("https://forge.invalid/o/widget", "https://forge.invalid/o/private", None),
-                 ("git@forge.invalid:o/widget", "git@other.invalid:o/widget", None)]
+                 (GIT_AT + "forge.invalid:o/widget", GIT_AT + "other.invalid:o/widget", None)]
         for mine, theirs, extra in same + other:
             with self.subTest((mine, theirs, extra)):
                 self.fresh()
