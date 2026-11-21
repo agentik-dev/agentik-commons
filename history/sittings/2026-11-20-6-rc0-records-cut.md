@@ -14,13 +14,13 @@
 |---|---|
 | A the allow row | done: `tests/test_records_cut.py: email` under its reason, after rr2's row; the commit scan reads the range tip's `.hygiene-allow`, so it holds once committed |
 | P2 the phase 2 | done: `git merge main` (65e15b8); NICE keeps main's rows and sections, then this row's: n261 to n271 are now n267 to n277 (build 1's n261 and n262 to n267 and n268, under a new "From row rc0-records-cut (build 1)"; review 1's n263 to n268 to n269 to n274; review 2's n269 to n271 to n275 to n277), in the packet too (the pin, and `.hygiene-allow` in may touch); the overflow keeps rr7's section of n191 to n194 and n200 to n202, then this row's n203 and n205 to n208; n209, n210, n211 and n213 to n215, the next oldest S4, to the overflow for the bound (24,456 B, 65 rows); `test_up2_suite_origin.py` is main's; no file under `plugins/` differs from main, so no version |
-| V recordlint, the tests, hygiene, the gate | not done |
+| V recordlint, the tests, hygiene, the gate | recordlint exit 0 (65 rows); `tests.test_records_cut tests.test_up2_suite_origin` 31 OK; hygiene tree exit 0, `main..HEAD` exit 0 (0 outside the allowlist); `git merge-base main HEAD` is 65e15b8; `make check` queued once on this head, its line in the row's record |
 
 Build 3's acts (the proof after the copy, the remotes by host and path, `.hygiene-allow` as git compares it, the words, the NICE rows) are as its record says; build 4 changes none of them.
 
 ## Next act
 
-The checks: recordlint, `tests.test_records_cut` and `tests.test_up2_suite_origin`, hygiene on the tree and `main..HEAD`, then `make check` once through the gate queue.
+None in this build: the gate's line on this head goes to the coordinator; then the row's review or landing.
 
 ## Handover
 
@@ -29,4 +29,4 @@ The checks: recordlint, `tests.test_records_cut` and `tests.test_up2_suite_origi
 
 ## Exit
 
-Open.
+Build 4 built: the allow row in, the phase 2 merged behind main 65e15b8 with this row's NICE rows renumbered n267 to n277; the checks green; `make check` queued once on this head.
