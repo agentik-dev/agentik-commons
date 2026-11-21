@@ -544,7 +544,8 @@ def own_doctors(cmd, entries, described=None):
             continue
         # too old to answer: a tool public.json lists whose describe gives no answer; a tool it does
         # not list keeps the pin's rows, as one outside the old table did (row ak10c5 R7, build 2)
-        old = name in listed and described.get(name, (None, None))[0] != "answers"
+        asked_as = described.get(name, (None, None))[0]
+        old = name in listed and asked_as != "answers"
         if old and name not in answers:
             group["one"] = False  # the describe's row and the doctor's: two the suite wrote
         if name in answers:  # `own` marks R5's read alone: R6 and R7 reach no other (review 1 F1)
@@ -552,7 +553,11 @@ def own_doctors(cmd, entries, described=None):
             if name in reads:
                 group["own"] = answers[name]
             continue
-        if old:  # too old to answer (row ak10c5 R7)
+        if old and asked_as == "timed out":  # slow, never too old: no answer in that time, no update (review 1 L1)
+            lead = lead + [_check("describe", "warn", t.text(
+                "inbox.read.timed_out", read="describe", command="agentik-%s describe --json" % name,
+                wall="%g" % tools.WALL))]
+        elif old:  # too old to answer, or it failed outright (row ak10c5 R7)
             lead = lead + [_check("describe", "warn", t.text("doctor.tool.nodescribe"), cmd.say("update", name))]
         again = tool_doctor(cmd, name, e["exe"])
         if name in reads:

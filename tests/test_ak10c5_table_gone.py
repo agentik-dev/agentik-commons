@@ -148,6 +148,24 @@ class SilentToolTest(Base):
         self.assertNotIn("relay", out + err)
 
 
+    def test_l1_a_describe_that_timed_out_is_no_answer_in_that_time(self):
+        """A describe past the wall: the doctor's row says it gave no answer in that time and names
+        no update; R7's row is for a tool that answered no describe (review 1 L1)."""
+        h = self.two_behind()
+        runner_stubs(h)
+        p = os.path.join(h.bin, "agentik-relay")
+        with open(p) as fh:
+            body = fh.read()
+        h.file(p, body.replace("then echo", "then sleep 4; echo"))
+        code, out, err = h.run("doctor", "--json")
+        self.assertNotIn("Traceback", err)
+        group = [g for g in json.loads(out)["tools"] if g["name"] == "relay"][0]
+        rows = [c for c in group["checks"] if c["name"] == "describe"]
+        self.assertEqual([(c["status"], c["remedy"]) for c in rows], [("warn", None)], rows)
+        self.assertIn("gave no answer in 2 s", rows[0]["detail"])
+        self.assertNotIn("update", rows[0]["detail"])
+
+
 # tool x's runner, answering describe and its config read as a tool that says what it has
 X_RUNNER = """import json, os, sys
 a = sys.argv[1:]
