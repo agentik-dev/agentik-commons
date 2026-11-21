@@ -49,4 +49,6 @@ At the pin setup asks sm1's typed question on any pty, `CI` set or not, and read
 
 ## 5. Findings that name this row
 
-None yet.
+- `cmd.say("setup")` from a clone's `setup` is the typed path alone, with no `setup` word, so `command` splits the whole hint line for its answers rather than a prefix (found by the clone's own probe, now `test_a6_from_the_clone`).
+- `pick.ask`'s `same as:` is `shlex.join` of the argv, which would quote a `~/` word; `command` gives that word as its full path, so the line runs as pasted. Not a defect of `pick.py`: an argv holds no `~`.
+- Commit eac3d56 named two tools in five asserts of `tests/test_sc15_setup_pick.py` (hygiene's `sibling` group); a76ba71 reads them from the plugin, and the history keeps the hit.
