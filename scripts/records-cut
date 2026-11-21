@@ -352,6 +352,17 @@ def survey_destination(s, refuse, trees):
                      ":(literal)repos/" + name)
     if code != 0 or out:
         refuse(htop, "the holder is dirty under repos/%s/" % name)
+    paths = ["repos/%s/%s" % (name, r[0]) for r in s["records"]]
+    if paths:
+        p = git(htop, "check-ignore", "--no-index", "-z", "--stdin",
+                data=b"".join(os.fsencode(x) + b"\0" for x in paths))
+        hit = [os.fsdecode(x) for x in p.stdout.split(b"\0") if x]
+        if p.returncode not in (0, 1):
+            refuse(htop, "git check-ignore fails, so the holder's ignore rules cannot be read: %s"
+                   % first_line(p))
+        elif hit:
+            refuse(htop, "the holder ignores %d destination paths, so its commit would leave them"
+                   " out: %s" % (len(hit), listed(hit)))
 
 
 def report(s, go):

@@ -305,7 +305,7 @@ class RefusalTest(Fixture):
         def stray():
             write(self.holder, {"repos/widget/stray.md": "x\n"})
             with open(os.path.join(self.holder, ".git", "info", "exclude"), "a") as fh:
-                fh.write("repos/\n")
+                fh.write("repos/widget/stray.md\n")
 
         def holder_dirty():
             write(self.holder, {"repos/widget/old.md": "x\n"})
@@ -331,6 +331,12 @@ class RefusalTest(Fixture):
                 target = os.path.join(self.clone if inside else self.top, "public")
                 os.makedirs(target)
                 os.symlink(target, os.path.join(self.holder, "repos"))
+            return setup
+
+        def holder_ignores(pattern):
+            def setup():
+                write(self.holder, {".gitignore": pattern + "\n"})
+                commit(self.holder, push=False)
             return setup
 
         return [
@@ -368,6 +374,10 @@ class RefusalTest(Fixture):
             ("repos a symlink into the clone", link_repos(True), "a symlink in the destination's path"),
             ("repos a symlink out of the holder", link_repos(False),
              "a symlink in the destination's path"),
+            # F2: a destination path the holder's ignore rules match
+            ("the holder ignores a record's name", holder_ignores("*.sh"),
+             "the holder ignores 1 destination paths"),
+            ("the holder ignores repos/", holder_ignores("repos/"), "the holder ignores 9"),
         ]
 
     def test_each_refusal_alone(self):

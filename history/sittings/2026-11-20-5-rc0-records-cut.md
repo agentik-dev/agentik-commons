@@ -13,7 +13,7 @@
 | act | done-ness |
 |---|---|
 | F1 a symlink in the destination's path; the destination outside the holder or inside the clone | done: refused in the survey; two cases in `test_each_refusal_alone` |
-| F2 a destination path the holder ignores | open |
+| F2 a destination path the holder ignores | done: `git check-ignore --no-index` on each destination path; two cases; the stray case now excludes its one file, not `repos/` |
 | F3 a record flagged assume-unchanged or skip-worktree | open |
 | F4 a `.hygiene-allow` that is not HEAD's | open |
 | F5, L3 a HEAD behind its upstream; a remote-tracking branch with a record commit | open |
@@ -26,7 +26,7 @@
 
 ## Next act
 
-F2.
+F3.
 
 ## Handover
 
