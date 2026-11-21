@@ -30,7 +30,9 @@
 # a plugin/lib/ that names no tool, or a seed id commons' messages.md lacks, with nothing written. CDPATH is never followed.
 #
 # --check reads the same table and writes nothing (packet sy4-sync-check): `behind <path>` for a
-# listed copy that is absent or differs from commons' file in bytes or mode, `unlisted <path>`
+# listed copy that is absent or differs from commons' file in bytes or in its owner's executable
+# bit, the one bit of a mode git keeps (packet hn1-help-next R3: a clone under umask 002 is not
+# behind; the write path still sets the table's mode), `unlisted <path>`
 # where vendored.sha256 lacks a listed path or names one sync would not list (no file: every
 # path), sorted, behind first, on stdout; agentik-tool.conf and messages.md, the tool's own, are
 # never compared. Exit 0 every copy is commons' (one line says so), 1 a behind or unlisted line,
@@ -144,6 +146,10 @@ listed=$(printf '%s\n' "$rows" | awk '$4 == "y" { print $2 }')
 
 if [ -n "$check" ]; then
 	# Reads only: nothing is created, changed or removed, here or in the target.
+	# exe_bit FILE: x where FILE's owner may execute it, else nothing (packet hn1-help-next R3).
+	# mode_bit MODE: the same of the table's octal MODE.
+	exe_bit() { [ -z "$(find "$1" -prune -perm -0100)" ] || echo x; }
+	mode_bit() { case $1 in [1357]*) echo x ;; esac; }
 	behind=
 	while read -r src dst mode mark; do
 		[ "$mark" = y ] || continue
@@ -157,7 +163,7 @@ if [ -n "$check" ]; then
 		elif [ "$src" != :init ] && ! cmp -s "$here/$src" "$f"; then
 			behind="$behind$dst
 "
-		elif [ -z "$(find "$f" -prune -perm "$mode")" ]; then
+		elif [ "$(exe_bit "$f")" != "$(mode_bit "$mode")" ]; then
 			behind="$behind$dst
 "
 		fi
