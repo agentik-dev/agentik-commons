@@ -400,8 +400,11 @@ class Update:
         what, unread = holding(self.cmd, told)
         if what:
             return self.held(what, unread)
-        if told[1] and not self.o["json"] and not self.t.quiet:  # R5: no answer holds nothing
-            self.t.line("update.unasked", err=True, style="hint", names=", ".join(told[1]))
+        # R5: no answer holds nothing; the line names only a tool public.json lists (build 2 fork 2)
+        listed = tools.public(self.cmd.lib)["tools"]
+        silent = [n for n in told[1] if n in listed]
+        if silent and not self.o["json"] and not self.t.quiet:
+            self.t.line("update.unasked", err=True, style="hint", names=", ".join(silent))
         self.scope()
         steps = self.detail(self.head() + self.tail())
         blocked = [s for s in self.prereqs if s["state"] == "blocked"]

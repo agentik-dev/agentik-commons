@@ -43,6 +43,23 @@ class HoldTest(Base):
         self.assertTrue(said[0].startswith("warn: ") and "relay" in said[0], said)
         self.assertNotIn("held install", out + err)
 
+    def test_fork2_a_tool_public_json_does_not_list_is_not_named(self):
+        """`update.unasked` names only a tool public.json lists; a stand-in it does not list,
+        whose file runs and gives no answer, is named nowhere and holds nothing (build 2 fork 2)."""
+        h = self.two_behind()
+        h.file(os.path.join(h.bin, "agentik-murmur"), SILENT)
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 0, out + err)
+        self.assertNotIn("gave no `describe` answer", err)
+        self.assertNotIn("held install", out + err)
+        h.file(os.path.join(h.bin, "agentik-relay"), SILENT)
+        h.file(os.path.join(h.bin, "agentik-respeak"), SILENT)
+        code, out, err = h.run("update", "--dry-run")
+        said = [l for l in err.splitlines() if "gave no `describe` answer" in l]
+        self.assertEqual(len(said), 1, err)
+        self.assertIn("relay, respeak", said[0])
+        self.assertNotIn("murmur", said[0])
+
     def test_a3_both_holds_through_describe(self):
         h = self.two_behind()
         runner_stubs(h, "echo '{\"id\": \"u1\"}'")
