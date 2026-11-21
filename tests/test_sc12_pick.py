@@ -8,6 +8,7 @@ import os
 import pty
 import re
 import select
+import shlex
 import subprocess
 import sys
 import unittest
@@ -293,6 +294,31 @@ class SameAs(unittest.TestCase):
         words = line[len("same as: "):]
         p = subprocess.run(["sh", "-c", "printf '<%s>' " + words], capture_output=True, text=True)
         self.assertEqual(p.stdout, "<agentik><setup><session></tmp/my profile; echo $HOME>")
+
+    def test_f4_a_typed_character_passes_clean(self):
+        q = {"id": "name", "tab": "Name", "prompt": "t.key", "kind": "one",
+             "options": [{"value": "alpha", "label": "alpha"}],
+             "other": {"label": "other", "note": "a name, typed", "check": lambda s: ""}}
+        typed = "my name x​"
+        t = a_term()
+        st = pick.State(t, [dict(q)], True)
+        h = pick._Ask(st)
+        h("down", None)
+        feed(h, typed.encode())  # typed, a key at a time
+        h.paste(" y")  # and pasted
+        self.assertFalse(any(c in s for line in pick.layout(st, 80, 24)[0] for s, _ in line
+                             for c in "  "))
+        done, got = h("enter", None)
+        self.assertEqual((done, got), (True, {"name": "mynamexy"}))
+        err = io.StringIO()
+        out = term.Term(env={"LANG": "en_US.UTF-8"}, out=io.StringIO(), err=err, messages=t.messages)
+        argv = ["kit", "name", got["name"]]
+        out.line("pick.same", err=True, command=shlex.join(argv))
+        printed = err.getvalue().split("same as: ", 1)[1].rstrip("\n")
+        p = subprocess.run(["sh", "-c", "printf '<%s>' " + printed], capture_output=True, text=True)
+        self.assertEqual(p.stdout, "".join("<%s>" % a for a in argv))
+        plain, _ = self.plain([dict(q)], "2\n" + typed + "y\n", lambda a: ["kit", "name", a["name"]])
+        self.assertEqual(plain, got)  # the picker and the plain prompt answer alike
 
     def test_a7_a_refused_other_stays_wherever_the_focus_is(self):
         t = a_term()

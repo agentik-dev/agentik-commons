@@ -602,6 +602,9 @@ class _Ask:
         return bool(wrong)
 
     def type(self, q, field, value):
+        value = term.clean(value)  # what `same as:` and the plain prompt keep of it, alone
+        if not value:
+            return False, None
         if field == "filter" and value == " " and q.many:
             return self.choose(q, False)
         setattr(q, field, getattr(q, field) + value)
