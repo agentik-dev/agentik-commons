@@ -235,10 +235,12 @@ def survey_clone(s, refuse, listing):
     repo = s["repo"]
     tree = entries(repo, "HEAD")
     s["records"] = [e for e in tree if is_record(e[0])]
-    odd = [e[0] for e in tree if (e[1] == "120000" and (is_record(e[0]) or holds_records(e[0])))
-           or (is_record(e[0]) and e[1] not in MODES and e[1] != "120000")]
+    odd = [e[0] for e in tree if (e[1] in ("120000", "160000")
+                                  and (is_record(e[0]) or holds_records(e[0])))
+           or (is_record(e[0]) and e[1] not in MODES)]
     if odd:
-        refuse(repo, "a record path is a symlink or holds one, or is no file: %s" % listed(odd))
+        refuse(repo, "a record path is a symlink or a submodule, or holds one, or is no file: %s"
+               % listed(odd))
     status = text(repo, "status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none")
     if status[0] != 0 or status[1]:
         refuse(repo, "the tree is dirty (git status --porcelain prints %d lines)"

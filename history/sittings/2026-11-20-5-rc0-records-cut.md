@@ -18,7 +18,7 @@
 | F4 a `.hygiene-allow` that is not HEAD's | done: a working file absent at HEAD, one whose bytes differ from HEAD's, or an absent one the clone ignores, refused; three cases |
 | F5, L3 a HEAD behind its upstream; a remote-tracking branch with a record commit | done: `upstream...HEAD` counted both ways; the remote-tracking branches but the upstream and symrefs join the tips; two cases |
 | L4 a holder sharing a remote URL with the clone | done: each fetch and push URL compared, a local path by its real path, others case-folded, less a trailing `/` or `.git`; two cases |
-| L7 a submodule at or under a record name | open |
+| L7 a submodule at or under a record name | done: mode 160000 joins 120000 at, under or above a record name; one case |
 | N the NICE rows from review 1 | open |
 | W the packet, the help, GUIDE §12 | open |
 | V the probes, hygiene, the gate | open |
@@ -26,7 +26,7 @@
 
 ## Next act
 
-L7.
+N, the NICE rows.
 
 ## Handover
 

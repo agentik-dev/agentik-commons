@@ -370,6 +370,17 @@ class RefusalTest(Fixture):
                 git(self.clone, "fetch", "-q")
             return setup
 
+        def submodule():
+            sub = os.path.join(self.top, "sub")
+            git(self.top, "init", "-q", "-b", "main", sub)
+            write(sub, {"c.md": "# a charter in the submodule\n"})
+            commit(sub, push=False)
+            git(self.clone, "rm", "-q", "-r", "history")
+            commit(self.clone, push=False)
+            git(self.clone, "-c", "protocol.file.allow=always", "submodule", "add", "-q", sub,
+                "history")
+            commit(self.clone)
+
         return [
             ("a worktree", lambda: (self.worktree("wt", "-b", "side"), None), "not a main checkout"),
             ("a bare repo", lambda: (self.origin, None), "not a main checkout"),
@@ -426,6 +437,8 @@ class RefusalTest(Fixture):
             ("a holder sharing it in another spelling", lambda: git(
                 self.holder, "remote", "add", "pub", "file://" + self.origin + "/") and None,
              "republish"),
+            # L7: a submodule at a record name, refused as a symlink is
+            ("a submodule at a record name", submodule, "a symlink or a submodule"),
         ]
 
     def test_each_refusal_alone(self):
