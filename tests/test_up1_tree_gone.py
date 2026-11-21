@@ -64,6 +64,13 @@ def plugin(home, pid, ver):
     os.chmod(exe, 0o755)
     return root
 ''' % COMMAND
+# row ak10c5-table-gone R8: the same command answering `describe` as the suite's tools do, so the
+# doctor reads it as at the pin, when the table spared the suite's tools the ask
+DESCRIBING = COMMAND.replace("*) exit 0 ;;", (
+    "describe) echo '{\"schema\": \"agentik.describe/1\", \"ok\": true, \"tool\": \"@NAME@\", "
+    "\"version\": \"@VERSION@\", \"summary\": \"A stand-in.\", \"repo\": \"acme/stand-in\", "
+    "\"plugin\": null, \"needs\": [], \"verbs\": [{\"name\": \"install-cli\", "
+    "\"summary\": \"Place the launcher.\", \"top\": false}], \"reads\": []}' ;;\n*) exit 0 ;;"))
 CURRENT = "everything is current; nothing was placed."
 
 
@@ -73,11 +80,12 @@ class Base(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.tmp = os.path.realpath(tmp.name)
 
-    def home(self, names, suite=False):
+    def home(self, names, suite=False, command=COMMAND):
         """A home with each name installed at 1.0.0 and its launcher placed by its install-cli;
-        with `suite`, the suite's own launcher and the door placed by its real install-cli."""
+        with `suite`, the suite's own launcher and the door placed by its real install-cli; each
+        plugin's command is `command`."""
         h = ak4a.Home(os.path.join(self.tmp, "h"), listed=names)
-        h.file(os.path.join(h.home, "seed.py"), SEED)
+        h.file(os.path.join(h.home, "seed.py"), SEED if command == COMMAND else SEED.replace(repr(COMMAND), repr(command)))
         h.roots = {}
         for name in names:
             h.roots[name] = h.install(name + "@agentik", "1.0.0", launcher=False)
@@ -207,7 +215,7 @@ class DoctorTest(Base):
 
     def test_doctor_names_the_gone_code_and_its_next_runs_as_printed(self):
         self.assertIn("session", DEFAULT)
-        h = self.home(DEFAULT, suite=True)
+        h = self.home(DEFAULT, suite=True, command=DESCRIBING)  # ak10c5 R8
         code, out, err = h.run("doctor")
         self.assertEqual(code, 0, out + err)
         self.aside(self.tree(h, "session"))
