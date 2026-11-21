@@ -47,3 +47,20 @@ The base is the designer's prototype, which the refuter broke in three ways (des
 | 11 | `-k test_a11`: `import pick` with `termios` hidden; `ask` gives the plain prompt | `import pick` fails |
 | 12 | `-k test_a12`: the one-reader test red on a planted `input(` in `config.py` | no test |
 | 13 | `scripts/hygiene --require-private --commits main..HEAD` exit 0; `make check` through the gate queue | green at b1894d8 |
+
+## 5. Findings that name this row
+
+Review 1 at 2979793, ruled a fix in one round. Built in build 2:
+
+| finding | the fix |
+|---|---|
+| F1 a run of Esc recursed and raised; three Escs did nothing | `parse` reads a run of ESC by a loop: a run of bare ESC of any length is one `esc`; ESC ESC and one key is still one key |
+| F2 a key acted while the frame was the size line | while the last frame drawn is the size line, every key but Esc and Ctrl-D is dropped, a paste too |
+| F3 a label that holds a blank could not be named at the plain prompt | a `many` line splits on commas where it holds one, else is tried whole as one label, then split on blanks |
+| F4 U+2028 and U+2029 reached the answer and left `same as:` | each typed or pasted character passes `term.clean` before it enters the filter or the text |
+| F5 the one-reader test read a `#` in a string as a comment | it finds the reads in the syntax tree |
+| F6 the fixture names the suite's own plugins | the allow row `tests/test_sc12_pick.py: sibling`, the coordinator's ruling; the docstring says so |
+| L3 `confirm`'s layout passed its width | its question and rows are cut to the width |
+| L5 a typed range was built before its bounds were checked | both ends are checked first |
+
+Build 1's check was red on two more: `## Pick` now stands before `## Issue`, which stays the last section of `messages.md`; the completion summary test follows the widened `clean` (`x`, U+200B, `y` sums to `xy`; a soft hyphen keeps the refusal). To the tool's wish list at the landing: L2, L4, L6 and the review's observations.

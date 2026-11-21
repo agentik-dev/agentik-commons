@@ -343,7 +343,8 @@ def cases(python, home):
                     break
                 c.read(0)  # a screen that reads, as a terminal does
                 sent += 1
-            early, took = c.done(), time.monotonic() - start
+            took = time.monotonic() - start
+            early = took < 1.0  # the sending stopped: the child left, or its terminal closed
             status = c.wait(2)
             got = c.answer().strip()
             closed = status == want and (got == "false" if how == "confirm" else True)
