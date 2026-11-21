@@ -15,12 +15,12 @@
 | P the packet | done |
 | T the failing tests, acceptance 1 to 7: ten tests in `tests/test_records_cut.py`, red at the pin (no script) | done |
 | A R1 to R6: `scripts/records-cut`; `tests.test_records_cut` 10 OK | done |
-| B R7: the header, GUIDE §12, a NICE row | open |
-| V acceptance 8 and 9 | open |
+| B R7: the script's header; GUIDE §12's new paragraph `The cut.`; NICE n261 (no `--undo`); recordlint and hygiene clean | done |
+| V acceptance 9: the dry run against one sibling tool checkout, exit 2: 96 records, refused on 6 branches with record commits and a scanner behind commons'; its `git status` unchanged. Acceptance 8: the gate | open |
 
 ## Next act
 
-B: R7, GUIDE §12 and a NICE row; then V.
+V: acceptance 9 by hand (done: exit 2, two refusals), then `make check` through the gate.
 
 ## Handover
 
