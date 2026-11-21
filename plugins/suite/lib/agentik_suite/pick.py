@@ -474,14 +474,24 @@ def parse(buf, final, utf8):
         if not char or unicodedata.category(char[0])[0] == "C":
             return ("none", None), size
         return ("text", char), size
-    if len(buf) < 2:
-        return (("esc", None), 1) if final else (None, 0)
-    c = buf[1]
-    if c == 0x1b:  # ESC ESC: one more prefix, so Alt with an arrow is one key
-        if len(buf) == 2:
-            return (("esc", None), 2) if final else (None, 0)
-        event, used = parse(buf[1:], final, utf8)
+    run = 1
+    while run < len(buf) and buf[run] == 0x1b:
+        run += 1
+    if run == len(buf):  # bare ESCs alone: one esc, however many
+        if final:
+            return ("esc", None), run
+        return (None, 0) if run <= 2 else (("esc", None), run - 2)
+    if run > 2:  # the run's head is bare; its last two may be an Alt prefix and a key
+        return ("esc", None), run - 2
+    if run == 2:  # ESC ESC: one prefix, so Alt with an arrow is one key; never a second
+        event, used = _one(buf[1:], final, utf8)
         return (None, 0) if event is None else (("none", None), used + 1)
+    return _one(buf, final, utf8)
+
+
+def _one(buf, final, utf8):
+    """parse's ESC and one key that is no ESC."""
+    c = buf[1]
     if c == 0x5b:  # CSI
         if len(buf) < 3:
             return _more(buf, final)

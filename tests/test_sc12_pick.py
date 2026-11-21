@@ -226,6 +226,20 @@ class Keys(unittest.TestCase):
         self.assertEqual(pick.parse("é".encode(), False, True), (("text", "é"), 2))
         self.assertEqual(pick.parse("é".encode("latin-1"), False, False), (("text", "é"), 1))
 
+    def test_f1_a_run_of_esc_is_one_esc(self):
+        self.assertEqual(pick.parse(b"\x1b\x1b\x1b", True, True), (("esc", None), 3))
+        self.assertEqual(pick.parse(b"\x1b" * 1100, True, True), (("esc", None), 1100))
+        self.assertEqual(pick.parse(b"\x1b\x1b", False, True), (None, 0))  # an Alt prefix, perhaps
+        event, used = pick.parse(b"\x1b" * 1100, False, True)  # held: no wait for an end
+        self.assertEqual(event, ("esc", None))
+        self.assertEqual(pick.parse(b"\x1b\x1b[A", False, True), (("none", None), 4))
+        st = pick.Confirm(a_term(), "Q?", "Yes", "No")
+        feed(pick._Yes(st), b"\x1b" * 1100)
+        self.assertEqual(st.focus, 1)
+        st = pick.State(a_term(), [keys28()], utf8=True)
+        with self.assertRaises(pick.Cancelled):
+            feed(pick._Ask(st), b"\x1b\x1b\x1b")
+
 
 class SameAs(unittest.TestCase):
     def plain(self, qs, lines, command):

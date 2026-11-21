@@ -331,6 +331,27 @@ def cases(python, home):
         check(alone and c.answer().strip() == "false", "the yes or no: y alone answers nothing")
     finally:
         c.close()
+    for how, want in (("confirm", 0), ("one", 4)):  # a held Esc: one every 20 ms
+        c = child(how)
+        try:
+            c.until(b"\x1b[?2004h")
+            start, sent = time.monotonic(), 0
+            while time.monotonic() - start < 1.0 and not c.done():
+                try:
+                    c.send(ESC, gap=0.02)
+                except OSError:  # the terminal closed under the last Esc
+                    break
+                c.read(0)  # a screen that reads, as a terminal does
+                sent += 1
+            early, took = c.done(), time.monotonic() - start
+            status = c.wait(2)
+            got = c.answer().strip()
+            closed = status == want and (got == "false" if how == "confirm" else True)
+            check(closed and early and b"Traceback" not in c.seen and c.modes() == c.before,
+                  "a held Esc, one every 20 ms, closes %s within its first second" % how,
+                  "status %s, answer %r, %d sent over %.2f s" % (status, got, sent, took))
+        finally:
+            c.close()
     c = child("late-confirm")
     try:
         time.sleep(0.4)
