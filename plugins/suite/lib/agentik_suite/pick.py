@@ -1006,6 +1006,8 @@ def _numbers(line, count, many, kept):
         lo, _, hi = word.partition("-")
         if not lo.isdigit() or (hi and not hi.isdigit()):
             return None
+        if not 1 <= int(lo) <= count or not 1 <= int(hi or lo) <= count:
+            return None  # both ends in the list before a range is built
         picked += range(int(lo) - 1, int(hi or lo))
     if any(i < 0 or i >= count for i in picked) or (not many and len(picked) != 1):
         return None

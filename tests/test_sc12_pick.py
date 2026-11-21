@@ -11,6 +11,7 @@ import select
 import shlex
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -365,6 +366,16 @@ class SameAs(unittest.TestCase):
         self.assertIn("! nope is not one of the names above", err)
         self.assertNotIn("  1  ", err)
         self.assertNotIn("\x1b", err)
+
+    def test_l5_a_range_is_checked_before_it_is_built(self):
+        start = time.monotonic()
+        self.assertIsNone(pick._numbers("1-9999999999", 6, True, False))
+        self.assertIsNone(pick._numbers("9999999999-9999999999", 6, True, False))
+        self.assertLess(time.monotonic() - start, 0.05)
+        self.assertEqual(pick._numbers("2-4", 6, True, False), [1, 2, 3])
+        got, err = self.plain([plugins()], "1-9999999999\n1\n", lambda a: ["kit"] + a["plugins"])
+        self.assertIn("! not a number from 1 to 6", err)
+        self.assertEqual(got["plugins"], ["session"])
 
     def test_f3_a_label_that_holds_a_blank_is_named_whole(self):
         q = {"id": "p", "tab": "Profiles", "prompt": "t.plugins", "kind": "many", "least": 0,
