@@ -1,0 +1,537 @@
+#!/usr/bin/env python3
+"""records-cut: move a repo's working records to the repo that holds them, and declare them out
+(hq design/28 §3 items 2, 3, 5, 7 and 10; GUIDE §12).
+
+    scripts/records-cut --repo <clone> --holder <repo> [--go]
+
+The records are the paths at HEAD under the names `scripts/hygiene` holds out of a declaring tree
+(`RECORD_DIRS`, `RECORD_FILES`: each at the root, case-folded). Their destination is
+`<the holder's top>/repos/<the clone's main checkout's folder name>/`, each record at its path,
+the name the resolver (`agentik_records.py`) requires.
+
+Without `--go` it is a dry run and writes nothing anywhere: it prints the records found at HEAD
+(counted by name, in files and bytes, then one line a path), the destination, every refusal that
+applies, and the plan `--go` would run. It refuses, each in one line on stderr naming what and
+where: a `--repo` that is no main checkout (a worktree, a bare repo, no repo); a dirty tree
+(anything `git status --porcelain` prints, untracked files included); a HEAD with no upstream or
+ahead of it; a local branch or a worktree whose commits past HEAD add or change a record (at most
+ten named); a record path that is a symlink or holds one; a destination that exists and is not
+empty; a holder that is no repo, is the clone, shares its git folder or lies inside it, is dirty
+under the destination, or declares `records: out` itself; `agentik.records` already set in the
+clone; a `.hygiene-allow` that already declares or holds a `records` row; no record at HEAD; and
+a clone whose own `scripts/hygiene` is absent or holds other names, so the move could not be
+proved.
+
+With `--go`, in this order, stopping at the first failed step with one line that says what was
+done and what to undo: copy each record's blob at HEAD to the destination with its mode and
+compare each sha256 with the blob's; in the clone, `git rm` the records, add the whole line
+`records: out` to `.hygiene-allow` (created when absent), and make one commit of those paths,
+whose one-line message names no holder; set `git config --local agentik.records <destination>`;
+then prove it: the resolver answers `out` with that folder, the clone's own `scripts/hygiene` is
+green in tree mode and over `HEAD^..HEAD`, and the tree at HEAD^ less the records equals the tree
+at HEAD less the new line. A failed proof exits 1 and reverts nothing. Last it prints the line
+that commits the destination in the holder by explicit path, and the push order: the clone first,
+then the holder, so the clone's push range holds no record commit of its own.
+
+It never commits in the holder, pushes, rewrites history, touches a remote, a tag, a worktree or
+another branch, sets a git identity, or removes a file that is not a record at HEAD. Git runs
+with the repository's environment variables dropped, as the resolver drops them, and without
+optional locks, so the dry run leaves even the index as it was. Exit 0 a clean dry run or a
+finished move, 2 a usage error or a refusal, 1 a failed step or proof.
+"""
+import hashlib
+import os
+import shlex
+import subprocess
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import agentik_records  # noqa: E402  the one resolver, beside this script
+
+USAGE = "usage: scripts/records-cut --repo <clone> --holder <repo> [--go]"
+# The scanner's `records` group (scripts/hygiene), held once here; a test holds them equal
+RECORD_DIRS = ("history/", "design/packets/", "bugs/")
+RECORD_FILES = ("HANDOFF.md", "NICE_TO_HAVE.md", "OPEN-QUESTIONS.md", "relay/queue.yaml",
+                ".hygiene-live")
+RECORD_DIRS_FOLDED = tuple(n.casefold() for n in RECORD_DIRS)
+RECORD_FILES_FOLDED = tuple(n.casefold() for n in RECORD_FILES)
+ALLOW_FILE = ".hygiene-allow"
+DECLARATION = "records: out"
+SCANNER = "scripts/hygiene"
+KEY = agentik_records.KEY
+MESSAGE = "The working records move to this repo's records folder; the tree declares records: out"
+MODES = {"100644": 0o644, "100755": 0o755}
+MOST = 10
+
+
+class Usage(Exception):
+    pass
+
+
+class Help(Exception):
+    pass
+
+
+class Failed(Exception):
+    """A failed step: its one line, what was done and what to undo."""
+
+
+def is_record(path):
+    """The scanner's rule: a path under a record name, at the root, the names case-folded."""
+    folded = path.casefold()
+    return folded.startswith(RECORD_DIRS_FOLDED) or folded in RECORD_FILES_FOLDED
+
+
+def holds_records(path):
+    """True for a path a record name lies under (`history`, `design`, `relay`)."""
+    folded = path.casefold() + "/"
+    return any(name.startswith(folded) for name in RECORD_DIRS_FOLDED + RECORD_FILES_FOLDED)
+
+
+def git(folder, *args, data=None):
+    feed = {"input": data} if data is not None else {"stdin": subprocess.DEVNULL}
+    return subprocess.run(["git", "--no-replace-objects", "--no-optional-locks", "-C", folder]
+                          + list(args), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          env=agentik_records._env(), **feed)
+
+
+def text(folder, *args):
+    p = git(folder, *args)
+    out = os.fsdecode(p.stdout)
+    return p.returncode, out[:-1] if out.endswith("\n") else out
+
+
+def first_line(p):
+    lines = os.fsdecode(p.stderr).strip().splitlines()
+    return lines[-1] if lines else "exit %d" % p.returncode
+
+
+def q(word):
+    return shlex.quote(word)
+
+
+def parse_args(argv):
+    opts = {"repo": None, "holder": None, "go": False}
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--go":
+            opts["go"] = True
+        elif arg in ("--repo", "--holder"):
+            if i + 1 >= len(argv) or not argv[i + 1]:
+                raise Usage("%s needs a value" % arg)
+            opts[arg[2:]] = argv[i + 1]
+            i += 1
+        elif arg in ("-h", "--help"):
+            raise Help()
+        else:
+            raise Usage("unknown argument: %s" % arg)
+        i += 1
+    if opts["repo"] is None or opts["holder"] is None:
+        raise Usage("--repo and --holder are both needed")
+    return opts
+
+
+def entries(repo, rev, *paths):
+    """[(path, mode, type, sha, size)] of the tree at `rev`, recursive, from the root."""
+    p = git(repo, "ls-tree", "-r", "-l", "-z", "--full-tree", rev, "--", *paths)
+    if p.returncode != 0:
+        raise Failed("git ls-tree %s failed in %s: %s" % (rev, repo, first_line(p)))
+    found = []
+    for item in p.stdout.split(b"\0"):
+        if item:
+            meta, path = item.split(b"\t", 1)
+            mode, kind, sha, size = meta.decode("ascii").split()
+            found.append((os.fsdecode(path), mode, kind, sha, size))
+    return found
+
+
+def blob(repo, sha):
+    p = git(repo, "cat-file", "blob", sha)
+    if p.returncode != 0:
+        raise Failed("git cat-file %s failed in %s: %s" % (sha, repo, first_line(p)))
+    return p.stdout
+
+
+def allow_text(repo, rev):
+    """(mode, bytes) of `.hygiene-allow` at `rev`, or (None, None) where it is absent."""
+    found = [e for e in entries(repo, rev, ALLOW_FILE) if e[0] == ALLOW_FILE]
+    if not found:
+        return None, None
+    mode, kind, sha = found[0][1:4]
+    return mode, (blob(repo, sha) if kind == "blob" else None)
+
+
+def with_line(old):
+    """`.hygiene-allow`'s bytes with the declaration added as a whole last line."""
+    old = old or b""
+    return old + (b"\n" if old and not old.endswith(b"\n") else b"") + DECLARATION.encode() + b"\n"
+
+
+def survey(repo_arg, holder_arg):
+    """What the cut would move and where, and every refusal that applies."""
+    s = {"repo": None, "holder": None, "dest": None, "name": None, "records": [], "head": None,
+         "allow_mode": None, "allow": None}
+    refused = []
+
+    def refuse(where, what):
+        refused.append("%s: %s" % (where, what))
+    common = trees = None
+    repo = os.path.realpath(repo_arg)
+    code, bare = text(repo, "rev-parse", "--is-bare-repository") if os.path.isdir(repo) else (1, "")
+    if code != 0:
+        refuse(repo_arg, "no git repo, so not a main checkout")
+    elif bare == "true":
+        refuse(repo, "a bare repo, not a main checkout")
+    else:
+        top = os.path.realpath(text(repo, "rev-parse", "--show-toplevel")[1] or repo)
+        gitdir = os.path.realpath(text(repo, "rev-parse", "--absolute-git-dir")[1] or repo)
+        common = os.path.realpath(text(repo, "rev-parse", "--path-format=absolute",
+                                       "--git-common-dir")[1] or repo)
+        listing = text(repo, "worktree", "list", "--porcelain", "-z")[1].split("\0")
+        trees = [os.path.realpath(i[len("worktree "):]) for i in listing if i.startswith("worktree ")]
+        code, head = text(repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+        if gitdir != common:
+            refuse(repo, "a worktree, not a main checkout (its main checkout is %s)"
+                   % (trees[0] if trees else "unknown"))
+        elif top != repo:
+            refuse(repo, "a folder inside %s, not a main checkout's top" % top)
+        elif code != 0:
+            refuse(repo, "HEAD names no commit")
+        else:
+            s.update(repo=repo, head=head, name=agentik_records._name(repo))
+            survey_clone(s, refuse, listing)
+    holder = os.path.realpath(holder_arg)
+    code, htop = text(holder, "rev-parse", "--show-toplevel") if os.path.isdir(holder) else (1, "")
+    if code != 0 or not htop:
+        refuse(holder_arg, "the holder is no git repo with a working tree")
+        return s, refused
+    htop = os.path.realpath(htop)
+    s["holder"] = htop
+    if s["repo"]:
+        theirs = os.path.realpath(text(htop, "rev-parse", "--path-format=absolute",
+                                       "--git-common-dir")[1] or htop)
+        if agentik_records._same(theirs, common):
+            refuse(htop, "the holder is the clone" if htop == s["repo"]
+                   else "the holder shares the clone's git folder")
+        elif agentik_records._inside(htop, [s["repo"]] + trees):
+            refuse(htop, "the holder lies inside the clone or one of its worktrees")
+        else:
+            survey_destination(s, refuse)
+    if agentik_records._declares(htop):
+        refuse(htop, "the holder declares records: out itself")
+    return s, refused
+
+
+def survey_clone(s, refuse, listing):
+    repo = s["repo"]
+    tree = entries(repo, "HEAD")
+    s["records"] = [e for e in tree if is_record(e[0])]
+    odd = [e[0] for e in tree if (e[1] == "120000" and (is_record(e[0]) or holds_records(e[0])))
+           or (is_record(e[0]) and e[1] not in MODES and e[1] != "120000")]
+    if odd:
+        refuse(repo, "a record path is a symlink or holds one, or is no file: %s" % listed(odd))
+    status = text(repo, "status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none")
+    if status[0] != 0 or status[1]:
+        refuse(repo, "the tree is dirty (git status --porcelain prints %d lines)"
+               % len(status[1].splitlines()))
+    code, upstream = text(repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}")
+    if code != 0 or not upstream:
+        refuse(repo, "HEAD has no upstream")
+    else:
+        code, ahead = text(repo, "rev-list", "--count", upstream + "..HEAD")
+        if code != 0 or ahead != "0":
+            refuse(repo, "HEAD is %s commits ahead of its upstream %s" % (ahead or "?", upstream))
+    found = [w for w, tip in tips(repo, listing) if record_commit(repo, tip)]
+    if found:
+        refuse(repo, "%d branches or worktrees add or change a record past HEAD: %s"
+               % (len(found), listed(found)))
+    code, _ = text(repo, "config", "--local", "--get-all", KEY)
+    if code == 0:
+        refuse(repo, "%s is already set" % KEY)
+    elif code != 1:
+        refuse(repo, "%s cannot be read" % KEY)
+    mode, old = allow_text(repo, "HEAD")
+    where = os.path.join(repo, ALLOW_FILE)
+    if mode is not None and (mode not in MODES or old is None):
+        refuse(where, "no regular file at HEAD")
+    elif old is not None:
+        rows = old.decode("utf-8", "surrogateescape").split("\n")
+        if any(row.rstrip() == DECLARATION for row in rows):
+            refuse(where, "already declares records: out")
+        bad = []
+        for n, raw in enumerate(rows, 1):
+            line = raw.split("#", 1)[0].strip()
+            glob, sep, groups = line.rpartition(":")
+            if raw.rstrip() != DECLARATION and sep and {"records", "out"} & {
+                    g.strip() for g in groups.split(",")}:
+                bad.append(str(n))
+        if bad:
+            refuse(where, "holds a records row or a near declaration, which the scanner refuses "
+                   "(line %s)" % ", ".join(bad))
+    s.update(allow_mode=mode, allow=old)
+    if not s["records"]:
+        refuse(repo, "no record found at HEAD")
+    if not [e for e in tree if e[0] == SCANNER and e[1] in MODES]:
+        refuse(os.path.join(repo, SCANNER), "absent at HEAD, so the move cannot be proved")
+    elif not same_names(os.path.join(repo, SCANNER)):
+        refuse(os.path.join(repo, SCANNER), "holds other record names than this script, so the "
+               "move cannot be proved: sync it from commons first")
+
+
+def same_names(path):
+    """True where the clone's own scanner holds the record names this script holds."""
+    from importlib.machinery import SourceFileLoader
+    import importlib.util
+    try:
+        spec = importlib.util.spec_from_loader("records_cut_scanner", SourceFileLoader(
+            "records_cut_scanner", path))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return (getattr(module, "RECORD_DIRS", None), getattr(module, "RECORD_FILES", None)) == (
+            RECORD_DIRS, RECORD_FILES)
+    except Exception:  # an old or broken scanner proves nothing
+        return False
+
+
+def tips(repo, listing):
+    """(what, sha) of each local branch and each detached worktree but the main checkout."""
+    found = []
+    code, refs = text(repo, "for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/heads")
+    for line in refs.splitlines():
+        name, _, sha = line.rpartition("\t")
+        found.append(("branch " + name, sha))
+    path = head = None
+    for item in listing + [""]:
+        if item.startswith("worktree "):
+            path = os.path.realpath(item[len("worktree "):])
+        elif item.startswith("HEAD "):
+            head = item[len("HEAD "):]
+        elif item == "detached" and path != os.path.realpath(repo) and head:
+            found.append(("worktree " + path, head))
+    return found
+
+
+def record_commit(repo, tip):
+    """True where a commit past HEAD on `tip` adds or changes a record path."""
+    specs = [":(top,icase)" + name for name in RECORD_DIRS + RECORD_FILES]
+    code, out = text(repo, "log", "-n1", "--format=%H", "--no-renames", "--full-history",
+                     "--diff-merges=first-parent", "--diff-filter=AMT", "HEAD.." + tip, "--", *specs)
+    return code != 0 or bool(out)
+
+
+def listed(names):
+    more = len(names) - MOST
+    return ", ".join(names[:MOST]) + (", and %d more" % more if more > 0 else "")
+
+
+def survey_destination(s, refuse):
+    htop, name = s["holder"], s["name"]
+    dest = os.path.join(htop, "repos", name)
+    s["dest"] = dest
+    if os.path.islink(dest) or (os.path.lexists(dest) and not os.path.isdir(dest)):
+        refuse(dest, "the destination exists and is no folder")
+    elif os.path.isdir(dest) and os.listdir(dest):
+        refuse(dest, "the destination exists and is not empty")
+    code, out = text(htop, "status", "--porcelain", "--untracked-files=all", "--",
+                     ":(literal)repos/" + name)
+    if code != 0 or out:
+        refuse(htop, "the holder is dirty under repos/%s/" % name)
+
+
+def report(s, go):
+    print("records-cut: %s" % ("the move (--go)" if go else "a dry run; nothing is written"))
+    print("repo         %s" % (s["repo"] or "-"))
+    print("holder       %s" % (s["holder"] or "-"))
+    print("destination  %s" % (s["dest"] or "-"))
+    if not s["repo"]:
+        return
+    recs = s["records"]
+    print("records at HEAD %s: %d files, %d bytes" % (s["head"][:12], len(recs), size(recs)))
+    for name in RECORD_DIRS + RECORD_FILES:
+        mine = [e for e in recs if name_of(e[0]) == name]
+        print("  %-18s %4d files %9d bytes" % (name, len(mine), size(mine)))
+    print("paths")
+    for path, mode, _, _, nbytes in recs:
+        print("  %s %8s  %s" % (mode, nbytes, path))
+    if go or not s["dest"]:
+        return
+    print("plan for --go")
+    for line in plan(s):
+        print("  " + line)
+    for line in by_hand(s):
+        print("  " + line)
+
+
+def name_of(path):
+    folded = path.casefold()
+    for name, fold in zip(RECORD_DIRS + RECORD_FILES, RECORD_DIRS_FOLDED + RECORD_FILES_FOLDED):
+        if folded == fold or (fold.endswith("/") and folded.startswith(fold)):
+            return name
+    return None
+
+
+def size(recs):
+    return sum(int(e[4]) for e in recs if e[4].isdigit())
+
+
+def plan(s):
+    repo, dest, n = s["repo"], s["dest"], len(s["records"])
+    return ["1. copy the %d blobs at HEAD %s to %s/, each with its mode, and compare each sha256"
+            " with its blob's" % (n, s["head"][:12], dest),
+            "2. in %s: git rm the %d record paths, add the line `%s` to %s (created when absent),"
+            " and commit those paths alone: \"%s\"" % (repo, n, DECLARATION, ALLOW_FILE, MESSAGE),
+            "3. git -C %s config --local %s %s" % (q(repo), KEY, q(dest)),
+            "4. prove it: the resolver answers out with %s; %s is green in tree mode and over"
+            " HEAD^..HEAD; HEAD^'s tree less the records equals HEAD's less the new line"
+            % (dest, os.path.join(repo, SCANNER))]
+
+
+def by_hand(s):
+    holder, name = s["holder"], s["name"]
+    return ["then by hand, in the holder: git -C %s add -- %s && git -C %s commit -m %s"
+            % (q(holder), q("repos/" + name), q(holder), q("Hold the working records of %s" % name)),
+            "push the clone first, then the holder: git -C %s push, then git -C %s push"
+            % (q(s["repo"]), q(holder))]
+
+
+def copy_one(repo, record, dest):
+    """Copy one record's blob at HEAD under `dest` with its mode; its sha256 must be the blob's."""
+    path, mode, _, sha, _ = record
+    data = blob(repo, sha)
+    target = os.path.join(dest, path)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                 MODES[mode])
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    os.chmod(target, MODES[mode])
+    with open(target, "rb") as fh:
+        if hashlib.sha256(fh.read()).digest() != hashlib.sha256(data).digest():
+            raise Failed("its sha256 differs from the blob's")
+
+
+def why(exc):
+    return getattr(exc, "strerror", None) or str(exc) or type(exc).__name__
+
+
+def move(s):
+    repo, dest, recs = s["repo"], s["dest"], s["records"]
+    total = len(recs)
+    for done, record in enumerate(recs):
+        try:
+            os.makedirs(dest, exist_ok=True)
+            copy_one(repo, record, dest)
+        except (OSError, Failed) as exc:
+            raise Failed("copying %s: %s; done: %d of %d records copied under %s, nothing changed"
+                         " in %s; undo: remove %s" % (record[0], why(exc), done, total, dest,
+                                                      repo, dest))
+    print("copied: %d of %d records to %s, each sha256 its blob's" % (total, total, dest))
+    staged = ("done: %d of %d records copied under %s, and in %s the records removed and the line"
+              " added, uncommitted, no key set; undo: git -C %s reset -q --hard HEAD (the tree was"
+              " clean before), then remove %s" % (total, total, dest, repo, q(repo), dest))
+    paths = [r[0] for r in recs]
+    p = git(repo, "--literal-pathspecs", "rm", "-q", "--pathspec-from-file=-", "--pathspec-file-nul",
+            data=b"".join(os.fsencode(x) + b"\0" for x in paths))
+    if p.returncode != 0:
+        raise Failed("git rm: %s; %s" % (first_line(p), staged))
+    try:
+        with open(os.path.join(repo, ALLOW_FILE), "wb") as fh:
+            fh.write(with_line(s["allow"]))
+    except OSError as exc:
+        raise Failed("writing %s: %s; %s" % (ALLOW_FILE, why(exc), staged))
+    p = git(repo, "--literal-pathspecs", "add", "--", ALLOW_FILE)
+    if p.returncode != 0:
+        raise Failed("git add %s: %s; %s" % (ALLOW_FILE, first_line(p), staged))
+    p = git(repo, "diff", "--cached", "--name-only", "-z", "--no-renames")
+    if sorted(os.fsdecode(x) for x in p.stdout.split(b"\0") if x) != sorted(paths + [ALLOW_FILE]):
+        raise Failed("the index holds more than the records and %s; %s" % (ALLOW_FILE, staged))
+    p = git(repo, "commit", "-q", "-m", MESSAGE)
+    if p.returncode != 0:
+        raise Failed("git commit: %s; %s" % (first_line(p), staged))
+    head = text(repo, "rev-parse", "HEAD")[1]
+    print("committed: %s %s" % (head[:12], MESSAGE))
+    committed = ("done: %d records copied under %s and commit %s in %s" % (total, dest, head[:12], repo))
+    p = git(repo, "config", "--local", KEY, dest)
+    if p.returncode != 0:
+        raise Failed("setting %s: %s; %s, no key set; undo: git -C %s reset -q --hard %s, then"
+                     " remove %s" % (KEY, first_line(p), committed, q(repo), s["head"][:12], dest))
+    print("key: %s = %s" % (KEY, dest))
+    failed = proofs(s, head)
+    for line in failed:
+        sys.stderr.write("records-cut: failed: proof: %s; %s, the key set; nothing is reverted\n"
+                         % (line, committed))
+    if failed:
+        return 1
+    print("proved: the resolver answers out with %s; %s is green in tree mode and over"
+          " HEAD^..HEAD; HEAD^'s tree less the records is HEAD's less the new line"
+          % (dest, SCANNER))
+    for line in by_hand(s):
+        print(line)
+    return 0
+
+
+def proofs(s, head):
+    repo, dest = s["repo"], s["dest"]
+    failed = []
+    try:
+        found = agentik_records.resolve(repo)
+        if (found["state"], found["records"]) != ("out", os.path.realpath(dest)):
+            failed.append("the resolver answers %s (%s), not out with %s"
+                          % (found["state"], found["why"], dest))
+    except agentik_records.NoRepo:
+        failed.append("the resolver finds no repo at %s" % repo)
+    for more in ([], ["--commits", "HEAD^..HEAD"]):
+        p = subprocess.run([sys.executable, os.path.join(repo, SCANNER), "--repo", repo] + more,
+                           stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, env=agentik_records._env())
+        if p.returncode != 0:
+            failed.append("%s %s exits %d" % (SCANNER, " ".join(more) or "(tree mode)",
+                                               p.returncode))
+    try:
+        if text(repo, "rev-parse", "HEAD^")[1] != s["head"]:
+            failed.append("HEAD^ is not the HEAD the cut started from")
+        names = {r[0] for r in s["records"]} | {ALLOW_FILE}
+        before = {e[0]: e[1:4] for e in entries(repo, s["head"]) if e[0] not in names}
+        after = {e[0]: e[1:4] for e in entries(repo, head) if e[0] != ALLOW_FILE}
+        mode, new = allow_text(repo, head)
+        if before != after:
+            failed.append("HEAD^'s tree less the records is not HEAD's less %s" % ALLOW_FILE)
+        if new != with_line(s["allow"]) or mode != (s["allow_mode"] or "100644"):
+            failed.append("%s at HEAD is not the one at HEAD^ and the line" % ALLOW_FILE)
+    except Failed as exc:
+        failed.append(str(exc))
+    return failed
+
+
+def main(argv):
+    try:
+        opts = parse_args(argv[1:])
+    except Help:
+        print(USAGE)
+        return 0
+    except Usage as exc:
+        sys.stderr.write("records-cut: %s\n%s\n" % (exc, USAGE))
+        return 2
+    try:
+        s, refused = survey(opts["repo"], opts["holder"])
+    except Failed as exc:
+        sys.stderr.write("records-cut: failed: %s\n" % exc)
+        return 1
+    report(s, opts["go"])
+    for line in refused:
+        sys.stderr.write("records-cut: refused: %s\n" % line)
+    if refused:
+        return 2
+    if not opts["go"]:
+        return 0
+    try:
+        return move(s)
+    except Failed as exc:
+        sys.stderr.write("records-cut: failed: %s\n" % exc)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

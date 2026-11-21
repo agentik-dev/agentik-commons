@@ -14,17 +14,20 @@
 |---|---|
 | P the packet | done |
 | T the failing tests, acceptance 1 to 7: ten tests in `tests/test_records_cut.py`, red at the pin (no script) | done |
-| A R1 to R6: the script | open |
+| A R1 to R6: `scripts/records-cut`; `tests.test_records_cut` 10 OK | done |
 | B R7: the header, GUIDE §12, a NICE row | open |
 | V acceptance 8 and 9 | open |
 
 ## Next act
 
-A: `scripts/records-cut`, R1 to R6.
+B: R7, GUIDE §12 and a NICE row; then V.
 
 ## Handover
 
-None yet.
+- choice: a seventh refusal past R4: the clone's own `scripts/hygiene` absent at HEAD, or holding other record names than the script's (loaded from its path), since the move's proof runs it after the commit. Consumer: review.
+- choice: a `.hygiene-allow` line the scanner refuses as a near declaration (`records: out # why`) is refused with the `records` row, since the proof's scan would exit 2 after the commit. Consumer: review.
+- choice: refusals and failed steps go to stderr, the report to stdout; the dry run prints its plan even when it refuses. Consumer: review.
+- choice: a failed commit leaves the staged removal and the copies; the line names `git reset -q --hard HEAD` (the tree was clean) and the copies to remove, as R5 says nothing is reverted by itself. Consumer: review.
 
 ## Exit
 
