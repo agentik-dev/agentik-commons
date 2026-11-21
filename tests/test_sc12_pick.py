@@ -1,7 +1,8 @@
 """Row sc12-picker: the picker as a component (design/23 section 4a). The screens are checked
 through the pure `layout`, the keys through the parser and the key handler, and the doors off a
 full terminal in a child process on a pipe or a pty. The terminal's modes and the signals are
-`scripts/pick-probe`'s, run by hand; here only its shape. Every name is made up."""
+`scripts/pick-probe`'s, run by hand; here only its shape. The plugins fixture uses the suite's
+own plugin names, as the design's screens draw them; every other name is made up."""
 import ast
 import io
 import os
