@@ -223,8 +223,6 @@ def journal_path(env, home):
 
 
 def _terminal(cmd):
-    if cmd.env.get("CI"):  # a pty there has nobody at it (design/23 4a.6; row sc15-setup-pick R2)
-        return False
     try:
         stdin = sys.stdin is not None and sys.stdin.isatty()
     except (AttributeError, ValueError, OSError):
@@ -290,7 +288,9 @@ def _before(cmd, names, build, the_plan, home, config):
         return 2
     if not runnable(steps):
         return report(cmd, names, steps, [], [], None, None, home)
-    terminal = _terminal(cmd)
+    # CI set: a pty there has nobody at it, on setup's path alone (row sc15-setup-pick R2,
+    # review 1 F1); remove and update read `_terminal` as at the pin until they ask through pick
+    terminal = _terminal(cmd) and not cmd.env.get("CI")
     if not terminal and any(s["n"] in (2, 3) and s["state"] == "todo" for s in steps):
         gate, why = gated(config, home, t)
         if why:

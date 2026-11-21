@@ -233,6 +233,46 @@ class Typed(Base):
         self.assertEqual((code, len(self.recorded())), (0, 2), err)
 
 
+class CiElsewhere(Base):
+    """`CI` counts as no terminal on setup's path alone (review 1 F1): remove and update, which
+    share `apply._terminal`, ask their question on a pty under `CI=1` as at the pin."""
+
+    def asks(self, verb):
+        self.installed("alpha")
+        self.place("agentik-alpha", "0.0.1")
+        for ci in ("1", None):  # a no each time, so the same HOME serves both
+            c = Child(self.term_env(CI=ci, TERM="dumb"), verb)
+            try:
+                asked = c.until(b"now?", timeout=20)
+                if asked:
+                    time.sleep(0.3)
+                    c.send(b"n\r")
+                code = c.wait()
+                text = c.seen.decode("utf-8", "replace")
+            finally:
+                c.close()
+            self.assertTrue(asked, (ci, text))
+            self.assertEqual((code, self.recorded()), (2, []), text)
+            self.assertNotIn(NEEDS_YES, text)
+
+    def test_f1_remove_asks_under_ci_as_at_the_pin(self):
+        self.asks(["remove", "alpha"])
+
+    def test_f1_update_asks_under_ci_as_at_the_pin(self):
+        self.asks(["update"])
+
+    def test_f1_setup_under_ci_still_asks_nothing(self):
+        c = Child(self.term_env(CI="1"), ["setup", "alpha"])
+        try:
+            code = c.wait()
+            text = c.seen.decode("utf-8", "replace")
+        finally:
+            c.close()
+        self.assertEqual((code, self.recorded()), (2, []), text)
+        self.assertIn(NEEDS_YES, text)
+        self.assertNotIn("now?", text)
+
+
 class Other(Base):
     def test_a9_the_other_plugins_line(self):
         code, text, _, _ = self.drive(["setup"], [ENTER], wait_for=b"Esc cancel")
