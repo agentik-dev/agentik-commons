@@ -5,7 +5,7 @@
 | from | agentik-hq's brief rr7-way-in of 2026-11-20, R1 to R5, on the coordinating repo's design of the records root, item 21, and the owner's answers of 2026-11-19 and 2026-11-20; level S3 |
 | pin | agentik-commons main b4b4cc8, cut before hn1-help-next lands, on the coordinator's word; build 2's phase 2 merged main f1135d5, which holds hn1-help-next; worktree `.claude/worktrees/rr7-way-in`, branch `rr7-way-in`; nothing linked from main |
 | wall | this worktree; no push, `--amend`, rebase or install; one merge of main, build 2's phase 2; no bare `make`; no relay verb or binary; no `claude` process, no agent; no tool synced or written; no test reads the live home or state; made-up names in fixtures |
-| may touch | `templates/CONTRIBUTING.md`, `templates/SECURITY.md`, `CONTRIBUTING.md`, `SECURITY.md`, `scripts/sync`, `tests/test_rr7_way_in.py`, `GUIDE.md` (a new §6 paragraph), `NICE_TO_HAVE.md` and `history/NICE-overflow.md` (review 1's leads, build 2), `design/packets/rr7-way-in.md`, `history/sittings/*.md`, `history/sessions/NEXT` |
+| may touch | `templates/CONTRIBUTING.md`, `templates/SECURITY.md`, `CONTRIBUTING.md`, `SECURITY.md`, `scripts/sync`, `tests/test_rr7_way_in.py`, `GUIDE.md` (a new §6 paragraph), `NICE_TO_HAVE.md` and `history/NICE-overflow.md` (review 1's leads, build 2), `design/packets/rr7-way-in.md`, `tests/test_up2_suite_origin.py` (the fixture's bare clone, build 3), `history/sittings/*.md`, `history/sessions/NEXT` |
 | verify | `python3 -m unittest tests.test_rr7_way_in tests.test_sync` directly; `make check` once, last, through the gate queue; `scripts/hygiene --require-private` on the tree and on `--commits main..HEAD` |
 | acceptance | 1 to 8 below |
 
