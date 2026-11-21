@@ -453,11 +453,12 @@ def _part(t, obj, name, slots, label):
     return "warn" if hand or not said else "note" if note else "ok", rows
 
 
-def foot(t, obj, slots):
-    """The two last labels, with no mark, each behind its guard, and the hint."""
+def foot(t, obj, slots, named=()):
+    """The two last labels, with no mark, each behind its guard, and the hint. `named` holds the
+    tools public.json names, whose `not drawn` reads are on no line (row ak10c5 build 2 fork 1)."""
     label = t.text("status.label.sources")
     try:
-        rows = _sources(t, obj)
+        rows = _sources(t, obj, named)
     except WRONG:
         rows = [row(t.text("status.wrong", part=label), DIM)]
     t.grid(None, label, rows)
@@ -476,7 +477,7 @@ def foot(t, obj, slots):
         t.hint(*hint)
 
 
-def _sources(t, obj):
+def _sources(t, obj, named=()):
     sources = entries(obj, "sources")
     read = [s for s in sources if s.get("state") in READ]
     if read:
@@ -489,7 +490,7 @@ def _sources(t, obj):
     if absent:
         rows.append(row(t.text("status.sources.absent", names=", ".join(absent)), DIM))
     for s in sources:
-        if s.get("state") == "not drawn":
+        if s.get("state") == "not drawn" and s.get("tool") not in named:
             rows.append(row(t.text("status.sources.undrawn", tool=shown(s.get("tool")), name=shown(s.get("name"))),
                             DIM))
     return rows
@@ -516,8 +517,8 @@ def _hint(obj, slots):
     return None
 
 
-def draw(t, obj, slots):
+def draw(t, obj, slots, named=()):
     """The whole screen: the five parts in order, then the foot."""
     for name in PARTS:
         part(t, obj, name, slots)
-    foot(t, obj, slots)
+    foot(t, obj, slots, named)

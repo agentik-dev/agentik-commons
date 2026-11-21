@@ -5,11 +5,13 @@ the slow rows read. Nothing here reads the live home or starts the real `claude`
 """
 import json
 import os
+import subprocess
 import sys
 import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_su2_read as su2  # noqa: E402
 import test_su6_rows_part as su6  # noqa: E402
 from test_agentik_suite import LIB  # noqa: E402
 from test_ak4a_update import Base, runner_stubs  # noqa: E402
@@ -28,6 +30,27 @@ class SlowRowsTest(su6.RowsHome):
         obj = self.compose(text(self.ps), paths=[self.hq])
         self.assertGreater(time.monotonic() - start, 3.5)
         self.assertEqual(self.source(obj, "rows")["state"], "ok")
+
+
+class UndrawnTest(su2.ReadHome):
+    def test_fork1_a_named_tools_undrawn_read_is_on_no_screen_line(self):
+        """The text screen lists a `not drawn` read only for a tool public.json does not name;
+        a named tool's is in `--json`'s `sources` with its state, on no line (build 2 fork 1)."""
+        for name in ("session", "murmur"):
+            answers, _ = self.tool(name)
+            reads = (su2.PIN_READS[name] if name == "session" else []) + [
+                {"name": "meter", "argv": ["meter", "--json"]}]
+            self.described(name, answers, reads)
+        obj = self.read()
+        undrawn = {(s["tool"], s["name"]) for s in obj["sources"] if s["state"] == "not drawn"}
+        self.assertLessEqual({("murmur", "meter"), ("session", "meter"), ("session", "gate")}, undrawn)
+        p = subprocess.run([str(LIB.parent / "bin" / "agentik-suite"), "status", "--now", su2.NOW,
+                            "--ps", self.ps], capture_output=True, text=True, env=self.env(TZ="UTC"),
+                           timeout=60, cwd=self.repo)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("not drawn: agentik-murmur meter", p.stdout)
+        self.assertIn("not drawn: agentik-demo weather", p.stdout)
+        self.assertNotIn("not drawn: agentik-session", p.stdout)
 
 
 class HoldTest(Base):
