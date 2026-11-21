@@ -4,4 +4,4 @@ Report a vulnerability in private, through this host's private report form: the 
 
 Say what is affected, how to reproduce it, and what an attacker gains. A report is answered when it is placed, as an issue is, and no date is promised. A fix lands through this repo's own check, and the advisory credits you unless you ask otherwise.
 
-Only the newest release is supported.
+Only the newest version, main, is supported.
