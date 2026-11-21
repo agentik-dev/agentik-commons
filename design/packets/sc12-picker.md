@@ -63,4 +63,13 @@ Review 1 at 2979793, ruled a fix in one round. Built in build 2:
 | L3 `confirm`'s layout passed its width | its question and rows are cut to the width |
 | L5 a typed range was built before its bounds were checked | both ends are checked first |
 
-Build 1's check was red on two more: `## Pick` now stands before `## Issue`, which stays the last section of `messages.md`; the completion summary test follows the widened `clean` (`x`, U+200B, `y` sums to `xy`; a soft hyphen keeps the refusal). To the tool's wish list at the landing: L2, L4, L6 and the review's observations.
+Build 1's check was red on two more: `## Pick` now stands before `## Issue`, which stays the last section of `messages.md`; the completion summary test follows the widened `clean` (`x`, U+200B, `y` sums to `xy`; a soft hyphen keeps the refusal). To the tool's wish list: L2, L4, L6 and the review's observations (build 3).
+
+Review 2 at cb6a1d7, ruled a fix and the row's last round. Built in build 3:
+
+| finding | the fix |
+|---|---|
+| F8 a typed `²` at a numbered plain prompt raised `ValueError` out of `ask` | `_numbers` asks `isdecimal()`: `²` is a wrong number, `٢` still names row 2 |
+| F7 the one-reader test missed forms round 1's test caught | it counts any `readline` of stdin (`sys.stdin`, `sys.stdin.buffer`, `sys.__stdin__`), called or only named, and a `termios` string handed to `__import__` or `import_module` |
+
+To the tool's wish list, n282 to n286: review 2's L7 to L10 with review 1's L2, L4, L6 and observations; n219 to n222 moved to the overflow for recordlint's bound.
