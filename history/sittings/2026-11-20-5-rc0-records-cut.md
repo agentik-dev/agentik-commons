@@ -21,7 +21,7 @@
 | L7 a submodule at or under a record name | done: mode 160000 joins 120000 at, under or above a record name; one case |
 | N the NICE rows from review 1 | done: n263 to n268 (L1, L2, L5, L6, L8, L9) in "From row rc0-records-cut (review 1)"; n191 to n194 and n200 to n202, the oldest S4, to `history/NICE-overflow.md` for the 24,576 B bound; recordlint held, 67 rows |
 | W the packet, the help, GUIDE §12 | done: the header lists every refusal and says the hooks run; GUIDE §12 the same in its sentence; the packet gains R4a, acceptance 10 and the overflow in may touch |
-| V the probes, hygiene, the gate | 14 new cases red at 6cf05fa (a scratch archive), 10 tests OK at head; the review's repros under `--go` on scratch fixtures: exit 2, one refusal each, both repos unchanged; hygiene tree and `main..HEAD` exit 0; gate 20261120-221840-2926 exit 0 at fbf61b4 |
+| V the probes, hygiene, the gate | 14 new cases red at 6cf05fa (a scratch archive), 10 tests OK at head; the review's repros under `--go` on scratch fixtures: exit 2, one refusal each, both repos unchanged; hygiene tree and `main..HEAD` exit 0; the gate: the exit line |
 | P2 the phase 2, if rr7-way-in is on main | not done: main's last eight show no rr7-way-in merge; a later act |
 
 ## Next act
@@ -41,4 +41,4 @@ The phase 2 once rr7-way-in is on main (merge main, renumber n263 to n268, the R
 
 ## Exit
 
-Review 1's round built (F1 to F5, L3, L4, L7 refused; six NICE rows); gate 20261120-221840-2926 exit 0 at fbf61b4; no phase 2, rr7-way-in was not on main; this charter-only commit follows the checked head.
+Review 1's round built; gate 20261120-221840-2926 exit 0 at fbf61b4; no phase 2, rr7-way-in was not on main; this charter-only commit follows the checked head.
