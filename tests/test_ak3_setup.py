@@ -34,6 +34,34 @@ shutil.copytree(str(PLUGIN), os.path.join(_COPY, "suite"), ignore=shutil.ignore_
 LAUNCHER = Path(_COPY) / "suite" / "bin" / "agentik-suite"
 add_public(os.path.join(_COPY, "suite", "lib"), {"alpha": {}, "beta": {}})
 
+def on_pty(argv, answer, env, cwd=None):
+    """`argv` on a pty, `answer` typed once the question shows, since one typed ahead is dropped
+    (row sc15-setup-pick; up1's harness uses it too): (its exit, what it printed)."""
+    master, slave = pty.openpty()
+    p = subprocess.Popen(argv, stdin=slave, stdout=slave, stderr=slave, env=env, cwd=cwd, close_fds=True)
+    os.close(slave)
+    chunks, sent = [], False
+    try:
+        while True:
+            if not sent and b"now?" in b"".join(chunks):
+                time.sleep(0.2)
+                os.write(master, answer.encode() + b"\n")
+                sent = True
+            ready, _, _ = select.select([master], [], [], 60)
+            if not ready:
+                break
+            try:
+                data = os.read(master, 65536)
+            except OSError:
+                break
+            if not data:
+                break
+            chunks.append(data)
+    finally:
+        os.close(master)
+    return p.wait(timeout=30), b"".join(chunks).decode("utf-8", "replace")
+
+
 try:
     from agentik_suite import apply
 except ImportError:  # at the pin, so each test is red alone
@@ -124,30 +152,7 @@ class SetupHome(Home):
             fh.write("# the owner's list\n\n%s\n" % line)
 
     def answer_on_pty(self, answer, *args):
-        master, slave = pty.openpty()
-        p = subprocess.Popen([str(LAUNCHER), *args], stdin=slave, stdout=slave, stderr=slave,
-                             env=self.env(), close_fds=True)
-        os.close(slave)
-        chunks, sent = [], False  # the answer once the question shows: one typed ahead is dropped (sc15)
-        try:
-            while True:
-                if not sent and b"now?" in b"".join(chunks):
-                    time.sleep(0.2)
-                    os.write(master, answer.encode() + b"\n")
-                    sent = True
-                ready, _, _ = select.select([master], [], [], 60)
-                if not ready:
-                    break
-                try:
-                    data = os.read(master, 65536)
-                except OSError:
-                    break
-                if not data:
-                    break
-                chunks.append(data)
-        finally:
-            os.close(master)
-        return p.wait(timeout=30), b"".join(chunks).decode("utf-8", "replace")
+        return on_pty([str(LAUNCHER), *args], answer, self.env())
 
     def lines(self, out, word):
         return [l.strip()[len(word):] for l in out.splitlines() if l.strip().startswith(word)]
