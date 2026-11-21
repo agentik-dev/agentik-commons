@@ -96,6 +96,35 @@ class HoldTest(Base):
         self.assertIn("held install: a relay run is live (pid 4242)", err)
         self.assertNotIn("gave no `describe` answer", err)
 
+    def test_f1_a_second_tool_that_names_run_hides_no_live_run(self):
+        """Every tool whose describe names `run`, then every one that names `unattended`, in name
+        order: a tool that sorts first and says none live hides no live run (review 1 F1)."""
+        h = self.two_behind()
+        runner_stubs(h)
+        h.ps("4242 /opt/tools/relay run --row r1\n")
+        stand_in(h, "agents", [["run", ["status", "--json"]]])
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("held install: a relay run is live (pid 4242)", err)
+
+    def test_f1_a_second_tool_that_names_unattended_hides_no_live_run(self):
+        h = self.two_behind()
+        runner_stubs(h, "echo '{\"id\": \"u1\"}'")
+        stand_in(h, "decisions", [["unattended", ["unattended", "--json"]]], "echo null")
+        code, out, err = h.run("update", "--dry-run")
+        self.assertEqual(code, 2, out + err)
+        self.assertIn("held install: an unattended run is live", err)
+
+
+def stand_in(h, name, reads, body="exit 2"):
+    """A stand-in `agentik-<name>` whose describe names the status `reads` ([name, argv])."""
+    answer = {"schema": "agentik.describe/1", "ok": True, "tool": name, "version": "1.0.0",
+              "summary": "A stand-in.", "repo": "example-org/" + name, "plugin": None, "needs": [],
+              "verbs": [], "reads": [{"kind": "status", "name": n, "argv": a} for n, a in reads]}
+    h.file(os.path.join(h.bin, "agentik-" + name),
+           "#!/bin/sh\nif [ \"$1 $2\" = 'describe --json' ]; then echo '%s'; exit 0; fi\n%s\n"
+           % (json.dumps(answer), body))
+
 
 class SilentToolTest(Base):
     def test_a5_doctor_warns_and_status_and_inbox_hold(self):

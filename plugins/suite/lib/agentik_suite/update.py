@@ -52,15 +52,17 @@ SAYS = {"setup." + k: "update.say." + k for k in (
 PART = re.compile(r"[a-z0-9][a-z0-9-]*\Z")  # a plugin id's name and its marketplace (review 1 F2)
 
 
-def reader(answers, read):
-    """(the tool, the argv) of the first tool by name whose counted describe answer names a status
-    read `read`, or None (row ak10c5-table-gone R5)."""
+def readers(answers, read):
+    """[(the tool, the argv)] of every tool, in name order, whose counted describe answer names a
+    status read `read` (row ak10c5-table-gone R5, review 1 F1)."""
+    found = []
     for name, answer in sorted(answers.items()):
         for r in (answer or {}).get("reads") or ():
             if isinstance(r, dict) and r.get("kind") == "status" and r.get("name") == read \
                     and isinstance(r.get("argv"), list):
-                return name, [str(w) for w in r["argv"]]
-    return None
+                found.append((name, [str(w) for w in r["argv"]]))
+                break
+    return found
 
 
 def runner_pid(text, runner):
@@ -128,24 +130,23 @@ def asked(cmd):
 
 def holding(cmd, told=None):
     """(the held text or None, whether it is a list that cannot be read) (R3). It starts the
-    process list and, where the finder says a file runs for the tool whose describe names the
-    `unattended` read, that file; the tools that name `run` and `unattended` are found from the
-    describes (`told`, else asked here). A list that cannot be read says why (row lx1-ps-linux R3)."""
+    process list and, where the finder says a file runs for a tool whose describe names the
+    `unattended` read, that file; every tool that names `run`, then every one that names
+    `unattended`, in name order, is found from the describes (`told`, else asked here), and the
+    first live one holds (review 1 F1). A list that cannot be read says why (row lx1-ps-linux R3)."""
     env = cmd.env
     text, why = listing(env)
     if text is None:
         return cmd.t.text("update.held.ps", why=why), True
     answers, _, rows = asked(cmd) if told is None else told
-    runner = reader(answers, "run")
-    pid = runner and runner_pid(text, runner[0])
-    if pid:
-        return cmd.t.text("update.held.run", tool=runner[0], pid=pid), False
-    found = reader(answers, "unattended")
-    if not found:
-        return None, False
-    path = ((rows.get(found[0]) or {}).get("runs") or {}).get("path")
-    if path and _unattended(path, found[1], env):
-        return cmd.t.text("update.held.unattended"), False
+    for runner, _argv in readers(answers, "run"):
+        pid = runner_pid(text, runner)
+        if pid:
+            return cmd.t.text("update.held.run", tool=runner, pid=pid), False
+    for name, argv in readers(answers, "unattended"):
+        path = ((rows.get(name) or {}).get("runs") or {}).get("path")
+        if path and _unattended(path, argv, env):
+            return cmd.t.text("update.held.unattended"), False
     return None, False
 
 
