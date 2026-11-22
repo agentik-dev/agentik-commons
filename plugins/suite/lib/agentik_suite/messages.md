@@ -961,6 +961,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.edit.tty`: edit opens an editor, so it runs only on your own terminal
 - `err.issue.edit.none`: neither VISUAL nor EDITOR names an editor that starts
 - `err.issue.edit.form`: the saved draft does not read back as a form at line `{line}`; it is unchanged
+- `err.issue.edit.source`: `{tool}` is from another source, so its row stays `another source`; nothing is saved
 - `err.issue.reword.file`: reword takes one file of two lines, Happened and Expected
 - `err.issue.render`: --render renders a new draft, so it goes with new alone
 - `issue.render.none`: No narrator render script is installed, so the template stands unchanged.
