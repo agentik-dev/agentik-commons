@@ -295,7 +295,10 @@ class PageTest(Base):
         self.assertNotIn("agentik-murmur install-cli", out)
         self.assertIn("    6 PATH         a line for your shell profile; it prints at the end\n", out)  # row sc8 R1
         path_close = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
-        self.assertEqual(err.splitlines()[-1], path_close)
+        # a dry run that runs nothing closes as the second run: the PATH rows, then next: claude
+        # (row sc8 R3, as ruled for its build 3)
+        self.assertIn("\n         " + path_close[6:] + "\n", out)
+        self.assertEqual(err.splitlines()[-1], CLOSE)
         with open(where) as fh:
             body = fh.read()
         code, out, err = self.cli(h, "setup", "--yes", T, path=self.off(h))

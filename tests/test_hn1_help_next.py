@@ -76,10 +76,11 @@ class HelpHome(base.Home):
 
     def closes(self, **more):
         """(setup's close, the help's close): setup's last two stderr lines, since a page's note
-        stands above its `next:` (row sc8 R8), and the help's last line."""
-        code, _, err = self.run_cli("setup", "--dry-run", "alpha", **more)
+        stands above its `next:` (row sc8 R8), or stdout's last line where stderr holds the close
+        alone, since the PATH rows stand above it there (row sc8 R3), and the help's last line."""
+        code, out, err = self.run_cli("setup", "--dry-run", "alpha", **more)
         self.assertEqual(code, 0, err)
-        setup = "\n".join(err.splitlines()[-2:])
+        setup = "\n".join((out.splitlines()[-1:] + err.splitlines())[-2:])
         code, _, err = self.run_cli("--help", **more)
         self.assertEqual(code, 0, err)
         return setup, err.splitlines()[-1]
@@ -107,12 +108,14 @@ class HelpCloseTest(HelpHome):
     def close_of(self, setup, steps):
         """Setup's close by its words: done, rest, page, path (step 6's add line alone) or next."""
         above, last = ([""] + setup.splitlines())[-2:]
+        add = [s["command"] for s in steps if s["n"] == 6 and s["command"]]
         if last == DONE:
             if above.endswith(PAGE):
                 return "hint.setup.page"
+            if add and above.strip() == add[0]:  # the PATH rows above next: claude (row sc8 R3,
+                return "hint.setup.path"  # as ruled for its build 3: the dry run's second-run close)
             done = all(s["state"] == "ok" for s in steps if s["n"] <= 6)
             return "hint.setup.done" if done else "hint.setup.rest"
-        add = [s["command"] for s in steps if s["n"] == 6 and s["command"]]
         return "hint.setup.path" if add and last == "next: %s" % add[0] else "hint.setup.next"
 
     def test_a2_the_help_agrees_with_setup(self):
