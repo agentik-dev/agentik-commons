@@ -174,7 +174,10 @@ class Screens(Home):
         finally:
             other.doCleanups()
         self.assertIn("  wrote  %d files, each named in the log" % len(wrote), out2)
-        tail = out2[out2.index("Steps 2 to 5 are done: %d commands in 0 s." % len(json.loads(out)["ran"])):]
+        done = re.compile(r"^Steps 2 to 5 are done: %d commands in \d+ s\.$" % len(json.loads(out)["ran"]))
+        at = [i for i, l in enumerate(out2) if done.match(l)]  # the seconds are the clock's, 1 s under load
+        self.assertEqual(len(at), 1, out2)
+        tail = out2[at[0]:]
         shown = [w.rstrip(":") for l in tail for w in l.split() if w.startswith(("~/", "/"))]
         self.assertEqual(shown, ["~/.local/state/agentik-suite/setup.jsonl", "~/.local/bin/agentik",
                                  "~/.profile"], tail)  # the log's, the door's, and R2's login file
