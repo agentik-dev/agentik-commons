@@ -101,7 +101,7 @@ BUDGET = {
     "setup-plan": (14, "sc8: the plan's 13, then next:"),
     "setup-applied": (30, "sc8: 13, 8 commands, a tail of 8, one more"),
     "setup-second": (6, "measured"), "setup-door": (11, "measured"),
-    "setup-no": (21, "measured"), "setup-blocked": (23, "measured"),
+    "setup-no": (17, "measured"), "setup-blocked": (23, "measured"),
     "setup-failed": (24, "measured"),
     "doctor-empty": (8, "sc10"), "doctor-applied": (20, "measured"),
     "doctor-door": (14, "measured"),
@@ -361,7 +361,74 @@ SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r")
 
 
 def lines_of(text):
+    """A pipe's lines, any escape or carriage return dropped."""
     return [SGR.sub("", line) for line in text.replace("\r\n", "\n").split("\n")]
+
+
+TOKEN = re.compile(r"\x1b\[([0-9;?<=>]*)[ -/]*([@-~])"     # a control sequence
+                   r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"  # an operating system command
+                   r"|\x1b[^\[\]]?"                        # any other escape
+                   r"|([\r\n\b])|([^\x1b\r\n\b]+)")
+
+
+def replay(text, cols, height=24):
+    """The rows a terminal of `cols` columns and `height` rows shows once a pty's `text` is drawn
+    (review 1 F2): a carriage return, erase line (`K`), erase down (`J`), the cursor's moves
+    (`A`, `B`, `C`, `D`, `G`, `H`) and a clear of the window are applied, colour and the cursor's
+    hide and show dropped. A line is never wrapped, so a row past `cols` stays one row for the
+    width check to see; a line feed also returns the carriage, as a pty's onlcr does. Trailing
+    blanks of a row and blank rows at the end are dropped."""
+    rows, top, y, x = [[]], 0, 0, 0
+    for m in TOKEN.finditer(text):
+        params, final, ctl, chars = m.groups()
+        while len(rows) <= y:
+            rows.append([])
+        row = rows[y]
+        if chars is not None:
+            if x > len(row):
+                row.extend(" " * (x - len(row)))
+            row[x:x + len(chars)] = list(chars)
+            x += len(chars)
+        elif ctl == "\r":
+            x = 0
+        elif ctl == "\n":
+            y, x = y + 1, 0
+            top = max(top, y - height + 1)
+        elif ctl == "\b":
+            x = max(0, x - 1)
+        elif final and not params.startswith(("?", "<", "=", ">")):
+            nums = [int(n) if n.isdigit() else 0 for n in params.split(";")]
+            n = max(1, nums[0])
+            if final == "A":
+                y = max(top, y - n)
+            elif final == "B":
+                y = min(top + height - 1, y + n)
+            elif final == "C":
+                x += n
+            elif final == "D":
+                x = max(0, x - n)
+            elif final == "G":
+                x = n - 1
+            elif final in "Hf":
+                y, x = top + n - 1, max(1, nums[1] if len(nums) > 1 else 1) - 1
+            elif final == "K":
+                if nums[0] == 0:
+                    del row[x:]
+                elif nums[0] == 1:
+                    row[:x + 1] = list(" " * min(len(row), x + 1))
+                else:
+                    del row[:]
+            elif final == "J":
+                if nums[0] == 0:
+                    del row[x:]
+                    del rows[y + 1:]
+                elif nums[0] in (2, 3):
+                    for i in range(top, len(rows)):
+                        rows[i] = []
+    out = ["".join(r).rstrip() for r in rows]
+    while out and not out[-1].strip():
+        out.pop()
+    return out
 
 
 def last(text):
@@ -412,8 +479,8 @@ def stop(p):
 
 
 def render(argv, env, cwd, way, answer):
-    """The screen's lines one way: on a pty, stdout and stderr as shown; in a pipe, stdout's
-    lines then stderr's."""
+    """The screen's lines one way: on a pty, the rows its terminal shows at the end (`replay`);
+    in a pipe, stdout's lines then stderr's."""
     if way == "pipe":
         p = subprocess.run(argv, env=dict(env, COLUMNS="80"), cwd=cwd, stdin=subprocess.DEVNULL,
                            capture_output=True, text=True, timeout=120, start_new_session=True)
@@ -422,6 +489,7 @@ def render(argv, env, cwd, way, answer):
         cols = 50 if way == "pty50" else 80
         more = {"NO_COLOR": "1"} if way == "nocolor" else {}
         _, text = on_pty(argv, dict(env, TERM="xterm-256color", **more), cwd, cols, answer)
+        return replay(text, cols)
     rows = lines_of(text)
     while rows and not rows[-1].strip():
         rows.pop()

@@ -181,6 +181,30 @@ class Breaks(Copy):
                                             "doctor: not found: exit 127"), red)
         self.assertIn("ok   paste: setup-applied, in empty: ~/.local/bin/agentik doctor", out)
 
+    def test_f2_a_line_redrawn_in_place_is_one_row_of_its_last_text(self):
+        """Review 1 F2: the pty's bytes replayed as a terminal draws them, never glued."""
+        live = ("  1 market\r\n\x1b[?25l  \u280b 2 marketplace  claude plugin marketplace add x  0 s"
+                "\r\x1b[2K  \u2819 2 marketplace  claude plugin marketplace add x  1 s"
+                "\r\x1b[2K\x1b[?25h  \u2713 2 marketplace\r\nnext: claude\r\n")
+        self.assertEqual(probe.replay(live, 80), ["  1 market", "  \u2713 2 marketplace", "next: claude"])
+        self.assertEqual(probe.check_width(probe.replay(live, 50), 50), [])
+        self.assertEqual(probe.replay("abcdef\rxy\r\n\x1b[1;31mred\x1b[0m\x1b[K\r\n", 80),
+                         ["xycdef", "red"])
+
+    def test_f2_a_frame_its_answer_line_replaces_is_not_counted(self):
+        """Review 1 F2: a picker's frame, drawn, redrawn and erased for its closing line."""
+        frame = ("\x1b[2K  Run these 8 commands now?\n\x1b[2K    Run them\n"
+                 "\x1b[2K  > Don't run anything\n\x1b[2K  up/down move\n\x1b[J")
+        text = ("Setup plans 8 steps.\r\n" + "\x1b[?2004h\x1b[?25l\r" + frame
+                + "\x1b[4A\r" + frame.replace("> Don't", "  Don't")
+                + "\x1b[4A\r\x1b[J\x1b[?2004l\x1b[?25h  Run these 8 commands now?  Don't run anything\n"
+                + "nothing ran\r\n")
+        rows = probe.replay(text, 80)
+        self.assertEqual(rows, ["Setup plans 8 steps.", "  Run these 8 commands now?  Don't run anything",
+                                "nothing ran"])
+        self.assertEqual(probe.count(rows), 3)
+        self.assertEqual(probe.replay("a\nb\nc\x1b[2A\rX\x1b[1BY\n", 80), ["X", "bY", "c"])
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)
