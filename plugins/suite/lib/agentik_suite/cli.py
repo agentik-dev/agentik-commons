@@ -160,7 +160,8 @@ def _parse(argv):
     opts["version"] = False
     opts.update({key: None for key, _ in VALUE_FLAGS.values()})
     opts.update({key: None for _, _, key in ANSWER_VALUES})
-    words, bad, rest, at, bad_at = [], None, False, [], None
+    opts["answer_bare"] = ()  # inbox answer's --pick or --say given with no value (review 1 F1)
+    words, bad, rest, at, bad_at, bare = [], None, False, [], None, []
     args = iter(enumerate(argv))
     for i, arg in args:
         flag, eq, value = arg.partition("=")
@@ -171,11 +172,13 @@ def _parse(argv):
             rest = True
         elif words[:1] == ["inbox"] and flag in ("--pick", "--say"):
             # one value, after `=` or as the next word; a next word that opens with `-` is no
-            # value, and a flag with none is left unset, for inbox answer's own refusal (R2)
+            # value, and a flag with none is still seen: held in `bare`, read below
             if not eq and i + 1 < len(argv) and not argv[i + 1].startswith("-"):
                 eq, value = True, next(args)[1]
             if eq:
                 opts["pick_label" if flag == "--pick" else "say"] = value
+            else:
+                bare.append((i, arg))
         elif flag in VALUE_FLAGS:
             value = value if eq else next(args, (None, None))[1]
             if flag == "--prefix" and (value is None or value.startswith("-")):
@@ -190,6 +193,14 @@ def _parse(argv):
             opts[ALL_FLAGS[arg]] = True
         elif bad is None:
             bad, bad_at = arg, i
+    if words[:2] == ["inbox", "answer"]:
+        opts["answer_bare"] = tuple(flag for _, flag in bare)  # R2's one of the two (review 1 F1)
+    else:  # any other inbox reads it as before the row: --pick setup's switch, --say no flag (F2)
+        for i, flag in bare:
+            if flag == "--pick":
+                opts["pick"] = True
+            elif bad is None or i < bad_at:
+                bad, bad_at = flag, i
     opts["remove_all"] = opts["config_all"] = opts["all"]
     opts["config_pick"] = opts["pick"]  # config's --pick, setup's key and gloss kept (row sc14-config-pick R1)
     return opts, words, bad, at, bad_at

@@ -58,7 +58,7 @@ def _answer_fault(o, nouns):
         return "err.inbox.answer.number", {"word": nouns[1]}
     if len(nouns) > 2:
         return "err.inbox.answer.extra", {"word": nouns[2]}
-    if (o["pick_label"] is None) == (o["say"] is None):
+    if o.get("answer_bare") or (o["pick_label"] is None) == (o["say"] is None):  # one seen bare is no answer
         return "err.inbox.answer.how", {}
     if o["check"]:
         return "err.inbox.answer.check", {}
