@@ -109,16 +109,16 @@ class RunTest(AnswerHome):
         self.assertEqual((code, out, err), (0, "the line after\n", "the writer's note\n"))
         calls = self.replies()
         self.assertEqual([(c["argv"], c["cwd"]) for c in calls],
-                         [(["reply", "2", "--pick", "North", "--yes"], os.path.realpath(self.pear))])
+                         [(["reply", "2", "--pick=North", "--yes"], os.path.realpath(self.pear))])
 
     def test_2_the_words_reach_it_byte_for_byte(self):
         self.answer("pear-hq", "2", "--say", SAY, "--dry-run")
         self.answer("pear-hq", "2", "--pick=North", "-y", "--dry-run")
         self.answer("pear-hq", "2", "--say=" + SAY, "--yes")
         self.assertEqual([c["argv"] for c in self.replies()],
-                         [["reply", "2", "--say", SAY, "--dry-run"],
-                          ["reply", "2", "--pick", "North", "--dry-run", "--yes"],
-                          ["reply", "2", "--say", SAY, "--yes"]])
+                         [["reply", "2", "--say=" + SAY, "--dry-run"],
+                          ["reply", "2", "--pick=North", "--dry-run", "--yes"],
+                          ["reply", "2", "--say=" + SAY, "--yes"]])
 
     def test_3_its_exit_passes_through(self):
         for k in (1, 2):
@@ -163,7 +163,7 @@ class RunTest(AnswerHome):
         self.assertEqual(len(self.replies()), 1)
         code, out, err = self.answer("pear-hq", "2", "--pick", "North", "--dry-run")
         self.assertEqual(code, 0)
-        self.assertEqual(self.replies()[-1]["argv"], ["reply", "2", "--pick", "North", "--dry-run"])
+        self.assertEqual(self.replies()[-1]["argv"], ["reply", "2", "--pick=North", "--dry-run"])
 
     def test_8_the_inbox_afterwards(self):
         code, out, err = self.inbox()
@@ -257,6 +257,65 @@ class WriterTest(AnswerHome):
                     with open(os.path.join(top, name), encoding="utf-8") as fh:
                         text = fh.read()
                     self.assertIsNone(re.search(r"agentik-ledger|agentik-bench|pear-hq|agentik-decision[s]", text), name)
+
+
+class ReviewOneTest(AnswerHome):
+    """The fix of review 1: a --pick or --say with no value is still seen (F1, F2), a relative
+    PATH entry finds the writer from the suite's own folder (F3), the value rides its flag (N1)."""
+
+    def test_r1_a_flag_with_no_value_is_one_of_the_two(self):
+        how = "FAIL  give the answer as --pick <label> or as --say <text>, one of the two\nnext: %s help inbox\n"
+        for args in (("pear-hq", "2", "--pick", "--say", "x", "--yes"), ("pear-hq", "2", "--say", "x", "--pick", "--yes"),
+                     ("pear-hq", "2", "--pick", "--yes"), ("pear-hq", "2", "--say", "--yes"),
+                     ("pear-hq", "2", "--pick"), ("pear-hq", "2", "--say"),
+                     ("pear-hq", "2", "--pick=North", "--say", "--yes")):
+            self.assertEqual(self.answer(*args), (2, "", how % self.L), args)
+        self.assertEqual(self.replies(), [])
+
+    def test_r1_outside_answer_as_before_the_row(self):
+        fail = "FAIL  %s is not a flag of inbox\nnext: %s help inbox\n"
+        for args, flag in ((("--pick",), "--pick"), (("--say",), "--say"), (("1", "--pick"), "--pick"),
+                           (("--check", "--pick"), "--pick"), (("--say", "--check"), "--say"),
+                           ((self.pear, "--pick"), "--pick")):
+            self.assertEqual(self.inbox(*args), (2, "", fail % (flag, self.L)), args)
+        code, out, err = self.inbox("--pick", "--json")
+        self.assertEqual((code, err), (2, ""))
+        self.assertEqual(json.loads(out), {"schema": "agentik.inbox/1", "ok": False, "error": {
+            "code": "unknown_flag", "message": "--pick is not a flag of inbox", "remedy": "%s help inbox" % self.L}})
+        import sys
+        sys.path.insert(0, str(LIB))
+        from agentik_suite import cli
+        opts, words, bad = cli.parse(["inbox", "--pick"])
+        self.assertEqual((opts["pick"], opts["pick_label"], words, bad), (True, None, ["inbox"], None))
+        opts, words, bad = cli.parse(["inbox", "--say"])
+        self.assertEqual((opts["say"], words, bad), (None, ["inbox"], "--say"))
+        opts, words, bad = cli.parse(["setup", "--pick"])
+        self.assertEqual((opts["pick"], words, bad), (True, ["setup"], None))
+
+    def test_r2_a_relative_path_entry_runs_the_writer_found(self):
+        marker = os.path.join(self.side, "planted-ran")
+        planted = os.path.join(self.pear, "agentik-ledger")
+        with open(planted, "w") as fh:
+            fh.write("#!/bin/sh\necho planted > %s\necho 'not the writer'\n" % shlex.quote(marker))
+        os.chmod(planted, 0o755)
+        rest = self.env()["PATH"].split(os.pathsep, 1)[1]
+        for entry, cwd in ((".", self.stubs), ("", self.stubs), (os.path.relpath(self.stubs, self.T), self.T)):
+            code, out, err = self.answer("pear-hq", "2", "--pick", "North", "--yes", cwd=cwd,
+                                         PATH=entry + os.pathsep + rest)
+            self.assertEqual((code, out, err), (0, "the line after\n", "the writer's note\n"), entry)
+            self.assertEqual([(c["argv"], c["cwd"]) for c in self.replies()][-1:],
+                             [(["reply", "2", "--pick=North", "--yes"], os.path.realpath(self.pear))], entry)
+            self.assertFalse(os.path.exists(marker), entry)
+        self.assertEqual(len(self.replies()), 3)
+
+    def test_r3_the_value_rides_its_flag(self):
+        for value in ("--say=-x", "--say=--ledger=/elsewhere/DECISIONS.md", "--pick=-x"):
+            self.assertEqual(self.answer("pear-hq", "2", value, "--dry-run")[0], 0, value)
+        self.assertEqual(self.answer("pear-hq", "2", "--say", "-x", "--dry-run")[0], 2)  # refused, as before
+        self.assertEqual([c["argv"] for c in self.replies()],
+                         [["reply", "2", "--say=-x", "--dry-run"],
+                          ["reply", "2", "--say=--ledger=/elsewhere/DECISIONS.md", "--dry-run"],
+                          ["reply", "2", "--pick=-x", "--dry-run"]])
 
 
 if __name__ == "__main__":
