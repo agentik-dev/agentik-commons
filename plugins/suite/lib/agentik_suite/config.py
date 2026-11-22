@@ -268,7 +268,7 @@ def do_config(cmd, nouns):
             return _user_files(cmd, rows)
         if picks:  # every key on the machine (row sc14 R1)
             return _pick(cmd, r, [(row["name"], row["config"], s) for row in rows if row["config"]
-                                  for s in _flat(row["config"]["settings"])], lambda: _list(cmd, r, rows))
+                                  for s in _flat(row["config"]["settings"])], lambda: _every(cmd, r, rows))
         return _list(cmd, r, rows)
     name, dot, key = path(nouns).partition(".")
     if not name:
@@ -718,6 +718,30 @@ def _found(cmd, word, matches, silent):
     for name in silent:
         t.table([("warn", [t.text("config.find.silent", name=name)], None)], indent=0)
     t.hint("hint.config.tool", command=cmd.say("config", matches[0][0] + "." + matches[0][1]))
+    return 0
+
+
+def _every(cmd, r, rows):
+    """Bare `config --pick` where no list is drawn, and under --json (the coordinator's ruling on
+    review 1 of row sc14-config-pick; design/23 4a.6): the flat form of what the list would have
+    held, one key a line, so `grep` is the filter; then one `!` line a tool that did not answer.
+    With no key at all, the tool table, as before."""
+    t = cmd.t
+    keys = [(row["name"], s) for row in rows if row["config"] for s in _flat(row["config"]["settings"])]
+    gone = [row["name"] for row in rows if row["config"] is None and _no_answer(row)]
+    if cmd.opts["json"]:
+        t.json({"schema": "agentik.config/1", "ok": True,
+                "keys": [{"tool": name, "key": s["key"], "value": s.get("value"), "summary": s.get("summary")}
+                         for name, s in keys],
+                "silent": gone})
+        return 0
+    if not keys:
+        return _list(cmd, r, rows)
+    t.table([(None, [term.name(name + "." + s["key"]), shown_value(s.get("value")) + ("*" if differs(s) else ""),
+                     term.cut(str(s.get("summary") or ""))], None) for name, s in keys], indent=0)
+    for name in gone:
+        t.table([("warn", [t.text("config.find.silent", name=name)], None)], indent=0)
+    t.hint("hint.config.tool", command=cmd.say("config", keys[0][0] + "." + keys[0][1]["key"]))
     return 0
 
 

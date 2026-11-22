@@ -105,7 +105,7 @@ class Pick(unittest.TestCase):
             self.assertEqual(before, after, keys)
 
     def test_a3_no_list_off_a_terminal_under_json_and_under_ci(self):
-        for path in ([], ["loom"], ["loom.ink"], ["spool"]):
+        for path in (["loom"], ["loom.ink"], ["spool"]):  # bare: Review1's test_bare
             flat = self.pipe("config", *path, "--all")
             for got in (self.pipe("config", *path, "--pick"), self.pipe("config", *path, "--pick", CI="1")):
                 self.assertEqual((got.returncode, got.stdout), (0, flat.stdout), path)
@@ -260,6 +260,29 @@ class Review1(unittest.TestCase):
             card = self.pipe("config", "fray.k")
             self.assertEqual((code, out), (0, card.stdout), (title, seen))
             self.assertEqual(self.rerun(seen).stdout, out, title)
+
+    def test_bare_off_a_terminal_every_key_flat_one_a_line(self):
+        fray(self.home, [{"key": "k"}, {"key": "w.x", "value": "set", "default": "d", "summary": "Wide."}])
+        everything = json.loads(self.pipe("config", "--json").stdout)
+        keys = []
+        for tool in everything["tools"]:
+            got = json.loads(self.pipe("config", tool["name"], "--json").stdout)
+            keys += [tool["name"] + "." + s["key"] for s in got.get("settings") or ()]
+        self.assertEqual(len([k for k in keys if k.startswith("fray.")]), 2, keys)
+        self.assertEqual(len([k for k in keys if k.startswith("loom.")]), 24, keys)
+        got = self.pipe("config", "--pick")
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertNotIn(b"\x1b", got.stdout + got.stderr)
+        lines = got.stdout.decode().splitlines()
+        self.assertEqual(sorted(line.split()[0] for line in lines), sorted(keys), lines)
+        self.assertIn("fray.w.x", [line.split()[0] for line in lines if line.split()[1] == "set*"])
+        self.assertEqual(self.pipe("config", "--pick", CI="1").stdout, got.stdout)
+        code, out, seen, _, _ = Pick.drive(self, ["config", "--pick"], [], CI="1")
+        self.assertEqual((code, out), (0, got.stdout))
+        self.assertNotIn("Which key?", seen)
+        doc = json.loads(self.pipe("config", "--pick", "--json").stdout)  # one document
+        self.assertEqual(sorted(k["tool"] + "." + k["key"] for k in doc["keys"]), sorted(keys))
+        self.assertEqual(doc["silent"], [])
 
     def test_f1_a_value_changed_while_the_list_is_open(self):
         fray(self.home, [{"key": "k", "value": "old", "default": "d"}])
