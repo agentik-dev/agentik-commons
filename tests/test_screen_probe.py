@@ -89,8 +89,9 @@ class Copy(unittest.TestCase):
 
 class Breaks(Copy):
     def test_a1_a_widened_message_is_red_naming_the_screen_and_the_line(self):
-        self.edit("help.title", "`{tool}` `{version}`   one command for the agentik tools, "
-                                "and here a clause too many for any window")
+        # a head of one word past any window, which the title never cuts (sc17 R1)
+        self.edit("help.title", "`{tool}`-`{version}`-and-one-word-of-a-name-too-long-for-any-window-at-all-even-one-of-eighty"
+                                "   one command for the agentik tools")
         code, out, err = self.run_probe("--only", "bare-empty")
         self.assertEqual((code, out[-1]), (1, "screen-probe: stop: 1 failed"), out)
         red = self.red(out)

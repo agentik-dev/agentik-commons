@@ -3,6 +3,7 @@
 Each run is the plugin's launcher in a temp HOME (test_agentik_suite's `Home`) with a stub
 `claude`; nothing here starts the real `claude` or writes outside its temp folder."""
 import io
+import json
 import os
 import re
 import sys
@@ -201,6 +202,36 @@ class CloseTest(unittest.TestCase):
         out, err = self.drawn(40, tty=False)
         self.assertEqual(len(out), 2)
         self.assertEqual(err[0], WHY)
+
+
+
+CAUSE = "relay has no command here yet, and installs its own by the line on this page:"
+
+
+class PageTest(Narrow):
+    """R6: the cause within 76 characters, the page's address alone under it at the lead."""
+
+    def test_on_a_terminal_and_off_one(self):
+        for cols in (80, 50):
+            code, rows = self.rows("relay", cols=cols)
+            self.assertEqual(code, 3, rows)
+            at = [i for i, r in enumerate(rows) if r.startswith("      https://")][0]
+            cause = " ".join(r.strip() for r in rows[:at])
+            self.assertEqual(cause, "\u2717  " + CAUSE)
+            self.assertLessEqual(self.widest(rows[:at]), cols)
+            self.assertRegex(rows[at], r"^      https://\S+#install$")
+            self.assertRegex(rows[at + 1], r"^next: /\S+ setup relay$")
+        code, out, err = self.run_cli("relay")
+        lines = err.splitlines()
+        self.assertEqual(lines[0], "FAIL  " + CAUSE)
+        self.assertRegex(lines[1], r"^      https://\S+#install$")
+        self.assertLessEqual(len(CAUSE) - len("relay"), 76)
+
+    def test_json_gives_the_page(self):
+        code, out, err = self.run_cli("relay", "--json")
+        got = json.loads(out)["error"]
+        self.assertEqual(got["message"], CAUSE)
+        self.assertRegex(got["page"], r"^https://\S+#install$")
 
 
 if __name__ == "__main__":

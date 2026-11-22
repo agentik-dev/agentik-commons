@@ -451,12 +451,13 @@ class Command:
                       flag=flag, verb=verb)
 
     def fail(self, u):
+        page = u.values.get("page")  # a tool's page goes whole under the cause (row sc17 R6)
         if self.opts["json"]:
+            error = {"code": u.code, "message": self.t.text(u.mid, **u.values), "remedy": u.remedy}
             self.t.json({"schema": SCHEMA % (self.verb or "usage"), "ok": False,
-                         "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
-                                   "remedy": u.remedy}})
+                         "error": dict(error, page=page) if page else error})
         else:
-            self.t.error(u.mid, next_=u.remedy if u.paste else None, **u.values)
+            self.t.error(u.mid, next_=u.remedy if u.paste else None, whole=page, **u.values)
         return u.status
 
     def _no_nouns(self, nouns, one=False):

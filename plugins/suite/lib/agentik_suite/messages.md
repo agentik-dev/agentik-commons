@@ -119,7 +119,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.verb.none`: `{word}` is not a verb or a tool
 - `err.verb.own`: `{word}` is a tool, not a verb
 - `err.verb.plugin`: `{word}` is a plugin with no command
-- `err.verb.page`: `{word}` has no command here yet: it installs its own. Its page has the line: `{page}`
+- `err.verb.page`: `{word}` has no command here yet, and installs its own by the line on this page:
 - `err.verb.missing`: `{word}` is not installed
 - `err.verb.claimed`: `{word}` is claimed by `{tools}`, so none of them runs
 - `err.flag`: `{flag}` is not a flag

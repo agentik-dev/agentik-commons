@@ -29,6 +29,7 @@ WORD = {"ok": "ok", "warn": "warn", "fail": "FAIL", "note": "note"}
 MARK_SGR = {"ok": "32", "warn": "33", "fail": "31", "note": "36"}
 STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 GAP = "  "
+LEAD = 6  # a value not ours to break stands whole at this column under its line (design/23 V11)
 FALLBACK_WIDTH = 80
 LEAST_WIDTH = 40  # a terminal's width under this is taken as this (row sc3-table R1)
 LAST_ROOM = 24  # a last column with less room puts a long last cell under its row (R5)
@@ -453,15 +454,23 @@ class Term:
                 lead = stream.mark("note")[1] + GAP if stream.tty else "next: "
             stream.write(lead + stream.paint(text, STYLE_SGR["hint"]))
 
-    def error(self, mid, next_=None, **values):
-        """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
-        command to paste, with no mark (row sc4 R1); neither line holds a line or direction
-        control (sc4 review 1 F8). What stdout holds goes first, where both streams share one pipe
-        (row ic1-close R4)."""
+    def error(self, mid, next_=None, whole=None, **values):
+        """A refusal: the cause behind the fail mark, wrapped under itself on a terminal too narrow
+        for it; `whole`, where given, alone on the next line
+        at LEAD, never cut (an address, row sc17-narrow-screens R6); then, where one mends it,
+        `next: ` and the command to paste, with no mark (row sc4 R1); no line holds a line or
+        direction control (sc4 review 1 F8). What stdout holds goes first, where both streams
+        share one pipe (row ic1-close R4)."""
         self.out.flush()
         stream = self.err
         shown, painted = stream.mark("fail")
-        stream.write(_ordered(painted + GAP + self.text(mid, **values)))
+        text = _ordered(self.text(mid, **values))
+        room = stream.width() - columns(shown + GAP)
+        if stream.tty and columns(text) > room:  # it wraps under itself (row sc17 R6)
+            text = ("\n" + " " * columns(shown + GAP)).join(_wrap(text, room))
+        stream.write(_ordered(painted + GAP) + text)
+        if whole:
+            stream.write(_ordered(" " * LEAD + clean(whole)))
         if next_:  # a value of the cause's own may be called `command`
             stream.write(_ordered(self.text("err.next", command=next_)))
 
