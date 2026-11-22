@@ -249,7 +249,7 @@ class HostileTest(Home):
         self.assertFalse(os.path.exists(self.mark))
 
     def test_5_a_summary_is_one_plain_line_of_80_columns(self):
-        self.assertEqual(completion.summary("a\tb\nc\x1b[1md"), "a b c[1md")
+        self.assertEqual(completion.summary("a\tb\nc\x1b[1md"), "a b cd")  # the whole CSI gone (sc17 R9)
         self.assertEqual(completion.summary("x\u200by"), "xy")  # term.clean drops the hidden mark
         self.assertEqual(completion.summary("x\u00ady"), "")  # a format character clean keeps is refused
         self.assertEqual(completion.summary(None), "")
