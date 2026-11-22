@@ -239,7 +239,8 @@ def executable(path, body):
 
 class Home:
     """A temp HOME: `stubs` (claude, the made-up tools), `work` (the folder each command runs
-    in, no repository), and the env of exactly HOME, PATH, XDG_CACHE_HOME and COLUMNS."""
+    in, no repository), and the env of exactly HOME, PATH, XDG_CACHE_HOME and TMPDIR, the last
+    two inside the home, so a child writes nothing outside T."""
 
     def __init__(self, top, label, path=None):
         self.label = label
@@ -254,8 +255,10 @@ class Home:
             executable(os.path.join(self.stubs, "plugin-bin"), PLUGIN_BIN)
 
     def env(self, **more):
+        os.makedirs(os.path.join(self.home, ".tmp"), exist_ok=True)
         env = {"HOME": self.home, "PATH": self.path.replace("<bin>", self.bindir),
-               "XDG_CACHE_HOME": os.path.join(self.home, ".cache")}
+               "XDG_CACHE_HOME": os.path.join(self.home, ".cache"),
+               "TMPDIR": os.path.join(self.home, ".tmp")}
         env.update(more)
         return env
 
