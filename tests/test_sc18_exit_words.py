@@ -260,6 +260,17 @@ class IssueTest(Shape, unittest.TestCase):
         lines = [r for r in (out + err).splitlines() if "template stands" in r]
         self.assertEqual(lines, ["The narrator's script failed, so the template stands unchanged."], out + err)
 
+    def test_r8_the_json_keeps_the_narrators_code(self):
+        """The screen's line lost the code (R7); a script reads it from `--json`'s `render.exit`."""
+        _, h = self.fixture("test_rp8_render", "RenderHome")
+        h.install()
+        h.behave("Happened: one\nExpected: two\n", exit=3)
+        code, out, err = h.new("--render", "--json")
+        self.assertEqual(code, 0, err)
+        said = json.loads(out)["render"]
+        self.assertEqual((said["rendered"], said["why"], said["exit"]), (False, "exit", 3), out)
+        self.assertIs(type(said["exit"]), int, out)
+
 
 if __name__ == "__main__":
     unittest.main()
