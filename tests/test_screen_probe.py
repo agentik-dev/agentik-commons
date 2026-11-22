@@ -89,8 +89,9 @@ class Copy(unittest.TestCase):
 
 class Breaks(Copy):
     def test_a1_a_widened_message_is_red_naming_the_screen_and_the_line(self):
-        self.edit("help.title", "`{tool}` `{version}`   one command for the agentik tools, "
-                                "and here a clause too many for any window")
+        # a head of one word past any window, which the title never cuts (sc17 R1)
+        self.edit("help.title", "`{tool}`-`{version}`-and-one-word-of-a-name-too-long-for-any-window-at-all-even-one-of-eighty"
+                                "   one command for the agentik tools")
         code, out, err = self.run_probe("--only", "bare-empty")
         self.assertEqual((code, out[-1]), (1, "screen-probe: stop: 1 failed"), out)
         red = self.red(out)
@@ -214,8 +215,13 @@ class Breaks(Copy):
                  "check ~/.local/bin/agentik doctor --and-a-flag-long-enough-to-pass-fifty",
                  "  claude plugin marketplace add agentik-dev/agentik-commons-long-name",
                  "      claude plugin install session@agentik 0 s and more words past it",
-                 "      /x/y/agentik-suite install-cli failed after it ran a little while"]
-        for line in words:  # W1, W2 and W4 of the review, then the heads it drops and the lead
+                 "      /x/y/agentik-suite install-cli failed after it ran a little while",
+                 "  /x/y/plugins/suite/bin/agentik-suite config  one tool's keys, its gloss beside",
+                 "   /x/y/plugins/suite/bin/agentik-suite config suite.kind, one column too deep",
+                 "      https://example.org/murmur#install and the words that follow it here"]
+        # W1, W2 and W4 of the review, then the heads it drops and the lead; sc17 review 1 L3, an
+        # address is lone only where nothing follows it
+        for line in words:
             self.assertEqual(len(probe.check_width([line], 50)), 1, line)
         lone = ["next: /x/y/plugins/suite/bin/agentik-suite config loom.mode",
                 "other plugins: /x/y/plugins/suite/bin/agentik-suite setup --pick",
@@ -223,7 +229,10 @@ class Breaks(Copy):
                 "from a list: /x/y/plugins/suite/bin/agentik-suite config loom --json",
                 "usage: /x/y/plugins/suite/bin/agentik-suite <verb> [<name>...] [flags]",
                 "      claude plugin marketplace add agentik-dev/agentik-commons",
-                "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli"]
+                "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli",
+                "  /x/y/plugins/suite/bin/agentik-suite config suite.kind",  # an example (sc17 R3)
+                "  ~/.local/bin/agentik-suite-with-a-long-name config suite.kind --changed",
+                "      https://example.org/murmur/a/very/long/path/to/the/page#install"]  # sc17 R6
         self.assertEqual([probe.check_width([line], 50) for line in lone], [[]] * len(lone))
         apply_py = (SUITE / "lib" / "agentik_suite" / "apply.py").read_text(encoding="utf-8")
         self.assertIn("\nLEAD = %d " % probe.LEAD, apply_py)
@@ -347,6 +356,7 @@ class Whole(Copy):
         for screen in probe.SCREENS:
             self.assertIn(screen[0], probe.BUDGET)
         self.assertEqual(len(probe.SCREENS), 31)
+        self.assertEqual(probe.KNOWN, {})  # sc0's nine mended by sc17-narrow-screens
 
 
 if __name__ == "__main__":

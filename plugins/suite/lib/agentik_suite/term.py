@@ -29,6 +29,7 @@ WORD = {"ok": "ok", "warn": "warn", "fail": "FAIL", "note": "note"}
 MARK_SGR = {"ok": "32", "warn": "33", "fail": "31", "note": "36"}
 STYLE_SGR = {"name": "1", "path": "2", "hint": "2"}
 GAP = "  "
+LEAD = 6  # a value not ours to break stands whole at this column under its line (design/23 V11)
 FALLBACK_WIDTH = 80
 LEAST_WIDTH = 40  # a terminal's width under this is taken as this (row sc3-table R1)
 LAST_ROOM = 24  # a last column with less room puts a long last cell under its row (R5)
@@ -40,14 +41,29 @@ JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survi
 LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
 ZERO_CONTROL = re.compile("[\u200b-\u200f\ufeff]")  # zero-width (row sc12-picker R1)
 BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
+# a whole escape sequence (row sc17-narrow-screens R9; review 1 L1 and L2), in its 7-bit or its
+# 8-bit form: a CSI (colour, a cursor move) to its final byte; an OSC (a title, a link), or
+# another string (DCS, SOS, PM, APC), to its BEL or its ST, or to the ESC or the line break that
+# cuts it short; an escape with intermediate bytes (`ESC ( B`, what `tput sgr0` sends); a
+# two-byte one (`ESC 7`, `ESC =`, `ESC M`). A sequence the text ends inside goes as far as it
+# goes, so a live line read between two chunks shows no half of one. A lone ESC before anything
+# else, a lower-case letter included, is a control byte as before (R9).
+ESCAPE = re.compile(
+    "(?:\x1b\\[|\x9b)[0-?]*[ -/]*(?:[@-~]|\\Z)"
+    "|(?:\x1b[\\]PX^_]|[\x90\x98\x9d\x9e\x9f])[^\x07\x1b\x9c\r\n]*(?:\x07|\x1b\\\\|\x9c|(?=[\x1b\r\n])|\\Z)"
+    "|\x1b[ -/]+(?:[0-~]|\\Z)"
+    "|\x1b[0-_]")
 
 
 def clean(value):
-    """The value as text, with its control characters removed: a tab or a line break becomes one
-    space, so no value splits a row or glues two words, and the line and direction controls go,
-    so no value reorders a row or starts another, and the zero-width characters go, so two
-    values that look alike are alike (row sc12-picker R1)."""
-    return ZERO_CONTROL.sub("", LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value)))))
+    """The value as text, with its control characters removed: a whole escape sequence first, so
+    a command's colour or title leaves none of its letters behind (row sc17-narrow-screens R9),
+    then each control byte left; a tab or a line break becomes one space, so no value splits a
+    row or glues two words, and the line and direction controls go, so no value reorders a row
+    or starts another, and the zero-width characters go, so two values that look alike are alike
+    (row sc12-picker R1)."""
+    text = ESCAPE.sub("", str(value))
+    return ZERO_CONTROL.sub("", LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", text))))
 
 
 def columns(text):
@@ -254,6 +270,22 @@ class Term:
         stream = self._stream(err)
         stream.write(stream.paint(self.text(mid, **values), STYLE_SGR.get(style)))
 
+    def wrapped(self, mid, err=False, style=None, **values):
+        """`line`'s text; on a terminal too narrow for it (row sc17-narrow-screens R1), broken at
+        its first gap of three spaces where it has one, so a title's name and version stay whole
+        on the first line and its words go on the next, else at spaces; a word wider than the
+        window stands whole. Off a terminal, or where it fits, the one line of `line`."""
+        stream = self._stream(err)
+        text = self.text(mid, **values)
+        width = stream.width()
+        if not stream.tty or columns(text) <= width:
+            return self.line(mid, err=err, style=style, **values)
+        head, gap, rest = text.partition(GAP + " ")
+        parts = [head.rstrip(), rest.strip()] if gap and head.strip() and rest.strip() else [text]
+        for part in parts:
+            for piece in (_wrap(part, width) if columns(part) > width else [part]):
+                stream.write(stream.paint(piece, STYLE_SGR.get(style)))
+
     def put(self, data, err=True, wait=True):
         """Text with no line break added, on stderr unless told; see `_Stream.put`."""
         return self._stream(err).put(data, wait)
@@ -302,7 +334,9 @@ class Term:
         staying on the row's first line. A path that does not fit its column and is not the row's
         last stays whole at its column's start, unpadded, and each cell after it goes under the
         row at its indent plus 4, dim, wrapped to W (review 1 F1); a last path, or an `after`
-        line, that does not fit goes whole there; a last cell with under 24 columns left, or with
+        line, that does not fit goes whole there, but an `after` of a label and a command, which
+        breaks after the label's `: ` (row sc17-narrow-screens R5); a last cell with under 24
+        columns left, or with
         a word longer than its room, goes there too and wraps to W. Each line of a cell is
         painted on its own; nothing is cut but a `cut` cell, which ends at its room with `…`
         (row sc7 R2)."""
@@ -362,7 +396,14 @@ class Term:
             if after:
                 start = starts[len(cells) - 1]
                 lead = " " * start if start + columns(after) <= width else fixed
-                stream.write(lead + stream.paint(after, dim))
+                label, colon, rest = after.partition(": ")
+                if len(lead) + columns(after) > width and colon and label.strip() and rest.strip():
+                    # a label and its command that fit at neither: the label keeps its line, the
+                    # command, whole, goes under it at the lead (row sc17-narrow-screens R5)
+                    stream.write(lead + stream.paint(label + ":", dim))
+                    stream.write(fixed + stream.paint(rest.strip(), dim))
+                else:
+                    stream.write(lead + stream.paint(after, dim))
 
     def grid(self, status, label, rows, err=False):
         """One part of a status screen (packet su2-screen R4): the mark, or its blank when the
@@ -422,15 +463,23 @@ class Term:
                 lead = stream.mark("note")[1] + GAP if stream.tty else "next: "
             stream.write(lead + stream.paint(text, STYLE_SGR["hint"]))
 
-    def error(self, mid, next_=None, **values):
-        """A refusal: the cause behind the fail mark, then, where one mends it, `next: ` and the
-        command to paste, with no mark (row sc4 R1); neither line holds a line or direction
-        control (sc4 review 1 F8). What stdout holds goes first, where both streams share one pipe
-        (row ic1-close R4)."""
+    def error(self, mid, next_=None, whole=None, **values):
+        """A refusal: the cause behind the fail mark, wrapped under itself on a terminal too narrow
+        for it; `whole`, where given, alone on the next line
+        at LEAD, never cut (an address, row sc17-narrow-screens R6); then, where one mends it,
+        `next: ` and the command to paste, with no mark (row sc4 R1); no line holds a line or
+        direction control (sc4 review 1 F8). What stdout holds goes first, where both streams
+        share one pipe (row ic1-close R4)."""
         self.out.flush()
         stream = self.err
         shown, painted = stream.mark("fail")
-        stream.write(_ordered(painted + GAP + self.text(mid, **values)))
+        text = _ordered(self.text(mid, **values))
+        room = stream.width() - columns(shown + GAP)
+        if stream.tty and columns(text) > room:  # it wraps under itself (row sc17 R6)
+            text = ("\n" + " " * columns(shown + GAP)).join(_wrap(text, room))
+        stream.write(_ordered(painted + GAP) + text)
+        if whole:
+            stream.write(_ordered(" " * LEAD + clean(whole)))
         if next_:  # a value of the cause's own may be called `command`
             stream.write(_ordered(self.text("err.next", command=next_)))
 

@@ -273,6 +273,16 @@ class Command:
         return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
                           full=self.opts["json"])
 
+    def by_door(self):
+        """True where this run came through the door (sc17 review 1 F1): `agentik` on PATH reaches
+        the suite, and the suite was started by no word, as the launcher install-cli writes hands
+        none on, or by the file the door hands a verb to; never by the launcher's other path or
+        the root setup."""
+        if prog.form(self.env, self.tool)[0] != prog.DOOR:
+            return False
+        return self.typed is None or prog._names(self.typed, self.cwd, self.env,
+                                                 prog._on_path(self.env, self.tool))
+
     def again(self, swap, tail=()):
         """The line as typed, each argv index in `swap` replaced by its words, then `tail`; the
         switches of the answer's form (--json, -q, --no-color) left out, so a screen and its
@@ -451,12 +461,16 @@ class Command:
                       flag=flag, verb=verb)
 
     def fail(self, u):
+        page = u.values.get("page")  # a tool's page goes whole under the cause (row sc17 R6)
         if self.opts["json"]:
+            message = self.t.text(u.mid, **u.values)
+            if page:  # the address in the message too, as at the pin (review 1 L4)
+                message += " " + page
+            error = {"code": u.code, "message": message, "remedy": u.remedy}
             self.t.json({"schema": SCHEMA % (self.verb or "usage"), "ok": False,
-                         "error": {"code": u.code, "message": self.t.text(u.mid, **u.values),
-                                   "remedy": u.remedy}})
+                         "error": dict(error, page=page) if page else error})
         else:
-            self.t.error(u.mid, next_=u.remedy if u.paste else None, **u.values)
+            self.t.error(u.mid, next_=u.remedy if u.paste else None, whole=page, **u.values)
         return u.status
 
     def _no_nouns(self, nouns, one=False):
@@ -558,7 +572,7 @@ class Command:
         """R2: the title, then a row a verb a person starts with and one for the tools by name;
         no path, no mark, no process."""
         t = self.t
-        t.line("help.title", **self.slots(), version=self.version)
+        t.wrapped("help.title", **self.slots(), version=self.version)
         t.blank()
         rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST + ("help",)]
         names = [x["name"] for x in self._tools(survey=False) if x["command"]]
@@ -569,7 +583,7 @@ class Command:
     def full_list(self):
         """R4: the title, the usage's two lines, the verbs, the tools and the flags; no path."""
         t, slots = self.t, self.slots()
-        t.line("help.title", **slots, version=self.version)
+        t.wrapped("help.title", **slots, version=self.version)
         t.line("help.usage", **slots)
         if prog.form(self.env, self.tool)[0] != "typed":  # the door runs a tool by its name
             run = self.say() + " " + TOOL_ROW
@@ -637,7 +651,7 @@ class Command:
             return 0
         t = self.t
         t.line("usage." + verb.replace("-", "_"), **self.slots())
-        t.line("verb." + verb.replace("-", "_"))
+        t.wrapped("verb." + verb.replace("-", "_"))  # at the window's width (sc17 R2)
         t.blank()
         examples = self._examples(verb)
         if examples:

@@ -174,7 +174,7 @@ class LeadTest(Copy):
             bare = self.home(name)
             code, out, err = self.cli(bare, T, "doctor", path="/usr/bin:/bin")
             self.assertEqual(code, 3, out + err)
-            self.assertIn("has no command here yet: it installs its own", err)
+            self.assertIn("has no command here yet, and installs its own", err)
             self.assertEqual(bare.ran(), [])
 
 
@@ -224,10 +224,10 @@ class NameTest(Copy):
         h.commands(stub(describe=described(), config=config_error(message="red \x1b[31mpart\nsecond")))
         code, out, err = self.cli(h, "config", T)
         self.assertNotIn(ESC, out + err)
-        self.assertIn("reading its keys failed: red [31mpart second", out + err)
+        self.assertIn("reading its keys failed: red part second", out + err)  # the whole CSI gone (sc17 R9)
         code, out, err = self.cli(h, "config", "--json")
         row = [r for r in json.loads(out)["tools"] if r["name"] == T][0]
-        self.assertEqual(row["error"]["message"], "red [31mpart second")
+        self.assertEqual(row["error"]["message"], "red part second")  # the whole CSI gone (sc17 R9)
         long = self.home("hD")
         long.commands(stub(describe=described(), config=config_error(message="x" * 400)))
         code, out, err = self.cli(long, "config", "--json")
@@ -393,7 +393,7 @@ class DoctorTest(Checks):
         checks = [check("f1", "fail", "red \x1b[31mpart\nsecond")]
         self.murmur(stub(describe=described(reads=("doctor",)), checks=doctor_answer(checks)))
         code, out, err = self.screen(PATH=path)
-        self.assertIn(("FAIL", "f1", "red [31mpart second"), self.rows(out))
+        self.assertIn(("FAIL", "f1", "red part second"), self.rows(out))  # the whole CSI gone (sc17 R9)
 
     def no_read(self):
         """(exit, the group's lines and the close, the group's --json) of a tool on sc10's path."""

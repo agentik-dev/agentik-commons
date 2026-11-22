@@ -119,7 +119,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.verb.none`: `{word}` is not a verb or a tool
 - `err.verb.own`: `{word}` is a tool, not a verb
 - `err.verb.plugin`: `{word}` is a plugin with no command
-- `err.verb.page`: `{word}` has no command here yet: it installs its own. Its page has the line: `{page}`
+- `err.verb.page`: `{word}` has no command here yet, and installs its own by the line on this page:
 - `err.verb.missing`: `{word}` is not installed
 - `err.verb.claimed`: `{word}` is claimed by `{tools}`, so none of them runs
 - `err.flag`: `{flag}` is not a flag
@@ -672,7 +672,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `doctor.plan.path`: not on PATH
 - `doctor.plan.market`: not known to Claude Code
 - `doctor.plan.plugin`: not installed
-- `doctor.plan.absent`: not installed, of the default set: `{names}`
+- `doctor.plan.absent`: default set, not installed: `{names}`
 - `doctor.plan.python`: Python `{version}` at `{path}`, older than the `{floor}` minimum
 - `doctor.plan.broken`: installed at `{version}`, with its folder gone
 - `doctor.plan.behind`: at `{have}`, older than `{want}`

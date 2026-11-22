@@ -66,7 +66,7 @@ def path_close(t, command):
     """The close where the door stands and only PATH lacks its folder: the reason, then the line
     that mends this terminal, a command that runs as printed (ic1-close review 1)."""
     t.flush()  # the plan's add line above it, where both streams share one pipe
-    t.line("setup.path.why", err=True)
+    t.wrapped("setup.path.why", err=True)  # at the window's width (row sc17-narrow-screens R5)
     t.hint("hint.setup.path", command=command)
 
 
@@ -495,10 +495,14 @@ def _rows(t, rows, err=False):
             stream.put(" " * LEAD + joined + "\n")
 
 
-def _summary(n, group):
-    """The one line of a step whose rows all read ok: the names it holds."""
+def _summary(n, group, door=False):
+    """The one line of a step whose rows all read ok: the names it holds; step 5's, on a screen
+    typed through the door, the door's one word."""
     if n == 6:
         return group[0]["subject"]
+    doors = [s for s in group if s["id"] == "door"]
+    if n == 5 and door and doors:  # the word the person typed; the launcher is --json's and doctor's (sc17 R7)
+        return os.path.basename(doors[0]["subject"])
     names = []
     for s in group:
         subject = s["subject"]
@@ -536,7 +540,7 @@ def plan_screen(cmd, steps, names, dry=False):
     for n in range(1, 7):
         group = [s for s in steps if s["n"] == n]
         if group and all(s["state"] == "ok" for s in group):
-            top.append(("ok", n, label(n), _summary(n, group), False))
+            top.append(("ok", n, label(n), _summary(n, group, door=cmd.by_door()), False))
             continue
         for s in group:
             if s in runs or s["state"] == "ok" or s["mid"] in COVERED or s["mid"] == "setup.launcher.wait":

@@ -73,28 +73,12 @@ V9_LIST = {
     "issue.render.exit": "owed",
 }
 
-# KNOWN: what is red on the pin's screens (main 6c60098), by "<check>:<screen>": a pattern that
-# each excused line matches, and the finding in a few words with the row that owes it. A line it
-# matches prints as `note` and keeps the probe at go; any other red line of the screen is a FAIL;
-# an entry with no red line left prints a note to take it off. Ruled by review 1 of sc0: each
-# entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
-OWED = "; owed by sc17-narrow-screens"
-KNOWN = {
-    "width:bare-empty": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
-    "width:help": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
-    "width:help-config": (r"^pty50 line 2 .*Show each tool|^(pty80|pty50|nocolor) line [468] \(\d+\):   /",
-                          "the summary does not wrap at 50; each example holds the path typed at "
-                          "column 2, not under the lead" + OWED),
-    "width:help-config-door": (r"^pty50 line 2 .*Show each tool", "the summary does not wrap at 50" + OWED),
-    "width:config-loom": (r"^pty50 line 1 .*24 keys, 3 changed", "the title does not wrap at 50" + OWED),
-    "width:doctor-applied": (r"^pty50 line \d+ .*(add to your shell profile|The line below mends)",
-                             "the profile row and the closing sentence do not wrap at 50" + OWED),
-    "width:err-uninstalled": (r"^(pty80|pty50|nocolor) line 1 .*relay has no command here yet",
-                              "the refusal is one line of 130 (design/23 section 7's row 2)" + OWED),
-    "name:setup-door": (r"^(pty80|pty50|pipe|nocolor) line \d+: .*5 agentik +agentik-suite, agentik",
-                        "step 5's row names the launcher it placed" + OWED),
-    "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8" + OWED),
-}
+# KNOWN: what is red on main's screens, by "<check>:<screen>": a pattern that each excused line
+# matches, and the finding in a few words with the row that owes it. A line it matches prints as
+# `note` and keeps the probe at go; any other red line of the screen is a FAIL; an entry with no
+# red line left prints a note to take it off. The nine of sc0's review 1 are mended by
+# sc17-narrow-screens, so the table is empty; the `usage:` line is a head over a command.
+KNOWN = {}
 
 # The budget: each screen's most lines on a pty at 80 columns, a command or path spilled onto its
 # own line uncounted (`spill`, as sc8 counts its plan), with where the number comes from: a row of
@@ -113,7 +97,7 @@ BUDGET = {
     "setup-failed": (25, "measured, sc16's undo"),
     "doctor-empty": (8, "sc10"), "doctor-applied": (20, "measured"),
     "doctor-door": (14, "measured"),
-    "err-typo": (2, "measured"), "err-uninstalled": (2, "measured"),
+    "err-typo": (2, "measured"), "err-uninstalled": (3, "measured: the page alone"),
     "err-config-uninstalled": (2, "measured"), "err-tool-not-verb": (2, "measured"),
     "err-flag": (2, "measured"), "err-extra": (2, "measured"),
     "err-help-version": (2, "measured"), "err-typo-door": (2, "measured"),
@@ -565,23 +549,32 @@ def cells(line):
 # `same as:`, `from a list:` and `usage:`); a `check` or `undo` row puts its command under its label
 LONE_HEADS = ("next: ", "other plugins: ", "same as: ", "from a list: ", "usage: ")
 LEAD = 6  # apply.LEAD: a command that does not fit its row stands at this column under it
+EXAMPLES = 2  # help <verb>'s examples: one that does not fit beside its gloss stands here alone
 RESULT = re.compile(r" \d+ s\b|\bfailed\b|\bstopped\b|could not start")
 
 
 def lone(line):
     """A line that is one path or one command and nothing more, which cannot be broken, as sc8's
     `lone` has it (review 1 F3): after one of LONE_HEADS at column 0, a path or `claude `; else, on
-    a line indented by LEAD, a path or `claude ` and nothing more: no gap of a table's cells and
-    no result words. A line of plain words, at column 0 or indented otherwise, is not lone."""
+    a line indented by LEAD, a path, `claude ` or an `https://` address (sc17 R6; nothing after
+    it, review 1 L3) and nothing more:
+    no gap of a table's cells and no result words; or, at EXAMPLES, `help <verb>`'s example by the path typed and nothing more
+    (row sc17-narrow-screens R3). A line of plain words, at column 0 or indented otherwise, is not
+    lone."""
     for head in LONE_HEADS:
         if line.startswith(head):
             rest = line[len(head):]
             return rest.startswith(("/", "~/", "./", "claude ")) and not RESULT.search(rest)
-    if not re.match(" {%d}[^ ]" % LEAD, line):
-        return False
     rest = line.strip()
-    return (rest.startswith(("/", "~/", "./", "claude ")) and "  " not in rest
-            and not RESULT.search(rest))
+    if re.match(" {%d}[^ ]" % EXAMPLES, line):
+        starts = ("/", "~/", "./")
+    elif re.match(" {%d}[^ ]" % LEAD, line):
+        starts = ("/", "~/", "./", "claude ", "https://")
+    else:
+        return False
+    if "https://" in starts and rest.startswith("https://"):  # alone, nothing after it (review 1 L3)
+        return " " not in rest
+    return rest.startswith(starts) and "  " not in rest and not RESULT.search(rest)
 
 
 def check_width(rows, cols):

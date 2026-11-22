@@ -247,7 +247,7 @@ class SuiteTest(unittest.TestCase):
         self.assertEqual((code, err), (0, ""))
         self.assertNotIn("\x1b", out)
         self.assertEqual(out.splitlines()[-1], "why: this clone sets agentik.records more than once; agentik.records is "
-                         + os.path.join(self.root, "a", "widget") + ", x[31m/widget")
+                         + os.path.join(self.root, "a", "widget") + ", x/widget")  # the whole CSI gone (sc17 R9)
         code, rows = self.doctor_row(self.clone)
         self.assertEqual([r["status"] for r in rows], ["fail"])
         self.assertNotIn("\x1b", rows[0]["detail"])

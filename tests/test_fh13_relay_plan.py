@@ -27,6 +27,7 @@ from agentik_suite import apply, plan  # noqa: E402
 
 T, P = "murmur", "plain"
 PAGE = "https://github.com/example-org/murmur#install"
+NEW_WORDS = "has no command here yet, and installs its own by the line on this page:"
 SUITE = "agentik-suite"
 PAGE_LINE = "its page has the line: %s" % PAGE
 LAUNCHER_PAGE = "not placed, and not setup's to place: murmur installs its own command"
@@ -183,13 +184,15 @@ class PageTest(Base):
             h = self.home(name)
             code, out, err = self.cli(h, T, "doctor")
             self.assertEqual(code, 3, err)
-            self.assertIn("murmur has no command here yet: it installs its own. Its page has the line: %s" % PAGE, err)
+            self.assertIn("murmur %s\n      %s\n" % (NEW_WORDS, PAGE), err)  # the page whole (sc17 R6)
             self.assertEqual(err.splitlines()[-1], "next: %s %s murmur" % (self.launcher, remedy))
             code, out, err = self.cli(h, T, "doctor", "--json")
             self.assertEqual(code, 3)
             got = json.loads(out)["error"]
             self.assertEqual(got["code"], "not_installed")
             self.assertEqual(got["remedy"], "%s %s murmur" % (self.launcher, remedy))
+            self.assertEqual(got["page"], PAGE)
+            self.assertEqual(got["message"], "murmur %s %s" % (NEW_WORDS, PAGE))  # sc17 review 1 L4
 
     def test_6_a_plugin_with_no_page_keeps_its_refusal(self):
         h = self.home("hL", P)
