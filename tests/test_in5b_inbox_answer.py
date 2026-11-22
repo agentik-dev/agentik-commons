@@ -256,7 +256,7 @@ class WriterTest(AnswerHome):
                 if name.endswith((".py", ".md")):
                     with open(os.path.join(top, name), encoding="utf-8") as fh:
                         text = fh.read()
-                    self.assertIsNone(re.search(r"agentik-ledger|agentik-bench|pear-hq|agentik-decisions", text), name)
+                    self.assertIsNone(re.search(r"agentik-ledger|agentik-bench|pear-hq|agentik-decision[s]", text), name)
 
 
 if __name__ == "__main__":
