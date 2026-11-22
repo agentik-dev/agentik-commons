@@ -14,7 +14,10 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import CLAUDE_STUB, LAUNCHER, Home  # noqa: E402
 from test_ak3_setup import on_pty  # noqa: E402
-from agentik_suite import apply, catalogue  # noqa: E402
+from agentik_suite import apply, catalogue, plan  # noqa: E402
+
+DEFAULT = plan.default_set(str(LAUNCHER.parent.parent / "lib"))  # read from the plugin, never named here
+SECOND = DEFAULT[1] + "@agentik"  # the plugin whose install the failing stub refuses
 
 # a plugin's launcher whose install-cli places its own command alone, so the door is the suite's
 PLUGIN_BIN = """#!/bin/sh
@@ -27,12 +30,12 @@ doctor) exit 0 ;;
 *) exit 2 ;;
 esac
 """
-# the stub, failing `install decisions@agentik` with seven lines of its own while a flag file is there
+# the stub, failing the second plugin's install with seven lines of its own while a flag file is there
 FAIL = """#!/usr/bin/python3
 import os as _o, sys as _s
-if _o.path.exists(%r) and _s.argv[1:] == ["plugin", "install", "decisions@agentik"]:
+if _o.path.exists(%r) and _s.argv[1:] == ["plugin", "install", %r]:
     for i in range(1, 8):
-        print("resolver line %%d of decisions@agentik, said whole" %% i, flush=True)
+        print("resolver line %%d of the plugin, said whole" %% i, flush=True)
     _s.exit(1)
 """
 SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\r")
@@ -60,8 +63,8 @@ class Screens(Home):
         with open(template, "w") as fh:
             fh.write(PLUGIN_BIN)
         os.chmod(template, 0o755)
-        self.flag = os.path.join(self.stubs, "fail-decisions")
-        self.stub("claude", FAIL % self.flag + CLAUDE_STUB.replace("#!/usr/bin/python3\n", "", 1) % template)
+        self.flag = os.path.join(self.stubs, "fail-second")
+        self.stub("claude", FAIL % (self.flag, SECOND) + CLAUDE_STUB.replace("#!/usr/bin/python3\n", "", 1) % template)
 
     def journal(self):
         with open(os.path.join(self.home, ".local", "state", "agentik-suite", "setup.jsonl")) as fh:
@@ -188,7 +191,7 @@ class Screens(Home):
     def test_r5_no_terminal_and_no_yes(self):
         code, out, err = self.screen("setup")
         self.assertEqual(code, 2)
-        self.assertEqual(out[0], "Setup for session, decisions, agents. Nothing has run yet.")
+        self.assertEqual(out[0], "Setup for %s. Nothing has run yet." % ", ".join(DEFAULT))
         self.assertEqual(err[-2], "FAIL  nothing ran: there is no terminal to ask on")
         self.assertTrue(err[-1].startswith("next: ") and err[-1].endswith(" setup --yes"), err)
 
@@ -196,10 +199,10 @@ class Screens(Home):
         open(self.flag, "w").close()
         code, out, err = self.screen("setup", "--yes")
         self.assertEqual(code, 1, err)
-        row = [i for i, l in enumerate(err) if "claude plugin install decisions@agentik" in l]
+        row = [i for i, l in enumerate(err) if "claude plugin install " + SECOND in l]
         self.assertTrue(row and "failed" in err[row[0]], err)
         self.assertEqual(err[row[0] + 1:row[0] + 6],
-                         [" " * apply.LEAD + "resolver line %d of decisions@agentik, said whole" % i
+                         [" " * apply.LEAD + "resolver line %d of the plugin, said whole" % i
                           for i in range(3, 8)])
         self.assertEqual(err[-2], "FAIL  setup stopped at step 3; steps 1 and 2 stand")
         self.assertTrue(err[-1].startswith("next: ") and err[-1].endswith(" setup"), err)
