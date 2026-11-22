@@ -5,6 +5,7 @@ path where it is placed off PATH, else the word typed, which the root setup and 
 on in AGENTIK_ARGV0. The paste proof runs each screen in a temp HOME whose PATH is a folder with a
 stub `claude`, then /usr/bin:/bin, and pastes each printed command into `sh -c`. Nothing here
 starts the real `claude` or writes outside its temp folder."""
+import json
 import os
 import re
 import shutil
@@ -188,8 +189,10 @@ class PasteTest(Home):
                 self.assertTrue(c.startswith("agentik "), (argv, c))
                 self.assertNotEqual(self.paste(c, env), 127, (argv, c))
             # the name is never the suite's; a file's own name in a path or a PATH listing stays
+            # an ok step's line lists its files by name (row sc8 R1), as a PATH listing does
             named = [line for line in text.splitlines()
-                     if re.search(r"(?<![/\w-])agentik-suite\b(?!\s+(?:~|/))", line)]
+                     if re.search(r"(?<![/\w-])agentik-suite\b(?!\s+(?:~|/))", line)
+                     and not re.match(r"^  (?:ok|✓) \d \S+ {2,}\S", line)]
             self.assertEqual(named, [], argv)
 
 
@@ -273,9 +276,13 @@ class InPlaceTest(Home):
         src, env = self.plugin(), self.env()
         for argv in (["./setup", "murmur", "--dry-run"], [str(LAUNCHER), "setup", "murmur", "--dry-run"]):
             text = self.screen(argv, env)
-            later = [line.split("later: ", 1)[1].strip().strip("`") for line in text.splitlines()
-                     if "later: " in line]
-            self.assertEqual(later, ["%s doctor" % src], (argv, text))
+            # the plugin's own doctor line is --json's; the plan's Yours, after: holds the suite's
+            # (row sc8 R1)
+            p = subprocess.run(argv + ["--json"], cwd=str(ROOT), env=env, stdin=subprocess.DEVNULL,
+                               capture_output=True, text=True, timeout=120)
+            later = [s["command"] for s in json.loads(p.stdout)["steps"] if s["n"] == 7 and s["command"]]
+            self.assertEqual(later, ["%s doctor" % src], (argv, p.stdout))
+            self.assertNotIn("%s doctor" % src, text)
             self.assertEqual(self.paste(later[0], env), 0, (argv, later[0]))
             for c in self.commands(text):  # the suite's own lines, through the one function
                 self.assertNotEqual(self.paste(c, env), 127, (argv, c))
