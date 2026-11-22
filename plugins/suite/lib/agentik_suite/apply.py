@@ -464,6 +464,9 @@ def _summary(n, group):
     """The one line of a step whose rows all read ok: the names it holds."""
     if n == 6:
         return group[0]["subject"]
+    doors = [s for s in group if s["id"] == "door"]
+    if n == 5 and doors:  # the command a person types; the launcher is --json's and doctor's (sc17 R7)
+        return os.path.basename(doors[0]["subject"])
     names = []
     for s in group:
         subject = s["subject"]

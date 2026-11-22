@@ -234,5 +234,27 @@ class PageTest(Narrow):
         self.assertRegex(got["page"], r"^https://\S+#install$")
 
 
+
+def row(n, sid, state, subject):
+    return {"n": n, "id": sid, "state": state, "subject": subject, "values": {}}
+
+
+class StepFiveTest(unittest.TestCase):
+    """R7: step 5's one ok line names the command a person types, not the launcher's file."""
+
+    def test_its_ok_line_names_the_door(self):
+        group = [row(5, "suite", "ok", "~/.local/bin/agentik-suite"), row(5, "door", "ok", "~/.local/bin/agentik")]
+        self.assertEqual(apply._summary(5, group), "agentik")
+
+    def test_with_no_door_row_the_names_as_before(self):
+        self.assertEqual(apply._summary(5, [row(5, "suite", "ok", "~/.local/bin/agentik-suite")]), "agentik-suite")
+        group = [row(4, "launcher", "ok", "~/.local/bin/agentik-murmur"), row(4, "launcher", "ok", "/x/agentik-quill")]
+        self.assertEqual(apply._summary(4, group), "agentik-murmur, agentik-quill")
+
+    def test_json_keeps_the_launcher(self):
+        s = dict(row(5, "suite", "ok", "~/.local/bin/agentik-suite"), detail="", command=None)
+        self.assertEqual(apply.step_json(s)["subject"], "~/.local/bin/agentik-suite")
+
+
 if __name__ == "__main__":
     unittest.main()

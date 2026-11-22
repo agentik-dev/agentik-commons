@@ -80,8 +80,6 @@ V9_LIST = {
 # entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
 OWED = "; owed by sc17-narrow-screens"
 KNOWN = {
-    "name:setup-door": (r"^(pty80|pty50|pipe|nocolor) line \d+: .*5 agentik +agentik-suite, agentik",
-                        "step 5's row names the launcher it placed" + OWED),
     "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8" + OWED),
 }
 
