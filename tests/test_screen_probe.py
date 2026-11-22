@@ -352,6 +352,7 @@ class Whole(Copy):
         for screen in probe.SCREENS:
             self.assertIn(screen[0], probe.BUDGET)
         self.assertEqual(len(probe.SCREENS), 31)
+        self.assertEqual(probe.KNOWN, {})  # sc0's nine mended by sc17-narrow-screens
 
 
 if __name__ == "__main__":

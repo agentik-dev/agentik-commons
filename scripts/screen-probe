@@ -73,15 +73,12 @@ V9_LIST = {
     "issue.render.exit": "owed",
 }
 
-# KNOWN: what is red on the pin's screens (main 6c60098), by "<check>:<screen>": a pattern that
-# each excused line matches, and the finding in a few words with the row that owes it. A line it
-# matches prints as `note` and keeps the probe at go; any other red line of the screen is a FAIL;
-# an entry with no red line left prints a note to take it off. Ruled by review 1 of sc0: each
-# entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
-OWED = "; owed by sc17-narrow-screens"
-KNOWN = {
-    "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8" + OWED),
-}
+# KNOWN: what is red on main's screens, by "<check>:<screen>": a pattern that each excused line
+# matches, and the finding in a few words with the row that owes it. A line it matches prints as
+# `note` and keeps the probe at go; any other red line of the screen is a FAIL; an entry with no
+# red line left prints a note to take it off. The nine of sc0's review 1 are mended by
+# sc17-narrow-screens, so the table is empty; the `usage:` line is a head over a command.
+KNOWN = {}
 
 # The budget: each screen's most lines on a pty at 80 columns, a command or path spilled onto its
 # own line uncounted (`spill`, as sc8 counts its plan), with where the number comes from: a row of

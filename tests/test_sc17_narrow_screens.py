@@ -256,5 +256,18 @@ class StepFiveTest(unittest.TestCase):
         self.assertEqual(apply.step_json(s)["subject"], "~/.local/bin/agentik-suite")
 
 
+
+class EmptyDoctorTest(Narrow):
+    """R8: doctor in an empty home is sc10's 8 lines at 80: the plugin row fits one line."""
+
+    def test_eight_lines_at_80(self):
+        code, rows = self.rows("doctor", cols=80)
+        rows = [r for r in rows if r.strip()]
+        self.assertEqual(len(rows), 8, rows)
+        plugin = [r for r in rows if " plugin " in r][0]
+        self.assertRegex(plugin, r"default set, not installed: \w+, \w+, \w+$")
+        self.assertLessEqual(term.columns(plugin), 80)
+
+
 if __name__ == "__main__":
     unittest.main()
