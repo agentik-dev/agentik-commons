@@ -22,7 +22,7 @@ import agentik_hygiene
 
 from . import settings
 
-NUMBERED = ("path", "email", "address", "private", "struck", "name", "url", "site", "run")
+NUMBERED = ("path", "email", "address", "private", "struck", "name", "url", "site", "run", "source")
 SINGLE = ("user", "host", "repo", "project", "secret")
 KINDS = NUMBERED + SINGLE
 PH = re.compile(r"<(?:(%s)-([1-9][0-9]*)|(%s))>" % ("|".join(NUMBERED), "|".join(SINGLE)))
@@ -103,6 +103,7 @@ DIGITS = re.compile(r"\d+(?:/\d+)+/?\Z")
 SCHEMA = re.compile(r"agentik[.-][a-z][a-z0-9_.-]*/\d+\Z")
 VERSION = re.compile(r"(?:\d+(?:\.\d+){2,}(?:[+-]\d+(?:\.\d+)*)?|[0-9a-f]{7,40})\Z")
 HASH = re.compile(r"[0-9a-f]{7,64}\Z")
+PLAIN_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")  # row fk6 R1: a foreign version but this one is a value
 
 SECRET_NAME = (r"[A-Za-z0-9_.-]*(?:password|passphrase|secret|token|api[_-]?key|credential"
                r"|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*")
@@ -206,7 +207,7 @@ def _homes(home):
 
 
 def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(), checkouts=(),
-          secrets=(), private="none"):
+          secrets=(), private="none", sources=()):
     """A machine from its values: what `machine` reads, and what a test makes by hand."""
     tools = {str(t): str(w) for t, w in (public.get("tools") or {}).items()}
     market = str(public.get("marketplace") or "")
@@ -252,7 +253,7 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
     names = list(names) + [w for w in words_of if len(LETTER.findall(w)) >= 3]
     named = ([(v, "user") for v in logins] + [(v, "host") for v in hosts]
              + [(v, "name") for v in names] + [(v, "email") for v in emails]
-             + [(v, "repo") for v in repos])
+             + [(v, "repo") for v in repos] + [(v, "source") for v in sources])
     named = [(v.strip(), k) for v, k in named if v and len(v.strip()) >= 3]
     kinds = {}
     for v, k in named:
@@ -336,7 +337,50 @@ def machine(env, cwd, public, logins=()):
     secrets = [v for k, v in env.items() if any(w in k.upper() for w in SECRET_VARS)]
     return build(public, home=home, logins=users + list(logins), hosts=[node, node.split(".")[0]],
                  names=[_git(env, "user.name")], emails=[_git(env, "user.email")],
-                 checkouts=checkouts, secrets=secrets, private=_private(env, home))
+                 checkouts=checkouts, secrets=secrets, private=_private(env, home),
+                 sources=_sources(env, home, public, tree))
+
+
+def _sources(env, home, public, tree):
+    """Row fk6 R1: the values that name another source here, each read now: the user file's
+    `sources` values but a public tool's own id, each marketplace of known_marketplaces.json
+    but the public one, each plugin id of installed_plugins.json outside it, and each version
+    of those ids or of a folder source's manifest that is not N.N.N."""
+    market = str(public.get("marketplace") or "")
+    own = {"%s@%s" % (t, market) for t in public.get("tools") or {}}
+    found, versions = [], []
+    listed = tree.get("sources") if isinstance(tree, dict) else None
+    for value in (listed.values() if isinstance(listed, dict) else ()):
+        if not isinstance(value, str) or not value.strip() or value.strip() in own:
+            continue
+        value = value.strip()
+        found.append(value)
+        if "@" not in value:
+            folder = os.path.join(home, value[2:]) if value.startswith("~/") else value
+            data = _json(os.path.join(folder, ".claude-plugin", "plugin.json"))
+            versions.append(data.get("version") if isinstance(data, dict) else None)
+    base = env.get("CLAUDE_CONFIG_DIR") or os.path.join(home, ".claude")
+    known = _json(os.path.join(base, "plugins", "known_marketplaces.json"))
+    found += [k for k in (known if isinstance(known, dict) else ()) if isinstance(k, str) and k != market]
+    table = _json(os.path.join(base, "plugins", "installed_plugins.json"))
+    table = table.get("plugins") if isinstance(table, dict) else None
+    for pid, entries in (table.items() if isinstance(table, dict) else ()):
+        if not isinstance(pid, str) or pid.rpartition("@")[2] == market:
+            continue
+        found += [pid, pid.rpartition("@")[2]]
+        versions += [e.get("version") for e in (entries if isinstance(entries, list) else ())
+                     if isinstance(e, dict)]
+    found += [v for v in versions if isinstance(v, str) and not PLAIN_VERSION.fullmatch(v.strip())]
+    return [v for v in found if v and v != market]
+
+
+def _json(path):
+    """A JSON file's value, or None; by settings' own json, so this module imports nothing new."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return settings.json.load(fh)
+    except (OSError, ValueError):
+        return None
 
 
 def weak(m):
