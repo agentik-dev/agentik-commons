@@ -214,7 +214,9 @@ class Breaks(Copy):
                  "check ~/.local/bin/agentik doctor --and-a-flag-long-enough-to-pass-fifty",
                  "  claude plugin marketplace add agentik-dev/agentik-commons-long-name",
                  "      claude plugin install session@agentik 0 s and more words past it",
-                 "      /x/y/agentik-suite install-cli failed after it ran a little while"]
+                 "      /x/y/agentik-suite install-cli failed after it ran a little while",
+                 "  /x/y/plugins/suite/bin/agentik-suite config  one tool's keys, its gloss beside",
+                 "   /x/y/plugins/suite/bin/agentik-suite config suite.kind, one column too deep"]
         for line in words:  # W1, W2 and W4 of the review, then the heads it drops and the lead
             self.assertEqual(len(probe.check_width([line], 50)), 1, line)
         lone = ["next: /x/y/plugins/suite/bin/agentik-suite config loom.mode",
@@ -223,7 +225,9 @@ class Breaks(Copy):
                 "from a list: /x/y/plugins/suite/bin/agentik-suite config loom --json",
                 "usage: /x/y/plugins/suite/bin/agentik-suite <verb> [<name>...] [flags]",
                 "      claude plugin marketplace add agentik-dev/agentik-commons",
-                "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli"]
+                "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli",
+                "  /x/y/plugins/suite/bin/agentik-suite config suite.kind",  # an example (sc17 R3)
+                "  ~/.local/bin/agentik-suite-with-a-long-name config suite.kind --changed"]
         self.assertEqual([probe.check_width([line], 50) for line in lone], [[]] * len(lone))
         apply_py = (SUITE / "lib" / "agentik_suite" / "apply.py").read_text(encoding="utf-8")
         self.assertIn("\nLEAD = %d " % probe.LEAD, apply_py)
