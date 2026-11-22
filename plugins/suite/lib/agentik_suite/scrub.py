@@ -104,6 +104,11 @@ SCHEMA = re.compile(r"agentik[.-][a-z][a-z0-9_.-]*/\d+\Z")
 VERSION = re.compile(r"(?:\d+(?:\.\d+){2,}(?:[+-]\d+(?:\.\d+)*)?|[0-9a-f]{7,40})\Z")
 HASH = re.compile(r"[0-9a-f]{7,64}\Z")
 PLAIN_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")  # row fk6 R1: a foreign version but this one is a value
+# row fk6 review 1 F3, F4: a version or a source under three characters is matched whole: no letter,
+# digit, `_`, `.` or `-` beside it, but a sentence's `.` after it, and a lone `v` before a version
+WHOLE_BEFORE = r"(?<![\w.-])"
+WHOLE_AFTER = r"(?![\w-]|\.\w)"
+VERSION_BEFORE = r"(?:(?<![\w.-])|(?<=[vV])(?<![\w.-][vV]))"
 
 SECRET_NAME = (r"[A-Za-z0-9_.-]*(?:password|passphrase|secret|token|api[_-]?key|credential"
                r"|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*")
@@ -207,8 +212,10 @@ def _homes(home):
 
 
 def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(), checkouts=(),
-          secrets=(), private="none", sources=()):
-    """A machine from its values: what `machine` reads, and what a test makes by hand."""
+          secrets=(), private="none", sources=(), versions=()):
+    """A machine from its values: what `machine` reads, and what a test makes by hand. Row fk6:
+    `sources` of any length, one under three characters matched as a whole word only, and of
+    `versions` those `named_version` takes, each matched whole (review 1 F3, F4)."""
     tools = {str(t): str(w) for t, w in (public.get("tools") or {}).items()}
     market = str(public.get("marketplace") or "")
     words = set(KINDS) | {"agentik"} | set(VERBS) | set(PROGRAMS)
@@ -254,20 +261,35 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
     named = ([(v, "user") for v in logins] + [(v, "host") for v in hosts]
              + [(v, "name") for v in names] + [(v, "email") for v in emails]
              + [(v, "repo") for v in repos] + [(v, "source") for v in sources])
-    named = [(v.strip(), k) for v, k in named if v and len(v.strip()) >= 3]
+    named = [(v.strip(), k) for v, k in named if v and v.strip() and (len(v.strip()) >= 3 or k == "source")]
+    numbered = [v.strip() for v in versions if named_version(v)]
+    named += [(v, "source") for v in numbered]
     kinds = {}
     for v, k in named:
         kinds.setdefault(v.lower(), k)
     m["_kinds"] = kinds
-    inner = [v for v in kinds if v not in words]
+    dotted = {v.lower() for v in numbered} - words
+    short = {v for v in kinds if len(v) < 3} - words - dotted
+    inner = [v for v in kinds if v not in words and v not in dotted and v not in short]
     plain = [v for v in kinds if v in words]
     m["weak"] = sorted({kinds[v] for v in plain})
-    m["_names"] = (re.compile(r"(?<!%s)(?:%s)(?!%s)" % (L, _alts(inner), L), re.I) if inner else None)
+    alts = ["(?<!%s)(?:%s)(?!%s)" % (L, _alts(inner), L)] if inner else []
+    alts += ["%s(?:%s)%s" % (VERSION_BEFORE, _alts(dotted), WHOLE_AFTER)] if dotted else []
+    alts += ["%s(?:%s)%s" % (WHOLE_BEFORE, _alts(short), WHOLE_AFTER)] if short else []
+    m["_names"] = re.compile("|".join(alts), re.I) if alts else None
     m["_inner"] = re.compile(_alts(inner), re.I) if inner else None
     a = _alts(plain)
-    m["_at"] = (re.compile(r"(?<=@)(?:%s)(?!%s)|(?<!%s)(?:%s)(?=@)" % (a, L, L, a), re.I)
-                if plain else None)
+    b = _alts([v for v in plain if kinds[v] != "source"])  # R6 (F9): a source only after an @
+    m["_at"] = (re.compile(r"(?<=@)(?:%s)(?!%s)" % (a, L) + (r"|(?<!%s)(?:%s)(?=@)" % (L, b) if b else ""),
+                           re.I) if plain else None)
     return m
+
+
+def named_version(value):
+    """Row fk6 R2 (review 1 F3): a foreign version is a value only where it could carry a name,
+    so it holds a letter and a digit and is not N.N.N; `1.0`, `2024.11` and `latest` are none."""
+    v = value.strip() if isinstance(value, str) else ""
+    return bool(LETTER.search(v) and re.search(r"[0-9]", v) and not PLAIN_VERSION.fullmatch(v))
 
 
 def _git(env, key):
@@ -338,14 +360,15 @@ def machine(env, cwd, public, logins=()):
     return build(public, home=home, logins=users + list(logins), hosts=[node, node.split(".")[0]],
                  names=[_git(env, "user.name")], emails=[_git(env, "user.email")],
                  checkouts=checkouts, secrets=secrets, private=_private(env, home),
-                 sources=_sources(env, home, public, tree))
+                 **_sources(env, home, public, tree))
 
 
 def _sources(env, home, public, tree):
     """Row fk6 R1: the values that name another source here, each read now: the user file's
-    `sources` values but a public tool's own id, each marketplace of known_marketplaces.json
-    but the public one, each plugin id of installed_plugins.json outside it, and each version
-    of those ids or of a folder source's manifest that is not N.N.N."""
+    `sources` values but a public tool's own id, an id's marketplace part with it (review 1 F6),
+    each marketplace of known_marketplaces.json but the public one, each plugin id of
+    installed_plugins.json outside it; and `versions`, those of the ids and of a folder source's
+    manifest, of which build keeps the ones `named_version` takes."""
     market = str(public.get("marketplace") or "")
     own = {"%s@%s" % (t, market) for t in public.get("tools") or {}}
     found, versions = [], []
@@ -355,7 +378,9 @@ def _sources(env, home, public, tree):
             continue
         value = value.strip()
         found.append(value)
-        if "@" not in value:
+        if "@" in value:
+            found.append(value.rpartition("@")[2])
+        else:
             folder = os.path.join(home, value[2:]) if value.startswith("~/") else value
             data = _json(os.path.join(folder, ".claude-plugin", "plugin.json"))
             versions.append(data.get("version") if isinstance(data, dict) else None)
@@ -370,16 +395,21 @@ def _sources(env, home, public, tree):
         found += [pid, pid.rpartition("@")[2]]
         versions += [e.get("version") for e in (entries if isinstance(entries, list) else ())
                      if isinstance(e, dict)]
-    found += [v for v in versions if isinstance(v, str) and not PLAIN_VERSION.fullmatch(v.strip())]
-    return [v for v in found if v and v != market]
+    return {"sources": [v for v in found if v and v != market],
+            "versions": [v for v in versions if isinstance(v, str)]}
 
 
 def _json(path):
-    """A JSON file's value, or None; by settings' own json, so this module imports nothing new."""
+    """A JSON file's value, or None, read as plan._read_json reads it (review 1 F1, F2): a path
+    that is no regular file is never opened, so a FIFO never blocks, and a parse that raises
+    anything, a file nested past the parser's depth among them, holds nothing. Its own copy, by
+    settings' json and agentik_install, since rp2 holds this module's imports."""
+    data = settings.agentik_install.read_regular(path)
+    if data is None:
+        return None
     try:
-        with open(path, encoding="utf-8") as fh:
-            return settings.json.load(fh)
-    except (OSError, ValueError):
+        return settings.json.loads(data.decode("utf-8"))
+    except Exception:  # a RecursionError too, as plan's reader
         return None
 
 
