@@ -40,14 +40,20 @@ JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survi
 LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
 ZERO_CONTROL = re.compile("[\u200b-\u200f\ufeff]")  # zero-width (row sc12-picker R1)
 BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
+# a whole escape sequence: a CSI (colour, a cursor move) to its final byte, an OSC (a title, a
+# link) to its BEL or its ESC \ (row sc17-narrow-screens R9)
+ESCAPE = re.compile("\x1b\\[[0-?]*[ -/]*[@-~]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)")
 
 
 def clean(value):
-    """The value as text, with its control characters removed: a tab or a line break becomes one
-    space, so no value splits a row or glues two words, and the line and direction controls go,
-    so no value reorders a row or starts another, and the zero-width characters go, so two
-    values that look alike are alike (row sc12-picker R1)."""
-    return ZERO_CONTROL.sub("", LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", str(value)))))
+    """The value as text, with its control characters removed: a whole escape sequence first, so
+    a command's colour or title leaves none of its letters behind (row sc17-narrow-screens R9),
+    then each control byte left; a tab or a line break becomes one space, so no value splits a
+    row or glues two words, and the line and direction controls go, so no value reorders a row
+    or starts another, and the zero-width characters go, so two values that look alike are alike
+    (row sc12-picker R1)."""
+    text = ESCAPE.sub("", str(value))
+    return ZERO_CONTROL.sub("", LINE_CONTROL.sub("", CONTROL.sub("", BREAK.sub(" ", text))))
 
 
 def columns(text):
