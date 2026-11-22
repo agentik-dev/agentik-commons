@@ -380,7 +380,7 @@ def _new(cmd, nouns):
     if o["exit"] is not None:
         exit_code = _exit(o["exit"])
         if exit_code is None:
-            raise _usage(cmd, "bad_exit", "err.issue.exit", value=o["exit"])
+            raise _usage(cmd, "bad_exit", "err.issue.exit", value=o["exit"], flag="--exit")
     if nouns and nouns[0] not in public["tools"]:
         _tool(cmd, public, nouns[0], None)
     found = _doctor(cmd)

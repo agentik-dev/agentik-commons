@@ -476,7 +476,7 @@ def _file(approved, repo, env):
         raise Refusal(1, "err.issue.send.timeout", secs=FILE_WALL)
     if code != 0:
         last = (err.decode("utf-8", "replace").strip().splitlines() or [""])[-1]
-        raise Refusal(1, "err.issue.send.failed", code=code, last=last[:200])
+        raise Refusal(1, "err.issue.send.failed", exit=code, said=last[:200])  # gh's line under it (sc18 R5)
     lines = [line.strip() for line in out.decode("utf-8", "replace").splitlines() if line.strip()]
     urls = [line for line in lines if line.startswith("https://")]
     return (urls or lines or [""])[-1]

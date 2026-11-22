@@ -887,7 +887,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.send.unapproved`: this issue has no approval left, since each is used once; nothing was sent
 - `err.issue.send.token`: `{name}` is set and overrides gh's account, so nothing was sent through gh
 - `err.issue.send.switched`: not sent: gh's account is not `{login}`; gh auth switch --user `{login}`
-- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
+- `err.issue.send.failed`: gh filed nothing; the draft is kept
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped; check whether the issue was filed
 - `err.issue.send.flood`: input followed the word at once, so nothing was sent; send again
 - `err.issue.send.early`: input came before the question showed, so nothing was sent; send again
@@ -946,7 +946,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.public`: the table of public tools at `{path}` cannot be read, so no draft was written
 - `err.issue.private`: the private list exists and cannot be read, so nothing was written or sent
 - `err.issue.tool`: `{tool}` is no tool an issue can name; one of `{tools}`
-- `err.issue.exit`: --exit takes the command's exit code, 0 to 255, not `{value}`
+- `err.issue.exit`: `{flag}` takes a number from 0 to 255, not `{value}`
 - `err.issue.form`: the draft `{id}` does not read back as the form at line `{line}`
 - `err.issue.unreadable`: `{path}` cannot be read as a regular file
 - `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
@@ -964,7 +964,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.render`: --render renders a new draft, so it goes with new alone
 - `issue.render.none`: No narrator render script is installed, so the template stands unchanged.
 - `issue.render.start`: The narrator's script could not start, so the template stands unchanged.
-- `issue.render.exit`: The narrator's script exited `{code}`, so the template stands unchanged.
+- `issue.render.exit`: The narrator's script failed, so the template stands unchanged.
 - `issue.render.wall`: The narrator's script ran past `{secs}` s, so the template stands unchanged.
 - `issue.render.nofile`: The narrator's script wrote no answer, so the template stands unchanged.
 - `issue.render.shape`: The narrator's answer is not Happened and Expected, so the template stands.

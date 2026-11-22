@@ -198,5 +198,55 @@ class InboxTest(Shape, unittest.TestCase):
         self.assertEqual([(r["state"], r["exit"]) for r in reads], [("no_answer", 3)])
 
 
+# ---- family: issue ------------------------------------------------------------------------
+
+class IssueTest(Shape, unittest.TestCase):
+    def fixture(self, module, name):
+        mod = __import__(module)
+        home = type("H", (getattr(mod, name),), {"runTest": lambda s: None})()
+        home.setUp()
+        self.addCleanup(home.doCleanups)
+        return mod, home
+
+    def test_r5_gh_filed_nothing(self):
+        rp5, h = self.fixture("test_rp5_send", "Base")
+        h.stub("gh", (rp5.GH % h.gh).replace("sys.exit(code)", "if code:\n    sys.stderr.write(%r)\nsys.exit(code)"
+                                    % ("HTTP 422: " + SAID + "\n")))
+        h.fixture("issue_create.exit", "3")
+        _, result = h.drive(rp5.draft(), b"send\n")
+        self.assertEqual(result.get("refusal", [0, 0])[1], "err.issue.send.failed", result)
+        code, mid, values = result["refusal"]
+        self.assertEqual((code, mid, values["exit"], values["said"]),
+                         (1, "err.issue.send.failed", 3, "HTTP 422: " + SAID))
+        from agentik_suite import issue
+        for argv in (["issue", "send"], ["issue", "send", "--json"]):
+            out, err = io.StringIO(), io.StringIO()
+            cmd = cli.Command(argv, h.env(), out, err)
+            cmd.verb = "issue"
+            self.assertEqual(cmd.fail(issue._usage(cmd, "failed", mid, exit_code=code, **values)), 1)
+            if "--json" in argv:
+                error = json.loads(out.getvalue())["error"]
+                self.assertEqual((error["code"], error["exit"]), ("failed", 3))
+                self.assertIn("HTTP 422: " + SAID, error["message"])
+            else:
+                rows = self.clean(err.getvalue(), said="HTTP 422: " + SAID)
+                self.assertIn("gh filed nothing; the draft is kept", rows[0])
+
+    def test_r6_the_flag_takes_a_number(self):
+        _, h = self.fixture("test_rp6_issue", "IssueHome")
+        code, out, err = h.issue("new", "--exit", "300")
+        self.assertEqual(code, 2, err)
+        self.assertEqual(err.splitlines()[0], "FAIL  --exit takes a number from 0 to 255, not 300")
+
+    def test_r7_the_narrators_script_failed(self):
+        _, h = self.fixture("test_rp8_render", "RenderHome")
+        h.install()
+        h.behave("Happened: one\nExpected: two\n", exit=3)
+        code, out, err = h.new("--render")
+        self.assertEqual(code, 0, err)
+        lines = [r for r in (out + err).splitlines() if "template stands" in r]
+        self.assertEqual(lines, ["The narrator's script failed, so the template stands unchanged."], out + err)
+
+
 if __name__ == "__main__":
     unittest.main()
