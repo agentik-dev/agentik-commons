@@ -450,12 +450,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
-- `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`; run `{update}` again
-- `err.update.step.silent`: Update stopped: `{command}` exited `{exit}`, no output; run `{update}` again
-- `err.update.wall`: Update stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{update}` again
-- `err.update.wall.silent`: Update stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{update}` again
-- `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
-- `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
+- `err.update.step`: Update stopped: `{command}` failed
+- `err.update.step.silent`: Update stopped: `{command}` failed, and printed nothing
+- `err.update.wall`: Update stopped: `{command}` ran past `{wall}` s and was killed
+- `err.update.wall.silent`: Update stopped: `{command}` ran past `{wall}` s, printed nothing, and was killed
+- `err.update.start`: Update stopped: `{command}` could not start
+- `err.update.todo`: Update stopped: step `{n}` ran and is still not done
 - `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
 - `err.update.interrupted`: Update was interrupted, so it stopped `{command}`
 - `err.update.unknown`: `{name}` is no known tool

@@ -1,0 +1,126 @@
+"""Row sc18-exit-words: the messages that talked of exit codes say what happened instead.
+
+design/23 V9: no message holds `exit` or a code; V11: a child's own last line goes whole on its
+own line under the line that names it; V3: the command to run again is the screen's `next:`, last.
+A script still reads the code from `--json` (R8). Each home is a temp HOME of another module's
+fixture, with a stub `claude` or `gh` that prints a made-up line and gives status 3; no test
+starts a real `claude` or `gh`, reads the live home or reaches the network."""
+import io
+import json
+import os
+import re
+import sys
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import test_ak4a_update as up  # noqa: E402
+from test_screen_probe import probe  # noqa: E402
+from agentik_suite import apply, cli  # noqa: E402
+
+WORD = re.compile(r"\bexit", re.I)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this checkout
+AGAIN = re.compile(r"\brun\b.*\bagain\b")
+SAID = "the made-up market is closed"
+# a `claude` that fails one command, `$1 $2` of it, with SAID or silent, and passes the rest on
+WRAP = '#!/bin/sh\nif [ "$1 $2" = "%s" ]; then\n%s  exit %d\nfi\nexec "$(dirname "$0")/claude.real" "$@"\n'
+
+
+def wrap(h, verb, said=SAID, code=3):
+    real = os.path.join(h.bin, "claude.real")
+    if not os.path.exists(real):
+        os.rename(os.path.join(h.bin, "claude"), real)
+    h.file(os.path.join(h.bin, "claude"), WRAP % (verb, ("  echo '%s'\n" % said) if said else "", code))
+
+
+def in_process(h, argv, result, env=None):
+    """argv run in this process, each command's result `result` (setup's execute's shape) and
+    nothing run: (status, stdout, stderr)."""
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.object(apply, "execute", return_value=dict(result)):
+        code = cli.Command(list(argv), env or h.env(), out, err).run()
+    return code, out.getvalue(), err.getvalue()
+
+
+class Shape:
+    """The screen's asserts: no exit word or code, the child's line whole, `next:` last."""
+
+    def clean(self, text, said=SAID, again=None, code=3):
+        """The rows of `text`, the checkout's own path out (a folder's name may hold the word)."""
+        rows = [r for r in text.replace(ROOT, "<root>").splitlines() if r.strip()]
+        number = re.compile(r"(?<![\w.])%d(?![\w.])" % code)
+        at = [i for i, r in enumerate(rows) if re.search(r"stopped|failed|could not", r)]
+        for i, row in enumerate(rows):
+            self.assertIsNone(WORD.search(row), text)
+            if at and i >= at[0]:  # from the cause on: a step's number above it is no code
+                self.assertIsNone(number.search(row), text)
+            self.assertIsNone(AGAIN.search(row), text)
+        if said:
+            self.assertIn(said, [r.strip() for r in rows], text)
+        if again:
+            self.assertTrue(rows[-1].startswith("next: "), text)
+            self.assertIn(again, rows[-1], text)
+        return rows
+
+    def pasted(self, rows, env, cwd):
+        self.assertEqual(probe.check_paste(rows[-1][len("next: "):].strip(), env, cwd), [], rows[-1])
+
+
+# ---- family: update -----------------------------------------------------------------------
+
+class UpdateTest(Shape, up.Base):
+    def failing(self, said=SAID):
+        h = self.two_behind()
+        wrap(h, "plugin update", said)
+        return h
+
+    def test_r1_a_failed_command_on_a_terminal_at_80(self):
+        h = self.failing()
+        rows = probe.render([str(up.LAUNCHER), "update", "--yes"], h.env(), h.home, "pty80", None)
+        text = "\n".join(rows)
+        self.clean(text, again="update")
+        self.assertTrue([r for r in rows if "Update stopped: claude plugin update" in r and r.endswith("failed")], text)
+        self.pasted([r for r in rows if r.strip()], h.env(), h.home)
+
+    def test_r1_a_silent_command(self):
+        h = self.failing(said=None)
+        code, out, err = h.run("update", "--yes")
+        self.assertEqual(code, 1, err)
+        self.clean(out + err, said=None, again="update")
+        self.assertIn("failed, and printed nothing", err)
+
+    def test_r8_the_json_keeps_the_code_as_a_number(self):
+        h = self.failing()
+        code, out, err = h.run("update", "--yes", "--json")
+        self.assertEqual(code, 1, err)
+        error = json.loads(out)["error"]
+        self.assertEqual((error["code"], error["exit"]), ("step_failed", 3))
+        self.assertIsInstance(error["remedy"], str)
+        self.assertIn(SAID, error["message"])
+        self.assertIsNone(WORD.search(error["message"]))
+
+    def test_r1_a_step_that_ran_and_is_still_not_done(self):
+        h = self.home()
+        h.install("murmur@agentik", "1.1.0")  # its launcher behind it: step 3 runs install-cli
+        h.file(os.path.join(h.bindir, "agentik-murmur"), "#!/bin/sh\nVERSION=1.0.0\nTREE=%s\nexit 0\n"
+               % os.path.join(h.home, ".local", "share", "agentik-murmur", "1.0.0"))
+        code, out, err = in_process(h, ["update", "--yes"], {"exit": 0, "last": "", "why": None, "wall": 120})
+        self.assertEqual(code, 1, err)
+        rows = self.clean(err, said=None, again="update --dry-run", code=0)
+        self.assertTrue([r for r in rows if "ran and is still not done" in r], err)
+        code, out, err = in_process(h, ["update", "--yes", "--json"], {"exit": 0, "last": "", "why": None, "wall": 120})
+        self.assertEqual(json.loads(out)["error"]["exit"], 0)
+
+    def test_r3_the_wall_and_the_start(self):
+        h = self.two_behind()
+        for result, words in (({"exit": None, "last": SAID, "why": "wall", "wall": 120}, "ran past 120 s"),
+                              ({"exit": None, "last": "", "why": "wall", "wall": 120}, "printed nothing"),
+                              ({"exit": None, "last": SAID, "why": "start", "wall": 120}, "could not start")):
+            code, out, err = in_process(h, ["update", "--yes"], result)
+            self.assertEqual(code, 1, err)
+            self.clean(err, said=result["last"], again="update")
+            self.assertIn(words, err)
+
+
+if __name__ == "__main__":
+    unittest.main()
