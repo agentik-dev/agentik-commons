@@ -247,6 +247,27 @@ class LayoutTest(unittest.TestCase):
             self.assertIsNone(hit, "%s names %s" % (path.name, hit and hit.group(0)))
 
 
+WOULD = "Would run, in this order:"  # the plan's headings, no command labelled (row sc8 R1)
+LATER = "Yours, after:"
+
+
+def under(text, heading):
+    """The commands under the plan's `heading`, to the next heading, the report or the close; a
+    command too long for its row stands on the next line (row sc8 R1, R7)."""
+    lines = [l.strip() for l in re.sub(ESC + r"\[[0-9;]*m", "", text).replace("\r", "").splitlines()]
+    got = []
+    if heading not in lines:
+        return got
+    for line in lines[lines.index(heading) + 1:]:
+        if line in (WOULD, LATER) or not line or line.startswith(("next: ", "ok ", "✓ ")):
+            break
+        m = re.match(r"^(\d) (\S+)(?:\s{2,}(.*))?$", line)
+        command = m.group(3) if m else line
+        if command and command.startswith(("claude ", "/", "~", "'")):
+            got.append(command)
+    return got
+
+
 class WriterTest(unittest.TestCase):
     """R3: term is the one writer; R4: the catalogue."""
 
@@ -339,8 +360,9 @@ class VerbTest(Home):
         before = self.snapshot()
         code, out, err = self.run_cli("setup", "--dry-run")
         self.assertEqual(code, 0, err)
-        steps = [line.split()[0] for line in out.splitlines()[1:] if re.match(r"  \d", line)]
-        self.assertEqual(steps, [str(n) for n in range(1, 8)])
+        # each step a row: a marked one where its rows read ok, else under its heading (sc8 R1)
+        steps = [m.group(1) for m in re.finditer(r"(?m)^ +(?:\S+ )?(\d) [a-zA-Z]", out)]
+        self.assertEqual(sorted(set(steps)), [str(n) for n in range(1, 8)], out)
         self.assertEqual(self.snapshot(), before)
         self.assertFalse(os.path.exists(self.calls))
         self.assertEqual(sorted({s["n"] for s in self.plan()["steps"]}), list(range(1, 8)))
@@ -389,7 +411,7 @@ class VerbTest(Home):
             text = out + err
             self.assertNotIn(ESC, text, args)
             if args != ("help",):  # the full list holds no mark (row sc5 R4)
-                self.assertRegex(text, r"(?m)^ *(\d  )?ok  ", args)
+                self.assertRegex(text, r"(?m)^ *ok \d ", args)  # the word, then the step (sc8 R1)
             self.assertRegex(text, r"(?m)^(?: *(\d  )?note  |next: )", args)  # a hint has no mark (sc4)
         # the help lists the stub by name and no path (row sc5 R4)
         out = self.run_cli("help")[1]
@@ -518,7 +540,9 @@ class StreamTest(Home):
             self.assertEqual(code, 0, err)
             for byte in (ESC, "\x9b", "\\u001b", "\\u009b"):
                 self.assertNotIn(byte, out + err, args)
-        self.assertIn("1.0[31m2J", self.run_cli("setup", "--dry-run", "alpha")[1])
+        # an ok step is one line of names (row sc8 R1): the version, cleaned, is in its detail
+        self.assertIn("1.0[31m2J", [s["detail"] for s in self.plan("alpha")["steps"] if s["n"] == 3][0])
+        self.assertNotIn(ESC, "".join(self.run_cli("setup", "--dry-run", "alpha")[1:]))
 
 
 
@@ -587,7 +611,7 @@ class PlanTruthTest(Home):
         self.place("agentik-suite", version())
         door = self.by_subject("alpha", "beta")[(5, "~/.local/bin/agentik")]
         self.assertEqual(shlex.split(door["command"]), [str(LAUNCHER), "install-cli"])
-        self.assertIn("run: " + door["command"], self.run_cli("setup", "--dry-run", "alpha", "beta")[1])
+        self.assertIn(door["command"], under(self.run_cli("setup", "--dry-run", "alpha", "beta")[1], WOULD))
         # the suite's launcher not placed: its row carries the line, and the door's row points at it
         os.remove(os.path.join(self.bindir, "agentik-suite"))
         got = self.by_subject("alpha", "beta")
@@ -609,9 +633,12 @@ class PlanTruthTest(Home):
         steps = self.plan("alpha", PATH=path)["steps"]
         self.assertEqual({s["state"] for s in steps if s["n"] <= 6}, {"ok"})
         code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
-        self.assertIn("setup has nothing left to do", err)
+        self.assertEqual(err.splitlines()[-1], "next: claude", out + err)  # row sc8 R3
         self.assertNotIn("run each", err)
-        self.assertIn("yours to run later: %s doctor" % os.path.join(self.bindir, "agentik-alpha"), out)
+        # the plugin's own doctor stays in --json; the screen's Yours, after holds the suite's (sc8 R1)
+        doctor = "%s doctor" % os.path.join(self.bindir, "agentik-alpha")
+        self.assertIn(doctor, [s["command"] for s in steps if s["n"] == 7])
+        self.assertEqual([c for c in under(out, LATER) if c.endswith(" doctor")], ["%s doctor" % LAUNCHER], out)
         # no claude on PATH: the hint names it, and no line sends the reader to claude
         os.remove(os.path.join(self.stubs, "claude"))
         code, out, err = self.run_cli("setup", "--dry-run", "alpha")
@@ -635,17 +662,18 @@ class PlanTruthTest(Home):
         for _ in range(4):
             code, out, err = self.run_cli("setup", "--dry-run", "alpha", "beta", HOME=home)
             self.assertEqual(code, 0, err)
-            labels = ("would run: ", "yours to run later: ")  # row sm1-setup-ask: the doctors are the reader's
-            for line in [l.strip().split(": ", 1)[1] for l in out.splitlines() if l.strip().startswith(labels)]:
+            # the commands under both headings, a yes's then the reader's (row sc8 R1)
+            for line in under(out, WOULD) + under(out, LATER):
                 words = shlex.split(line)
                 if words[0].startswith("/"):
                     self.assertTrue(os.path.isfile(words[0]), line)
                 p = subprocess.run(["/bin/sh", "-c", line], env=env, capture_output=True, timeout=60)
                 self.assertEqual(p.returncode, 0, (line, p.stderr))
                 ran.append(words[-1])
-        # the suite's own install-cli first, in step 5, then step 4's two, then the doctors
+        # steps 2, 3 and the suite's own install-cli in step 5, then the suite's doctor; the next
+        # plan holds step 4's two, once step 3 is done (row sc8 R1: the plugins' doctors in --json)
         self.assertEqual(ran[:8], ["agentik-dev/agentik-commons", "alpha@agentik", "beta@agentik",
-                                   "install-cli", "install-cli", "install-cli", "doctor", "doctor"])
+                                   "install-cli", "doctor", "install-cli", "install-cli", "doctor"])
         got = self.by_subject("alpha", "beta", HOME=home)
         self.assertEqual({s["state"] for s in got.values() if s["n"] in (2, 3, 4)}, {"ok"})
         self.assertEqual(got[(5, "~/.local/bin/agentik")]["state"], "ok")
@@ -686,9 +714,14 @@ class PlanTruthTest(Home):
         self.place("agentik-suite", version())
         self.place("agentik", "0")
         code, out, err = self.run_cli("setup", "--dry-run", "alpha")
-        self.assertIn("add to your shell profile", out)
+        # nothing a yes runs: the second run's close, its PATH rows, then next: claude (row sc8 R3)
+        lines = out.splitlines()
+        at = [i for i, l in enumerate(lines) if l.startswith("  PATH ")]
+        self.assertEqual(len(at), 1, out)
+        self.assertIn("not needed by Claude Code; to type agentik, add to ~/.profile:", lines[at[0]])
+        self.assertEqual(lines[at[0] + 1].strip(), 'export PATH="$HOME/.local/bin:$PATH"', out)
         self.assertNotIn("run each", err)
-        self.assertIn("the line marked add", err)
+        self.assertEqual(err.splitlines()[-1], "next: claude", err)
 
     def test_m3_l2_a_set_up_machine_is_no_dead_end(self):
         """Review 2's L2, under packet ak2b R5: a set-up machine's plan, the suite's launcher not
@@ -697,7 +730,7 @@ class PlanTruthTest(Home):
         self.place("agentik", "0")
         path = "%s:%s:%s" % (self.bindir, self.stubs, SYSTEM)
         code, out, err = self.run_cli("setup", "--dry-run", "alpha", PATH=path)
-        self.assertIn("run: %s install-cli" % LAUNCHER, out)
+        self.assertIn("%s install-cli" % LAUNCHER, under(out, WOULD), out)  # sc8 R1: no label
         self.assertEqual(err.splitlines()[-1], "next: %s setup alpha" % LAUNCHER)  # row sm2 R1
         self.assertNotIn("a later version", out)
 
@@ -735,7 +768,8 @@ class PlanTruthTest(Home):
             self.assertNotIn("run:", out)
 
     def test_r7_nothing_is_cut_on_a_terminal(self):
-        commands = [s["command"] for s in self.plan()["steps"] if s["command"]]
+        # every command the plan prints; the PATH line prints in the run's report (row sc8 R2)
+        commands = [s["command"] for s in self.plan()["steps"] if s["command"] and s["n"] != 6]
         self.assertTrue(commands)
         for cols in (80, 40):
             code, text = self.run_pty("setup", "--dry-run", cols=cols)
