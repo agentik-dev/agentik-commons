@@ -101,3 +101,4 @@ tests/test_rr2_records.py: email
 # reserved `.invalid` domain, user and host whole, which the email group reads; six made-up
 # hosts in a test, no address (9a4df85 splits them)
 tests/test_records_cut.py: email
+records: out
