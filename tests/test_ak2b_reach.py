@@ -232,7 +232,7 @@ class RootTest(Reach):
         for argv in ([str(setup)], [os.path.relpath(str(setup), self.home)]):
             code, out, err = self.call(argv + ["--dry-run"], cwd=self.home)
             self.assertEqual(code, 0, err)
-            self.assertIn("Setup plan", out)
+            self.assertRegex(out, r"(?m)^Setup for .* \(dry run\)$")  # the title (row sc8 R1)
         self.assertEqual(subprocess.run(["sh", "-n", str(setup)]).returncode, 0)
         self.assertLessEqual(len(setup.read_text().splitlines()), 6)
         self.assertTrue(os.access(str(setup), os.X_OK))
@@ -323,7 +323,7 @@ class ReviewOneTest(Reach):
         for name in ("setup", "again"):
             code, out, err = self.call([os.path.join(links, name), "--dry-run"], cwd=self.stubs)
             self.assertEqual(code, 0, err)
-            self.assertIn("Setup plan", out)
+            self.assertRegex(out, r"(?m)^Setup for .* \(dry run\)$")  # the title (row sc8 R1)
 
     def test_f15_no_read_of_a_file_that_is_not_regular(self):
         plugins = os.path.join(self.home, ".claude", "plugins")
