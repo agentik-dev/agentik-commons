@@ -185,6 +185,71 @@ class Pty:
                 os.close(fd)
 
 
+class Job(Pty):
+    """argv as a shell's job on the pty (row sc16 R5.2): a session leader holds the terminal and
+    puts argv in a process group of its own in the foreground, so Ctrl-Z stops it (a group with no
+    parent in its session, as Pty's, is never stopped). The leader says `S` on `status` when argv
+    stops and sends SIGCONT for each byte on `go`; it ends with argv's exit."""
+
+    def __init__(self, env, argv, cols=80, rows=24):
+        self.master, self.slave = os.openpty()
+        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        self.before = termios.tcgetattr(self.master)
+        self.out_r, out_w = os.pipe()
+        self.status_r, status_w = os.pipe()
+        go_r, self.go_w = os.pipe()
+        self.pid = os.fork()
+        if self.pid == 0:
+            try:
+                os.setsid()
+                fcntl.ioctl(self.slave, termios.TIOCSCTTY, 0)
+                signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+                job = os.fork()
+                if job == 0:
+                    os.setpgid(0, 0)
+                    os.dup2(self.slave, 0)
+                    os.dup2(out_w, 1)
+                    os.dup2(self.slave, 2)
+                    os.execve(str(argv[0]), [str(a) for a in argv], env)
+                os.setpgid(job, job)
+                os.tcsetpgrp(self.slave, job)
+                while True:
+                    _, status = os.waitpid(job, os.WUNTRACED)
+                    if os.WIFSTOPPED(status):
+                        os.write(status_w, b"S")
+                        os.read(go_r, 1)
+                        os.killpg(job, signal.SIGCONT)
+                        continue
+                    os._exit(os.WEXITSTATUS(status) if os.WIFEXITED(status) else 99)
+            finally:
+                os._exit(99)
+        for fd in (out_w, status_w, go_r):
+            os.close(fd)
+        self.chunks, self.out, self.status = [], b"", None
+
+    def stopped(self, timeout=10.0):
+        """True once the leader says argv stopped, the pty read meanwhile."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            self.read()
+            if select.select([self.status_r], [], [], 0.05)[0]:
+                return os.read(self.status_r, 1) == b"S"
+        return False
+
+    def go(self):
+        os.write(self.go_w, b"c")
+
+    def close(self):
+        if not self.done():  # a job left stopped by a failed test goes on, and ends with its leader
+            try:
+                self.go()
+            except OSError:
+                pass
+        Pty.close(self)
+        for fd in (self.status_r, self.go_w):
+            os.close(fd)
+
+
 def in_pty(env, run, cols=80, rows=24):
     """`run(err)` in process with stderr a text stream on a pty of a set size, read as it comes:
     (its result, what the pty showed)."""
@@ -458,6 +523,31 @@ class Ends(Base):
         self.assertFalse([l for l in screens["live"] if set(l) & set(SPIN)], screens["live"])
         self.assertEqual(screens["live"][-2], "✗  setup stopped at step 2: interrupted")
         self.assertEqual(screens["live"][-2:], screens["pin"][-2:])
+
+    def test_sc16_r5_2_ctrl_z_shows_the_cursor_and_fg_draws_again(self):
+        """Ctrl-Z while the line shows: the line cleared and the cursor shown before setup stops;
+        after SIGCONT the line is drawn again; the terminal's modes as before in both states."""
+        self.slow(sleep=5)
+        c = Job(self.term_env(), [LAUNCHER, "setup", "--yes", "alpha"], cols=120)
+        self.addCleanup(c.close)
+        self.assertTrue(c.until(lambda t: FIRST in "".join(frames(t))), c.text)  # the line shows
+        os.write(c.master, b"\x1a")
+        self.assertTrue(c.stopped(), c.text)
+        time.sleep(0.3)
+        c.read()
+        held = c.text
+        self.assertEqual(CURSOR.findall(held)[-1], "\x1b[?25h", held)  # the cursor shown
+        self.assertFalse([l for l in replay(held) if set(l) & set(SPIN)], replay(held))  # cleared
+        self.assertEqual(termios.tcgetattr(c.master), c.before)
+        c.go()
+        self.assertTrue(c.until(lambda t: frames(t[len(held):])), c.text[len(held):])  # drawn again
+        self.assertEqual(CURSOR.findall(c.text[len(held):])[0], "\x1b[?25l")  # hidden again
+        self.assertEqual(c.wait(), 0, c.text)
+        text = c.text
+        self.assertEqual(termios.tcgetattr(c.master), c.before)
+        self.assertEqual(CURSOR.findall(text)[-1], "\x1b[?25h")
+        self.assertFalse([l for l in replay(text) if set(l) & set(SPIN)], replay(text))
+        self.assertEqual(self.market_rows(re.sub(r"\^Z", "", text)), [("ok", "claude " + MARKET, "<n> s")])
 
     def test_a4_ctrl_c_while_the_line_shows(self):
         self.interrupted(lambda c: os.write(c.master, b"\x03"))

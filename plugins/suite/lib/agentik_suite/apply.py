@@ -195,6 +195,32 @@ class Live:
         self.t, self.row = cmd.t, row
         self.label = cmd.t.text("setup.step.%d" % row["n"])
         self.at, self.frame, self.left, self.shown = None, 0, b"", False
+        self.saved = {}
+
+    def hold(self):
+        """Ctrl-Z and fg while the command runs (row sc16-setup-undo R5.2), as pick holds them
+        (design/23 4a.5): on SIGTSTP the line cleared and the cursor shown, then the stop; on
+        SIGCONT the next pass draws at once. The terminal's modes are never changed here."""
+        try:
+            for sig, fn in ((signal.SIGTSTP, self._stop), (signal.SIGCONT, self._cont)):
+                self.saved[sig] = signal.signal(sig, fn)
+        except ValueError:  # not the main thread: the default handlers stay
+            pass
+
+    def release(self):
+        for sig, fn in self.saved.items():
+            signal.signal(sig, fn if fn is not None else signal.SIG_DFL)
+        self.saved = {}
+
+    def _stop(self, signum, frame):
+        self.close()
+        signal.signal(signal.SIGTSTP, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGTSTP)  # stopped here until SIGCONT
+        signal.signal(signal.SIGTSTP, self._stop)
+        self.at = None
+
+    def _cont(self, signum, frame):
+        self.at = None
 
     def draw(self, elapsed, chunks):
         now = time.monotonic()
@@ -279,6 +305,8 @@ def execute(command, env, live=None):
                 "wall": wall}
     finally:
         os.close(mouth)
+    if live:
+        live.hold()
     try:
         try:
             data, why = _read(p, fd, wall, live)
@@ -290,6 +318,7 @@ def execute(command, env, live=None):
         finally:
             if live:
                 live.close()
+                live.release()
     finally:
         os.close(fd)
     lines = [l.strip() for l in data.decode("utf-8", "replace").splitlines() if l.strip()]
