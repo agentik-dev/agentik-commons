@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -42,12 +43,24 @@ def in_process(h, argv, result, env=None):
     return code, out.getvalue(), err.getvalue()
 
 
+def bare(text):
+    """`text` with the paths the harness made taken off: the checkout's root and the temp folder,
+    as given and as its real path, under which each fixture's home and work folders lie. A
+    folder's name may hold the word or the code, and the test chose none of them."""
+    temp = tempfile.gettempdir()
+    for path, token in sorted({(ROOT, "<root>"), (os.path.realpath(ROOT), "<root>"),
+                               (temp, "<tmp>"), (os.path.realpath(temp), "<tmp>")},
+                              key=lambda pt: -len(pt[0])):
+        text = text.replace(path, token)
+    return text
+
+
 class Shape:
     """The screen's asserts: no exit word or code, the child's line whole, `next:` last."""
 
     def clean(self, text, said=SAID, again=None, code=3):
-        """The rows of `text`, the checkout's own path out (a folder's name may hold the word)."""
-        rows = [r for r in text.replace(ROOT, "<root>").splitlines() if r.strip()]
+        """The rows of `text`, the harness's paths out (see `bare`)."""
+        rows = [r for r in bare(text).splitlines() if r.strip()]
         number = re.compile(r"(?<![\w.])%d(?![\w.])" % code)
         at = [i for i, r in enumerate(rows) if re.search(r"stopped|failed|could not", r)]
         for i, row in enumerate(rows):
@@ -97,7 +110,7 @@ class UpdateTest(Shape, up.Base):
         self.assertEqual((error["code"], error["exit"]), ("step_failed", 3))
         self.assertIsInstance(error["remedy"], str)
         self.assertIn(SAID, error["message"])
-        self.assertIsNone(WORD.search(error["message"]))
+        self.assertIsNone(WORD.search(bare(error["message"])))
 
     def test_r1_a_step_that_ran_and_is_still_not_done(self):
         h = self.home()
@@ -154,7 +167,7 @@ class RemoveTest(Shape, up.Base):
         error = json.loads(out)["error"]
         self.assertEqual((error["code"], error["exit"]), ("step_failed", 3))
         self.assertIn(SAID, error["message"])
-        self.assertIsNone(WORD.search(error["message"]))
+        self.assertIsNone(WORD.search(bare(error["message"])))
 
     def test_r3_the_wall_and_the_start(self):
         h, env = self.x()
@@ -174,7 +187,7 @@ class RemoveTest(Shape, up.Base):
         rows = [r for r in (out + err).splitlines() if "stands:" in r]
         self.assertEqual(len(rows), 1, out + err)
         self.assertIn("ran and left it", rows[0])
-        self.assertIsNone(WORD.search(rows[0]))
+        self.assertIsNone(WORD.search(bare(rows[0])))
 
 
 # ---- family: inbox ------------------------------------------------------------------------
