@@ -346,8 +346,10 @@ def _counts(data, only=None):
 
 # ---- new (R4) ------------------------------------------------------------------------------
 
-def _tool(cmd, public, named, found):
-    tools = public["tools"]
+def _tool(cmd, public, named, found, rows=None):
+    """The tool the issue is about: the one named, else the one public tool failing, a tool from
+    another source passed over (row fk6 R3), else the one asked for, else the suite."""
+    tools, rows = public["tools"], rows or {}
     if named is not None:
         if named not in tools:
             raise _usage(cmd, "unknown_tool", "err.issue.tool", tool=named,
@@ -355,7 +357,7 @@ def _tool(cmd, public, named, found):
         return named
     failing = []
     for g in (found or {}).get("tools") or []:
-        if isinstance(g, dict) and g.get("name") in tools and any(
+        if isinstance(g, dict) and g.get("name") in tools and not gather.foreign(rows.get(g["name"])) and any(
                 isinstance(c, dict) and c.get("status") == "fail" for c in g.get("checks") or []):
             failing.append(g["name"])
     if len(failing) == 1:
@@ -365,6 +367,12 @@ def _tool(cmd, public, named, found):
         if got in tools:
             return got
     return "suite" if "suite" in tools else sorted(tools)[0]
+
+
+def _foreign(cmd, rows, named):
+    """Row fk6 R3, R4: an issue about a tool from another source is not made here, in one line."""
+    if gather.foreign(rows.get(named)):
+        raise _usage(cmd, "another_source", "err.issue.source", False, exit_code=1, tool=named)
 
 
 def _new(cmd, nouns):
@@ -383,8 +391,12 @@ def _new(cmd, nouns):
             raise _usage(cmd, "bad_exit", "err.issue.exit", value=o["exit"], flag="--exit")
     if nouns and nouns[0] not in public["tools"]:
         _tool(cmd, public, nouns[0], None)
+    rows = gather.found(env, public, cmd.cwd)
+    if nouns:
+        _foreign(cmd, rows, nouns[0])
     found = _doctor(cmd)
-    tool = _tool(cmd, public, nouns[0] if nouns else None, found)
+    tool = _tool(cmd, public, nouns[0] if nouns else None, found, rows)
+    _foreign(cmd, rows, tool)
     ran, expected = o["ran"], o["expected"]
     if ran is None and _terminal(cmd):
         ran = _ask(cmd, "issue.ask.ran")
@@ -654,6 +666,22 @@ def _drop(cmd, nouns):
     return 0
 
 
+def _held(cmd, records, got):
+    """Row fk6 R2 (review 1 F5): a tool that the draft's own record, its file as read before the
+    edit or its draft.json, gives the row `another source` keeps that row alone: a saved text
+    that lacks it, or gives the tool a version, a commit or a launcher, is refused in one line,
+    and the draft stays as it was. A draft with no such row edits as before."""
+    end = " " + form.ANOTHER
+    held = []
+    for f in records:
+        for item in (f.get("versions") or () if isinstance(f, dict) else ()):
+            if isinstance(item, str) and item.endswith(end) and item[:-len(end)] not in held:
+                held.append(item[:-len(end)])
+    for name in held:
+        if [i for i in got.get("versions") or () if i.split(" ", 1)[0] == name] != [name + end]:
+            raise _usage(cmd, "another_source", "err.issue.edit.source", False, exit_code=1, tool=name)
+
+
 def _edit(cmd, nouns):
     cmd._no_nouns(nouns)
     if not _terminal(cmd):
@@ -682,6 +710,7 @@ def _edit(cmd, nouns):
         got = form.parse(saved, public["tools"])
     except form.NotTheForm as e:
         raise _usage(cmd, "not_the_form", "err.issue.edit.form", False, exit_code=1, line=e.line)
+    _held(cmd, (fields, d["meta"].get("fields")), got)
     layer = _Layer(m, [v for _, _, v in form.free(got)])
     got = layer.guard(layer.form(got))
     data = _save(cmd, d, got, list(d["meta"].get("unsure") or []) + layer.unsure)

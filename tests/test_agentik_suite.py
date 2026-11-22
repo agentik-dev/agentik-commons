@@ -178,14 +178,16 @@ class Home(unittest.TestCase):
                     seen[path] = "dir" if os.path.isdir(path) else "link"
         return seen
 
-    def plugin_files(self, config, plugins, whole=True):
-        """Claude Code's two files; whole, each installPath holds its plugin's launcher."""
+    def plugin_files(self, config, plugins, whole=True, repo="example/market"):
+        """Claude Code's two files; whole, each installPath holds its plugin's launcher. `repo` is
+        the `agentik` marketplace's: a home that asserts a versioned row gives plan.SOURCE, since
+        any other reads as a mirror (row fk6-report-source R8)."""
         for name, ver in plugins.items():
             if whole:
                 self.stub("../inst/%s/%s/bin/agentik-%s" % (name, ver, name))
         os.makedirs(os.path.join(config, "plugins"), exist_ok=True)
         with open(os.path.join(config, "plugins", "known_marketplaces.json"), "w") as fh:
-            json.dump({"agentik": {"source": {"source": "github", "repo": "example/market"}}}, fh)
+            json.dump({"agentik": {"source": {"source": "github", "repo": repo}}}, fh)
         with open(os.path.join(config, "plugins", "installed_plugins.json"), "w") as fh:
             json.dump({"version": 2, "plugins": {
                 "%s@agentik" % name: [{"scope": "user", "version": ver,

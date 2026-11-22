@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import LAUNCHER, LIB, PLUGIN, ROOT, Home  # noqa: E402
 
 sys.path.insert(0, str(LIB))
-from agentik_suite import form, gather, scrub  # noqa: E402
+from agentik_suite import form, gather, plan, scrub  # noqa: E402
 
 PUBLIC = json.loads((LIB / "public.json").read_text())
 NAMES = sorted(t for t in PUBLIC["tools"] if t != "suite")  # the fixture's {tool-N}, filled here
@@ -82,7 +82,7 @@ class IssueHome(Home):
         self.stub("ps", PS)
         self.stub("agentik-" + TOOL, DOCTOR)
         self.plugin_files(os.path.join(self.home, ".claude"), {TOOL: "2.0.0-alpha.101", "suite": "0.6.0"},
-                          whole=False)
+                          whole=False, repo=plan.SOURCE)  # row fk6 R8: the public source, no mirror
         self.gh_answer("auth_status", json.dumps({"hosts": {"github.com": [
             {"active": True, "host": "github.com", "login": LOGIN, "state": "success"}]}}))
         self.gh_answer("issue_list", "[]")
