@@ -65,7 +65,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.status`: usage: `{status}` [<path>...] [--check] [flags]
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
-- `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags], or `{prog}` inbox answer <repo> <number> --pick <label>|--say <text> [flags]
+- `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
+- `usage.inbox_answer`: usage: `{prog}` inbox answer <repo> <number> --pick <label>|--say <text> [flags]
 - `usage.issue`: usage: `{issue}` [new|show|strike WORD|drop SECTION|edit|reword FILE|send|discard]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `usage.records`: usage: `{prog}` records [<dir>] [flags]
@@ -799,7 +800,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.inbox.answer.unknown`: no checkout read here is named `{word}`; the ones read are `{names}`
 - `err.inbox.answer.twice`: `{word}` names two checkouts here, `{paths}`; give the path of the one you mean
 - `err.inbox.answer.writer`: `{tool}` gives the questions but has no reply verb, so nothing is written
-- `err.inbox.answer.tty`: stdin or stderr is no terminal, so nothing can ask you; give --yes, or --dry-run to see it
+- `err.inbox.answer.tty`: no terminal to ask you on; give --yes, or --dry-run to see the line
 - `err.inbox.answer.exec`: `{path}` cannot be run, so nothing is written
 
 ## Init

@@ -685,6 +685,8 @@ class Command:
             return 0
         t = self.t
         t.line("usage." + verb.replace("-", "_"), **self.slots())
+        if verb == "inbox":  # the answer's form, a usage of its own (row in5b-inbox-answer R11)
+            t.line("usage.inbox_answer", **self.slots())
         t.wrapped("verb." + verb.replace("-", "_"))  # at the window's width (sc17 R2)
         t.blank()
         examples = self._examples(verb)
