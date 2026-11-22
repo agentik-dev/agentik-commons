@@ -285,13 +285,13 @@ def _say(stream, text, indent=0, first=""):
     """`first`, then `text`: on a terminal wrapped at its width, each next line at `indent`; off
     one a single line, so a pipe is searched by line."""
     if not stream.tty:  # off a terminal one row is one line, as sc3's table (build 2's ruling)
-        stream.write((first + term.clean(text)).rstrip(" "))
+        stream.put((first + term.clean(text)).rstrip(" ") + "\n")
         return
     room = max(stream.width() - max(indent, term.columns(first)), 20)
     lines = term._wrap(term.clean(text), room) if text else [""]
-    stream.write((first + lines[0]).rstrip(" "))
+    stream.put((first + lines[0]).rstrip(" ") + "\n")
     for more in lines[1:]:
-        stream.write(" " * indent + more)
+        stream.put(" " * indent + more + "\n")
 
 
 def _rows(t, rows, err=False):
@@ -311,11 +311,11 @@ def _rows(t, rows, err=False):
         if not whole:
             _say(stream, text, room, head)
         elif not stream.tty or room + term.columns(text) <= stream.width():
-            stream.write(head + text)
+            stream.put(head + text + "\n")
         else:
             if n or label or status:
-                stream.write(head.rstrip(" "))
-            stream.write(" " * LEAD + text)
+                stream.put(head.rstrip(" ") + "\n")
+            stream.put(" " * LEAD + text + "\n")
 
 
 def _summary(n, group):
@@ -394,7 +394,7 @@ def _note(t, mid, **values):
     """A note line on stderr: the note mark, then the text (row sc8 R5)."""
     t.flush()
     stream = t.err
-    stream.write(stream.mark("note")[1] + term.GAP + t.text(mid, **values))
+    stream.put(stream.mark("note")[1] + term.GAP + t.text(mid, **values) + "\n")
 
 
 def _tail(t, rows):
@@ -408,11 +408,11 @@ def _tail(t, rows):
         if not whole:
             _say(stream, text, room, head)
         elif not stream.tty or room + term.columns(text) <= stream.width():
-            stream.write(head + text)
+            stream.put(head + text + "\n")
         else:
             if mid:
-                stream.write(head.rstrip(" "))
-            stream.write(" " * LEAD + text)
+                stream.put(head.rstrip(" ") + "\n")
+            stream.put(" " * LEAD + text + "\n")
 
 
 def _ended(cmd, row, result, seconds):
@@ -439,7 +439,7 @@ def _ended(cmd, row, result, seconds):
                row["command"] + " " + after, True)], err=True)
     if failed and why != "interrupted":
         for line in result.get("tail") or []:
-            t.err.write(" " * LEAD + term.clean(line))
+            t.err.put(" " * LEAD + term.clean(line) + "\n")
 
 
 def run(cmd, names):
