@@ -345,7 +345,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: claude
 - `hint.setup.done`: next: claude
-- `hint.setup.page`: `{names}` installs its own command; its page has the line
+- `hint.setup.page`: `{names}` installs its own command: its page has the line
 - `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
 - `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
 - `setup.confirm`: Run these `{count}` commands now?

@@ -86,7 +86,7 @@ class HelpHome(base.Home):
 
 
 DONE = "next: claude"  # done and rest both close on it (row sc8 R3); the steps tell them apart
-PAGE = "installs its own command; its page has the line"  # the page's note above it
+PAGE = "installs its own command: its page has the line"  # the page's note above it
 
 
 class HelpCloseTest(HelpHome):
