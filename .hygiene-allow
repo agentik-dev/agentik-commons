@@ -83,6 +83,7 @@ tests/test_ic2_needs.py: sibling
 tests/test_sn1_need_notread.py: sibling
 tests/test_sc12_pick.py: sibling
 tests/test_sc15_setup_pick.py: sibling
+tests/test_sc8_setup_screens.py: sibling
 tests/test_ak9b_plug_reader.py: sibling
 
 # the suite's own tool names in the fixtures that stand in for the old table's tools, each now
