@@ -14,7 +14,9 @@ from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import Home  # noqa: E402
+from test_agentik_suite import LAUNCHER, Home  # noqa: E402
+from test_fk2_plan import Base  # noqa: E402
+import test_fk2b_reads as fk2b  # noqa: E402
 from agentik_suite import apply, term  # noqa: E402
 
 SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r")
@@ -196,6 +198,32 @@ class ConfigTitleTest(Narrow):
         code, rows = self.rows("config", "loom", cols=80)
         self.assertEqual(rows[:2], ["loom: 24 keys, 3 changed (*). Layers, lowest first: default, user.", ""])
 
+
+
+class TitledTest(Base):
+    """Review 1 L6: `config <tool>`'s head line that names its origin (`config.titled`, `<title>,
+    from <origin>`) wraps at the window's width, as R4's does; fk2b's home hD, where the tool's
+    one plugin is a fork whose command gives no answer that reads, renders it."""
+    made, set_up = fk2b.Reads.made, fk2b.Reads.set_up
+
+    def drawn(self, h, cols):
+        p = probe()
+        env = dict(self.env(h), TERM="xterm-256color")
+        code, text = p.on_pty([str(LAUNCHER), "config", fk2b.T], env, h.cwd, cols, None)
+        return p.replay(text, cols)
+
+    def test_at_50_it_wraps(self):
+        h = self.made("hD")
+        h.commands()
+        wide = self.drawn(h, 200)
+        head = wide[0]
+        self.assertTrue(head.endswith(", from " + fk2b.F), wide)
+        self.assertGreater(term.columns(head), 50, head)
+        rows = self.drawn(h, 50)
+        at = [k for k in range(1, len(rows) + 1) if " ".join(rows[:k]) == head]
+        self.assertEqual(at, [2], rows)  # two lines, the origin's words under the title's
+        self.assertLessEqual(max(term.columns(r) for r in rows[:2]), 50, rows)
+        self.assertEqual(rows[2:], wide[1:])
 
 
 class Fake(io.StringIO):
