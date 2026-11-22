@@ -260,6 +260,22 @@ class Term:
         stream = self._stream(err)
         stream.write(stream.paint(self.text(mid, **values), STYLE_SGR.get(style)))
 
+    def wrapped(self, mid, err=False, style=None, **values):
+        """`line`'s text; on a terminal too narrow for it (row sc17-narrow-screens R1), broken at
+        its first gap of three spaces where it has one, so a title's name and version stay whole
+        on the first line and its words go on the next, else at spaces; a word wider than the
+        window stands whole. Off a terminal, or where it fits, the one line of `line`."""
+        stream = self._stream(err)
+        text = self.text(mid, **values)
+        width = stream.width()
+        if not stream.tty or columns(text) <= width:
+            return self.line(mid, err=err, style=style, **values)
+        head, gap, rest = text.partition(GAP + " ")
+        parts = [head.rstrip(), rest.strip()] if gap and head.strip() and rest.strip() else [text]
+        for part in parts:
+            for piece in (_wrap(part, width) if columns(part) > width else [part]):
+                stream.write(stream.paint(piece, STYLE_SGR.get(style)))
+
     def put(self, data, err=True, wait=True):
         """Text with no line break added, on stderr unless told; see `_Stream.put`."""
         return self._stream(err).put(data, wait)

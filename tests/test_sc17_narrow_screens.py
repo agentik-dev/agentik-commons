@@ -3,12 +3,15 @@
 Each run is the plugin's launcher in a temp HOME (test_agentik_suite's `Home`) with a stub
 `claude`; nothing here starts the real `claude` or writes outside its temp folder."""
 import os
+import re
 import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import Home  # noqa: E402
 from agentik_suite import term  # noqa: E402
+
+SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r")
 
 # a `claude` whose every call prints a coloured line and a title sequence, then fails
 LOUD = r"""#!/usr/bin/python3
@@ -55,6 +58,37 @@ class TailTest(Home):
         self.assertIn("after the second", text)
         for left in ("[32m", "[0m", "]0;", "]2;", "\x1b", "\x07"):
             self.assertNotIn(left, text)
+
+
+class Narrow(Home):
+    """A screen on a pty of `cols` columns, as its lines, colour taken off."""
+
+    def rows(self, *args, cols=80, **more):
+        code, text = self.run_pty(*args, cols=cols, **more)
+        return code, [SGR.sub("", line) for line in text.splitlines()]
+
+    def widest(self, rows):
+        return max(term.columns(r) for r in rows)
+
+
+class TitleTest(Narrow):
+    """R1: the title's words go under the name and version where the three do not fit."""
+
+    def test_at_50_the_words_go_on_the_next_line(self):
+        for words in ([], ["help"]):
+            code, rows = self.rows(*words, cols=50)
+            self.assertEqual(code, 0, rows)
+            self.assertRegex(rows[0], r"^agentik-suite \S+$")
+            self.assertEqual(rows[1], "one command for the agentik tools")
+
+    def test_at_80_the_title_is_one_line(self):
+        for words in ([], ["help"]):
+            code, rows = self.rows(*words, cols=80)
+            self.assertRegex(rows[0], r"^agentik-suite \S+   one command for the agentik tools$")
+
+    def test_off_a_terminal_one_line(self):
+        code, out, err = self.run_cli(COLUMNS="40")
+        self.assertRegex(out.splitlines()[0], r"^agentik-suite \S+   one command for the agentik tools$")
 
 
 if __name__ == "__main__":

@@ -558,7 +558,7 @@ class Command:
         """R2: the title, then a row a verb a person starts with and one for the tools by name;
         no path, no mark, no process."""
         t = self.t
-        t.line("help.title", **self.slots(), version=self.version)
+        t.wrapped("help.title", **self.slots(), version=self.version)
         t.blank()
         rows = [(None, [term.name(v), t.text(ROWS[v])], None) for v in FIRST + ("help",)]
         names = [x["name"] for x in self._tools(survey=False) if x["command"]]
@@ -569,7 +569,7 @@ class Command:
     def full_list(self):
         """R4: the title, the usage's two lines, the verbs, the tools and the flags; no path."""
         t, slots = self.t, self.slots()
-        t.line("help.title", **slots, version=self.version)
+        t.wrapped("help.title", **slots, version=self.version)
         t.line("help.usage", **slots)
         if prog.form(self.env, self.tool)[0] != "typed":  # the door runs a tool by its name
             run = self.say() + " " + TOOL_ROW
