@@ -91,5 +91,25 @@ class TitleTest(Narrow):
         self.assertRegex(out.splitlines()[0], r"^agentik-suite \S+   one command for the agentik tools$")
 
 
+SUMMARY = "Show each tool's keys, then one tool's, then one key and how to change it."
+
+
+class SummaryTest(Narrow):
+    """R2: `help <verb>`'s sentence wraps at the window's width on a terminal."""
+
+    def test_at_50_it_wraps(self):
+        code, rows = self.rows("help", "config", cols=50)
+        self.assertEqual(code, 0, rows)
+        at = rows.index("Show each tool's keys, then one tool's, then one")
+        self.assertEqual(" ".join(rows[at:at + 2]), SUMMARY)
+        self.assertLessEqual(self.widest(rows[at:at + 2]), 50)
+
+    def test_at_80_and_off_a_terminal_one_line(self):
+        code, rows = self.rows("help", "config", cols=80)
+        self.assertEqual(rows[1], SUMMARY)
+        code, out, err = self.run_cli("help", "config", COLUMNS="40")
+        self.assertEqual(out.splitlines()[1], SUMMARY)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -637,7 +637,7 @@ class Command:
             return 0
         t = self.t
         t.line("usage." + verb.replace("-", "_"), **self.slots())
-        t.line("verb." + verb.replace("-", "_"))
+        t.wrapped("verb." + verb.replace("-", "_"))  # at the window's width (sc17 R2)
         t.blank()
         examples = self._examples(verb)
         if examples:

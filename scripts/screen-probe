@@ -80,10 +80,8 @@ V9_LIST = {
 # entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
 OWED = "; owed by sc17-narrow-screens"
 KNOWN = {
-    "width:help-config": (r"^pty50 line 2 .*Show each tool|^(pty80|pty50|nocolor) line [468] \(\d+\):   /",
-                          "the summary does not wrap at 50; each example holds the path typed at "
-                          "column 2, not under the lead" + OWED),
-    "width:help-config-door": (r"^pty50 line 2 .*Show each tool", "the summary does not wrap at 50" + OWED),
+    "width:help-config": (r"^(pty80|pty50|nocolor) line \d+ \(\d+\):   /",
+                          "each example holds the path typed at column 2, not under the lead" + OWED),
     "width:config-loom": (r"^pty50 line 1 .*24 keys, 3 changed", "the title does not wrap at 50" + OWED),
     "width:doctor-applied": (r"^pty50 line \d+ .*(add to your shell profile|The line below mends)",
                              "the profile row and the closing sentence do not wrap at 50" + OWED),
