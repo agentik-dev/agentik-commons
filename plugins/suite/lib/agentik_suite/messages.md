@@ -371,6 +371,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.setup.start`: setup stopped at step `{n}`: its command could not start
 - `err.setup.todo`: setup stopped: step `{n}` ran and is still not done
 - `err.setup.journal`: the log at `{path}` did not take this run's line: `{why}`
+- `err.setup.last`: `{message}`; its last line: `{last}`
 - `setup.gate.notfile`: it is not a file
 - `err.setup.interrupted`: setup stopped at step `{n}`: interrupted
 - `err.setup.interrupted.idle`: setup stopped between steps: interrupted

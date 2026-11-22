@@ -694,8 +694,11 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
-            obj["error"] = {"code": failure[3], "message": t.text(*_closing(t, failure, ran)[:1], **_closing(t, failure, ran)[1]),
-                            "remedy": cmd.say("setup")}
+            mid, values = _closing(t, failure, ran)
+            message = t.text(mid, **values)
+            if failure[1].get("last"):  # the command's own last line, which the screen prints under its row
+                message = t.text("err.setup.last", message=message, last=failure[1]["last"])
+            obj["error"] = {"code": failure[3], "message": message, "remedy": cmd.say("setup")}
         t.json(obj)
         return code
     closing = failure and _closing(t, failure, ran)
