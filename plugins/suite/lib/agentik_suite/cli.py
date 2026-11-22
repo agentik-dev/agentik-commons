@@ -46,7 +46,7 @@ FLAGS = (("--json", None, "json"), ("--quiet", "-q", "quiet"), ("--no-color", No
 WRITE_FLAGS = (("--dry-run", None, "dry_run"), ("--yes", "-y", "yes"))
 # config's --all, a key of its own as remove's (row sc6-config): help glosses it, doctor's stays
 CONFIG_FLAGS = (("--changed", None, "changed"), ("--user-files", None, "user_files"),
-                ("--all", None, "config_all"))
+                ("--all", None, "config_all"), ("--pick", None, "config_pick"))  # its key glossed as config's (sc14)
 STATUS_FLAGS = (("--check", None, "check"),)
 DOCTOR_FLAGS = (("--all", None, "all"),)
 # remove's --all, a key of its own so doctor's keeps its gloss (row ak4-remove R1); the parse sets
@@ -172,6 +172,7 @@ def _parse(argv):
         elif bad is None:
             bad, bad_at = arg, i
     opts["remove_all"] = opts["config_all"] = opts["all"]
+    opts["config_pick"] = opts["pick"]  # config's --pick, setup's key and gloss kept (row sc14-config-pick R1)
     return opts, words, bad, at, bad_at
 
 
