@@ -574,8 +574,8 @@ def run(root, only, wall, keep):
                 answer = "n" if name == "setup-no" and way != "pipe" else None
                 shown[way] = render(argv_of(how, home, words, launcher), home.env(), home.work,
                                     way, answer)
-                for command in pastes(shown[way]):
-                    pasted.setdefault((label, command), (name, home))
+                for command in pastes(shown[way]):  # once in each home that printed it
+                    pasted.setdefault((home.home, command), (name, label, home))
             bad = []
             for way in ("pty80", "pty50", "nocolor"):
                 bad += ["%s %s" % (way, b) for b in check_width(shown[way], 50 if way == "pty50" else 80)]
@@ -586,7 +586,7 @@ def run(root, only, wall, keep):
             verdict("budget", name, check_budget(name, shown["pty80"]),
                     "budget: %s is %d lines at 80, at most %s" % (
                         name, count(shown["pty80"]), BUDGET.get(name, ("?",))[0]))
-        for (label, command), (name, home) in pasted.items():
+        for (_, command), (name, label, home) in pasted.items():
             verdict("paste", name, check_paste(command, home.env(), home.work, wall),
                     "paste: %s, in %s: %s" % (name, label, command))
     finally:

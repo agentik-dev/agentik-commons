@@ -162,6 +162,25 @@ class Breaks(Copy):
         ps = subprocess.run(["ps", "-axo", "command"], capture_output=True, text=True).stdout
         self.assertNotIn(self.home, ps)
 
+    def test_f1_each_home_pastes_its_own_commands(self):
+        """Review 1 F1: a `next:` that is there in the applied home and not in the declined one
+        is red in the declined one, both screens asked for."""
+        apply_py = os.path.join(self.root, "plugins", "suite", "lib", "agentik_suite", "apply.py")
+        with open(apply_py, encoding="utf-8") as fh:
+            text = fh.read()
+        old = 't.hint("hint.setup.next", command=cmd.say("setup"))\n'
+        self.assertEqual(text.count(old), 1)
+        with open(apply_py, "w", encoding="utf-8") as fh:
+            fh.write(text.replace(old, 't.hint("hint.setup.next", command="~/.local/bin/agentik doctor")\n'))
+        code, out, err = self.run_probe("--only", "setup-applied,setup-no")
+        self.assertEqual(code, 1, out)
+        red = self.red(out)
+        self.assertTrue(red, out)
+        for line in red:
+            self.assertTrue(line.startswith("FAIL paste: setup-no, in empty: ~/.local/bin/agentik "
+                                            "doctor: not found: exit 127"), red)
+        self.assertIn("ok   paste: setup-applied, in empty: ~/.local/bin/agentik doctor", out)
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)
