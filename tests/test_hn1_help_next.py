@@ -75,16 +75,18 @@ class HelpHome(base.Home):
         os.chmod(os.path.join(self.bindir, exe), 0o755)
 
     def closes(self, **more):
-        """(setup's close, the help's close): the last stderr line of each."""
+        """(setup's close, the help's close): setup's last two stderr lines, since a page's note
+        stands above its `next:` (row sc8 R8), and the help's last line."""
         code, _, err = self.run_cli("setup", "--dry-run", "alpha", **more)
         self.assertEqual(code, 0, err)
-        setup = err.splitlines()[-1]
+        setup = "\n".join(err.splitlines()[-2:])
         code, _, err = self.run_cli("--help", **more)
         self.assertEqual(code, 0, err)
         return setup, err.splitlines()[-1]
 
 
-DONE = ("setup has nothing left to do", "setup has done what this version can")  # done, rest
+DONE = "next: claude"  # done and rest both close on it (row sc8 R3); the steps tell them apart
+PAGE = "installs its own command; its page has the line"  # the page's note above it
 
 
 class HelpCloseTest(HelpHome):
@@ -96,21 +98,22 @@ class HelpCloseTest(HelpHome):
         self.assertFalse([s for s in steps if s["state"] == "blocked"])
         self.assertFalse([s for s in steps if s["n"] <= 6 and s["command"]])
         setup, help_ = self.closes(PATH=self.path)
-        self.assertIn(DONE[1], setup)  # hint.setup.rest
+        self.assertEqual(self.close_of(setup, steps), "hint.setup.rest", setup)
+        self.assertEqual(setup.splitlines()[-1], DONE)
         self.assertEqual(help_, "next: %s doctor" % self.launcher)  # hint.help.done
         code, out, err = self.run_cli(PATH=self.path)  # the bare first screen closes the same
         self.assertEqual(err.splitlines()[-1], help_)
 
     def close_of(self, setup, steps):
         """Setup's close by its words: done, rest, page, path (step 6's add line alone) or next."""
-        if DONE[0] in setup:
-            return "hint.setup.done"
-        if DONE[1] in setup:
-            return "hint.setup.rest"
-        if "step 4 names the page" in setup:
-            return "hint.setup.page"
+        above, last = ([""] + setup.splitlines())[-2:]
+        if last == DONE:
+            if above.endswith(PAGE):
+                return "hint.setup.page"
+            done = all(s["state"] == "ok" for s in steps if s["n"] <= 6)
+            return "hint.setup.done" if done else "hint.setup.rest"
         add = [s["command"] for s in steps if s["n"] == 6 and s["command"]]
-        return "hint.setup.path" if add and setup == "next: %s" % add[0] else "hint.setup.next"
+        return "hint.setup.path" if add and last == "next: %s" % add[0] else "hint.setup.next"
 
     def test_a2_the_help_agrees_with_setup(self):
         """The help says the setup line exactly where setup's close is hint.setup.next or
