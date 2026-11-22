@@ -695,14 +695,13 @@ class Command:
             t.json({"schema": SCHEMA % "setup", "ok": True, "dry_run": True, "plugins": names,
                     "steps": [apply.step_json(s) for s in steps]})
             return 0
-        if names:
-            t.line("setup.title", plugins=", ".join(names))
-        else:
-            t.line("setup.title.none")
-        apply.show(self, steps)  # the run's table too, `get it:` under a missing claude (row ic1-close R3)
+        apply.plan_screen(self, steps, names, dry=True)  # the run's plan, no question (row sc8 R1)
         mid, values = self._closing(steps, nouns)
         if mid == "hint.setup.path":  # a command, its reason above it (ic1-close review 1)
             apply.path_close(t, values["command"])
+        elif mid == "hint.setup.page":  # a note, since its line is no command (row sc8 R8)
+            apply._note(t, mid, **values)
+            t.hint("hint.setup.done")
         else:
             t.hint(mid, values, **self.slots())
         return 0
