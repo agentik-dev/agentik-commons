@@ -49,12 +49,19 @@ OURS = ("setup.title", "setup.would", "setup.yours", "setup.step.", "setup.waiti
         "setup.wrote", "setup.path.", "setup.other", "err.setup.", "hint.setup.")  # what this row writes
 
 
-UNDO = re.compile(r"\bagentik(-suite)? remove --all$")  # the `undo` row's command, the one remove (row sc16 R3)
+# the `undo` row's command, the one remove (row sc16 R3; review 1 F1): on the row's own line after its
+# label, or alone at LEAD on the line under a label line that holds `undo` alone
+UNDO = re.compile(r"^( +undo +\S*\bagentik(-suite)?) remove --all$")
+UNDO_LEAD = re.compile(r"^( {%d}\S*\bagentik(-suite)?) remove --all$" % apply.LEAD)
+UNDO_LABEL = re.compile(r"^ +undo *$")
 
 
-def words(line):
-    """The line with its paths and commands' paths left out, the words a banned word is sought in."""
-    line = UNDO.sub("agentik", line)
+def words(line, before=""):
+    """The line with its paths and commands' paths left out, the words a banned word is sought in;
+    `before` is the line above it on the same stream, which tells the undo row's second line."""
+    row = UNDO.match(line) or (UNDO_LABEL.match(before) and UNDO_LEAD.match(line))
+    if row:
+        line = row.group(1)
     return " ".join(w for w in line.split() if not w.startswith(("/", "~")))
 
 
@@ -129,15 +136,17 @@ class Screens(Home):
         os.remove(os.path.join(self.home, ".claude", "plugins", "installed_plugins.json"))
         screens.append(self.screen("setup", "--yes"))
         for code, out, err in screens:
-            for line in out + err:
-                self.assertIsNone(BANNED.search(words(line)), line)
+            for lines in (out, err):  # each stream with its own line above
+                for before, line in zip([""] + lines, lines):
+                    self.assertIsNone(BANNED.search(words(line, before)), line)
         os.remove(self.flag)
         shutil.rmtree(os.path.join(self.home, ".claude"))
         shutil.rmtree(os.path.join(self.home, ".local"))
         for cols, answer in (("50", "n"), ("50", "y"), ("80", "y")):  # A8 is measured on a pty
             code, text = on_pty([str(LAUNCHER), "setup"], answer, self.env(COLUMNS=cols), cwd=self.work)
-            for line in lines_of(text):
-                self.assertIsNone(BANNED.search(words(line)), line)
+            lines = lines_of(text)
+            for before, line in zip([""] + lines, lines):
+                self.assertIsNone(BANNED.search(words(line, before)), line)
                 if len(line) > int(cols) and "Run these" not in line:
                     self.assertTrue(self.lone(line, int(cols)) or len(line.split()) == 1, (cols, line))
 
@@ -473,6 +482,35 @@ class Screens(Home):
                 self.assertLessEqual(len(bare), 76, mid)
                 if mid.startswith("hint.setup.") and text.startswith("next:"):
                     self.assertNotIn(". ", text, mid)  # a command, never a sentence (V3)
+
+
+class TheUndoRowAlone(unittest.TestCase):
+    """A4's filter lets the remove command through on the `undo` row alone (row sc16 review 1 F1):
+    the row on one line, or its command at LEAD under a label line that holds `undo` alone."""
+    lead = " " * apply.LEAD + "~/.local/bin/agentik remove --all"
+
+    def refused(self, line, before=""):
+        return bool(BANNED.search(words(line, before)))
+
+    def test_f1_review_lines(self):
+        for line in ("next: agentik remove --all", "FAIL  setup stopped at step 3; run agentik-suite remove --all",
+                     "  note  to start over: agentik remove --all"):
+            self.assertTrue(self.refused(line), line)
+        self.assertFalse(self.refused("      undo         ~/.local/bin/agentik remove --all"))
+        self.assertFalse(self.refused("  undo         %s remove --all" % LAUNCHER))
+
+    def test_f1_a_second_remove_on_the_undo_row(self):
+        for line in ("      undo         agentik remove --all; agentik remove --all",
+                     "      undo         remove agentik remove --all",
+                     "      undo         agentik remove --all remove"):
+            self.assertTrue(self.refused(line), line)
+
+    def test_f1_the_command_at_lead_under_its_label(self):
+        self.assertFalse(self.refused(self.lead, "      undo"))
+        self.assertFalse(self.refused(self.lead, "  undo"))
+        for before in ("", "      check", "  next: claude", "      undo         agentik remove --all", "  log"):
+            self.assertTrue(self.refused(self.lead, before), before)
+        self.assertTrue(self.refused("  " + self.lead, "      undo"))  # off the LEAD column
 
 
 if __name__ == "__main__":
