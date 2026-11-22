@@ -73,6 +73,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.help`: Show the usage and the flags.
 - `flag.dry_run`: Show the plan, and write nothing.
 - `flag.yes`: Write without asking first.
+- `flag.pick`: Choose the plugins from a list first.
+- `help.plain`: Ask each question as one typed line, as a screen reader needs.
 - `flag.changed`: List every key changed from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.config_all`: Print every key flat, one a line.
@@ -313,6 +315,16 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `hint.setup.page`: next: step 4 names the page with the install line for `{names}`. Setup has done the rest.
 - `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
 - `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
+- `setup.confirm`: Run these `{count}` commands now?
+- `setup.confirm.one`: Run this `{count}` command now?
+- `setup.confirm.yes`: Run them
+- `setup.confirm.yes.one`: Run it
+- `setup.confirm.no`: Don't run anything
+- `setup.other`: other plugins: `{command}`
+- `setup.pick`: Which plugins does setup install?
+- `setup.pick.installed`: installed
+- `setup.pick.other`: other
+- `setup.pick.other.note`: a plugin's name, typed
 - `setup.running`: running `{command}`
 - `setup.after`: The plan, read again after the run:
 - `setup.ran`: ran: `{command}`, exit `{exit}`

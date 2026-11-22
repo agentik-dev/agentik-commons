@@ -12,8 +12,6 @@ writes: `TREE=`, a test for the runner inside it, then the run. No test starts a
 reads the live home or writes outside its temp folder."""
 import json
 import os
-import pty
-import select
 import shlex
 import shutil
 import subprocess
@@ -24,6 +22,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_ak4a_update as ak4a  # noqa: E402
+import test_ak3_setup as ak3  # noqa: E402  (a module: its tests are not run twice)
 from test_agentik_suite import LAUNCHER, LIB, version  # noqa: E402
 from agentik_suite import doctor, plan, tools  # noqa: E402
 import agentik_install  # noqa: E402
@@ -233,28 +232,9 @@ class DoctorTest(Base):
                          "agentik-session 1.0.0\n")
 
     def on_pty(self, h, answer, line):
-        """`line` run by sh on a terminal, `answer` typed: (its exit, what it printed)."""
-        master, slave = pty.openpty()
-        p = subprocess.Popen(["/bin/sh", "-c", line], stdin=slave, stdout=slave, stderr=slave,
-                             env=h.env(), cwd=h.home, close_fds=True)
-        os.close(slave)
-        os.write(master, answer.encode() + b"\n")
-        chunks = []
-        try:
-            while True:
-                ready, _, _ = select.select([master], [], [], 60)
-                if not ready:
-                    break
-                try:
-                    data = os.read(master, 65536)
-                except OSError:
-                    break
-                if not data:
-                    break
-                chunks.append(data)
-        finally:
-            os.close(master)
-        return p.wait(timeout=30), b"".join(chunks).decode("utf-8", "replace")
+        """`line` run by sh on a terminal, `answer` typed once the question shows, since one typed
+        ahead is dropped (row sc15-setup-pick): (its exit, what it printed)."""
+        return ak3.on_pty(["/bin/sh", "-c", line], answer, h.env(), cwd=h.home)
 
     def own(self, body):
         """own_doctors' check for one made-up tool whose command is `body`."""
