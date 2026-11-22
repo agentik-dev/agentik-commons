@@ -240,9 +240,12 @@ def path(nouns):
 
 def _again(cmd, dotted):
     """`config` as typed with its words as the one path `dotted`, none where it is empty; where
-    none was typed (a key gone at a bare `--pick`'s Enter), `dotted` after them."""
+    none was typed (a key gone at a bare `--pick`'s Enter), `dotted` after them. `--pick` is left
+    out: a mend never waits for a person, so it is the same line the flag's absence gives (row
+    sc14-config-pick review 1 F3)."""
     at = cmd.at[1:]
     swap = {i: [] for i in at[1:]}
+    swap.update({i: [] for i, word in enumerate(cmd.argv) if word == "--pick"})
     if not at:
         return cmd.again(swap, [dotted] if dotted else [])
     swap[at[0]] = [dotted] if dotted else []

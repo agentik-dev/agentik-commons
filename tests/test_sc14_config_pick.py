@@ -284,6 +284,20 @@ class Review1(unittest.TestCase):
         self.assertEqual(sorted(k["tool"] + "." + k["key"] for k in doc["keys"]), sorted(keys))
         self.assertEqual(doc["silent"], [])
 
+    def test_f3_a_refusal_with_pick_keeps_its_mend(self):
+        for path in (["loom.nokey"], ["nosuch.x"], ["loom."], ["zzzz"], ["loom.mod"]):
+            plain, picked = self.pipe("config", *path), self.pipe("config", *path, "--pick")
+            self.assertEqual(plain.returncode, 2, path)
+            self.assertEqual((picked.returncode, picked.stderr), (plain.returncode, plain.stderr), path)
+            self.assertNotIn(b"--pick", picked.stderr, path)
+            code, _, seen, _, _ = Pick.drive(self, ["config", *path, "--pick"], [])
+            self.assertEqual(code, 2, path)
+            self.assertEqual([line for line in seen.splitlines() if line.startswith("next: ")],
+                             [line for line in plain.stderr.decode().splitlines() if line.startswith("next: ")])
+        nexts = [line for line in self.pipe("config", "loom.nokey", "--pick").stderr.decode().splitlines()
+                 if line.startswith("next: ")]
+        self.assertTrue(nexts and nexts[0].endswith(" config loom"), nexts)
+
     def test_f1_a_value_changed_while_the_list_is_open(self):
         fray(self.home, [{"key": "k", "value": "old", "default": "d"}])
         code, out, seen = self.enter(["config", "fray", "--pick"], edit=lambda: fray(
