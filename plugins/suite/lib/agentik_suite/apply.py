@@ -135,10 +135,11 @@ NEWEST = 4096  # the bytes of output read back for its newest line
 
 def drawn(cmd):
     """Whether setup draws a live line (row sc9-setup-live R4): stderr a terminal whose TERM is
-    set and not dumb (pick's rule), no -q, no --json, and a stream that encodes the frames."""
+    set and not dumb (pick's rule), no -q, no --json, no CI, as pick draws no list there (row
+    sc16-setup-undo R5.4), and a stream that encodes the frames."""
     t = cmd.t
     stream = t.err
-    if not stream.tty or t.quiet or cmd.opts.get("json"):
+    if not stream.tty or t.quiet or cmd.opts.get("json") or stream.env.get("CI"):
         return False
     if stream.env.get("TERM", "dumb") in ("", "dumb"):
         return False
@@ -170,12 +171,16 @@ def newest(chunks):
 def live_text(stream, room, frame, n, label, command, seconds, last):
     """One live line in `room` columns (row sc9-setup-live R1, R2): the frame, the step and its
     label in the ended row's columns, the command, the seconds, the newest output line, dim. Where
-    the room is short the output gives way first, then the command is cut; the seconds stay."""
+    the room is short the output gives way first, then the command is cut, then the label; the
+    seconds stay (row sc16-setup-undo R5.1)."""
     head = "  %s %s %s  " % (frame, n, term.clean(label).ljust(LABEL))
     command = term.clean(command)
     space = room - term.columns(head) - 2 - term.columns(seconds)
-    if space < 2:  # a window too narrow for any command: the head and the seconds, cut
-        return term._cut_to(head + seconds, room)
+    if space < 2:  # a window too narrow for any command: the label cut, then the seconds
+        keep = room - 2 - term.columns(seconds)
+        if keep < term.columns("  %s %s " % (frame, n)) + 1:  # not even the step: the line cut
+            return term._cut_to(head + seconds, room)
+        return term._cut_to(head.rstrip(" "), keep) + "  " + seconds
     line = head + term._cut_to(command, space) + "  " + seconds
     spare = room - term.columns(line) - 2
     if last and spare >= 2:
@@ -191,6 +196,32 @@ class Live:
         self.t, self.row = cmd.t, row
         self.label = cmd.t.text("setup.step.%d" % row["n"])
         self.at, self.frame, self.left, self.shown = None, 0, b"", False
+        self.saved = {}
+
+    def hold(self):
+        """Ctrl-Z and fg while the command runs (row sc16-setup-undo R5.2), as pick holds them
+        (design/23 4a.5): on SIGTSTP the line cleared and the cursor shown, then the stop; on
+        SIGCONT the next pass draws at once. The terminal's modes are never changed here."""
+        try:
+            for sig, fn in ((signal.SIGTSTP, self._stop), (signal.SIGCONT, self._cont)):
+                self.saved[sig] = signal.signal(sig, fn)
+        except ValueError:  # not the main thread: the default handlers stay
+            pass
+
+    def release(self):
+        for sig, fn in self.saved.items():
+            signal.signal(sig, fn if fn is not None else signal.SIG_DFL)
+        self.saved = {}
+
+    def _stop(self, signum, frame):
+        self.close()
+        signal.signal(signal.SIGTSTP, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGTSTP)  # stopped here until SIGCONT
+        signal.signal(signal.SIGTSTP, self._stop)
+        self.at = None
+
+    def _cont(self, signum, frame):
+        self.at = None
 
     def draw(self, elapsed, chunks):
         now = time.monotonic()
@@ -275,6 +306,8 @@ def execute(command, env, live=None):
                 "wall": wall}
     finally:
         os.close(mouth)
+    if live:
+        live.hold()
     try:
         try:
             data, why = _read(p, fd, wall, live)
@@ -286,6 +319,7 @@ def execute(command, env, live=None):
         finally:
             if live:
                 live.close()
+                live.release()
     finally:
         os.close(fd)
     lines = [l.strip() for l in data.decode("utf-8", "replace").splitlines() if l.strip()]
@@ -399,8 +433,9 @@ TAIL = 5  # a failed command's own last lines shown under its row (row sc8 R6)
 
 def undo(cmd):
     """The `undo` row's command, one row in the plan's `Yours, after:` and one in the report
-    (design/23 §5, D23-3): None while setup's screens name no `remove`; a later row turns it on."""
-    return None
+    (design/23 §5, D23-3; row sc16-setup-undo R1): `remove --all` as every printed command is
+    formed, so it reads as typed before the door is placed and as placed after."""
+    return cmd.say("remove", "--all")
 
 
 def profile(env):
@@ -533,7 +568,7 @@ def plan_screen(cmd, steps, names, dry=False):
             text = t.text("setup.waiting.one") if len(waiting) == 1 else t.text("setup.waiting", count=len(waiting))
             would.append((None, "" if 4 in shown else 4, "" if 4 in shown else label(4), text, False))
     yours.append((None, 7, label(7), cmd.slots()["doctor"], True))
-    if undo(cmd):
+    if not blocked:  # the way out, said before the yes; a blocked plan installs nothing (sc16 R1)
         yours.append((None, "", t.text("setup.tail.undo"), undo(cmd), True))
     _rows(t, top)
     if would:
@@ -883,8 +918,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
         rows.append(("setup.tail.log", plan.shown(journal, home), True))
     if not failure:
         rows.append(("setup.tail.check", cmd.slots()["doctor"], True))
-        if undo(cmd):
-            rows.append(("setup.tail.undo", undo(cmd), True))
+        rows.append(("setup.tail.undo", undo(cmd), True))
         if add:  # only while ~/.local/bin is off PATH (row sc8 R2; D23-4)
             rows.extend(path_rows(cmd, add[0]["command"]))
     if rows:

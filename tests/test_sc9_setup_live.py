@@ -49,6 +49,12 @@ if _s.argv[1:4] == ["plugin", "marketplace", "add"]:
 """
 
 
+def read(path):
+    """A file's text, the file closed (row sc16 R5.3)."""
+    with open(path) as fh:
+        return fh.read()
+
+
 def replay(text):
     """The screen the bytes leave, as lines: a carriage return to column 0, a line feed a new
     line, `ESC[2K` the line cleared, `ESC[K` and `ESC[J` cleared from the cursor, any other
@@ -185,6 +191,71 @@ class Pty:
                 os.close(fd)
 
 
+class Job(Pty):
+    """argv as a shell's job on the pty (row sc16 R5.2): a session leader holds the terminal and
+    puts argv in a process group of its own in the foreground, so Ctrl-Z stops it (a group with no
+    parent in its session, as Pty's, is never stopped). The leader says `S` on `status` when argv
+    stops and sends SIGCONT for each byte on `go`; it ends with argv's exit."""
+
+    def __init__(self, env, argv, cols=80, rows=24):
+        self.master, self.slave = os.openpty()
+        fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        self.before = termios.tcgetattr(self.master)
+        self.out_r, out_w = os.pipe()
+        self.status_r, status_w = os.pipe()
+        go_r, self.go_w = os.pipe()
+        self.pid = os.fork()
+        if self.pid == 0:
+            try:
+                os.setsid()
+                fcntl.ioctl(self.slave, termios.TIOCSCTTY, 0)
+                signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+                job = os.fork()
+                if job == 0:
+                    os.setpgid(0, 0)
+                    os.dup2(self.slave, 0)
+                    os.dup2(out_w, 1)
+                    os.dup2(self.slave, 2)
+                    os.execve(str(argv[0]), [str(a) for a in argv], env)
+                os.setpgid(job, job)
+                os.tcsetpgrp(self.slave, job)
+                while True:
+                    _, status = os.waitpid(job, os.WUNTRACED)
+                    if os.WIFSTOPPED(status):
+                        os.write(status_w, b"S")
+                        os.read(go_r, 1)
+                        os.killpg(job, signal.SIGCONT)
+                        continue
+                    os._exit(os.WEXITSTATUS(status) if os.WIFEXITED(status) else 99)
+            finally:
+                os._exit(99)
+        for fd in (out_w, status_w, go_r):
+            os.close(fd)
+        self.chunks, self.out, self.status = [], b"", None
+
+    def stopped(self, timeout=10.0):
+        """True once the leader says argv stopped, the pty read meanwhile."""
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            self.read()
+            if select.select([self.status_r], [], [], 0.05)[0]:
+                return os.read(self.status_r, 1) == b"S"
+        return False
+
+    def go(self):
+        os.write(self.go_w, b"c")
+
+    def close(self):
+        if not self.done():  # a job left stopped by a failed test goes on, and ends with its leader
+            try:
+                self.go()
+            except OSError:
+                pass
+        Pty.close(self)
+        for fd in (self.status_r, self.go_w):
+            os.close(fd)
+
+
 def in_pty(env, run, cols=80, rows=24):
     """`run(err)` in process with stderr a text stream on a pty of a set size, read as it comes:
     (its result, what the pty showed)."""
@@ -286,7 +357,7 @@ class LiveLine(Base):
             self.slow()
             code, text, c = self.setup(self.term_env(), cols=cols)
             self.assertEqual(code, 0, text)
-            started = float(open(self.pidfile).read().split()[2])
+            started = float(read(self.pidfile).split()[2])
             market = [(at, CSI.sub("", piece)) for at, chunk in c.chunks
                       for piece in BARE_CR.split(chunk.decode("utf-8", "replace"))
                       if "2 marketplace" in piece and CSI.sub("", piece)[2:3] in tuple(SPIN)]
@@ -347,6 +418,25 @@ class LiveLine(Base):
         self.assertTrue(cut.endswith("…  13 s"), cut)
         self.assertEqual(term.columns(cut), 49)
 
+    def test_sc16_r5_1_the_label_gives_way_before_the_seconds(self):
+        """Under about 26 columns the label is cut and the seconds stay (row sc16 R5.1)."""
+        s = term.Term(env={}, out=io.StringIO(), err=io.StringIO()).err
+        cmd = "claude plugin marketplace add agentik-dev/agentik-commons"
+        for room in (19, 22, 25):
+            for took in ("3 s", "13 s", "125 s"):
+                line = apply.live_text(s, room, "⠋", 2, "marketplace", cmd, took, "fetching")
+                self.assertTrue(line.endswith("  " + took), (room, line))
+                self.assertTrue(line.startswith("  ⠋ 2 "), (room, line))
+                self.assertLessEqual(term.columns(line), room, (room, line))
+        self.slow(sleep=1.2)
+        code, text, _ = self.setup(self.term_env(), cols=20)
+        self.assertEqual(code, 0, text)
+        drawn = frames(text)
+        self.assertTrue(drawn, text)
+        for f in drawn:
+            self.assertLessEqual(term.columns(f), 20, f)
+            self.assertRegex(f, r"  \d+ s$")  # every frame ends with the seconds
+
     def test_r4_no_color_keeps_the_line_without_its_dim(self):
         self.slow(sleep=1.2)
         code, text, _ = self.setup(self.term_env(NO_COLOR="1"), cols=120)
@@ -388,6 +478,21 @@ class WhereNothingIsRedrawn(Base):
         self.assert_plain(text.replace("\r\n", "\n"), "-q")
         self.assertEqual(rows_of(text), [])
 
+    def test_sc16_r5_4_under_ci_no_live_line(self):
+        """CI set: no live line on a pty, as the picker draws no list there; each command is its
+        ended row alone, with no carriage return (row sc16 R5.4)."""
+        self.slow(sleep=1)
+        code, text, _ = self.setup(self.term_env())
+        self.assertEqual(code, 0, text)
+        drawn = rows_of("\n".join(replay(text)))
+        self.fresh()
+        code, text, _ = self.setup(self.term_env(CI="1"))
+        self.assertEqual(code, 0, text)
+        self.assertFalse(BARE_CR.search(text), text)
+        self.assertFalse(set(text) & set(SPIN), text)
+        self.assertFalse(CURSOR.search(text), text)
+        self.assertEqual(rows_of(text), drawn)
+
     def test_r4_a_stream_that_cannot_encode_the_frames(self):
         class Ascii(io.StringIO):
             encoding = "ascii"
@@ -418,9 +523,9 @@ class Ends(Base):
             if what == "live":
                 self.assertTrue(c.until(lambda t: FIRST in "".join(frames(t))), c.text)  # the line shows
             else:
-                self.assertTrue(c.until(lambda t: os.path.exists(self.pidfile) and open(self.pidfile).read()))
+                self.assertTrue(c.until(lambda t: os.path.exists(self.pidfile) and read(self.pidfile)))
                 time.sleep(0.3)
-            pid, group = [int(v) for v in open(self.pidfile).read().split()[:2]]
+            pid, group = [int(v) for v in read(self.pidfile).split()[:2]]
             send(c)
             code = c.wait()
             text = got[what] = c.text
@@ -440,6 +545,31 @@ class Ends(Base):
         self.assertEqual(screens["live"][-2], "✗  setup stopped at step 2: interrupted")
         self.assertEqual(screens["live"][-2:], screens["pin"][-2:])
 
+    def test_sc16_r5_2_ctrl_z_shows_the_cursor_and_fg_draws_again(self):
+        """Ctrl-Z while the line shows: the line cleared and the cursor shown before setup stops;
+        after SIGCONT the line is drawn again; the terminal's modes as before in both states."""
+        self.slow(sleep=5)
+        c = Job(self.term_env(), [LAUNCHER, "setup", "--yes", "alpha"], cols=120)
+        self.addCleanup(c.close)
+        self.assertTrue(c.until(lambda t: FIRST in "".join(frames(t))), c.text)  # the line shows
+        os.write(c.master, b"\x1a")
+        self.assertTrue(c.stopped(), c.text)
+        time.sleep(0.3)
+        c.read()
+        held = c.text
+        self.assertEqual(CURSOR.findall(held)[-1], "\x1b[?25h", held)  # the cursor shown
+        self.assertFalse([l for l in replay(held) if set(l) & set(SPIN)], replay(held))  # cleared
+        self.assertEqual(termios.tcgetattr(c.master), c.before)
+        c.go()
+        self.assertTrue(c.until(lambda t: frames(t[len(held):])), c.text[len(held):])  # drawn again
+        self.assertEqual(CURSOR.findall(c.text[len(held):])[0], "\x1b[?25l")  # hidden again
+        self.assertEqual(c.wait(), 0, c.text)
+        text = c.text
+        self.assertEqual(termios.tcgetattr(c.master), c.before)
+        self.assertEqual(CURSOR.findall(text)[-1], "\x1b[?25h")
+        self.assertFalse([l for l in replay(text) if set(l) & set(SPIN)], replay(text))
+        self.assertEqual(self.market_rows(re.sub(r"\^Z", "", text)), [("ok", "claude " + MARKET, "<n> s")])
+
     def test_a4_ctrl_c_while_the_line_shows(self):
         self.interrupted(lambda c: os.write(c.master, b"\x03"))
 
@@ -455,14 +585,26 @@ class Ends(Base):
             self.assertEqual(code, 1, text)
             got[what] = text
             for _ in range(50):
-                if not alive(int(open(pidfile).read())):
+                if not alive(int(read(pidfile))):
                     break
                 time.sleep(0.1)
-            self.assertFalse(alive(int(open(pidfile).read())))
+            self.assertFalse(alive(int(read(pidfile))))
         self.assertTrue(frames(got["live"]), got["live"])
         self.assertFalse(frames(got["pin"]))
         self.assertEqual(replay(got["live"]), replay(got["pin"]))  # the row and the closing lines
         self.assertIn(("FAIL", shlex.quote(stub), "stopped after 1 s"), rows_of(got["pin"]))
+
+
+class Closed(unittest.TestCase):
+    def test_sc16_r5_3_no_file_is_left_open(self):
+        """No bare `open(...).read()` in this module, which left two pid files open (row sc16 R5.3)."""
+        import ast
+        with open(__file__, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        bare = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Call)
+                and getattr(n.func.value.func, "id", None) == "open"]
+        self.assertEqual(bare, [])
 
 
 class OtherVerbs(Base):
@@ -493,6 +635,29 @@ class OtherVerbs(Base):
         got = apply.execute(shlex.quote(stub), self.env())
         self.assertEqual(got, {"exit": 3, "last": "two", "why": None, "wall": apply.WALL,
                                "tail": ["one", "two"]})
+
+    def test_sc16_l1_the_two_handlers_go_back(self):
+        """After a command ends, by its end and by an exception, SIGTSTP's and SIGCONT's handlers
+        are what they were before it (row sc16-setup-undo review 1 L1)."""
+        class Quiet(apply.Live):  # hold and release as built; nothing drawn
+            def draw(self, elapsed, chunks):
+                pass
+
+        sigs = (signal.SIGTSTP, signal.SIGCONT)
+        for sig in sigs:
+            self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        before = {signal.SIGTSTP: lambda *a: None, signal.SIGCONT: signal.SIG_IGN}
+        for sig, fn in before.items():
+            signal.signal(sig, fn)
+        cmd = mock.Mock()
+        cmd.t.text.return_value = "step"
+        stub = shlex.quote(self.stub("brief", "#!/bin/sh\necho done\n"))
+        self.assertEqual(apply.execute(stub, self.env(), Quiet(cmd, {"n": 1}))["exit"], 0)
+        self.assertEqual({s: signal.getsignal(s) for s in sigs}, before, "by its end")
+        with mock.patch.object(apply, "_read", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                apply.execute(stub, self.env(), Quiet(cmd, {"n": 1}))
+        self.assertEqual({s: signal.getsignal(s) for s in sigs}, before, "by an exception")
 
 
 if __name__ == "__main__":
