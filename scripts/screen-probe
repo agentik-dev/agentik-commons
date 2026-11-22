@@ -24,8 +24,10 @@ calls alone:
      screen's home with stdin at /dev/null, exits neither 127 nor past the wall (--wall, 20 s).
 
 A failure on KNOWN's list prints as `note` and keeps the probe at go; the coordinator rules each.
-Nothing is written outside T, no real `claude` starts, and no child outlives the probe; T is
-removed unless --keep.
+Nothing is written outside T, no real `claude` starts, and no child outlives the probe: each runs
+in a process group of its own, stopped when it returns. On SIGTERM or SIGINT the probe stops its
+children, removes T, prints `screen-probe: stop: <signal>` and exits 128 plus the signal's number.
+T is removed unless --keep.
 
 Output: one line per check, `ok`, `FAIL` or `note`, and last `screen-probe: go` or
 `screen-probe: stop: <n> failed`. Exit 0 go, 1 a check failed, 2 usage. Stdlib only.
@@ -51,6 +53,7 @@ SYSTEM = "/usr/bin:/bin"
 WAYS = ("pty80", "pty50", "pipe", "nocolor")
 WALL = 20.0
 FAILS = []
+LIVE = set()  # each child started and not yet stopped, for a stop from outside (review 1 L5)
 
 # V9's list: the pin's ids (main 6c60098) that hold the word or a code, each with its reason in a
 # word. `flag`: a flag's help says the code a script reads. `owed`: a later row rewrites it.
@@ -304,18 +307,16 @@ def build_homes(top, launcher, labels=None):
         return homes
     # an applied setup, then the same home with ~/.local/bin off PATH and on it (sc2's homes)
     applied = Home(top, "applied")
-    p = subprocess.run([launcher, "setup", "--yes"], env=applied.env(), cwd=applied.work,
-                       stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
-    if p.returncode != 0:
-        say("FAIL", "the applied home: setup --yes gave %d: %s" % (p.returncode, last(p.stderr)))
+    code, _, err = run_child([launcher, "setup", "--yes"], applied.env(), applied.work, 300)
+    if code != 0:
+        say("FAIL", "the applied home: setup --yes gave %d: %s" % (code, last(err)))
     homes["applied-off"] = applied
     homes["applied-on"] = Home(top, "applied", "<bin>:%s:%s" % (applied.stubs, SYSTEM))
     homes["applied-on"].label = "applied-on"
     # three made-up tools beside the default set, the door placed (sc5's finished home)
-    p = subprocess.run([launcher, "setup", "--yes"], env=three.env(), cwd=three.work,
-                       stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=300)
-    if p.returncode != 0:
-        say("FAIL", "the home of three tools: setup --yes gave %d: %s" % (p.returncode, last(p.stderr)))
+    code, _, err = run_child([launcher, "setup", "--yes"], three.env(), three.work, 300)
+    if code != 0:
+        say("FAIL", "the home of three tools: setup --yes gave %d: %s" % (code, last(err)))
     return homes
 
 
@@ -447,9 +448,10 @@ def on_pty(argv, env, cwd, cols, answer=None, wall=60):
     """argv on a pty of `cols` columns, `answer` typed once the question shows: (exit, text)."""
     master, slave = os.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
-    p = subprocess.Popen(argv, stdin=slave, stdout=slave, stderr=slave, env=env, cwd=cwd,
-                         close_fds=True, start_new_session=True)
-    os.close(slave)
+    try:
+        p = spawn(argv, stdin=slave, stdout=slave, stderr=slave, env=env, cwd=cwd, close_fds=True)
+    finally:
+        os.close(slave)
     chunks, sent, end = [], answer is None, time.monotonic() + wall
     try:
         while time.monotonic() < end:
@@ -475,23 +477,67 @@ def on_pty(argv, env, cwd, cols, answer=None, wall=60):
     return p.returncode, b"".join(chunks).decode("utf-8", "replace")
 
 
+def spawn(argv, **kw):
+    """A child in a session and process group of its own, kept in LIVE until `stop`."""
+    p = subprocess.Popen(argv, start_new_session=True, **kw)
+    LIVE.add(p)
+    return p
+
+
+def descendants(pid):
+    """The pids under `pid`, read from ps: a child a command started in a session of its own
+    leaves the group, not the tree."""
+    ps = subprocess.run(["/bin/ps", "-axo", "pid=,ppid="], capture_output=True, text=True).stdout
+    under, out = {}, []
+    for row in ps.splitlines():
+        kid, parent = (int(n) for n in row.split())
+        under.setdefault(parent, []).append(kid)
+    todo = list(under.get(pid, []))
+    while todo:
+        kid = todo.pop()
+        out.append(kid)
+        todo += under.get(kid, [])
+    return out
+
+
 def stop(p):
-    """The child and its group gone, waited for."""
-    if p.poll() is None:
-        try:
-            os.killpg(p.pid, signal.SIGKILL)
-        except OSError:
-            pass
+    """The child and its process group gone, waited for, whether it ended or not, so a child it
+    put in the background does not outlive it (review 1 L4); while it runs, its tree first."""
+    kids = descendants(p.pid) if p.poll() is None else []
+    for kid in kids:
+        for kill in (os.killpg, os.kill):
+            try:
+                kill(kid, signal.SIGKILL)
+            except OSError:
+                pass
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+    except OSError:
+        pass
     p.wait()
+    LIVE.discard(p)
+
+
+def run_child(argv, env, cwd, wall):
+    """argv in a pipe, stdin at /dev/null: (exit, stdout, stderr); stopped with its group at the
+    wall or when it returns."""
+    p = spawn(argv, env=env, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE, text=True)
+    try:
+        out, err = p.communicate(timeout=wall)
+    except subprocess.TimeoutExpired:
+        out, err = "", "still running at %g s" % wall
+    finally:
+        stop(p)
+    return p.returncode, out, err
 
 
 def render(argv, env, cwd, way, answer):
     """The screen's lines one way: on a pty, the rows its terminal shows at the end (`replay`);
     in a pipe, stdout's lines then stderr's."""
     if way == "pipe":
-        p = subprocess.run(argv, env=dict(env, COLUMNS="80"), cwd=cwd, stdin=subprocess.DEVNULL,
-                           capture_output=True, text=True, timeout=120, start_new_session=True)
-        text = p.stdout + p.stderr
+        code, out, err = run_child(argv, dict(env, COLUMNS="80"), cwd, 120)
+        text = out + err
     else:
         cols = 50 if way == "pty50" else 80
         more = {"NO_COLOR": "1"} if way == "nocolor" else {}
@@ -611,12 +657,15 @@ def pastes(rows):
 
 
 def check_paste(command, env, cwd, wall=WALL):
-    """Check 5: the command by `sh -c` with stdin at /dev/null: [] when it returns in the wall
-    with an exit other than 127, else [why]."""
+    """Check 5: the command by `sh -c` with stdin at /dev/null, in a process group of its own
+    that is stopped when it returns or the wall falls: [] when it returns in the wall with an exit
+    other than 127, else [why]. A line that holds a backtick or `$(` is red and is not run (review
+    1 L6): a screen's command is pasted as it reads."""
+    if "`" in command or "$(" in command:
+        return ["not a line to paste: it holds a backtick or $("]
     start = time.monotonic()
-    p = subprocess.Popen(["/bin/sh", "-c", command], env=env, cwd=cwd, stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
+    p = spawn(["/bin/sh", "-c", command], env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         code = p.wait(timeout=wall)
     except subprocess.TimeoutExpired:
@@ -673,6 +722,8 @@ def run(root, only, wall, keep):
             verdict("paste", name, check_paste(command, home.env(), home.work, wall),
                     "paste: %s, in %s: %s" % (name, label, command))
     finally:
+        for p in list(LIVE):  # a stop from outside: each child still running, then T
+            stop(p)
         if keep:
             say("note", "kept " + top)
         else:
@@ -682,6 +733,16 @@ def run(root, only, wall, keep):
         return 1
     print("screen-probe: go")
     return 0
+
+
+class Stopped(BaseException):
+    """SIGTERM or SIGINT from outside, raised where the probe stands so each `finally` runs."""
+
+
+def stopped(signum, frame):
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, signal.SIG_IGN)  # the cleanup is not cut by a second one
+    raise Stopped(signum)
 
 
 def main(argv):
@@ -708,7 +769,13 @@ def main(argv):
     if only is not None and not only <= {s[0] for s in SCREENS}:
         print(USAGE, file=sys.stderr)
         return 2
-    return run(root, only, wall, keep)
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, stopped)
+    try:
+        return run(root, only, wall, keep)
+    except Stopped as e:
+        print("screen-probe: stop: %s" % signal.Signals(e.args[0]).name, flush=True)
+        return 128 + e.args[0]
 
 
 if __name__ == "__main__":

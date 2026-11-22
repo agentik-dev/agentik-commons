@@ -10,6 +10,7 @@ import contextlib
 import io
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -258,6 +259,65 @@ class Breaks(Copy):
         self.assertEqual(probe.count(["a row", "      /x/a", "a row", "      /x/b"]), 2)
         rows = ["a row"] * 14 + ["  /x/agentik-suite config suite"] * 10
         self.assertEqual(probe.check_budget("help-config", rows), ["23 lines, budget 14 (measured)"])
+
+    def alive(self, mark, wait=3.0):
+        """The lines of `ps` that name `mark`, once none is left or `wait` is up."""
+        end = time.monotonic() + wait
+        while True:
+            ps = subprocess.run(["ps", "-axo", "pid,ppid,command"], capture_output=True, text=True).stdout
+            rows = [row for row in ps.splitlines() if mark in row]
+            if not rows or time.monotonic() > end:
+                return rows
+            time.sleep(0.1)
+
+    def test_l4_a_paste_leaves_no_child_it_put_in_the_background(self):
+        """Review 1 L4: the paste's process group is stopped when the paste returns, and when
+        the wall falls."""
+        env = {"HOME": self.home, "PATH": "/usr/bin:/bin"}
+        mark = os.path.join(self.home, "agentik-bg")
+        with open(mark, "w") as fh:
+            fh.write("#!/bin/sh\nsleep 30\nexit 0\n")  # its name stays in ps while it sleeps
+        os.chmod(mark, 0o755)
+        self.assertEqual(probe.check_paste("%s & exit 0" % mark, env, self.home, 5), [])
+        self.assertEqual(self.alive(mark), [])
+        self.assertEqual(probe.check_paste("%s & sleep 30" % mark, env, self.home, 1),
+                         ["waits: still running at 1 s"])
+        self.assertEqual(self.alive(mark), [])
+
+    def test_l6_a_backtick_or_a_substitution_is_not_a_line_to_paste(self):
+        """Review 1 L6: a pasted line that holds a backtick or `$(` is red, and is not run."""
+        env = {"HOME": self.home, "PATH": "/usr/bin:/bin"}
+        ran = os.path.join(self.home, "ran")
+        for command in ("touch %s; echo `id -un`" % ran, "touch %s; echo $(id -un)" % ran):
+            self.assertEqual(probe.check_paste(command, env, self.home, 5),
+                             ["not a line to paste: it holds a backtick or $("], command)
+        self.assertFalse(os.path.exists(ran))
+
+    def test_l5_a_stop_from_outside_leaves_no_child_and_no_temp_dir(self):
+        """Review 1 L5: on SIGTERM and SIGINT the probe stops its children and removes its temp
+        dir before it exits."""
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            p = subprocess.Popen(["/usr/bin/python3", str(PROBE), "--root", self.root, "--only", "setup-applied"],
+                                 env={"HOME": self.home, "PATH": "/usr/bin:/bin", "TMPDIR": self.tmp,
+                                      "PYTHONDONTWRITEBYTECODE": "1"},
+                                 cwd=self.top, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True)
+            try:
+                end = time.monotonic() + 60
+                while time.monotonic() < end and not [r for r in self.alive(self.tmp, 0)
+                                                      if " setup --yes" in r]:
+                    time.sleep(0.1)
+                self.assertTrue(os.listdir(self.tmp), "the probe made no temp dir")
+                p.send_signal(sig)
+                out, _ = p.communicate(timeout=30)
+            finally:
+                if p.poll() is None:
+                    p.kill()
+                    p.wait()
+            self.assertEqual(p.returncode, 128 + sig, out)
+            self.assertEqual(out.splitlines()[-1], "screen-probe: stop: %s" % sig.name, out)
+            self.assertEqual(os.listdir(self.tmp), [])
+            self.assertEqual(self.alive(self.top), [])
 
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
