@@ -22,6 +22,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_ak3_setup import LAUNCHER, SetupHome  # noqa: E402
 import test_sm1_setup_ask as sm1  # noqa: E402  (a module: its tests are not run twice)
+from test_sc9_setup_live import replay  # noqa: E402
 from agentik_suite import catalogue, plan, term, tools  # noqa: E402
 
 ESC, UP, DOWN, ENTER = b"\x1b", b"\x1b[A", b"\x1b[B", b"\r"
@@ -132,7 +133,12 @@ def tree(home):
 
 
 class Base(SetupHome):
-    known, plan_of_one, ran = sm1.AskTest.known, sm1.AskTest.plan_of_one, sm1.AskTest.ran  # helpers only
+    known, plan_of_one = sm1.AskTest.known, sm1.AskTest.plan_of_one  # helpers only
+
+    def ran(self, text):
+        """sm1's reader over the screen as replayed: under this TERM each command's live line is
+        drawn and cleared before its row (row sc9-setup-live R3)."""
+        return sm1.AskTest.ran(self, "\n".join(replay(text)))
 
     def term_env(self, **more):
         env = dict(self.env(), TERM="xterm-256color", LANG="en_US.UTF-8")
