@@ -361,7 +361,7 @@ def plan_screen(cmd, steps, names, dry=False):
             if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
                 top.append((None, "", "", t.text("setup.cmd.get"), True))  # where Claude Code comes from
             if s["line"] == "page" and s.get("page"):
-                top.append((None, "", "", t.text("setup.page", command=s["page"]), False))
+                top.append((None, "", "", t.text("setup.page", command=s["page"]), True))  # whole, as a command
     waiting = [s for s in steps if s["n"] == 4 and s["state"] == "todo" and not s["command"]
                and s["mid"] == "setup.launcher.wait"]
     shown = set()
