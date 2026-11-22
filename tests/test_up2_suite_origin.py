@@ -303,7 +303,7 @@ class EndToEnd(tu.Base):
         p = subprocess.run(["/bin/sh", "-c", line[len("next: "):]], capture_output=True, text=True,
                            env=h.env(), cwd=self.tmp, stdin=subprocess.DEVNULL, timeout=120)
         self.assertEqual(self.git("rev-parse", "HEAD", cwd=clone), head, p.stderr)
-        self.assertIn("Setup plan", p.stdout + p.stderr)
+        self.assertRegex(p.stdout + p.stderr, r"(?m)^Setup for .*\. Nothing has run yet\.$")  # the title (row sc8 R1)
 
 
 class Readme(unittest.TestCase):

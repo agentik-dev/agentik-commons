@@ -10,6 +10,7 @@ import io
 import json
 import os
 import pty
+import re
 import select
 import shutil
 import shlex
@@ -23,7 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, add_public, version  # noqa: E402
+from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, add_public  # noqa: E402
 from agentik_suite import cli, plan  # noqa: E402
 
 # Setup refuses a name the suite does not know (row ic2-needs R2), so these tests run a copy of the
@@ -33,6 +34,13 @@ atexit.register(shutil.rmtree, _COPY, True)
 shutil.copytree(str(PLUGIN), os.path.join(_COPY, "suite"), ignore=shutil.ignore_patterns("__pycache__"))
 LAUNCHER = Path(_COPY) / "suite" / "bin" / "agentik-suite"
 add_public(os.path.join(_COPY, "suite", "lib"), {"alpha": {}, "beta": {}})
+
+
+def version():
+    """The copy's version, read from the copy, never the tree's: a manifest bumped while a run
+    goes on left a launcher placed at the tree's version newer than the copy, so step 5 ran the
+    placed one, which places nothing (row sc8's build 4: sm1's plan of two, exit 1)."""
+    return json.loads((Path(_COPY) / "suite" / ".claude-plugin" / "plugin.json").read_text())["version"]
 
 def on_pty(argv, answer, env, cwd=None):
     """`argv` on a pty, `answer` typed once the question shows, since one typed ahead is dropped
@@ -72,6 +80,32 @@ FIRST = [MARKET, "plugin install alpha@agentik", "plugin install beta@agentik"]
 LAST_LINE = "beta@agentik: no such version in the marketplace"
 PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
 PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
+ENDED = re.compile(r"^  (ok|FAIL|✓|✗) +(\d) (\S+)(?: {2,}(.*))?$")
+AFTER = re.compile(r"^(.*) (\d+ s(?:, .*)?|stopped after \d+ s|could not start)$")
+RESULT = re.compile(r"^(\d+ s(?:, .*)?|stopped after \d+ s|could not start)$")  # the words alone (sc8 F2)
+
+
+def ended(text):
+    """(mark, command, after) of each command that ended (row sc8 R7), below the question where
+    one shows; a command too long for its row stands whole on the next line, its result words on
+    the row's line where the two do not fit there together, else on a third (review 1 F2)."""
+    lines = [re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", l).replace("\r", "") for l in text.splitlines()]
+    asked = [i for i, l in enumerate(lines) if " now?" in l]
+    got = []
+    for i, line in enumerate(lines):
+        m = ENDED.match(line) if not asked or i > asked[-1] else None
+        if m:
+            rest = m.group(4)
+            if rest and not RESULT.match(rest):
+                command, after = AFTER.match(rest).groups()
+            elif rest:
+                command, after = lines[i + 1].strip(), rest
+            elif AFTER.match(lines[i + 1].strip()):
+                command, after = AFTER.match(lines[i + 1].strip()).groups()
+            else:
+                command, after = lines[i + 1].strip(), lines[i + 2].strip()
+            got.append((m.group(1), command, after))
+    return got
 # the plan tests' stub, after two lines: record the call, and fail beta's install on the flag
 RECORD = """#!/usr/bin/python3
 import os as _o, sys as _s
@@ -160,17 +194,19 @@ class SetupHome(Home):
     def assert_line_one(self, code, out, err):
         self.assertEqual(code, 0, out + err)
         self.assertEqual(self.recorded(), FIRST)
-        ran = self.lines(out, "ran: ")
-        self.assertEqual(len(ran), 5, out)
-        for got, want in zip(ran, FIRST):
+        ran = ended(err)  # each command that ended is one row, its mark ok (row sc8 R7)
+        self.assertEqual(len(ran), 5, err)
+        for (_, got, _), want in zip(ran, FIRST):
             self.assertTrue(got.startswith("claude " + want), got)
-        for got, name in zip(ran[3:], ("alpha", "beta")):
+        for (_, got, _), name in zip(ran[3:], ("alpha", "beta")):
             self.assertIn("agentik-%s install-cli" % name, got)
-        self.assertTrue(all(l.endswith("exit 0") for l in ran), ran)
-        wrote = self.lines(out, "wrote: ")
+        self.assertTrue(all(m == "ok" and re.fullmatch(r"\d+ s", a) for m, _, a in ran), ran)
+        wrote = self.journal()[-1]["wrote"]  # the paths are the log's, the screen their count (row sc8 R2)
         for path in ("~/.local/bin/agentik-alpha", "~/.local/bin/agentik-beta", "~/.local/bin/agentik",
                      "~/.local/state/agentik-suite/setup.jsonl"):
-            self.assertIn(path, wrote)
+            self.assertIn(os.path.join(self.home, path[2:]), wrote)
+        # the row counts what the commands wrote, the log itself left out (sc8 review 1 L2)
+        self.assertIn("\n  wrote  %d files, each named in the log\n" % (len(wrote) - 1), out)
         self.assertEqual(len(self.journal()), 1)
         steps = self.plan("alpha", "beta")["steps"]
         self.assertEqual({s["state"] for s in steps if 2 <= s["n"] <= 5}, {"ok"}, steps)
@@ -180,8 +216,10 @@ class ApplyTest(SetupHome):
     def test_l1_l2_it_runs_each_row_then_has_nothing_to_do(self):
         code, out, err = self.run_cli("setup", "--yes", "alpha", "beta")
         self.assert_line_one(code, out, err)
-        self.assertEqual(err.count("running "), 5, err)
-        self.assertEqual(err.splitlines()[-1], PATH_CLOSE)  # the door stands off PATH (row ic1-close R2)
+        self.assertEqual(len(err.splitlines()), 5 + 1, err)  # a command, one line; then the close (row sc8 R7)
+        # the door stands off PATH: its line is the report's last row, the close next: claude (row sc8 R2, R3)
+        self.assertEqual(err.splitlines()[-1], "next: claude")
+        self.assertEqual(out.splitlines()[-1].strip(), PROFILE)
         entry = self.journal()[0]
         self.assertEqual(set(entry), {"at", "verb", "version", "plugins", "ran", "wrote", "exit"})  # ak4a R7
         self.assertEqual(entry["verb"], "setup")
@@ -195,8 +233,8 @@ class ApplyTest(SetupHome):
         before = self.snapshot()
         code, out, err = self.run_cli("setup", "--yes", "alpha", "beta")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("nothing to do", out.splitlines()[0])
-        self.assertNotIn("ran: ", out)
+        self.assertTrue(out.splitlines()[0].startswith("Nothing to do"), out)
+        self.assertEqual(ended(err), [])
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(self.recorded(), FIRST)
         self.assertEqual(len(self.journal()), 1)
@@ -205,7 +243,7 @@ class ApplyTest(SetupHome):
         before = self.snapshot()
         code, out, err = self.run_cli("setup", "alpha", "beta")
         self.assertEqual(code, 2, out + err)
-        self.assertIn("run: claude " + MARKET, out)
+        self.assertIn("Would run, in this order:\n    2 marketplace  claude %s\n" % MARKET, out)  # row sc8 R1
         self.assertIn("--yes", err)
         self.assertEqual(self.recorded(), [])
         self.assertEqual(self.snapshot(), before)
@@ -221,7 +259,7 @@ class ApplyTest(SetupHome):
         self.assertEqual(code, 0, text)
         self.assertEqual(text.count("commands now?"), 1, text)
         self.assertEqual(self.recorded(), FIRST)
-        self.assertEqual(text.count("ran: "), 5, text)
+        self.assertEqual(len(ended(text)), 5, text)
         self.assertEqual(len(self.journal()), 1)
 
     def test_l5_a_failed_step_stops_the_run(self):
@@ -231,11 +269,11 @@ class ApplyTest(SetupHome):
         self.assertEqual(self.recorded(), FIRST)
         got = {(s["n"], s["subject"]): s["state"] for s in self.plan("alpha", "beta")["steps"]}
         self.assertEqual(got[(3, "alpha@agentik")], "ok")
-        self.assertIn("ran: claude plugin install beta@agentik, exit 1", out)
-        self.assertIn("claude plugin install beta@agentik", err)
-        self.assertIn("exited 1", err)
-        self.assertIn(LAST_LINE, err)
-        self.assertEqual([l for l in self.lines(out, "ran: ") if "install-cli" in l], [])
+        # its row marked FAIL, its last lines under it, no code on screen (row sc8 R6, R8)
+        self.assertIn(("FAIL", "claude plugin install beta@agentik"), [r[:2] for r in ended(err)])
+        self.assertTrue([r for r in ended(err) if r[1].endswith("beta@agentik") and r[2].endswith(", failed")], err)
+        self.assertIn("\n" + " " * apply.LEAD + LAST_LINE + "\n", err)
+        self.assertEqual([r for r in ended(err) if "install-cli" in r[1]], [])
         self.assertFalse(os.path.exists(os.path.join(self.bindir, "agentik-beta")))
         self.assertEqual([e["exit"] for e in self.journal()], [1])
         os.remove(self.flag)
@@ -246,7 +284,7 @@ class ApplyTest(SetupHome):
         before = self.snapshot()
         code, out, err = self.run_cli("setup", "--yes", "alpha", "beta")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("nothing to do", out)
+        self.assertTrue(out.startswith("Nothing to do"), out)
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(len(self.journal()), 2)
 
@@ -257,7 +295,7 @@ class ApplyTest(SetupHome):
         self.assertEqual(code, 2, out + err)
         self.assertIn("get it: https://claude.com/claude-code", out)  # row ic1-close R3
         self.assertEqual(err.splitlines()[-1], "next: %s setup alpha" % LAUNCHER)
-        self.assertNotIn("ran: ", out)
+        self.assertEqual(ended(err), [])
         self.assertEqual(self.snapshot(), before)
 
     def test_l7_the_gate_list_names_the_settings_file(self):
@@ -267,15 +305,16 @@ class ApplyTest(SetupHome):
             code, out, err = self.run_cli("setup", "--yes", "alpha")
             self.assertEqual(code, 2, (line, out, err))
             self.assertIn("~/.claude/settings.json", err)
-            self.assertIn("terminal", err)
-            self.assertEqual(len(err.strip().splitlines()), 1, err)
+            # the cause, then next: setup with no --yes, where a terminal asks (row sc8 R5, R8)
+            self.assertEqual(len(err.strip().splitlines()), 2, err)
+            self.assertEqual(err.splitlines()[-1], "next: %s setup" % LAUNCHER)
             self.assertEqual(self.recorded(), [])
             self.assertEqual(self.snapshot(), before)
         # with steps 2 and 3 already ok, only a launcher to place: it runs
         self.installed("alpha")
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("agentik-alpha install-cli", self.lines(out, "ran: ")[0])
+        self.assertIn("agentik-alpha install-cli", ended(err)[0][1])
         self.assertEqual(self.recorded(), [])
 
     def test_l7_on_a_pty_the_gated_run_asks_and_runs(self):
@@ -323,7 +362,9 @@ class ApplyTest(SetupHome):
         before = self.snapshot()
         code, out, err = self.run_cli("setup", "--yes", "alpha", "beta")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(out.splitlines()[-1].strip(), "add to your shell profile: " + PROFILE)
+        # the PATH rows close the report: where the line goes, then the line (row sc8 R2)
+        self.assertEqual(out.splitlines()[-1].strip(), PROFILE)
+        self.assertRegex(out.splitlines()[-2], r"^  PATH   not needed by Claude Code; to type agentik, add to ~/\.\w+")
         h = self.home
         places = [os.path.join(h, ".claude.json"), os.path.join(h, ".claude", "settings.json"),
                   os.path.join(h, ".claude", "plugins", "known_marketplaces.json"),
@@ -374,9 +415,11 @@ class FixOneTest(SetupHome):
         self.assertFalse(alive(child), "the command still runs")
         self.assertEqual(p.returncode, 130, out + err)
         self.assertNotIn("Traceback", err)
-        last = err.strip().splitlines()[-1]
-        self.assertIn("interrupted", last)
-        self.assertIn("claude " + MARKET, last)
+        # two closing lines, the row of the command it stopped above them (row sc8 R6)
+        self.assertEqual(err.strip().splitlines()[-2:], ["FAIL  setup stopped at step 2: interrupted",
+                                                         "next: %s setup" % LAUNCHER])
+        self.assertIn(("FAIL", "claude " + MARKET), [r[:2] for r in ended(err)])
+        self.assertTrue([r for r in ended(err) if r[1] == "claude " + MARKET and r[2].endswith(", stopped")], err)
         entry = self.journal()
         self.assertEqual(len(entry), 1)
         self.assertEqual(entry[0]["exit"], 130)
@@ -438,7 +481,8 @@ class FixOneTest(SetupHome):
         for _ in range(2):  # unreadable, then a folder at the list's path
             code, out, err = self.run_cli("setup", "--yes", "alpha")
             self.assertEqual(code, 2, out + err)
-            self.assertEqual(len(err.strip().splitlines()), 1, err)
+            self.assertEqual(len(err.strip().splitlines()), 2, err)  # the cause, then next: (row sc8 R8)
+            self.assertTrue(err.strip().splitlines()[-1].startswith("next: "), err)
             self.assertIn(shown, err)
             self.assertEqual(self.recorded(), [])
             if os.path.isfile(listing):
@@ -483,8 +527,10 @@ class InProcessTest(SetupHome):
                          % (self.ran, self.marker))
         code, out, err = self.run_in_process("%s install-cli" % shlex.quote(stub), "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(self.lines(out, "ran: "), ["%s install-cli, exit 0" % stub])
-        self.assertNotIn("doctor", out)
+        self.assertEqual([r[:2] for r in ended(err)], [("ok", "%s install-cli" % stub)])
+        # doctor is never run: the plan names it under Yours, after:, the report its check row (row sc8 R1, R2)
+        self.assertFalse([r for r in ended(err) if "doctor" in r[1]], err)
+        self.assertEqual([l.split()[0] for l in out.splitlines() if "doctor" in l], ["7", "check"], out)
         with open(self.ran) as fh:
             self.assertEqual(fh.read(), "install-cli\n")
 
@@ -525,7 +571,8 @@ class InProcessTest(SetupHome):
             with mock.patch.object(apply, "WALL", 1):
                 code, out, err = self.run_in_process(shlex.quote(stub), "alpha")
             self.assertEqual(code, 1, out + err)
-            self.assertIn("wall", err)
+            self.assertIn("stopped after 1 s", err)  # the limit, as the row and the close say it (row sc8 R6, V6)
+            self.assertIn("ran past 1 s", err.splitlines()[-2])
             self.assertIn(said, err)
 
     def test_a_file_that_cannot_start_is_a_failed_step(self):

@@ -31,7 +31,8 @@ SUITE = "agentik-suite"
 PAGE_LINE = "its page has the line: %s" % PAGE
 LAUNCHER_PAGE = "not placed, and not setup's to place: murmur installs its own command"
 DOCTOR_PAGE = "not checked: its command is not installed yet"
-CLOSE = "next: step 4 names the page with the install line for murmur. Setup has done the rest."
+CLOSE = "next: claude"  # setup's close once nothing is left to run (row sc8 R3)
+NOTE = "note  murmur installs its own command: its page has the line"  # the page's note above it (R8)
 # the pin's words for a tool with no page, measured at 82d634b with the relay in its place
 PIN = {"h0": ("setup.launcher.wait", "setup.doctor.wait"),
        "hL": ("setup.launcher.none", "setup.doctor.nocmd"),
@@ -139,7 +140,9 @@ class PageTest(Base):
         self.assertEqual((seven["state"], seven["command"], seven["line"]), ("todo", "%s doctor" % where, "later"))
         self.assertFalse([s for s in steps if s["command"] and "install-cli" in s["command"] and T in s["command"]])
         out, _ = self.screen(h)
-        self.assertIn("yours to run later: %s doctor" % where, out)
+        # step 7's line is --json's; the plan's Yours, after: holds the suite's doctor (row sc8 R1)
+        self.assertRegex(out, r"(?m)^Yours, after:\n(.*\n)?    7 doctor  ")
+        self.assertNotIn("agentik-murmur install-cli", out)
         self.assertNotIn(PAGE, out)
 
     def test_4_the_close_names_the_page_once_nothing_is_left_to_run(self):
@@ -150,11 +153,11 @@ class PageTest(Base):
         steps = self.plan(h)
         self.assertEqual({s["state"] for s in steps if s["n"] not in (4, 7)}, {"ok"})
         _, err = self.screen(h)
-        self.assertEqual(err.splitlines()[-1], CLOSE)
+        self.assertEqual(err.splitlines()[-2:], [NOTE, CLOSE])
         # before the PATH line's close: the add line stays under its own row
         out, err = self.screen(h, path=os.pathsep.join(["/usr/bin", "/bin", h.stubs]))
-        self.assertEqual(err.splitlines()[-1], CLOSE)
-        self.assertIn("add to your shell profile:", out)
+        self.assertEqual(err.splitlines()[-2:], [NOTE, CLOSE])
+        self.assertIn("    6 PATH         a line for your shell profile; it prints at the end\n", out)  # row sc8 R1
 
     def test_4_the_close_joins_each_page_tool_in_the_plans_order(self):
         steps = [plan._step(4, "launcher", "todo", "~/.local/bin/agentik-" + n, "setup.launcher.page",
@@ -169,7 +172,7 @@ class PageTest(Base):
         h = self.home("hL")
         code, out, err = self.cli(h, "setup", "--yes", T)
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(err.splitlines()[-1], CLOSE)
+        self.assertEqual(err.splitlines()[-2:], [NOTE, CLOSE])
         self.assertFalse(os.path.lexists(os.path.join(self.bindir(h), "agentik-" + T)))
         self.assertFalse([line for line in h.ran() if T in line], h.ran())
         self.assertFalse([line for line in err.splitlines() if line.startswith("running") and T in line])
@@ -203,10 +206,12 @@ class PageTest(Base):
             out, err = self.screen(h, P)
             self.assertNotIn("page", out + err)
             if name != "h0":
-                self.assertIn("ok    ~/.local/bin/agentik-plain  the plugin ships no command, so there is "
-                              "nothing to place", out)
-                self.assertIn("ok    agentik-plain               the plugin ships no command, so it has no "
-                              "doctor to run", out)
+                # an ok step is one line of names on the plan; a row's own words are --json's (row sc8 R1)
+                self.assertIn("  ok 4 commands     agentik-plain\n", out)
+                self.assertEqual(self.one(steps, 4, P)["detail"], "the plugin ships no command, so there is "
+                                 "nothing to place")
+                self.assertEqual(self.one(steps, 7, P)["detail"], "the plugin ships no command, so it has no "
+                                 "doctor to run")
 
     def test_9_each_line_to_paste_runs(self):
         homes = [self.home(n) for n in ("h0", "hL", "hM")]
@@ -217,14 +222,16 @@ class PageTest(Base):
         for h in homes:
             out, err = self.screen(h)
             lines = [re.sub(r"^\s*", "", line) for line in (out + err).splitlines()]
-            pasted = [line.split(": ", 1)[1] for line in lines if line.startswith(("next: ", "yours to run later: "))
-                      and line != CLOSE]
-            left_out += [line for line in lines if line == CLOSE]
+            # the `next:` commands and step 7's under Yours, after: (row sc8 R1); next: claude starts
+            # Claude Code, and the page's note is no command: both left out
+            pasted = [line.split(": ", 1)[1] for line in lines if line.startswith("next: ") and line != CLOSE]
+            pasted += [m.group(1) for m in map(re.compile(r"^7 doctor +(.*)$").match, lines) if m]
+            left_out += [line for line in lines if line == NOTE]
             for line in pasted:
                 p = subprocess.run(["/bin/sh", "-c", line], capture_output=True, text=True, env=self.env(h),
                                    cwd=h.home, stdin=subprocess.DEVNULL, timeout=120)
                 self.assertNotEqual(p.returncode, 127, (line, p.stderr))
-        self.assertEqual(left_out, [CLOSE])  # hint.setup.page is no command: the settled home's, left out
+        self.assertEqual(left_out, [NOTE])  # hint.setup.page is no command: the settled home's, left out
 
     def test_10_the_page_stands_whole_at_60_columns(self):
         h = self.home("hL")
@@ -248,8 +255,8 @@ class PageTest(Base):
             self.settle(h)
             code, out, err = self.cli(h, *args)
             self.assertEqual(code, 0, out + err)
-            self.assertIn("Setup has nothing to do", out + err)
-            self.assertEqual(err.splitlines()[-1], CLOSE)
+            self.assertTrue(out.startswith("Nothing to do: "), out + err)  # row sc8 R8
+            self.assertEqual(err.splitlines()[-2:], [NOTE, CLOSE])
             self.assert_page_row(out)
             self.assertFalse(h.ran(), args)
 
@@ -257,9 +264,11 @@ class PageTest(Base):
         h = self.home("hL")
         code, out, err = self.cli(h, "setup", "--yes", T)
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(err.splitlines()[-1], CLOSE)
-        self.assertIn("The plan, read again after the run:", out)
-        self.assert_page_row(out.split("The plan, read again after the run:", 1)[1])
+        self.assertEqual(err.splitlines()[-2:], [NOTE, CLOSE])
+        # the report reads no plan again (row sc8 R2): the plan's step 4 row holds the page, the
+        # close's note points to it
+        self.assertIn("Steps 2 to 5 are done", out)
+        self.assert_page_row(out.split("Steps 2 to 5 are done", 1)[0])
 
     def off(self, h):
         """The terminal's PATH without ~/.local/bin."""
@@ -281,17 +290,23 @@ class PageTest(Base):
         self.assertFalse([s for s in steps if s["command"] and "install-cli" in s["command"] and T in s["command"]])
         out, err = self.screen(h, path=self.off(h))
         self.assertNotIn(PAGE, out + err)
-        self.assertIn("yours to run later: %s doctor" % where, out)
-        self.assertIn("add to your shell profile:", out)
+        # step 7's line is --json's; the plan's Yours, after: holds the suite's doctor (row sc8 R1)
+        self.assertRegex(out, r"(?m)^Yours, after:\n(.*\n)?    7 doctor  ")
+        self.assertNotIn("agentik-murmur install-cli", out)
+        self.assertIn("    6 PATH         a line for your shell profile; it prints at the end\n", out)  # row sc8 R1
         path_close = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
-        self.assertEqual(err.splitlines()[-1], path_close)
+        # a dry run that runs nothing closes as the second run: the PATH rows, then next: claude
+        # (row sc8 R3, as ruled for its build 3)
+        self.assertIn("\n         " + path_close[6:] + "\n", out)
+        self.assertEqual(err.splitlines()[-1], CLOSE)
         with open(where) as fh:
             body = fh.read()
         code, out, err = self.cli(h, "setup", "--yes", T, path=self.off(h))
         self.assertEqual(code, 0, out + err)
         self.assertNotIn(PAGE, out + err)  # the report's add line and the pin's close, no page's
-        self.assertIn("add to your shell profile:", out + err)
-        self.assertEqual(err.splitlines()[-1], path_close)  # the door stands off PATH (row ic1-close R2)
+        self.assertIn("\n  PATH   not needed by Claude Code; to type agentik, add to ~/", out)  # row sc8 R2
+        self.assertIn("\n         " + path_close[6:] + "\n", out)
+        self.assertEqual(err.splitlines()[-1], CLOSE)  # the door off PATH: its line is the report's (row sc8 R3)
         with open(where) as fh:
             self.assertEqual(fh.read(), body)  # setup writes nothing at W
         self.assertFalse([line for line in h.ran() if T in line], h.ran())

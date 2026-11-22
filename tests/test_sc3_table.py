@@ -263,14 +263,34 @@ class ScreenTest(unittest.TestCase):
             self.assertNotIn(ESC.encode(), seen[0][1] + seen[0][2], args)
 
     def test_f1_setups_subjects_stay_on_their_rows_first_line(self):
-        blank = re.compile("^ +([0-9]+ +)?[%s] {4,}[^ ]" % "".join(term.GLYPH.values()))
+        # row sc8 R1: a step's row is its mark, its number and its name, then its subject; a plan
+        # that runs commands puts them under `Would run`, so the placed paths stand as subjects
+        # where the plan holds rows, as when step 1 is blocked
+        glyphs = "".join(term.GLYPH.values())
+        marked = re.compile("^ +[%s] [0-9]+ [^ ]+( +[^ ].*)?$" % glyphs)
+        def screen(env, cols):
+            text = plain(pty_run(LAUNCHER, ["setup", "--dry-run"], env, cols))
+            return text.replace("\r\n", "\n").split("\n")
+        blocked = dict(self.env)
+        os.remove(os.path.join(self.home, "stubs", "claude"))
         for cols in (80, 60):
-            lines = plain(pty_run(LAUNCHER, ["setup", "--dry-run"], self.env, cols)).replace("\r\n", "\n").split("\n")
-            self.assertEqual([l for l in lines if blank.match(l)], [], cols)  # a mark, then only a detail
+            lines = screen(blocked, cols)
+            rows = [l for l in lines if marked.match(l)]
+            self.assertTrue(rows, cols)
+            self.assertEqual([l for l in rows if marked.match(l).group(1) is None], [], cols)  # a mark, no subject
             subjects = [l for l in lines if "~/.local/bin/agentik-" in l]
             self.assertTrue(subjects, cols)
             for line in subjects:
-                self.assertRegex(line, "[%s]  ~/[.]local/bin/agentik-" % "".join(term.GLYPH.values()), cols)
+                self.assertRegex(line, "[%s] 5 agentik +~/[.]local/bin/agentik" % glyphs, cols)
+        stub_home(self.home)  # claude back: the plan runs, each command whole on its row or alone under it
+        for cols in (80, 60):
+            lines = screen(self.env, cols)
+            self.assertTrue([l for l in lines if re.match("^ +[%s] 1 needs +claude" % glyphs, l)], (cols, lines))
+            row = [i for i, l in enumerate(lines) if re.match("^ +5 agentik", l)]
+            self.assertEqual(len(row), 1, (cols, lines))
+            ran = [l for l in lines[row[0]:row[0] + 2] if l.endswith("/bin/agentik-suite install-cli")]
+            self.assertEqual(len(ran), 1, (cols, lines))
+            self.assertRegex(ran[0].strip().split()[-2], "^/.*/bin/agentik-suite$", cols)
 
     def test_a8_on_a_pty_no_table_line_passes_the_width(self):
         for cols in (60, 80):

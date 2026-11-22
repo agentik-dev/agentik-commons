@@ -233,9 +233,10 @@ class Close(tu.Base):
         self.assertEqual(p.returncode, 2, (line, p.stdout, p.stderr))  # it runs, and is blocked again
         for word in REFUSED:
             self.assertNotIn(word, p.stdout + p.stderr, line)
-        # setup's own close is setup's, as it was
-        self.assertEqual(catalogue.load()["hint.setup.blocked"],
-                         "next: install {missing}, then {setup} --dry-run again.")
+        # setup's own close is setup's: its blocked close as row sc8's R8 words it, and update's
+        # screens hold none of it
+        self.assertEqual(catalogue.load()["err.setup.blocked"], "nothing ran: step 1 needs {missing}")
+        self.assertNotIn("nothing ran", err + p.stdout + p.stderr)
 
     def test_9_an_interrupt_while_placing_keeps_what_was_placed_and_its_cause(self):
         h = self.home(("murmur", "paint", "quill"))

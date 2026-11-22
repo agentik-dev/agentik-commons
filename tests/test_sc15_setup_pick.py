@@ -25,8 +25,9 @@ import test_sm1_setup_ask as sm1  # noqa: E402  (a module: its tests are not run
 from agentik_suite import catalogue, plan, term, tools  # noqa: E402
 
 ESC, UP, DOWN, ENTER = b"\x1b", b"\x1b[A", b"\x1b[B", b"\r"
-DECLINED = "since the answer was not yes"
-NEEDS_YES = "since it cannot ask you here"
+DECLINED = re.compile(r"(?m)^(·|note)  nothing ran(: interrupted)?$")  # a no's note (row sc8 R5)
+NEEDS_YES = "nothing ran: there is no terminal to ask on"  # row sc8 R5
+CLOSED = re.compile(r"(?m)^(✗|FAIL)  nothing ran: the list was closed$")  # a closed list's refusal
 TYPED_MANY = "Run these 5 commands now? y for yes, n or Enter for no."  # the pin's bytes, 205dbce
 TYPED_ONE = "Run this 1 command now? y for yes, n or Enter for no."
 # the copy's default set, then the rest of its public.json, by name: the list's order (R5)
@@ -173,7 +174,7 @@ class Selector(Base):
             self.assertIn(line, CSI.sub("", text).replace("\r", ""), text)
         self.assertIn("Run these 5 commands now?  Don't run anything", CSI.sub("", text))
         self.assertEqual((code, self.recorded()), (2, []), text)
-        self.assertIn(DECLINED, text)
+        self.assertRegex("\n".join(screen(CSI.sub("", text))), DECLINED)
         self.assertEqual(tree(self.home), before)
 
     def test_a2_y_and_the_up_arrow_run_the_count_asked(self):
@@ -194,7 +195,7 @@ class Selector(Base):
         for keys in ([b"n", ENTER], [ESC], [b"\x04"], [b"\x03"]):
             code, text, before, after = self.drive(["setup", "alpha", "beta"], keys, wait_for=b"Esc cancel")
             self.assertEqual((code, self.recorded()), (2, []), (keys, text))
-            self.assertIn(DECLINED, text)
+            self.assertRegex("\n".join(screen(CSI.sub("", text))), DECLINED)
             self.assertEqual(before, after, keys)
 
 
@@ -281,7 +282,9 @@ class Other(Base):
         at = [i for i, l in enumerate(lines) if l.startswith("other plugins: ")]
         self.assertEqual(len(at), 1, text)
         self.assertTrue(lines[at[0]].endswith("setup --pick"), lines[at[0]])
-        self.assertIn(DECLINED, lines[at[0] + 1])
+        # design/23 §5: the no's note, then other plugins:, then next: setup
+        self.assertRegex(lines[at[0] - 1], DECLINED)
+        self.assertTrue(lines[at[0] + 1].startswith("next: ") and lines[at[0] + 1].endswith(" setup"), text)
         self.assertFalse(lines[at[0]].startswith("next:"))
         code, text, _, _ = self.drive(["setup", "alpha"], [ENTER], wait_for=b"Esc cancel")
         self.assertNotIn("other plugins:", text)
@@ -385,7 +388,7 @@ class Pick(Base):
         finally:
             c.close()
         self.assertEqual((code, self.recorded()), (2, []), text)
-        self.assertIn(DECLINED, text)
+        self.assertRegex("\n".join(screen(text)), CLOSED)
         self.assertIn("Which plugins does setup install?", text)
         rows = [l for l in screen(text) if "[x]" in l or "[ ]" in l]
         self.assertEqual([r.split("]", 1)[1].split()[0] for r in rows[:8]],

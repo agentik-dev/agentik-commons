@@ -249,8 +249,44 @@ Each item below is one message the command prints, by its id; the writer in `ter
 
 ## Setup
 
-- `setup.title`: Setup plan for `{plugins}`. Nothing is written.
-- `setup.title.none`: Setup plan for no plugin, since the manifest lists none. Nothing is written.
+- `setup.title`: Setup for `{plugins}`. Nothing has run yet.
+- `setup.title.none`: Setup for no plugin: the manifest lists none. Nothing has run yet.
+- `setup.title.dry`: Setup for `{plugins}` (dry run)
+- `setup.title.none.dry`: Setup for no plugin: the manifest lists none (dry run)
+- `setup.would`: Would run, in this order:
+- `setup.yours`: Yours, after:
+- `setup.step.1`: needs
+- `setup.step.2`: marketplace
+- `setup.step.3`: plugins
+- `setup.step.4`: commands
+- `setup.step.5`: agentik
+- `setup.step.6`: PATH
+- `setup.step.7`: doctor
+- `setup.waiting`: `{count}` more: each plugin's own install-cli, once step 3 is done
+- `setup.waiting.one`: 1 more: its plugin's own install-cli, once step 3 is done
+- `setup.yours.path`: a line for your shell profile; it prints at the end
+- `setup.took`: `{seconds}` s
+- `setup.failed`: `{seconds}` s, failed
+- `setup.failed.silent`: `{seconds}` s, failed, and printed nothing
+- `setup.failed.wall`: stopped after `{wall}` s
+- `setup.failed.start`: could not start
+- `setup.stopped`: `{seconds}` s, stopped
+- `setup.done`: Steps 2 to 5 are done: `{count}` commands in `{seconds}` s.
+- `setup.done.one`: Steps 2 to 5 are done: 1 command in `{seconds}` s.
+- `setup.nothing.left`: Nothing to do: no step from 2 to 5 holds a command setup runs.
+- `setup.declined`: nothing ran
+- `setup.declined.interrupted`: nothing ran: interrupted
+- `setup.tail.wrote`: wrote
+- `setup.tail.log`: log
+- `setup.tail.check`: check
+- `setup.tail.undo`: undo
+- `setup.tail.path`: PATH
+- `setup.wrote.count`: `{count}` files, each named in the log
+- `setup.wrote.one`: 1 file, named in the log
+- `setup.wrote.here`: `{count}` files:
+- `setup.wrote.here.one`: 1 file:
+- `setup.path.row`: not needed by Claude Code; to type agentik, add to `{profile}`:
+- `err.setup.step.one`: setup stopped at step `{n}`; step 1 stands
 - `setup.run`: would run: `{command}`
 - `setup.later`: yours to run later: `{command}`
 - `setup.add`: add to your shell profile: `{command}`
@@ -310,13 +346,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.page`: not checked: its command is not installed yet
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
-- `hint.setup.blocked`: next: install `{missing}`, then `{setup}` --dry-run again.
 - `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
 - `setup.path.why`: The line below mends this terminal; the line marked add mends each new one.
 - `hint.setup.path`: next: `{command}`
-- `hint.setup.rest`: next: setup has done what this version can. Step 7's lines check each plugin.
-- `hint.setup.done`: next: setup has nothing left to do, since steps 1 to 6 read ok. Step 7's lines check each plugin.
-- `hint.setup.page`: next: step 4 names the page with the install line for `{names}`. Setup has done the rest.
+- `hint.setup.rest`: next: claude
+- `hint.setup.done`: next: claude
+- `hint.setup.page`: `{names}` installs its own command: its page has the line
 - `setup.ask`: Run these `{count}` commands now? y for yes, n or Enter for no.
 - `setup.ask.one`: Run this `{count}` command now? y for yes, n or Enter for no.
 - `setup.confirm`: Run these `{count}` commands now?
@@ -330,30 +365,24 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.pick.other`: other
 - `setup.pick.other.note`: a plugin's name, typed
 - `setup.running`: running `{command}`
-- `setup.after`: The plan, read again after the run:
-- `setup.ran`: ran: `{command}`, exit `{exit}`
-- `setup.ran.wall`: ran: `{command}`, stopped at its `{wall}` s wall
-- `setup.ran.start`: ran: `{command}`, which could not start
-- `setup.wrote`: wrote: `{path}`
-- `setup.nothing`: Setup has nothing to do: no step from 2 to 5 has a line to run.
-- `hint.setup.doctor`: next: `{doctor}`
-- `err.setup.yes`: Setup ran nothing, since it cannot ask you here. Run `{setup}` --yes to run the lines above.
-- `err.setup.declined`: Setup ran nothing, since the answer was not yes. Run `{setup}` again when you are ready.
-- `err.setup.gated`: Setup ran nothing: your gate list names `{path}`, which these steps write. Run `{setup}` from a terminal to approve it.
-- `err.setup.blocked`: Setup ran nothing, since step 1 needs `{missing}`. Install it, then run `{setup}` again.
+- `setup.nothing`: Nothing to do: steps 1 to 5 are done.
+- `err.setup.yes`: nothing ran: there is no terminal to ask on
+- `err.setup.gated`: nothing ran: your gate list names `{path}`, which these steps write
+- `err.setup.blocked`: nothing ran: step 1 needs `{missing}`
 - `err.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
-- `err.setup.step`: Setup stopped: `{command}` exited `{exit}` and said `{last}`. Mend that, then run `{setup}` again.
-- `err.setup.step.silent`: Setup stopped: `{command}` exited `{exit}` with no output. Mend that, then run `{setup}` again.
-- `err.setup.wall`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed. Its last line: `{last}`. Run `{setup}` again to retry it.
-- `err.setup.wall.silent`: Setup stopped: `{command}` ran past its `{wall}` s wall and was killed, with no output. Run `{setup}` again to retry it.
-- `err.setup.start`: Setup stopped: `{command}` could not start, since `{last}`. Mend that, then run `{setup}` again.
-- `err.setup.todo`: Setup stopped: `{command}` exited 0, but step `{n}` still reads todo. Run `{setup}` --dry-run to see why.
-- `err.setup.journal`: Setup could not add its line to the journal at `{path}`, since `{why}`. The report above still holds.
-- `setup.ran.stopped`: ran: `{command}`, stopped when setup was interrupted
+- `err.setup.step`: setup stopped at step `{n}`; steps `{done}` stand
+- `err.setup.step.silent`: setup stopped at step `{n}`; steps `{done}` stand
+- `err.setup.wall`: setup stopped at step `{n}`: its command ran past `{wall}` s
+- `err.setup.wall.silent`: setup stopped at step `{n}`: its command ran past `{wall}` s
+- `err.setup.start`: setup stopped at step `{n}`: its command could not start
+- `err.setup.todo`: setup stopped: step `{n}` ran and is still not done
+- `err.setup.journal`: the log at `{path}` did not take this run's line: `{why}`
+- `err.setup.last`: `{message}`; its last line: `{last}`
 - `setup.gate.notfile`: it is not a file
-- `err.setup.interrupted`: Setup was interrupted, so it stopped `{command}`. Run `{setup}` again to go on.
-- `err.setup.interrupted.idle`: Setup was interrupted between steps, with no command running. Run `{setup}` again to go on.
-- `err.setup.gate_unread`: Setup ran nothing: your gate list `{path}` cannot be read, since `{why}`. Mend it, or run `{setup}` from a terminal.
+- `err.setup.interrupted`: setup stopped at step `{n}`: interrupted
+- `err.setup.interrupted.idle`: setup stopped between steps: interrupted
+- `err.setup.declined`: nothing ran: the list was closed
+- `err.setup.gate_unread`: nothing ran: your gate list `{path}` cannot be read: `{why}`
 
 ## Update
 

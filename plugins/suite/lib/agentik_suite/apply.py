@@ -21,6 +21,7 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
 
 import agentik_install
 
@@ -65,6 +66,13 @@ def path_close(t, command):
     t.flush()  # the plan's add line above it, where both streams share one pipe
     t.line("setup.path.why", err=True)
     t.hint("hint.setup.path", command=command)
+
+
+def path_rows(cmd, command):
+    """The report's two PATH rows (row sc8 R2), as `_tail` takes them: the reason and the login
+    file, then the line itself. The dry run whose plan runs nothing closes on them too."""
+    return [("setup.tail.path", cmd.t.text("setup.path.row", profile=profile(cmd.env)), False),
+            (None, command, True)]
 
 
 def page_close(steps):
@@ -150,7 +158,7 @@ def execute(command, env):
         raise
     lines = [l.strip() for l in data.decode("utf-8", "replace").splitlines() if l.strip()]
     return {"exit": None if why else p.returncode, "last": lines[-1] if lines else "",
-            "why": why, "wall": wall}
+            "why": why, "wall": wall, "tail": lines[-TAIL:]}
 
 
 def gated(config, home, t, target=None):
@@ -250,6 +258,207 @@ def show(cmd, steps, upto=7, lines=True):
     t.table(rows, mark_at=1)
 
 
+COVERED = ("setup.door.above", "setup.door.place", "setup.door.plugin")  # placed by another row's command
+LABEL = 11  # the widest step label, `marketplace`
+TAIL_LABEL = 5  # the widest of the report's labels
+LEAD = 6  # a command that does not fit its row stands at this column on the line under it
+TAIL = 5  # a failed command's own last lines shown under its row (row sc8 R6)
+
+
+def undo(cmd):
+    """The `undo` row's command, one row in the plan's `Yours, after:` and one in the report
+    (design/23 §5, D23-3): None while setup's screens name no `remove`; a later row turns it on."""
+    return None
+
+
+def profile(env):
+    """The login shell's own file, as a person reads it (row sc8 R2)."""
+    shell = os.path.basename(env.get("SHELL") or "")
+    if shell == "zsh":
+        return "~/.zshrc"
+    if shell == "bash":
+        return "~/.bash_profile" if sys.platform == "darwin" else "~/.bashrc"
+    return "~/.profile"
+
+
+def _say(stream, text, indent=0, first=""):
+    """`first`, then `text`: on a terminal wrapped at its width, each next line at `indent`; off
+    one a single line, so a pipe is searched by line."""
+    if not stream.tty:  # off a terminal one row is one line, as sc3's table (build 2's ruling)
+        stream.put((first + term.clean(text)).rstrip(" ") + "\n")
+        return
+    room = max(stream.width() - max(indent, term.columns(first)), 20)
+    lines = term._wrap(term.clean(text), room) if text else [""]
+    stream.put((first + lines[0]).rstrip(" ") + "\n")
+    for more in lines[1:]:
+        stream.put(" " * indent + more + "\n")
+
+
+def _rows(t, rows, err=False):
+    """Setup's rows (row sc8 R1, R6, R7): (status or None, step or "", label, text, whole).
+    The mark column is as wide as the widest mark shown; a `whole` text is a command, never
+    broken: on a terminal, where it does not fit after its head it stands on the next line at LEAD,
+    and other text wraps under its own column; off one a row is one line (sc3's table, R9).
+    An ended command's row carries a sixth item, its result words: they follow the command where
+    both fit, else they stand on the head's line and the command alone at LEAD (review 1 F2)."""
+    stream = t._stream(err)
+    width = max((term.columns(stream.mark(r[0])[0]) for r in rows if r[0]), default=1)
+    for status, n, label, text, whole, *after in rows:
+        shown, painted = stream.mark(status) if status else ("", "")
+        step = str(n) or " "
+        head = "  %s%s %s %s  " % (painted, " " * (width - term.columns(shown)), step,
+                                   term.clean(label).ljust(LABEL))
+        room = 2 + width + 1 + len(step) + 1 + LABEL + 2
+        text = term.clean(text)
+        after = term.clean(after[0]) if after and after[0] else ""
+        joined = text + " " + after if after else text
+        if not whole:
+            _say(stream, text, room, head)
+        elif not stream.tty or room + term.columns(joined) <= stream.width():
+            stream.put(head + joined + "\n")
+        elif after and LEAD + term.columns(joined) > stream.width():
+            beside = room + term.columns(after) <= stream.width()
+            stream.put((head + after if beside else head.rstrip(" ")) + "\n")
+            stream.put(" " * LEAD + text + "\n")
+            if not beside:  # a third line, where the head's line has no room for them either
+                stream.put(" " * LEAD + after + "\n")
+        else:
+            if n or label or status:
+                stream.put(head.rstrip(" ") + "\n")
+            stream.put(" " * LEAD + joined + "\n")
+
+
+def _summary(n, group):
+    """The one line of a step whose rows all read ok: the names it holds."""
+    if n == 6:
+        return group[0]["subject"]
+    names = []
+    for s in group:
+        subject = s["subject"]
+        if n in (4, 5) or subject.startswith(("~", "/")):
+            subject = os.path.basename(subject)
+        elif n == 3:
+            subject = subject.rpartition("@")[0] or subject
+        if s["id"] == "prereqs" and subject == "python3" and s["values"].get("version"):
+            subject += " " + str(s["values"]["version"])
+        names.append(subject)
+    return ", ".join(names)
+
+
+def plan_screen(cmd, steps, names, dry=False):
+    """The plan (row sc8 R1; design/23 §5): its title; one marked line a step whose rows all read
+    ok; each row that needs a word of its own, marked; `Would run, in this order:` over every
+    command a yes runs and no other, step 4's count of the commands step 3 brings; `Yours,
+    after:` over what setup never runs."""
+    t = cmd.t
+
+    def label(n):
+        return t.text("setup.step.%d" % n)
+
+    if names:
+        title = t.text("setup.title.dry" if dry else "setup.title", plugins=", ".join(names))
+    else:
+        title = t.text("setup.title.none.dry" if dry else "setup.title.none")
+    _say(t.out, title)
+    t.blank()
+    # a blocked step runs nothing on a yes: no `Would run` and no count of commands to come, and
+    # step 6's line prints here, since a blocked run never reaches the report (review 1 F1)
+    blocked = any(s["state"] == "blocked" for s in steps)
+    runs = [] if blocked else runnable(steps)
+    top, would, yours = [], [], []
+    for n in range(1, 7):
+        group = [s for s in steps if s["n"] == n]
+        if group and all(s["state"] == "ok" for s in group):
+            top.append(("ok", n, label(n), _summary(n, group), False))
+            continue
+        for s in group:
+            if s in runs or s["state"] == "ok" or s["mid"] in COVERED or s["mid"] == "setup.launcher.wait":
+                continue
+            if n == 6 and s["state"] == "todo" and s["line"] == "add":
+                if blocked and s["command"]:
+                    yours.append((None, 6, label(6), t.text("setup.path.row", profile=profile(cmd.env)), False))
+                    yours.append((None, "", "", s["command"], True))
+                else:
+                    yours.append((None, 6, label(6), t.text("setup.yours.path"), False))
+                continue
+            top.append((STATUS[s["state"]], n, label(n), "%s: %s" % (s["subject"], s["detail"]), False))
+            if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
+                top.append((None, "", "", t.text("setup.cmd.get"), True))  # where Claude Code comes from
+            if s["line"] == "page" and s.get("page"):
+                top.append((None, "", "", t.text("setup.page", command=s["page"]), True))  # whole, as a command
+    waiting = [] if blocked else [s for s in steps if s["n"] == 4 and s["state"] == "todo"
+                                  and not s["command"] and s["mid"] == "setup.launcher.wait"]
+    shown = set()
+    for n in (2, 3, 4, 5):
+        for s in [r for r in runs if r["n"] == n]:
+            would.append((None, "" if n in shown else n, "" if n in shown else label(n), s["command"], True))
+            shown.add(n)
+        if n == 4 and waiting:
+            text = t.text("setup.waiting.one") if len(waiting) == 1 else t.text("setup.waiting", count=len(waiting))
+            would.append((None, "" if 4 in shown else 4, "" if 4 in shown else label(4), text, False))
+    yours.append((None, 7, label(7), cmd.slots()["doctor"], True))
+    if undo(cmd):
+        yours.append((None, "", t.text("setup.tail.undo"), undo(cmd), True))
+    _rows(t, top)
+    if would:
+        t.line("setup.would")
+        _rows(t, would)
+    t.line("setup.yours")
+    _rows(t, yours)
+
+
+def _note(t, mid, **values):
+    """A note line on stderr: the note mark, then the text (row sc8 R5)."""
+    t.flush()
+    stream = t.err
+    stream.put(stream.mark("note")[1] + term.GAP + t.text(mid, **values) + "\n")
+
+
+def _tail(t, rows):
+    """The report's labelled rows (row sc8 R2): (label id or None, text, whole); a whole text that
+    does not fit stands under its label at LEAD."""
+    stream = t.out
+    room = 2 + TAIL_LABEL + 2
+    for mid, text, whole in rows:
+        head = "  " + t.text(mid).ljust(TAIL_LABEL) + "  " if mid else " " * room
+        text = term.clean(text)
+        if not whole:
+            _say(stream, text, room, head)
+        elif not stream.tty or room + term.columns(text) <= stream.width():
+            stream.put(head + text + "\n")
+        else:
+            if mid:
+                stream.put(head.rstrip(" ") + "\n")
+            stream.put(" " * LEAD + text + "\n")
+
+
+def _ended(cmd, row, result, seconds):
+    """A command that ended (row sc8 R7): one row, a second where it does not fit; a failed one's
+    last lines whole under it, five at most (R6)."""
+    t = cmd.t
+    why = result["why"]
+    failed = bool(why) or result["exit"] != 0
+    if t.quiet and not failed:
+        return
+    if why == "interrupted":
+        after = t.text("setup.stopped", seconds=seconds)
+    elif why == "wall":
+        after = t.text("setup.failed.wall", wall=result["wall"])
+    elif why == "start":
+        after = t.text("setup.failed.start")
+        result = dict(result, tail=[result["last"]] if result["last"] else [])
+    elif failed:
+        after = t.text("setup.failed" if result.get("tail") else "setup.failed.silent", seconds=seconds)
+    else:
+        after = t.text("setup.took", seconds=seconds)
+    t.out.flush()
+    _rows(t, [("fail" if failed else "ok", row["n"], t.text("setup.step.%d" % row["n"]),
+               row["command"], True, after)], err=True)
+    if failed and why != "interrupted":
+        for line in result.get("tail") or []:
+            t.err.put(" " * LEAD + term.clean(line) + "\n")
+
+
 def run(cmd, names):
     """setup without --dry-run. SIGINT and SIGTERM raise KeyboardInterrupt while it runs."""
     saved = {}
@@ -281,7 +490,7 @@ def _before(cmd, names, build, the_plan, home, config):
         return 2
     if blocked:
         if o["json"]:
-            raise cmd.Usage("blocked", "err.setup.blocked", cmd.say("setup", "--dry-run"),
+            raise cmd.Refusal("blocked", "err.setup.blocked", cmd.say("setup", "--dry-run"),
                             missing=", ".join(blocked), **cmd.slots())
         the_plan(steps)  # the close names the command typed, never a dry run (row ic1-close R3)
         t.hint("hint.setup.next", command=cmd.say("setup", *dict.fromkeys(cmd.words[1:])))
@@ -294,15 +503,15 @@ def _before(cmd, names, build, the_plan, home, config):
     if not terminal and any(s["n"] in (2, 3) and s["state"] == "todo" for s in steps):
         gate, why = gated(config, home, t)
         if why:
-            raise cmd.Usage("gate_unread", "err.setup.gate_unread", cmd.say("setup"),
+            raise cmd.Refusal("gate_unread", "err.setup.gate_unread", cmd.say("setup"),
                             path=plan.shown(gate, home), why=why, **cmd.slots())
         if gate:
-            raise cmd.Usage("gated", "err.setup.gated", cmd.say("setup"),
+            raise cmd.Refusal("gated", "err.setup.gated", cmd.say("setup"),
                             path=plan.shown(gate, home), **cmd.slots())
+    the_plan(steps)  # under --yes too: the run's first screen (row sc8 R1; design/23 §5's sum)
     if not o["yes"]:
-        the_plan(steps)
         if not (terminal and not o["json"]):
-            raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
+            raise cmd.Refusal("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
         count = planned(steps)
         one = count == 1
         t.flush()  # the plan whole above the question, where stdout is a pipe (row ic1-close R4)
@@ -311,17 +520,27 @@ def _before(cmd, names, build, the_plan, home, config):
                                "setup.confirm.yes.one" if one else "setup.confirm.yes",
                                "setup.confirm.no", "setup.ask.one" if one else "setup.ask", count=count)
         except pick.NoTerminal:
-            raise cmd.Usage("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
+            raise cmd.Refusal("needs_yes", "err.setup.yes", cmd.say("setup", "--yes"), **cmd.slots())
         except pick.Cancelled:
             yes = False
         except KeyboardInterrupt:  # a decline too, the terminal's ^C left on the line
-            yes = False
-            t.blank(err=True)
+            return declined(cmd, interrupted=True)
         if not yes:
-            if not cmd.words[1:] and not o.get("pick"):  # the selector of plugins (R4)
-                t.line("setup.other", err=True, command=cmd.say("setup", "--pick"))
-            raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
+            return declined(cmd)
     return steps
+
+
+def declined(cmd, interrupted=False):
+    """After a no (row sc8 R5; design/23 §5): a note that nothing ran, with no failure mark; the
+    selector of plugins after a bare run, on a terminal (sc15 R4); `next:` setup. Exit 2."""
+    t = cmd.t
+    if interrupted:
+        t.blank(err=True)
+    _note(t, "setup.declined.interrupted" if interrupted else "setup.declined")
+    if not interrupted and not cmd.words[1:] and not cmd.opts.get("pick"):
+        t.line("setup.other", err=True, command=cmd.say("setup", "--pick"))
+    t.hint("hint.setup.next", command=cmd.say("setup"))
+    return 2
 
 
 def _offered(env, lib):
@@ -383,7 +602,7 @@ def pick_names(cmd, nouns):
     except (pick.Cancelled, KeyboardInterrupt) as e:
         if isinstance(e, KeyboardInterrupt):
             t.blank(err=True)
-        raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
+        raise cmd.Refusal("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
     return list(dict.fromkeys(str(a) for a in got["plugins"]))
 
 
@@ -402,18 +621,17 @@ def _run(cmd, names):
 
     def the_plan(steps):
         if not o["json"]:
-            t.line("setup.title", plugins=", ".join(names)) if names else t.line("setup.title.none")
-            show(cmd, steps)
+            plan_screen(cmd, steps, names)
 
     try:
         steps = _before(cmd, names, build, the_plan, home, config)
     except KeyboardInterrupt:  # an interrupt before the first command declines, as at the question
         _ignore()
-        t.blank(err=True)
-        raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
+        return declined(cmd, interrupted=True)
     if isinstance(steps, int):
         return steps
     ran, wrote, done, failure, current = [], [], set(), None, None
+    began = time.time()
 
     def record(row, before, old, result):
         after = look(home, config)
@@ -424,6 +642,8 @@ def _run(cmd, names):
                 new.append(root)
         wrote.extend(p for p in new if p not in wrote)
         ran.append({"n": row["n"], "command": row["command"], "exit": result["exit"], "result": result})
+        if not o["json"]:
+            _ended(cmd, row, result, int(round(time.time() - started)))
 
     try:
         while True:
@@ -437,9 +657,7 @@ def _run(cmd, names):
             row = rows[0]
             command = row["command"]
             done.add(command)
-            if not t.quiet:
-                t.line("setup.running", err=True, command=command)
-                t.flush()
+            started = time.time()
             before = look(home, config)
             old = install_root(env, row["subject"], getattr(cmd, "cwd", None)) if row["n"] == 3 else None
             current = (row, before, old)
@@ -459,7 +677,8 @@ def _run(cmd, names):
             failure = ("err.setup.interrupted.idle", {}, INTERRUPTED, "interrupted")
     _ignore()  # from here the report and the journal end
     steps = build()
-    return report(cmd, names, steps, ran, wrote, failure, journal_path(env, home), home)
+    return report(cmd, names, steps, ran, wrote, failure, journal_path(env, home), home,
+                  int(round(time.time() - began)))
 
 
 def _failure(command, result):
@@ -472,11 +691,12 @@ def _failure(command, result):
     return ("err.setup.step" if result["last"] else "err.setup.step.silent"), values
 
 
-def report(cmd, names, steps, ran, wrote, failure, journal, home):
+def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
     t = cmd.t
     failure = failure and (tuple(failure) + (1, "step_failed"))[:4]  # (id, values, exit, JSON code)
     code = failure[2] if failure else 0
     journal_error = None
+    made = [p for p in wrote if p != journal]  # what the commands wrote, the `wrote` row's count (review 1 L2)
     if ran:
         wrote = wrote + ([journal] if journal not in wrote else [])
         entry = {"at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -499,41 +719,64 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home):
                "ran": [{k: r[k] for k in ("n", "command", "exit")} for r in ran],
                "wrote": wrote, "nothing": not ran, "journal": journal}
         if failure:
-            obj["error"] = {"code": failure[3], "message": t.text(failure[0], **cmd.slots(), **failure[1]),
-                            "remedy": cmd.say("setup")}
+            mid, values = _closing(t, failure, ran)
+            message = t.text(mid, **values)
+            if failure[1].get("last"):  # the command's own last line, which the screen prints under its row
+                message = t.text("err.setup.last", message=message, last=failure[1]["last"])
+            obj["error"] = {"code": failure[3], "message": message, "remedy": cmd.say("setup")}
         t.json(obj)
         return code
+    closing = failure and _closing(t, failure, ran)
     if not ran:
-        t.line("setup.nothing")
+        done = all(s["state"] == "ok" for s in steps if s["n"] <= 5)
+        t.line("setup.nothing" if done else "setup.nothing.left")
         if not failure and page_close(steps):  # the close's page stands above it (fh13 review 1 F1)
             show(cmd, [s for s in steps if s["line"] == "page"], lines=False)
-    else:
-        t.line("setup.after")
-        show(cmd, steps, upto=6, lines=False)
-        for r in ran:
-            why = r["result"]["why"]
-            if why == "wall":
-                t.line("setup.ran.wall", command=r["command"], wall=r["result"]["wall"])
-            elif why == "start":
-                t.line("setup.ran.start", command=r["command"])
-            elif why == "interrupted":
-                t.line("setup.ran.stopped", command=r["command"])
-            else:
-                t.line("setup.ran", command=r["command"], exit=r["exit"])
-        for path in wrote:
-            t.line("setup.wrote", path=plan.shown(path, home))
-    for s in add:
-        t.line("setup.add", command=s["command"])
+    elif not failure:
+        count = len(ran)
+        t.line("setup.done.one" if count == 1 else "setup.done", count=count, seconds=seconds)
+    rows = []
+    if ran and made and journal_error:  # the log took no line: each path on the screen (review 1 F3)
+        rows.append(("setup.tail.wrote", t.text("setup.wrote.here.one") if len(made) == 1
+                     else t.text("setup.wrote.here", count=len(made)), False))
+        rows.extend((None, plan.shown(p, home), True) for p in made)
+    elif ran and made:
+        rows.append(("setup.tail.wrote", t.text("setup.wrote.one") if len(made) == 1
+                     else t.text("setup.wrote.count", count=len(made)), False))
+    if ran and journal and not failure:
+        rows.append(("setup.tail.log", plan.shown(journal, home), True))
+    if not failure:
+        rows.append(("setup.tail.check", cmd.slots()["doctor"], True))
+        if undo(cmd):
+            rows.append(("setup.tail.undo", undo(cmd), True))
+        if add:  # only while ~/.local/bin is off PATH (row sc8 R2; D23-4)
+            rows.extend(path_rows(cmd, add[0]["command"]))
+    if rows:
+        if not failure:
+            t.blank()
+        _tail(t, rows)
     if journal_error:
         t.error("err.setup.journal", path=plan.shown(journal_path(cmd.env, home), home), why=journal_error)
     if failure:
         t.flush()
-        t.error(failure[0], **cmd.slots(), **failure[1])
-    elif page_close(steps):  # fh13 R7
-        t.hint(*page_close(steps))
-    elif plan.door_off(cmd.env):  # the door stands and only PATH lacks it (row ic1-close R2)
-        path_close(t, add[0]["command"] if add else plan.PROFILE_LINE)  # step 6's line, a prefix's too
-    else:
-        t.hint("hint.setup.doctor", **cmd.slots())  # read now: the door this run placed
+        t.error(closing[0], cmd.say("setup"), **closing[1])
+        return code
+    if page_close(steps):  # fh13 R7: a note, since its line is no command
+        _note(t, *page_close(steps)[:1], **page_close(steps)[1])
+    t.hint("hint.setup.done")  # next: claude (row sc8 R3; D23-1)
     return code
 
+
+def _closing(t, failure, ran):
+    """The closing line of a run that stopped (row sc8 R6): (id, values), its step and what stands."""
+    mid, values = failure[0], dict(failure[1])
+    n = values.get("n") or (ran[-1]["n"] if ran else None)
+    if mid in ("err.setup.step", "err.setup.step.silent", "err.setup.start"):
+        if n == 2:
+            return "err.setup.step.one", {"n": n}
+        return "err.setup.step", {"n": n, "done": "1 and 2" if n == 3 else "1 to %d" % (n - 1)}
+    if mid in ("err.setup.wall", "err.setup.wall.silent"):
+        return "err.setup.wall", {"n": n, "wall": values["wall"]}
+    if mid == "err.setup.interrupted":
+        return mid, {"n": n}
+    return mid, {k: v for k, v in values.items() if k == "n"}

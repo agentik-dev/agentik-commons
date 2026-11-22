@@ -164,7 +164,9 @@ class TableTest(Sc4Home):
                 # setup asks on a terminal; in a pipe it stops at that question and writes nothing
                 self.assert_writes_nothing(nxt, argv)
                 code, out, err = self.pasted(nxt)
-                self.assertRegex(err, r"(?m)^FAIL  .*--yes", (argv, nxt))
+                # R5 of row sc8: the cause, then `next:` setup with --yes
+                self.assertRegex(err, r"(?m)^FAIL  nothing ran: there is no terminal to ask on\nnext: .* setup .*--yes$",
+                                 (argv, nxt))
             else:
                 self.assert_runs(nxt, argv)
 
@@ -227,8 +229,10 @@ class FormTest(Sc4Home):
         code, out, err = self.run_cli("setup")
         lines = err.splitlines()
         self.assertEqual(code, 2, err)
-        self.assertTrue(lines and lines[-1].startswith("FAIL  ") and "Run agentik setup" in lines[-1], err)
-        self.assertFalse([l for l in lines if l.startswith("next:")], err)
+        # row sc8 R5: off a terminal with no --yes, the cause, then `next:` setup with --yes, once
+        self.assertEqual(lines[-2:], ["FAIL  nothing ran: there is no terminal to ask on",
+                                      "next: agentik setup --yes"], err)
+        self.assertEqual(len([l for l in lines if l.startswith("next:")]), 1, err)
 
 
 class Review1Test(Sc4Home):

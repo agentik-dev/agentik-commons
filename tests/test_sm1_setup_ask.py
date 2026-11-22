@@ -15,10 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_ak3_setup import LAUNCHER, SetupHome  # noqa: E402
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
-WOULD = "would run: "
-LATER = "yours to run later: "
-DECLINED = "since the answer was not yes"
-NEEDS_YES = "since it cannot ask you here"
+WOULD = "Would run, in this order:"  # the plan's headings, no command labelled (row sc8 R1)
+LATER = "Yours, after:"
+DECLINED = re.compile(r"(?m)^(·|note)  nothing ran$")  # a note, no failure mark (row sc8 R5)
+NEEDS_YES = "FAIL  nothing ran: there is no terminal to ask on"  # row sc8 R5
+ROW = re.compile(r"^(\d) (\S+)(?:\s{2,}(.*))?$")  # a plan row, its mark gone: step, label, text
+ENDED = re.compile(r"^[✓✗] (\d) (\S+)(?:\s{2,}(.*))?$")  # a command that ended (row sc8 R7)
 PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
 
 
@@ -28,7 +30,38 @@ def screen(text):
 
 
 def labelled(text, label):
-    return [l[len(label):] for l in screen(text) if l.startswith(label)]
+    """The commands under the plan's heading `label`, to the next heading or the question; a
+    command too long for its row stands on the next line (row sc8 R1, R7)."""
+    lines, got = screen(text), []
+    if label not in lines:
+        return got
+    for line in lines[lines.index(label) + 1:]:
+        if line in (WOULD, LATER) or " now?" in line:  # the typed question or the selector's
+            break
+        m = ROW.match(line)
+        command = m.group(3) if m else line
+        if command and command.startswith(("claude ", "/", "~")):
+            got.append(command)
+    return got
+
+
+def screen_text(text):
+    return "\n".join(screen(text))
+
+
+def ended(text):
+    """The commands that ended, below the question (the typed one, or the selector's answered
+    line), each as its row names it, its seconds left out."""
+    lines, got = screen(text), []
+    asked = [i for i, l in enumerate(lines) if " now?" in l]
+    for i, line in enumerate(lines):
+        m = ENDED.match(line) if asked and i > asked[-1] else None
+        if m:
+            command = m.group(3) or lines[i + 1]
+            if re.match(r"\d+ s\b|stopped after |could not start", command):  # the words alone (sc8 F2)
+                command = lines[i + 1]
+            got.append(re.sub(r" \d+ s(, .*)?$", "", command))
+    return got
 
 
 class AskTest(SetupHome):
@@ -51,7 +84,7 @@ class AskTest(SetupHome):
         os.remove(self.known)
 
     def ran(self, text):
-        return labelled(text, "ran: ")
+        return ended(text)
 
     def assert_labels_hold(self, text, ran):
         """R1, R2 and acceptance 5: what a yes runs is under `would run:`, and nothing else is."""
@@ -60,7 +93,7 @@ class AskTest(SetupHome):
         self.assertNotIn("Answer y or n", text)
         would = labelled(text, WOULD)
         self.assertTrue(would, text)
-        commands = [r.rsplit(", ", 1)[0] for r in ran]
+        commands = ran
         for line in would:
             self.assertIn(line, commands, "a would-run line a yes left unrun")
         for line in labelled(text, LATER):
@@ -73,7 +106,7 @@ class AskTest(SetupHome):
         before = self.snapshot()
         code, text = self.answer_on_pty("", "setup", "alpha", "beta")
         self.assertEqual(code, 2, text)
-        self.assertIn(DECLINED, text)
+        self.assertRegex(screen_text(text), DECLINED)
         self.assertIn("Run these 5 commands now?", text)
         self.assertEqual(self.recorded(), [])
         self.assertEqual(self.snapshot(), before)
@@ -95,8 +128,8 @@ class AskTest(SetupHome):
         ran = self.ran(text)
         self.assertEqual(len(ran), 2, text)
         self.assert_labels_hold(text, ran)
-        later = labelled(text, LATER)
-        self.assertEqual([l.split()[-1] for l in later], ["doctor", "doctor"], text)
+        later = labelled(text, LATER)  # step 7's one doctor, the suite's (row sc8 R1)
+        self.assertEqual([l.split()[-1] for l in later], ["doctor"], text)
 
     def test_a3_the_plan_of_one(self):
         self.plan_of_one()
@@ -130,7 +163,7 @@ class AskTest(SetupHome):
             code, text = self.answer_on_pty(answer, "setup", "alpha")
             self.assertEqual((code, len(self.recorded())), (0, 1) if yes else (2, 0), (answer, text))
             if not yes:
-                self.assertIn(DECLINED, text)
+                self.assertRegex(screen_text(text), DECLINED)
                 self.assertFalse(os.path.exists(self.known), answer)
 
     def test_a4_off_a_terminal_as_at_the_pin(self):
@@ -157,14 +190,20 @@ class AskTest(SetupHome):
         self.plan_of_one()
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        # off PATH with the door placed, the close is step 6's line (row ic1-close R2)
-        self.assertEqual(err.splitlines()[-1], PATH_CLOSE)
+        # off PATH with the door placed, step 6's line is the report's PATH row, the close
+        # next: claude (row sc8 R2, R3; ic1-close R2 put it last)
+        self.assertEqual(err.splitlines()[-1], "next: claude")
+        self.assertIn("\n" + " " * 9 + PATH_CLOSE[6:] + "\n", out)
+        self.assertRegex(out, r"(?m)^  check  ~/\.local/bin/agentik doctor$")
         code, out, err = self.run_cli("setup", "alpha")  # nothing to do, the door in place
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(err.splitlines()[-1], PATH_CLOSE)
+        self.assertEqual(err.splitlines()[-1], "next: claude")
+        self.assertIn("\n" + " " * 9 + PATH_CLOSE[6:] + "\n", out)
         code, out, err = self.run_cli("setup", "alpha", PATH=self.bindir + ":" + self.env()["PATH"])
         self.assertEqual(code, 0, out + err)
-        self.assertEqual(err.splitlines()[-1], "next: agentik doctor")  # on PATH: the door's (sc2, R1)
+        self.assertEqual(err.splitlines()[-1], "next: claude")
+        self.assertRegex(out, r"(?m)^  check  agentik doctor$")  # on PATH: the door's (sc2, R1)
+        self.assertNotIn(PATH_CLOSE[6:], out)
 
     def test_a6_a_door_not_ours_keeps_the_suites_name(self):
         self.plan_of_one()
@@ -172,7 +211,8 @@ class AskTest(SetupHome):
         os.symlink("/nonexistent/agentik", os.path.join(self.bindir, "agentik"))  # a link: left alone
         code, out, err = self.run_cli("setup", "--yes", "alpha")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("next: %s doctor" % LAUNCHER, err.splitlines()[-1])  # sc2: no door, the path typed
+        self.assertEqual(err.splitlines()[-1], "next: claude")  # row sc8 R3
+        self.assertRegex(out, r"(?m)^  check  %s doctor$" % re.escape(str(LAUNCHER)))  # sc2: no door, the path typed
 
 
 if __name__ == "__main__":

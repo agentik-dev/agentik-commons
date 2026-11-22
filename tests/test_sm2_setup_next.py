@@ -99,7 +99,7 @@ class DryRunTest(Home):
         for argv, want in ((["./setup", "--dry-run"], "next: ./setup"),
                            (["./setup", "--dry-run", PLUGIN], "next: ./setup " + PLUGIN)):
             out, err = self.screen(argv, env)
-            self.assertIn("would run: ", out, argv)
+            self.assertIn("Would run, in this order:\n", out, argv)  # the heading, no label (row sc8 R1)
             self.assertEqual(self.last(argv, env), want, argv)
             self.assertNotIn("run each", out + err, argv)
         self.assertEqual(self.last(["./setup", "--dry-run", PLUGIN, PLUGIN], env), "next: ./setup " + PLUGIN)
@@ -109,14 +109,14 @@ class DryRunTest(Home):
         out, err = self.screen(argv, self.env(SYSTEM))
         lines = out.splitlines()
         self.assertEqual(sum(GET in line for line in lines), 1, out)
-        row = [i for i, line in enumerate(lines) if " claude " in line and "not on PATH" in line]
+        row = [i for i, line in enumerate(lines) if " claude: " in line and "not on PATH" in line]
         self.assertEqual(len(row), 1, out)
         self.assertEqual(lines[row[0] + 1].strip(), GET)
         self.assertEqual(self.last(argv, self.env(SYSTEM)), "next: ./setup")
         # git missing, claude there: no `get it:` line, the same close
         nogit = self.folder("nogit", links=("dirname",)) + ":/bin"
         out, err = self.screen(argv, self.env(nogit))
-        self.assertIn("git", [w for line in out.splitlines() if "not on PATH" in line for w in line.split()])
+        self.assertIn("git:", [w for line in out.splitlines() if "not on PATH" in line for w in line.split()])
         self.assertNotIn("get it:", out + err)
         self.assertEqual(self.last(argv, self.env(nogit)), "next: ./setup")
 

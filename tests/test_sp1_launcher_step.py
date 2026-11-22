@@ -164,12 +164,15 @@ class LauncherStepTest(Home):
         code, out, err = self.run_cli("setup", "--dry-run", "paint", **more)
         self.assertEqual(code, 0, out + err)
         done = err.strip().splitlines()[-1]
-        self.assertIn("nothing left to do", done)
+        self.assertEqual(done, "next: claude", out + err)  # nothing left: the close (row sc8 R3)
         self.tool("murmur", ["describe", "doctor", "config"])
         code, out, err = self.run_cli("setup", "--dry-run", "murmur", **more)
         self.assertEqual((code, err.strip().splitlines()[-1]), (0, done), out + err)
         self.assertNotIn("install-cli", out)
-        self.assertIn("runs from the plugin's own folder", out)
+        # an ok step is one line of names (row sc8 R1): its row's words are in --json
+        code, out, err = self.run_cli("setup", "--dry-run", "--json", "murmur", **more)
+        self.assertIn("runs from the plugin's own folder",
+                      " ".join(s["detail"] for s in json.loads(out)["steps"] if s["n"] == 4), out)
 
     def test_l4_doctor_reads_the_setup_rows_green(self):
         more = self.ready()
