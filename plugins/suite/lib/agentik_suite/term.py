@@ -41,9 +41,18 @@ JSON_CONTROL = re.compile("[\x00-\x09\x0b-\x1f\x7f-\x9f]")  # a line break survi
 LINE_CONTROL = re.compile("[\u2028\u2029\u202a-\u202e\u2066-\u2069]")  # line and direction controls
 ZERO_CONTROL = re.compile("[\u200b-\u200f\ufeff]")  # zero-width (row sc12-picker R1)
 BREAK = re.compile("\r\n|[\t\n\x0b\x0c\r\x1c-\x1e\x85]")  # a tab or a line break
-# a whole escape sequence: a CSI (colour, a cursor move) to its final byte, an OSC (a title, a
-# link) to its BEL or its ESC \ (row sc17-narrow-screens R9)
-ESCAPE = re.compile("\x1b\\[[0-?]*[ -/]*[@-~]|\x1b\\][^\x07\x1b]*(?:\x07|\x1b\\\\)")
+# a whole escape sequence (row sc17-narrow-screens R9; review 1 L1 and L2), in its 7-bit or its
+# 8-bit form: a CSI (colour, a cursor move) to its final byte; an OSC (a title, a link), or
+# another string (DCS, SOS, PM, APC), to its BEL or its ST, or to the ESC or the line break that
+# cuts it short; an escape with intermediate bytes (`ESC ( B`, what `tput sgr0` sends); a
+# two-byte one (`ESC 7`, `ESC =`, `ESC M`). A sequence the text ends inside goes as far as it
+# goes, so a live line read between two chunks shows no half of one. A lone ESC before anything
+# else, a lower-case letter included, is a control byte as before (R9).
+ESCAPE = re.compile(
+    "(?:\x1b\\[|\x9b)[0-?]*[ -/]*(?:[@-~]|\\Z)"
+    "|(?:\x1b[\\]PX^_]|[\x90\x98\x9d\x9e\x9f])[^\x07\x1b\x9c\r\n]*(?:\x07|\x1b\\\\|\x9c|(?=[\x1b\r\n])|\\Z)"
+    "|\x1b[ -/]+(?:[0-~]|\\Z)"
+    "|\x1b[0-_]")
 
 
 def clean(value):

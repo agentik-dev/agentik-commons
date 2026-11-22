@@ -51,6 +51,48 @@ class CleanTest(unittest.TestCase):
             self.assertEqual(term.clean(line), line)
 
 
+class EverySequenceTest(unittest.TestCase):
+    """Review 1 L1 and L2: no letter of any escape sequence stays, nor of one the text ends inside."""
+
+    def test_with_intermediate_bytes(self):
+        self.assertEqual(term.clean("red\x1b(B\x1b[m plain"), "red plain")  # what tput sgr0 sends
+        self.assertEqual(term.clean("a\x1b)0b\x1b#8c"), "abc")
+
+    def test_two_bytes(self):
+        self.assertEqual(term.clean("\x1b7saved\x1b8 back"), "saved back")
+        self.assertEqual(term.clean("\x1b=keypad\x1b>"), "keypad")
+        self.assertEqual(term.clean("a\x1bMb"), "ab")
+
+    def test_the_8_bit_forms(self):
+        self.assertEqual(term.clean("a\x9b32mgreen\x9b0m"), "agreen")
+        self.assertEqual(term.clean("\x9d0;title\x9cafter"), "after")
+        self.assertEqual(term.clean("\x9d0;title\x07after"), "after")
+
+    def test_a_sequence_the_text_ends_inside(self):
+        self.assertEqual(term.clean("done \x1b[3"), "done ")
+        self.assertEqual(term.clean("done \x1b["), "done ")
+        self.assertEqual(term.clean("done \x9b1;3"), "done ")
+        self.assertEqual(term.clean("red\x1b("), "red")
+        self.assertEqual(term.clean("\x1b]0;title never ended"), "")
+        self.assertEqual(term.clean("x \x9d0;ti"), "x ")
+
+    def test_an_osc_a_stray_escape_ends(self):
+        self.assertEqual(term.clean("\x1b]0;ti\x1b7tle\x07after"), "tleafter")
+
+    def test_the_live_line_between_two_reads(self):
+        self.assertEqual(apply.newest([b"step \x1b[3"]), "step")
+        self.assertEqual(apply.newest([b"step \x1b[3", b"2mgreen\x1b[0m"]), "step green")
+        self.assertEqual(apply.newest([b"x \x1b]0;ti"]), "x")
+        self.assertEqual(apply.newest([b"x \x1b]0;ti", b"tle\x07ok"]), "x ok")
+
+    def test_a_line_with_no_escape_is_unchanged(self):
+        for line in ("[x]", "a]b", "(B)", "path [/tmp/x] and ] alone and [y]", "7saved8 =", "32m 0;title"):
+            self.assertEqual(term.clean(line), line)
+
+    def test_a_space_after_the_introducer_as_the_standard_parses_it(self):
+        self.assertEqual(term.clean("\x1b[ hello"), "ello")  # review 1 L10 stands
+
+
 class TailTest(Home):
     """Acceptance 4: a failed command's tail shows its words, no escape left over."""
 
