@@ -574,7 +574,7 @@ def pick_names(cmd, nouns):
     except (pick.Cancelled, KeyboardInterrupt) as e:
         if isinstance(e, KeyboardInterrupt):
             t.blank(err=True)
-        raise cmd.Usage("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
+        raise cmd.Refusal("declined", "err.setup.declined", cmd.say("setup"), **cmd.slots())
     return list(dict.fromkeys(str(a) for a in got["plugins"]))
 
 

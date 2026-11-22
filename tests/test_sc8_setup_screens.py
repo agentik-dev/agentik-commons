@@ -144,11 +144,11 @@ class Screens(Home):
     def test_a5_the_path_rows(self):
         code, out, err = self.screen("setup", "--yes", SHELL="/bin/zsh")
         rows = [l for l in out if l.startswith("  PATH")]
-        self.assertEqual(rows, ["  PATH   no session needs it; to type agentik in a terminal, add to ~/.zshrc:"])
+        self.assertEqual(rows, ["  PATH   not needed by Claude Code; to type agentik, add to ~/.zshrc:"])
         self.assertIn('         export PATH="$HOME/.local/bin:$PATH"', out)
         on = "%s:%s:/usr/bin:/bin" % (os.path.join(self.home, ".local", "bin"), self.stubs)
         code, out, err = self.screen("setup", "--yes", PATH=on)
-        self.assertFalse([l for l in out + err if "PATH" in l or "no session needs it" in l], out)
+        self.assertFalse([l for l in out + err if "PATH" in l or "not needed by Claude Code" in l], out)
         self.assertEqual(err[-1], "next: claude")
 
     # ---- A6: what a yes runs -------------------------------------------------------------

@@ -279,7 +279,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.tail.path`: PATH
 - `setup.wrote.count`: `{count}` files, each named in the log
 - `setup.wrote.one`: 1 file, named in the log
-- `setup.path.row`: no session needs it; to type agentik in a terminal, add to `{profile}`:
+- `setup.path.row`: not needed by Claude Code; to type agentik, add to `{profile}`:
 - `err.setup.step.one`: setup stopped at step `{n}`; step 1 stands
 - `setup.run`: would run: `{command}`
 - `setup.later`: yours to run later: `{command}`
@@ -341,7 +341,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
-- `setup.path.why`: No session needs it; to type agentik in this terminal, run the line below.
+- `setup.path.why`: Not needed by Claude Code; to type agentik in this terminal, run the line below.
 - `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: claude
 - `hint.setup.done`: next: claude
@@ -374,6 +374,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.gate.notfile`: it is not a file
 - `err.setup.interrupted`: setup stopped at step `{n}`: interrupted
 - `err.setup.interrupted.idle`: setup stopped between steps: interrupted
+- `err.setup.declined`: nothing ran: the list was closed
 - `err.setup.gate_unread`: nothing ran: your gate list `{path}` cannot be read: `{why}`
 
 ## Update
