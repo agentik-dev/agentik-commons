@@ -173,13 +173,22 @@ class SetupUpdateTest(Base):
         h = self.home(["murmur"])
         code, out, err = h.run("setup", "--dry-run", "murmur")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("at version 1.0.0, the same as the plugin", out)
+        # the plan's ok step is one line of names; a row's own words are --json's (row sc8 R1)
+        self.assertIn("  ok 4 commands     agentik-murmur\n", out)
+        self.assertIn("at version 1.0.0, the same as the plugin", self.step4(h))
         self.aside(self.tree(h, "murmur"))
         code, out, err = h.run("setup", "--dry-run", "murmur")
         self.assertEqual(code, 0, out + err)
-        self.assertIn("its code at ~/.local/share/agentik-murmur/1.0.0 is gone", out)
-        self.assertIn("would run: %s install-cli" % self.source(h, "murmur"), out)
-        self.assertNotIn("the same as the plugin", out)
+        self.assertIn("its code at ~/.local/share/agentik-murmur/1.0.0 is gone", self.step4(h))
+        would = out[out.index("Would run, in this order:"):out.index("Yours, after:")]
+        self.assertIn("    4 commands     %s install-cli\n" % self.source(h, "murmur"), would)
+        self.assertNotIn("ok 4 commands", out)
+        self.assertNotIn("the same as the plugin", self.step4(h))
+
+    def step4(self, h):
+        """Step 4's row detail, as the dry run's --json gives it."""
+        code, out, err = h.run("setup", "--dry-run", "--json", "murmur")
+        return " ".join(s["detail"] for s in json.loads(out)["steps"] if s["n"] == 4)
 
     def test_setup_places_it_again(self):
         h = self.home(["murmur"])
