@@ -636,6 +636,29 @@ class OtherVerbs(Base):
         self.assertEqual(got, {"exit": 3, "last": "two", "why": None, "wall": apply.WALL,
                                "tail": ["one", "two"]})
 
+    def test_sc16_l1_the_two_handlers_go_back(self):
+        """After a command ends, by its end and by an exception, SIGTSTP's and SIGCONT's handlers
+        are what they were before it (row sc16-setup-undo review 1 L1)."""
+        class Quiet(apply.Live):  # hold and release as built; nothing drawn
+            def draw(self, elapsed, chunks):
+                pass
+
+        sigs = (signal.SIGTSTP, signal.SIGCONT)
+        for sig in sigs:
+            self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        before = {signal.SIGTSTP: lambda *a: None, signal.SIGCONT: signal.SIG_IGN}
+        for sig, fn in before.items():
+            signal.signal(sig, fn)
+        cmd = mock.Mock()
+        cmd.t.text.return_value = "step"
+        stub = shlex.quote(self.stub("brief", "#!/bin/sh\necho done\n"))
+        self.assertEqual(apply.execute(stub, self.env(), Quiet(cmd, {"n": 1}))["exit"], 0)
+        self.assertEqual({s: signal.getsignal(s) for s in sigs}, before, "by its end")
+        with mock.patch.object(apply, "_read", side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                apply.execute(stub, self.env(), Quiet(cmd, {"n": 1}))
+        self.assertEqual({s: signal.getsignal(s) for s in sigs}, before, "by an exception")
+
 
 if __name__ == "__main__":
     unittest.main()
