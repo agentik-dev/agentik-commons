@@ -591,7 +591,8 @@ def _answer(cmd, nouns):
     if not (o["yes"] or o["dry_run"]) and not (os.isatty(0) and os.isatty(2)):
         raise Refusal("no_terminal", "err.inbox.answer.tty", cmd.say("help", "inbox"))
     exe = os.path.abspath(found["exe"])  # before the chdir: a relative PATH entry reads from here (review 1 F3)
-    argv = [exe, WRITER, n] + (["--pick", o["pick_label"]] if o["say"] is None else ["--say", o["say"]])
+    # the value rides its flag as one word, so one that opens with `-` is never the writer's option (N1)
+    argv = [exe, WRITER, n, "--pick=" + o["pick_label"] if o["say"] is None else "--say=" + o["say"]]
     argv += (["--dry-run"] if o["dry_run"] else []) + (["--yes"] if o["yes"] else [])
     t.flush()
     try:
