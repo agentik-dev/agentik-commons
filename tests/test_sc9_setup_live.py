@@ -347,6 +347,25 @@ class LiveLine(Base):
         self.assertTrue(cut.endswith("…  13 s"), cut)
         self.assertEqual(term.columns(cut), 49)
 
+    def test_sc16_r5_1_the_label_gives_way_before_the_seconds(self):
+        """Under about 26 columns the label is cut and the seconds stay (row sc16 R5.1)."""
+        s = term.Term(env={}, out=io.StringIO(), err=io.StringIO()).err
+        cmd = "claude plugin marketplace add agentik-dev/agentik-commons"
+        for room in (19, 22, 25):
+            for took in ("3 s", "13 s", "125 s"):
+                line = apply.live_text(s, room, "⠋", 2, "marketplace", cmd, took, "fetching")
+                self.assertTrue(line.endswith("  " + took), (room, line))
+                self.assertTrue(line.startswith("  ⠋ 2 "), (room, line))
+                self.assertLessEqual(term.columns(line), room, (room, line))
+        self.slow(sleep=1.2)
+        code, text, _ = self.setup(self.term_env(), cols=20)
+        self.assertEqual(code, 0, text)
+        drawn = frames(text)
+        self.assertTrue(drawn, text)
+        for f in drawn:
+            self.assertLessEqual(term.columns(f), 20, f)
+            self.assertRegex(f, r"  \d+ s$")  # every frame ends with the seconds
+
     def test_r4_no_color_keeps_the_line_without_its_dim(self):
         self.slow(sleep=1.2)
         code, text, _ = self.setup(self.term_env(NO_COLOR="1"), cols=120)

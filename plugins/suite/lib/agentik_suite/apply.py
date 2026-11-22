@@ -170,12 +170,16 @@ def newest(chunks):
 def live_text(stream, room, frame, n, label, command, seconds, last):
     """One live line in `room` columns (row sc9-setup-live R1, R2): the frame, the step and its
     label in the ended row's columns, the command, the seconds, the newest output line, dim. Where
-    the room is short the output gives way first, then the command is cut; the seconds stay."""
+    the room is short the output gives way first, then the command is cut, then the label; the
+    seconds stay (row sc16-setup-undo R5.1)."""
     head = "  %s %s %s  " % (frame, n, term.clean(label).ljust(LABEL))
     command = term.clean(command)
     space = room - term.columns(head) - 2 - term.columns(seconds)
-    if space < 2:  # a window too narrow for any command: the head and the seconds, cut
-        return term._cut_to(head + seconds, room)
+    if space < 2:  # a window too narrow for any command: the label cut, then the seconds
+        keep = room - 2 - term.columns(seconds)
+        if keep < term.columns("  %s %s " % (frame, n)) + 1:  # not even the step: the line cut
+            return term._cut_to(head + seconds, room)
+        return term._cut_to(head.rstrip(" "), keep) + "  " + seconds
     line = head + term._cut_to(command, space) + "  " + seconds
     spare = room - term.columns(line) - 2
     if last and spare >= 2:
