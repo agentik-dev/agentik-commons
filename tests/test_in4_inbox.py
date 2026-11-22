@@ -436,7 +436,10 @@ class CheckTest(InboxHome):
 
     def test_11_a_question_by_its_number(self):
         code, out, err = self.inbox("1", self.pear)
-        self.assertEqual((code, out, err), (0, OPENED, ""))
+        # row in5b R9: the answer's form, by the path where the bare inbox covers no pear-hq here
+        opened = OPENED.replace("To answer: type", "To answer from here, run %s inbox answer %s 1 --pick <label>.\n"
+                                "To answer: type" % (self.L, self.pear))
+        self.assertEqual((code, out, err), (0, opened, ""))
         self.assertEqual(out.split("\n\n")[1:4], BLOCK.split("\n\n"))
         code, out, err = self.inbox("7", self.pear)
         self.assertEqual((code, out, err), (2, "", "FAIL  no checkout read here holds a question 7\n"
@@ -446,7 +449,7 @@ class CheckTest(InboxHome):
                                                    "next: %s inbox --check\n" % self.L))
         code, out, err = self.inbox("1", self.pear, self.fig)
         self.assertEqual(code, 0)
-        self.assertTrue(out.startswith(OPENED + "\n" + "fig-hq  question 1, answered, asked 3 d ago\n\n## 1. Paint"), out)
+        self.assertTrue(out.startswith(opened + "\n" + "fig-hq  question 1, answered, asked 3 d ago\n\n## 1. Paint"), out)
         code, out, err = self.inbox("--json", "1", self.pear)
         opened = json.loads(out)["opened"]
         self.assertEqual([(o["name"], o["n"], o["state"], o["text"]) for o in opened],
