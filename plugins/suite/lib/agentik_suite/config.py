@@ -17,14 +17,17 @@ import difflib
 import json
 import os
 import re
+import shlex
+import sys
 import time
 
-from . import doctor, plan, settings, sources, term, tools
+from . import doctor, pick, plan, settings, sources, term, tools
 
 NEAR = 0.6  # difflib's cutoff for a near verb, tool, flag or key (row sc4 R4)
 
 SUITE_READ = {"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}
 GROUP_PAST = 20
+VALUE_ROOM = 9  # the columns a picker row's value takes before its summary (row sc14 R2)
 # Why a tool gives no settings (`why`), and the line for it at the tool's level and a key's.
 STATE_LINE = {"timed out": "config.state.timed_out", "unreadable": "config.state.unreadable",
               "no command": "config.state.no_command", "noread": "config.state.noread",
@@ -253,12 +256,16 @@ def do_config(cmd, nouns):
                       verb="config " + flag, word=nouns[0])
     r = Reader(cmd)
     entries = r.entries()
+    picks = o["config_pick"] and not (o["changed"] or o["user_files"])
     if not nouns:
         rows = r.survey(entries)
         if o["changed"]:
             return _changed(cmd, r, rows)
         if o["user_files"]:
             return _user_files(cmd, rows)
+        if picks:  # every key on the machine (row sc14 R1)
+            return _pick(cmd, r, [(row["name"], row["config"], s) for row in rows if row["config"]
+                                  for s in _flat(row["config"]["settings"])], lambda: _list(cmd, r, rows))
         return _list(cmd, r, rows)
     name, dot, key = path(nouns).partition(".")
     if not name:
@@ -266,7 +273,7 @@ def do_config(cmd, nouns):
     names = [e["name"] for e in entries]
     if name not in names:
         if not dot:  # one word that is no tool's name: a search, and a tool's name wins (sc7 R1)
-            return _find(cmd, r, entries, name)
+            return _find(cmd, r, entries, name, picks)
         near = _nearest(name, names)
         raise Refusal("unknown_tool", "err.config.tool", _again(cmd, near and near + dot + key),
                       name=name)
@@ -286,6 +293,10 @@ def do_config(cmd, nouns):
                           state=state, message=(row["error"] or {}).get("message"), **cmd.slots())
         return _silent(cmd, r, row)
     if not key:
+        if picks:
+            return _pick(cmd, r, [(name, cfg, s) for s in _flat(cfg["settings"])],
+                         lambda: _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"],
+                                       row["source"]))
         return _tool(cmd, r, name, cfg, _from(row["source"], r.home), row["claims"], row["source"])
     found = [s for s in cfg["settings"] if s["key"] == key]
     if not found and name == r.suite and key.startswith("sources."):
@@ -296,6 +307,11 @@ def do_config(cmd, nouns):
         whole = r.suite_config() if row["name"] == r.suite else r.read_one(row, None)
         keys = [s["key"] for s in (whole or {}).get("settings") or ()]
         if any(k.startswith(key + ".") for k in keys):  # a prefix: its group, flat (R3)
+            if picks:
+                return _pick(cmd, r, [(name, whole, s) for s in _flat(whole["settings"])
+                                      if s["key"].startswith(key + ".")],
+                             lambda: _tool(cmd, r, name, whole, _from(row["source"], r.home), row["claims"],
+                                           row["source"], prefix=key))
             return _tool(cmd, r, name, whole, _from(row["source"], r.home), row["claims"], row["source"],
                          prefix=key)
         near = _nearest(key, keys)
@@ -371,6 +387,9 @@ def _list(cmd, r, rows):
              for status, cells, after, extra in lines], indent=0 if marked else 2)
     top = max((c for c in counted if c[1] is not None), key=lambda c: c[2], default=None)
     if top:  # the tool with the most changed keys, the first on a tie (R2)
+        if _lists(cmd) and not t.quiet:  # the picker named on a terminal alone, no `next:` (sc14 R5)
+            t.flush()
+            t.line("config.from_list", err=True, style="hint", command=cmd.say("config", "--pick"))
         t.hint("hint.config", command=cmd.say("config", top[0]["name"]))
     return 0
 
@@ -451,7 +470,7 @@ def _tool(cmd, r, name, cfg, origin=None, claims=(), source=None, prefix=None):
 
     indent = 0 if changed else 2
     if prefix or cmd.opts["config_all"] or not t.out.tty or len(rows) <= GROUP_PAST:
-        t.table([row(s) for s in changed] + [row(s) for s in rows if not differs(s)], indent=indent)
+        t.table([row(s) for s in _flat(rows)], indent=indent)
     else:
         if changed:
             t.table([row(s) for s in changed], indent=indent)
@@ -646,7 +665,7 @@ def _no_answer(row):
     return bool(row["fault"] or row["read_state"] or row["state"] in ("timed out", "unreadable"))
 
 
-def _find(cmd, r, entries, word):
+def _find(cmd, r, entries, word, picks=False):
     """`config <word>` (sc7 R1 to R3): every key of every tool that answers whose dotted segment
     or summary word is the word, case folded; one row a match, then one `!` line a tool that did
     not answer. No match is the refusal of an unknown tool, its `next:` the near tool, else the
@@ -672,6 +691,16 @@ def _find(cmd, r, entries, word):
             seg = _nearest(folded, list(segments))
             near = segments[seg] if seg else None
         raise cmd.Refusal("unknown_tool", "err.config.tool", _again(cmd, near), name=word)
+    if picks:  # the keys the search finds (row sc14 R1)
+        configs = {row["name"]: row["config"] for row in rows}
+        return _pick(cmd, r, [(name, configs[name], s) for name, key, s in matches],
+                     lambda: _found(cmd, word, matches, silent))
+    return _found(cmd, word, matches, silent)
+
+
+def _found(cmd, word, matches, silent):
+    """The search's matches, one row each, then one `!` line a tool that did not answer."""
+    t = cmd.t
     if cmd.opts["json"]:
         t.json({"schema": "agentik.config/1", "ok": True, "word": word,
                 "matches": [{"tool": name, "key": key, "value": s.get("value"), "summary": s.get("summary")}
@@ -687,6 +716,62 @@ def _find(cmd, r, entries, word):
         t.table([("warn", [t.text("config.find.silent", name=name)], None)], indent=0)
     t.hint("hint.config.tool", command=cmd.say("config", matches[0][0] + "." + matches[0][1]))
     return 0
+
+
+def _flat(rows):
+    """A tool's keys in the flat list's order: the changed first, then the rest (R3)."""
+    return [s for s in rows if differs(s)] + [s for s in rows if not differs(s)]
+
+
+def _lists(cmd):
+    """True where `--pick` may draw its list: stdin and stderr terminals and `CI` unset, the first
+    two rows of design/23 4a.6 (row sc14 R5)."""
+    try:
+        tty = sys.stdin.isatty()
+    except (AttributeError, ValueError, OSError):
+        tty = False
+    return tty and cmd.t.err.tty and not cmd.env.get("CI")
+
+
+def _pick(cmd, r, found, flat):
+    """`config --pick` (row sc14-config-pick R1 to R4, R6): one `one` question, the filter on, over
+    `found`, [(tool, config, setting)] in the flat list's order. A row's label is `tool.key`, its
+    note the value, `*` where changed, then the summary. Enter prints that key's card, as `config
+    tool.key` does; Esc and Ctrl-C print nothing on stdout and exit 0. Where `pick` may not ask,
+    or under --json, `flat()` prints what --all prints for the same path. Nothing is written, and
+    no `change` line runs: the card is where it ends."""
+    t, o = cmd.t, cmd.opts
+    if o["json"] or not found:
+        o["config_all"] = True
+        return flat()
+    values = {name + "." + s["key"]: shown_value(s.get("value")) + ("*" if differs(s) else "")
+              for name, _, s in found}
+    room = min(VALUE_ROOM, max(map(term.columns, values.values())))
+    options, by = [], {}
+    for name, cfg, s in found:
+        dotted, value = name + "." + s["key"], values[name + "." + s["key"]]
+        note = value + " " * max(1, room + 1 - term.columns(value)) + str(s.get("summary") or "")
+        options.append({"value": dotted, "label": dotted, "note": note.rstrip()})
+        by[dotted] = (name, cfg, s)
+    home = cmd.env.get("HOME") or ""
+
+    def command(answers):  # the hint's words split, as an argv: a `~/` word is given whole (sc15)
+        line = cmd.say("config", str(answers["key"]))
+        return [os.path.join(home, w[2:]) if w.startswith("~/") and home else w for w in shlex.split(line)]
+
+    question = {"id": "key", "prompt": "config.pick", "kind": "one", "options": options,
+                "filter": True, "noun": t.text("config.pick.noun")}
+    try:
+        got = pick.ask(t, [question], command)
+    except pick.NoTerminal:
+        o["config_all"] = True
+        return flat()
+    except (pick.Cancelled, KeyboardInterrupt) as e:
+        if isinstance(e, KeyboardInterrupt):
+            t.blank(err=True)
+        return 0
+    name, cfg, s = by[str(got["key"])]
+    return _card(cmd, r, name, cfg, s)
 
 
 def _changed(cmd, r, rows):

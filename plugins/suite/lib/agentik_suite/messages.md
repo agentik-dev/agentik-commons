@@ -78,6 +78,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.changed`: List every key changed from its default.
 - `flag.user_files`: Print the path of each user file that travels, one a line.
 - `flag.config_all`: Print every key flat, one a line.
+- `flag.config_pick`: Choose a key from a list for its card; Esc prints nothing and exits 0.
 - `flag.all`: Print every check, the ok ones too.
 - `flag.check`: Print a line for each thing that needs a hand, and exit 1 when one does.
 - `flag.web`: Send the issue by the browser's new-issue page, not through gh.
@@ -224,6 +225,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `config.file`: `{path}`
 - `config.find.title`: Keys that match `{word}`: `{count}`.
 - `config.find.silent`: `{name}` did not answer, so its keys are not in this list
+- `config.pick`: Which key?
+- `config.pick.noun`: keys
+- `config.from_list`: from a list: `{command}`
 - `hint.config`: next: `{command}`
 - `hint.config.tool`: next: `{command}`
 - `hint.config.card`: next: `{config}` --changed lists every key changed from its default.
