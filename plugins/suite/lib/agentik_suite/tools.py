@@ -191,7 +191,7 @@ def _drain(job):
         job["chunks"].append(data)
 
 
-def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=None):
+def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=None, cwd=None):
     """{key: (exit or None, stdout bytes, state)} for jobs [(key, argv)], every one started at
     once, under one deadline (WALL seconds from now when none is given). State is `ran`, `timed
     out` (still running at the deadline, or not started by it) or `unreadable` (it could not
@@ -204,7 +204,8 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
     {key: seconds}: each job runs under its own wall from its own start (WALL for a key it does
     not name), and the one deadline holds only when given. `errs`, a dict filled with each job's
     stderr up to ERR_CAP bytes. `times`, a dict filled with each job's seconds from this call's
-    start to its end."""
+    start to its end. `cwd`, the folder every process starts in, the caller's where None (packet
+    dr2-doctor-machine R1: the doctor's reads start in the home folder)."""
     t0 = time.monotonic()
     if walls is None:
         deadline = t0 + WALL if deadline is None else deadline
@@ -217,7 +218,7 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
         queue.extend(then(key, result) if then else ())
 
     try:
-        _run(queue, live, finish, env, deadline, walls, errs)
+        _run(queue, live, finish, env, deadline, walls, errs, cwd)
     except BaseException:
         _end_all(live)
         live.clear()
@@ -233,7 +234,7 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
     return results
 
 
-def _run(queue, live, finish, env, deadline, walls, errs):
+def _run(queue, live, finish, env, deadline, walls, errs, cwd=None):
     """run_all's loop: it starts, drains and ends jobs until none is live or the walls pass."""
     while True:
         while queue:
@@ -251,7 +252,7 @@ def _run(queue, live, finish, env, deadline, walls, errs):
             try:
                 proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=out,
                                         stderr=subprocess.DEVNULL if eout is None else eout,
-                                        env=dict(env), start_new_session=True)
+                                        env=dict(env), start_new_session=True, cwd=cwd)
                 live[key] = {"proc": proc, "fd": fd, "chunks": [], "size": 0, "open": True,
                              "end": end, "efd": efd, "err": b""}
             except (OSError, ValueError):
