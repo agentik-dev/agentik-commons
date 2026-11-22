@@ -387,6 +387,28 @@ class Screens(Home):
         self.assertEqual(listed, shown)
         self.assertIn("~/.local/bin/agentik", listed)
 
+    def test_f4_the_seconds_are_the_runs_own(self):
+        """A marketplace add that sleeps 2 s: its row reads 2 s, within a second, and the report's
+        total is at least that and at most the run's wall time, rounded up (review 1 F4)."""
+        slow = "import time as _t\nif _s.argv[1:3] == ['plugin', 'marketplace']:\n    _t.sleep(2)\n"
+        template = os.path.join(self.home, "plugin-bin")
+        self.stub("claude", FAIL % (self.flag, SECOND) + slow
+                  + CLAUDE_STUB.replace("#!/usr/bin/python3\n", "", 1) % template)
+        began = time.time()
+        code, out, err = self.screen("setup", "--yes")
+        wall = time.time() - began
+        self.assertEqual(code, 0, out + err)
+        row = [l for l in err if re.match(r" +ok 2 marketplace +claude plugin marketplace add ", l)]
+        self.assertEqual(len(row), 1, err)
+        self.assertIn(int(re.search(r" (\d+) s$", row[0]).group(1)), (2, 3), row)
+        total = [re.match(r"^Steps 2 to 5 are done: \d+ commands in (\d+) s\.$", l) for l in out]
+        total = [int(m.group(1)) for m in total if m]
+        self.assertEqual(len(total), 1, out)
+        self.assertTrue(2 <= total[0] <= int(wall) + 1, (total, wall))
+        for line in err:  # no command's row holds more seconds than the run took
+            m = re.search(r" (\d+) s$", line)
+            self.assertTrue(not m or int(m.group(1)) <= int(wall) + 1, line)
+
     # ---- R4, R6, R8: units ---------------------------------------------------------------
     def test_r4_undo_has_a_place_and_prints_none(self):
         self.assertIsNone(apply.undo(None))
