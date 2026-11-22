@@ -226,11 +226,11 @@ def _ids(source):
 
 def _titled(cmd, mid, origin, **values):
     """A title line; with `origin`, it ends `from <id or folder>` (R6)."""
-    t = cmd.t
+    t = cmd.t  # at the window's width on a terminal (row sc17-narrow-screens R4)
     if origin:
-        t.line("config.titled", title=t.text(mid, **values).rstrip("."), source=origin)
+        t.wrapped("config.titled", title=t.text(mid, **values).rstrip("."), source=origin)
     else:
-        t.line(mid, **values)
+        t.wrapped(mid, **values)
 
 
 def path(nouns):

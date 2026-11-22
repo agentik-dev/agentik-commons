@@ -6,6 +6,8 @@ import os
 import re
 import sys
 import unittest
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import Home  # noqa: E402
@@ -109,6 +111,44 @@ class SummaryTest(Narrow):
         self.assertEqual(rows[1], SUMMARY)
         code, out, err = self.run_cli("help", "config", COLUMNS="40")
         self.assertEqual(out.splitlines()[1], SUMMARY)
+
+
+
+def probe():
+    """scripts/screen-probe as a module, for its made-up tool `loom` and its file."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "screen-probe")
+    loader = SourceFileLoader("screen_probe", path)
+    module = module_from_spec(spec_from_loader("screen_probe", loader))
+    sys.dont_write_bytecode, was = True, sys.dont_write_bytecode
+    try:
+        loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = was
+    return module
+
+
+class ConfigTitleTest(Narrow):
+    """R4: `config <tool>`'s head line wraps at the window's width."""
+
+    def setUp(self):
+        Narrow.setUp(self)
+        p = probe()
+        self.stub("agentik-loom", p.LOOM)
+        os.makedirs(os.path.join(self.home, ".config", "loom"))
+        with open(os.path.join(self.home, ".config", "loom", "config.yaml"), "w") as fh:
+            fh.write(p.LOOM_FILE)
+
+    def test_at_50_it_wraps(self):
+        code, rows = self.rows("config", "loom", cols=50)
+        self.assertEqual(code, 0, rows)
+        self.assertEqual(" ".join(rows[:2]),
+                         "loom: 24 keys, 3 changed (*). Layers, lowest first: default, user.")
+        self.assertLessEqual(self.widest(rows[:2]), 50)
+        self.assertEqual(rows[2], "")
+
+    def test_at_80_one_line(self):
+        code, rows = self.rows("config", "loom", cols=80)
+        self.assertEqual(rows[:2], ["loom: 24 keys, 3 changed (*). Layers, lowest first: default, user.", ""])
 
 
 if __name__ == "__main__":
