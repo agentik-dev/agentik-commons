@@ -274,8 +274,8 @@ class PageTest(Narrow):
     def test_json_gives_the_page(self):
         code, out, err = self.run_cli("relay", "--json")
         got = json.loads(out)["error"]
-        self.assertEqual(got["message"], CAUSE)
         self.assertRegex(got["page"], r"^https://\S+#install$")
+        self.assertEqual(got["message"], CAUSE + " " + got["page"])  # the address kept (review 1 L4)
 
 
 

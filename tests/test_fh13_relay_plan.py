@@ -192,6 +192,7 @@ class PageTest(Base):
             self.assertEqual(got["code"], "not_installed")
             self.assertEqual(got["remedy"], "%s %s murmur" % (self.launcher, remedy))
             self.assertEqual(got["page"], PAGE)
+            self.assertEqual(got["message"], "murmur %s %s" % (NEW_WORDS, PAGE))  # sc17 review 1 L4
 
     def test_6_a_plugin_with_no_page_keeps_its_refusal(self):
         h = self.home("hL", P)

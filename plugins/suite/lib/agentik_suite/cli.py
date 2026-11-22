@@ -463,7 +463,10 @@ class Command:
     def fail(self, u):
         page = u.values.get("page")  # a tool's page goes whole under the cause (row sc17 R6)
         if self.opts["json"]:
-            error = {"code": u.code, "message": self.t.text(u.mid, **u.values), "remedy": u.remedy}
+            message = self.t.text(u.mid, **u.values)
+            if page:  # the address in the message too, as at the pin (review 1 L4)
+                message += " " + page
+            error = {"code": u.code, "message": message, "remedy": u.remedy}
             self.t.json({"schema": SCHEMA % (self.verb or "usage"), "ok": False,
                          "error": dict(error, page=page) if page else error})
         else:
