@@ -121,9 +121,11 @@ class Breaks(Copy):
         text = (ROOT / CATALOGUE).read_text(encoding="utf-8")
         self.assertEqual(probe.check_v9(text), ([], []))  # the pin, as listed
         fewer = dict(probe.V9_LIST)
-        del fewer["err.update.step"]
-        self.assertEqual(probe.check_v9(text, fewer), (["err.update.step"], []))
-        self.assertEqual(sorted(set(probe.V9_LIST.values())), ["flag", "owed"])
+        del fewer["flag.exit"]
+        self.assertEqual(probe.check_v9(text, fewer), (["flag.exit"], []))
+        more = dict(probe.V9_LIST, **{"err.update.step": "owed"})  # off the list since sc18 R1
+        self.assertEqual(probe.check_v9(text, more), ([], ["err.update.step"]))
+        self.assertEqual(sorted(set(probe.V9_LIST.values())), ["flag"])  # the ten owed ids gone (sc18)
 
     def test_a4_a_screen_past_its_budget_is_red(self):
         self.edit("help.row.status", " ".join(["the watchers, sessions, gate, backlog and runs"] * 4))

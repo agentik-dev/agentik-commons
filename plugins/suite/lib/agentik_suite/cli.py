@@ -462,15 +462,20 @@ class Command:
 
     def fail(self, u):
         page = u.values.get("page")  # a tool's page goes whole under the cause (row sc17 R6)
+        whole = page or u.values.get("said")  # or a child's own last line (row sc18 R5)
         if self.opts["json"]:
             message = self.t.text(u.mid, **u.values)
             if page:  # the address in the message too, as at the pin (review 1 L4)
                 message += " " + page
+            elif whole:  # the child's line too, as setup's JSON keeps it
+                message = self.t.text("err.setup.last", message=message, last=whole)
             error = {"code": u.code, "message": message, "remedy": u.remedy}
+            if type(u.values.get("exit")) is int:  # a child's code the message held (row sc18 R8)
+                error["exit"] = u.values["exit"]
             self.t.json({"schema": SCHEMA % (self.verb or "usage"), "ok": False,
                          "error": dict(error, page=page) if page else error})
         else:
-            self.t.error(u.mid, next_=u.remedy if u.paste else None, whole=page, **u.values)
+            self.t.error(u.mid, next_=u.remedy if u.paste else None, whole=whole, **u.values)
         return u.status
 
     def _no_nouns(self, nouns, one=False):

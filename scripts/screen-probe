@@ -56,21 +56,12 @@ FAILS = []
 LIVE = set()  # each child started and not yet stopped, for a stop from outside (review 1 L5)
 
 # V9's list: the pin's ids (main 6c60098) that hold the word or a code, each with its reason in a
-# word. `flag`: a flag's help says the code a script reads. `owed`: a later row rewrites it.
+# word. `flag`: a flag's help says the code a script reads. The ten `owed` ids are rewritten by
+# sc18-exit-words.
 V9_LIST = {
     "flag.config_pick": "flag",
     "flag.check": "flag",
     "flag.exit": "flag",
-    "err.update.step": "owed",
-    "err.update.step.silent": "owed",
-    "err.update.todo": "owed",
-    "remove.market.stands": "owed",
-    "err.remove.step": "owed",
-    "err.remove.step.silent": "owed",
-    "inbox.read.no_answer": "owed",
-    "err.issue.send.failed": "owed",
-    "err.issue.exit": "owed",
-    "issue.render.exit": "owed",
 }
 
 # KNOWN: what is red on main's screens, by "<check>:<screen>": a pattern that each excused line

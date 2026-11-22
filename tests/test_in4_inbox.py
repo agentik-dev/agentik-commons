@@ -123,7 +123,7 @@ OPENED = """pear-hq  question 1, open, asked today
 To answer: type after "Your answer:" in the block at OPEN-QUESTIONS.md:5.
 Or start claude in pear-hq and ask for its open questions.
 """
-CHARTER_TWO = "note  not read  charter: agentik-bench charter show --json exited 2\n"
+CHARTER_TWO = "note  not read  charter: agentik-bench charter show --json failed\n"  # sc18 R4
 DOCTOR = "next: to see which command is missing or behind its plugin, run %s doctor\n"
 USER = "~/.config/agentik/suite/config.yaml"
 
@@ -408,7 +408,7 @@ class CheckTest(InboxHome):
         self.how("charter", exit=2)
         code, out, err = self.inbox("--check", self.pear)
         self.assertEqual((code, err), (1, ""))
-        self.assertEqual(out.splitlines()[0], "not read: charter: agentik-bench charter show --json exited 2")
+        self.assertEqual(out.splitlines()[0], "not read: charter: agentik-bench charter show --json failed")
 
     def test_10_json(self):
         code, out, err = self.inbox("--json", self.pear, self.plum)

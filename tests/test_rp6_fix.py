@@ -456,7 +456,7 @@ class Phase2Test(FixHome):
                 (("show", "--draft", "nope"), "no draft is named nope", "issue"),
                 (("new", "nosuchtool"), "nosuchtool is no tool an issue can name; one of "
                  + ", ".join(sorted(PUBLIC["tools"])), "help issue"),
-                (("new", "--exit", "300"), "--exit takes the command's exit code, 0 to 255, not 300",
+                (("new", "--exit", "300"), "--exit takes a number from 0 to 255, not 300",
                  "help issue"),
                 (("strike",), "strike takes the words to strike", "help issue"),
                 (("drop", "nothing"), "nothing is no part of the draft; one of "

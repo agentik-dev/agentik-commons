@@ -248,7 +248,7 @@ class RenderTest(RenderHome):
         self.assertEqual(code, 0, err)
         lines = [l for l in (out + err).splitlines() if "template stands" in l]
         self.assertEqual(len(lines), 1, out + err)
-        self.assertIn("exited 1", lines[0])
+        self.assertIn("script failed", lines[0])  # the code off the line (sc18 R7)
         self.assertEqual((self.fields()["happened"], self.fields()["expected"]), (happened, expected))
         self.assertNotIn(NOISE, out + err)
 

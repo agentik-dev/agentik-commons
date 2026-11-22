@@ -34,6 +34,11 @@ PARENTS = 32  # the most parents `spare` walks up
 FAILS = {"err.setup.step": "err.remove.step", "err.setup.step.silent": "err.remove.step.silent",
          "err.setup.wall": "err.remove.wall", "err.setup.wall.silent": "err.remove.wall.silent",
          "err.setup.start": "err.remove.start", "err.setup.interrupted.idle": "err.remove.interrupted.idle"}
+# a stopped run's cause alone, as update's (row sc18-exit-words R2, R3): the child's last line
+# whole under it, the command to run again in `next:`, and --json keeps the code the message held
+SAID = {"err.remove.step", "err.remove.wall", "err.remove.start"}
+AGAIN = SAID | {"err.remove.step.silent", "err.remove.wall.silent"}
+CODED = {"err.remove.step", "err.remove.step.silent"}
 KIND = {"folder": "remove.kept.folder", "plugin": "remove.kept.plugin", "undecided": "remove.kept.undecided",
         "own": "remove.kept.scope"}
 
@@ -171,6 +176,7 @@ class Remove:
         self.guard = []  # every path R7 names, standing or not: the cache walk reaches none (F1)
         self.soft = set()  # kept rows named only where they stand: gone after the run, no fault
         self.remedy = cmd.say("remove")  # every word the close prints, filled before step 5 (R6)
+        self.retry = self.again()  # the screen's `next:`: the remove this run named (sc18 review 1 L4)
 
     # ---- which tools (R3), what they keep (R7) ------------------------------------------------
 
@@ -607,12 +613,18 @@ class Remove:
         message = None
         lines = [(mid, ", ".join(self.shown(p) for p, _ in found))
                  for mid, found in (("err.remove.red", red), ("err.remove.stands", stands)) if found]
+        mid = said = None
         if failure:
             mid = FAILS.get(failure[0], failure[0])
+            said = failure[1].get("last") if mid in SAID else None  # the child's own line (sc18 R2)
             message = t.text(mid, **dict(self.slots, **failure[1]))
         if self.o["json"]:
             remedy = None if failure and failure[0] == "err.remove.cache.partly" else self.remedy  # F5: no verb is left
+            if said:  # its line stays in the message, as setup's JSON keeps it
+                message = t.text("err.setup.last", message=message, last=said)
             error = {"code": "step_failed", "message": message, "remedy": remedy} if failure else None
+            if mid in CODED:  # the code the message held, as setup's `ran` rows name it (R8)
+                error["exit"] = failure[1]["exit"]
             if lines and not error:
                 error = {"code": "red", "message": " ".join(t.text(mid, paths=paths) for mid, paths in lines),
                          "remedy": None}
@@ -634,7 +646,7 @@ class Remove:
         t.table(rows)
         if failure:
             t.flush()
-            t.error(FAILS.get(failure[0], failure[0]), **dict(self.slots, **failure[1]))
+            t.error(mid, self.retry if mid in AGAIN else None, whole=said, **dict(self.slots, **failure[1]))
         elif lines:
             t.flush()
             for mid, paths in lines:

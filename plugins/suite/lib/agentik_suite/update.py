@@ -42,6 +42,11 @@ FAILS = {"err.setup.step": "err.update.step", "err.setup.step.silent": "err.upda
          "err.setup.wall": "err.update.wall", "err.setup.wall.silent": "err.update.wall.silent",
          "err.setup.start": "err.update.start", "err.setup.todo": "err.update.todo",
          "err.setup.interrupted.idle": "err.update.interrupted.idle"}
+# a stopped run's cause alone (row sc18-exit-words R1, R3): the child's last line goes whole under
+# it, the command to run again is the `next:` line, and --json keeps the code the message held
+SAID = {"err.update.step", "err.update.wall", "err.update.start"}
+AGAIN = SAID | {"err.update.step.silent", "err.update.wall.silent", "err.update.interrupted"}
+CODED = {"err.update.step", "err.update.step.silent", "err.update.todo"}
 # setup's step 1, 3, 4 and 5 rows that name setup, in update's own words where update shows them
 # (row up4-update-close R4, review 1 L1); the step's `mid` stays setup's, so the plan's logic reads
 # it as before
@@ -544,16 +549,22 @@ class Update:
         commands = [r["command"] for r in ran]
         if failure:
             mid = FAILS.get(failure[0], failure[0])
+            said = failure[1].get("last") if mid in SAID else None  # the child's own line (sc18 R1)
             message = t.text(mid, **dict(self.slots, **failure[1]))
             if self.o["json"]:
-                self.json(False, steps, after, commands, wrote,
-                          error={"code": "step_failed", "message": message, "remedy": self.cmd.say("update")})
+                if said:  # its line stays in the message, as setup's JSON keeps it
+                    message = t.text("err.setup.last", message=message, last=said)
+                error = {"code": "step_failed", "message": message, "remedy": self.cmd.say("update")}
+                if mid in CODED:  # the code the message held, as setup's `ran` rows name it (R8)
+                    error["exit"] = failure[1].get("exit", 0)
+                self.json(False, steps, after, commands, wrote, error=error)
             else:
                 self.restart(moved)
                 t.flush()
-                again = self.cmd.say("update") if mid == "err.update.interrupted" else None
+                again = self.cmd.say("update", "--dry-run") if mid == "err.update.todo" else \
+                    self.cmd.say("update") if mid in AGAIN else None
                 below = self.placing(before, cause if cause is not failure else None, broke)
-                t.error(mid, None if below else again, **dict(self.slots, **failure[1]))
+                t.error(mid, None if below else again, whole=said, **dict(self.slots, **failure[1]))
                 for line, values in below:
                     t.line(line, err=True, **values)
                 if below and again:  # `next:` stays last

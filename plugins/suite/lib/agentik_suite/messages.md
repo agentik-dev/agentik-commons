@@ -450,12 +450,12 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.update.yes`: Update ran nothing, since it cannot ask here; run `{update}` --yes
 - `err.update.declined`: Update ran nothing, since the answer was not yes; run `{update}` again
 - `err.update.blocked`: Update ran nothing: step 1 needs `{missing}`; install it, run `{update}` again
-- `err.update.step`: Update stopped: `{command}` exited `{exit}` and said `{last}`; run `{update}` again
-- `err.update.step.silent`: Update stopped: `{command}` exited `{exit}`, no output; run `{update}` again
-- `err.update.wall`: Update stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{update}` again
-- `err.update.wall.silent`: Update stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{update}` again
-- `err.update.start`: Update stopped: `{command}` could not start, since `{last}`; run `{update}` again
-- `err.update.todo`: `{command}` exited 0 but step `{n}` is todo; see `{update}` --dry-run
+- `err.update.step`: Update stopped: `{command}` failed
+- `err.update.step.silent`: Update stopped: `{command}` failed, and printed nothing
+- `err.update.wall`: Update stopped: `{command}` ran past `{wall}` s and was killed
+- `err.update.wall.silent`: Update stopped: `{command}` ran past `{wall}` s, printed nothing, and was killed
+- `err.update.start`: Update stopped: `{command}` could not start
+- `err.update.todo`: Update stopped: step `{n}` ran and is still not done
 - `err.update.journal`: Update could not log to `{path}`, since `{why}`; the report above holds
 - `err.update.interrupted`: Update was interrupted, so it stopped `{command}`
 - `err.update.unknown`: `{name}` is no known tool
@@ -481,7 +481,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `remove.cache.place`: kept: it does not lie at its own place in the cache home
 - `remove.cache.guard`: kept: it reaches `{reach}`, which remove keeps, so nothing there is deleted
 - `remove.cache.acted`: kept: it reaches `{reach}`, which steps 2 and 5 act on, so nothing goes
-- `remove.market.stands`: stands: `claude plugin marketplace remove` exited 0 and left it
+- `remove.market.stands`: stands: `claude plugin marketplace remove` ran and left it
 - `remove.gone`: gone: remove was to keep it, and it no longer stands
 - `remove.keep.config`: kept: your config
 - `remove.keep.state`: kept: its state
@@ -506,11 +506,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
 - `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, written by `claude plugin`; use a terminal
 - `err.remove.gate_unread`: Remove ran nothing: `{path}` is unreadable (`{why}`); run `{remove}` in a terminal
-- `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`; run `{remove}` again
-- `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}`, no output; run `{remove}` again
-- `err.remove.wall`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{remove}` again
-- `err.remove.wall.silent`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{remove}` again
-- `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`; run `{remove}` again
+- `err.remove.step`: Remove stopped: `{command}` failed
+- `err.remove.step.silent`: Remove stopped: `{command}` failed, and printed nothing
+- `err.remove.wall`: Remove stopped: `{command}` ran past `{wall}` s and was killed
+- `err.remove.wall.silent`: Remove stopped: `{command}` ran past `{wall}` s, printed nothing, and was killed
+- `err.remove.start`: Remove stopped: `{command}` could not start
 - `err.remove.interrupted.idle`: Remove was interrupted between steps; run `{remove}` again to go on
 - `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`); run `{remove}` again
 - `err.remove.red`: Remove finished, but `{paths}` is not as it said; see what else wrote there
@@ -760,7 +760,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.age.today`: today
 - `inbox.read.where`: `{read}` in `{name}`
 - `inbox.read.no_tool`: `{read}`: no command on PATH gives that read
-- `inbox.read.no_answer`: `{read}`: `{command}` exited `{exit}`
+- `inbox.read.no_answer`: `{read}`: `{command}` failed
 - `inbox.read.unknown`: `{read}`: `{command}` answers in a shape the suite does not know
 - `inbox.read.timed_out`: `{read}`: `{command}` gave no answer in `{wall}` s
 - `inbox.check.question`: `{name}`: question `{n}`: `{title}`; recommended: `{label}`
@@ -887,7 +887,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.send.unapproved`: this issue has no approval left, since each is used once; nothing was sent
 - `err.issue.send.token`: `{name}` is set and overrides gh's account, so nothing was sent through gh
 - `err.issue.send.switched`: not sent: gh's account is not `{login}`; gh auth switch --user `{login}`
-- `err.issue.send.failed`: gh exited `{code}` and filed nothing: `{last}`. The draft is kept
+- `err.issue.send.failed`: gh filed nothing; the draft is kept
 - `err.issue.send.timeout`: gh ran past `{secs}` s and was stopped; check whether the issue was filed
 - `err.issue.send.flood`: input followed the word at once, so nothing was sent; send again
 - `err.issue.send.early`: input came before the question showed, so nothing was sent; send again
@@ -946,7 +946,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.public`: the table of public tools at `{path}` cannot be read, so no draft was written
 - `err.issue.private`: the private list exists and cannot be read, so nothing was written or sent
 - `err.issue.tool`: `{tool}` is no tool an issue can name; one of `{tools}`
-- `err.issue.exit`: --exit takes the command's exit code, 0 to 255, not `{value}`
+- `err.issue.exit`: `{flag}` takes a number from 0 to 255, not `{value}`
 - `err.issue.form`: the draft `{id}` does not read back as the form at line `{line}`
 - `err.issue.unreadable`: `{path}` cannot be read as a regular file
 - `err.issue.unreadable.draft`: `{name}` of the draft `{id}` cannot be read as a regular file
@@ -964,7 +964,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.render`: --render renders a new draft, so it goes with new alone
 - `issue.render.none`: No narrator render script is installed, so the template stands unchanged.
 - `issue.render.start`: The narrator's script could not start, so the template stands unchanged.
-- `issue.render.exit`: The narrator's script exited `{code}`, so the template stands unchanged.
+- `issue.render.exit`: The narrator's script failed, so the template stands unchanged.
 - `issue.render.wall`: The narrator's script ran past `{secs}` s, so the template stands unchanged.
 - `issue.render.nofile`: The narrator's script wrote no answer, so the template stands unchanged.
 - `issue.render.shape`: The narrator's answer is not Happened and Expected, so the template stands.

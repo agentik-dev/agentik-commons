@@ -375,10 +375,13 @@ class UpdateTest(Base):
             fh.write("paint@agentik")
         code, out, err = h.run("update", "--yes")
         self.assertEqual(code, 1, out + err)
-        self.assertIn("exited 1 and said no answer from the marketplace", err)
+        self.assertIn("Update stopped: claude plugin update paint@agentik failed\n", err)  # sc18 R1
+        self.assertIn("no answer from the marketplace", [line.strip() for line in err.splitlines()])
         with open(os.path.join(h.plugins, "installed_plugins.json")) as fh:
             self.assertEqual(json.load(fh)["plugins"]["murmur@agentik"][0]["version"], "1.1.0")
         self.assertNotIn("claude plugin update quill@agentik", h.claude())
+        code, out, err = h.run("update", "--yes", "--json")  # the code, off the screen since sc18 R8
+        self.assertEqual((code, json.loads(out)["error"]["exit"]), (1, 1))
         os.remove(os.path.join(h.home, "fail"))
         code, out, err = h.run("update", "--yes")
         self.assertEqual(code, 0, out + err)
