@@ -128,8 +128,8 @@ class AskTest(SetupHome):
         ran = self.ran(text)
         self.assertEqual(len(ran), 2, text)
         self.assert_labels_hold(text, ran)
-        later = labelled(text, LATER)  # step 7's one doctor, the suite's (row sc8 R1)
-        self.assertEqual([l.split()[-1] for l in later], ["doctor"], text)
+        later = labelled(text, LATER)  # step 7's one doctor, the suite's (row sc8 R1), then the undo (sc16 R1)
+        self.assertEqual([l.split()[-1] for l in later], ["doctor", "--all"], text)
 
     def test_a3_the_plan_of_one(self):
         self.plan_of_one()

@@ -399,8 +399,9 @@ TAIL = 5  # a failed command's own last lines shown under its row (row sc8 R6)
 
 def undo(cmd):
     """The `undo` row's command, one row in the plan's `Yours, after:` and one in the report
-    (design/23 §5, D23-3): None while setup's screens name no `remove`; a later row turns it on."""
-    return None
+    (design/23 §5, D23-3; row sc16-setup-undo R1): `remove --all` as every printed command is
+    formed, so it reads as typed before the door is placed and as placed after."""
+    return cmd.say("remove", "--all")
 
 
 def profile(env):
@@ -529,7 +530,7 @@ def plan_screen(cmd, steps, names, dry=False):
             text = t.text("setup.waiting.one") if len(waiting) == 1 else t.text("setup.waiting", count=len(waiting))
             would.append((None, "" if 4 in shown else 4, "" if 4 in shown else label(4), text, False))
     yours.append((None, 7, label(7), cmd.slots()["doctor"], True))
-    if undo(cmd):
+    if not blocked:  # the way out, said before the yes; a blocked plan installs nothing (sc16 R1)
         yours.append((None, "", t.text("setup.tail.undo"), undo(cmd), True))
     _rows(t, top)
     if would:
@@ -879,8 +880,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
         rows.append(("setup.tail.log", plan.shown(journal, home), True))
     if not failure:
         rows.append(("setup.tail.check", cmd.slots()["doctor"], True))
-        if undo(cmd):
-            rows.append(("setup.tail.undo", undo(cmd), True))
+        rows.append(("setup.tail.undo", undo(cmd), True))
         if add:  # only while ~/.local/bin is off PATH (row sc8 R2; D23-4)
             rows.extend(path_rows(cmd, add[0]["command"]))
     if rows:

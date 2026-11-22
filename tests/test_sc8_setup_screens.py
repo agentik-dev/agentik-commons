@@ -49,8 +49,12 @@ OURS = ("setup.title", "setup.would", "setup.yours", "setup.step.", "setup.waiti
         "setup.wrote", "setup.path.", "setup.other", "err.setup.", "hint.setup.")  # what this row writes
 
 
+UNDO = re.compile(r"\bagentik(-suite)? remove --all$")  # the `undo` row's command, the one remove (row sc16 R3)
+
+
 def words(line):
     """The line with its paths and commands' paths left out, the words a banned word is sought in."""
+    line = UNDO.sub("agentik", line)
     return " ".join(w for w in line.split() if not w.startswith(("/", "~")))
 
 
@@ -106,9 +110,9 @@ class Screens(Home):
         tail = out[len(plan):] + err[-1:]
         ended = err[:-1]
         lone = lambda part: sum(1 for l in part if self.lone(l, 80))
-        self.assertEqual(len(plan), 13 + lone(plan), plan)
+        self.assertEqual(len(plan), 14 + lone(plan), plan)
         self.assertEqual(len(ended), 8 + lone(ended), ended)
-        self.assertLessEqual(len(tail), 8, tail)
+        self.assertLessEqual(len(tail), 9, tail)  # sc16's undo row, one more
         print("\nA1: plan %d, commands %d, tail %d: %d lines (--yes, no answer line)"
               % (len(plan), len(ended), len(tail), len(out) + len(err)), file=sys.stderr)
 
@@ -162,9 +166,9 @@ class Screens(Home):
         lone = lambda part: sum(1 for l in part if self.lone(l, 80))
         plan, answer, ran, tail = shown[:ask], shown[ask:ask + 2], shown[ask + 2:ended], shown[ended:]
         self.assertEqual(answer[1], "y", text)  # sm1's typed question and the pty's echo of the answer
-        self.assertEqual(len(plan), 13 + lone(plan), plan)
+        self.assertEqual(len(plan), 14 + lone(plan), plan)
         self.assertEqual(len(ran), 8 + lone(ran), ran)
-        self.assertLessEqual(len(tail), 8, tail)
+        self.assertLessEqual(len(tail), 9, tail)  # sc16's undo row, one more
         print("\nA1 on a pty: plan %d (%d lone), answer %d, commands %d (%d lone), tail %d: %d lines"
               % (len(plan), lone(plan), len(answer), len(ran), lone(ran), len(tail), len(shown)), file=sys.stderr)
 
@@ -188,7 +192,7 @@ class Screens(Home):
         tail = out2[at[0]:]
         shown = [w.rstrip(":") for l in tail for w in l.split() if w.startswith(("~/", "/"))]
         self.assertEqual(shown, ["~/.local/state/agentik-suite/setup.jsonl", "~/.local/bin/agentik",
-                                 "~/.profile"], tail)  # the log's, the door's, and R2's login file
+                                 "~/.local/bin/agentik", "~/.profile"], tail)  # the log's, the door's (check, then sc16's undo), and R2's login file
 
     def test_a5_the_path_rows(self):
         code, out, err = self.screen("setup", "--yes", SHELL="/bin/zsh")
@@ -447,10 +451,10 @@ class Screens(Home):
                          ["  wrote  %d files, each named in the log" % len(self.journal()[-1]["wrote"][:-1])])
 
     # ---- R4, R6, R8: units ---------------------------------------------------------------
-    def test_r4_undo_has_a_place_and_prints_none(self):
-        self.assertIsNone(apply.undo(None))
+    def test_r4_undo_has_a_place_and_prints_one_row(self):  # sc16 R1 turns it on
         code, out, err = self.screen("setup", "--dry-run")
-        self.assertFalse([l for l in out + err if "undo" in l])
+        self.assertEqual([l for l in out + err if re.match(r" +undo ", l)],  # the label: a path may hold the word
+                         ["      undo         %s remove --all" % LAUNCHER])
 
     def test_r6_the_closing_lines(self):
         t = type("T", (), {"text": None})()
