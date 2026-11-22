@@ -481,7 +481,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `remove.cache.place`: kept: it does not lie at its own place in the cache home
 - `remove.cache.guard`: kept: it reaches `{reach}`, which remove keeps, so nothing there is deleted
 - `remove.cache.acted`: kept: it reaches `{reach}`, which steps 2 and 5 act on, so nothing goes
-- `remove.market.stands`: stands: `claude plugin marketplace remove` exited 0 and left it
+- `remove.market.stands`: stands: `claude plugin marketplace remove` ran and left it
 - `remove.gone`: gone: remove was to keep it, and it no longer stands
 - `remove.keep.config`: kept: your config
 - `remove.keep.state`: kept: its state
@@ -506,11 +506,11 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.remove.declined`: Remove ran nothing, since the answer was not yes; run `{remove}` again
 - `err.remove.gated`: `{remove}` ran nothing: the gate list names `{path}`, written by `claude plugin`; use a terminal
 - `err.remove.gate_unread`: Remove ran nothing: `{path}` is unreadable (`{why}`); run `{remove}` in a terminal
-- `err.remove.step`: Remove stopped: `{command}` exited `{exit}` and said `{last}`; run `{remove}` again
-- `err.remove.step.silent`: Remove stopped: `{command}` exited `{exit}`, no output; run `{remove}` again
-- `err.remove.wall`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed; last line `{last}`; run `{remove}` again
-- `err.remove.wall.silent`: Remove stopped: `{command}` ran past `{wall}` s limit and was killed, no output; run `{remove}` again
-- `err.remove.start`: Remove stopped: `{command}` could not start, since `{last}`; run `{remove}` again
+- `err.remove.step`: Remove stopped: `{command}` failed
+- `err.remove.step.silent`: Remove stopped: `{command}` failed, and printed nothing
+- `err.remove.wall`: Remove stopped: `{command}` ran past `{wall}` s and was killed
+- `err.remove.wall.silent`: Remove stopped: `{command}` ran past `{wall}` s, printed nothing, and was killed
+- `err.remove.start`: Remove stopped: `{command}` could not start
 - `err.remove.interrupted.idle`: Remove was interrupted between steps; run `{remove}` again to go on
 - `err.remove.partly`: Remove stopped: `{path}` was partly removed (`{why}`); run `{remove}` again
 - `err.remove.red`: Remove finished, but `{paths}` is not as it said; see what else wrote there

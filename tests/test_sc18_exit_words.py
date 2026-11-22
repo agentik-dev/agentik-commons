@@ -122,5 +122,60 @@ class UpdateTest(Shape, up.Base):
             self.assertIn(words, err)
 
 
+# ---- family: remove -----------------------------------------------------------------------
+
+class RemoveTest(Shape, up.Base):
+    def x(self):
+        import test_ak4_remove as rm
+        h = rm.RHome(os.path.join(self.tmp, "h"), ("murmur", "paint", "x"))
+        h.real_tool()
+        env = h.env()
+        h.under_temp(env)
+        return h, env
+
+    def test_r2_a_failed_command_on_a_terminal_at_80(self):
+        h, env = self.x()
+        wrap(h, "plugin uninstall")
+        rows = probe.render([str(up.LAUNCHER), "remove", "x", "--yes"], env, h.home, "pty80", None)
+        text = "\n".join(rows)
+        self.clean(text, again="remove")
+        self.assertTrue([r for r in rows if "Remove stopped: claude plugin uninstall" in r], text)
+        self.pasted([r for r in rows if r.strip()], env, h.home)
+
+    def test_r2_a_silent_command_and_the_json(self):
+        h, env = self.x()
+        wrap(h, "plugin uninstall", said=None)
+        code, out, err = h.go("remove", "x", "--yes")
+        self.assertEqual(code, 1, err)
+        self.clean(out + err, said=None, again="remove")
+        self.assertIn("failed, and printed nothing", err)
+        wrap(h, "plugin uninstall")
+        code, out, err = h.go("remove", "x", "--yes", "--json")
+        error = json.loads(out)["error"]
+        self.assertEqual((error["code"], error["exit"]), ("step_failed", 3))
+        self.assertIn(SAID, error["message"])
+        self.assertIsNone(WORD.search(error["message"]))
+
+    def test_r3_the_wall_and_the_start(self):
+        h, env = self.x()
+        for result, words in (({"exit": None, "last": SAID, "why": "wall", "wall": 120}, "ran past 120 s"),
+                              ({"exit": None, "last": "", "why": "wall", "wall": 120}, "printed nothing"),
+                              ({"exit": None, "last": SAID, "why": "start", "wall": 120}, "could not start")):
+            code, out, err = in_process(h, ["remove", "x", "--yes"], result, env)
+            self.assertEqual(code, 1, err)
+            self.clean(err, said=result["last"], again="remove")
+            self.assertIn(words, err)
+
+    def test_r2_the_marketplace_that_stands(self):
+        h, env = self.x()
+        os.makedirs(os.path.join(h.plugins, "marketplaces", "agentik"))
+        wrap(h, "plugin marketplace", said=None, code=0)
+        code, out, err = h.go("remove", "--all", "--yes")
+        rows = [r for r in (out + err).splitlines() if "stands:" in r]
+        self.assertEqual(len(rows), 1, out + err)
+        self.assertIn("ran and left it", rows[0])
+        self.assertIsNone(WORD.search(rows[0]))
+
+
 if __name__ == "__main__":
     unittest.main()
