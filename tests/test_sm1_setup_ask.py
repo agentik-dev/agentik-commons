@@ -36,7 +36,7 @@ def labelled(text, label):
     if label not in lines:
         return got
     for line in lines[lines.index(label) + 1:]:
-        if line in (WOULD, LATER) or line.endswith(" now? y for yes, n or Enter for no."):
+        if line in (WOULD, LATER) or " now?" in line:  # the typed question or the selector's
             break
         m = ROW.match(line)
         command = m.group(3) if m else line
@@ -50,11 +50,12 @@ def screen_text(text):
 
 
 def ended(text):
-    """The commands that ended, below the question, each as its row names it, its seconds left out."""
+    """The commands that ended, below the question (the typed one, or the selector's answered
+    line), each as its row names it, its seconds left out."""
     lines, got = screen(text), []
-    asked = [i for i, l in enumerate(lines) if l.endswith(" now? y for yes, n or Enter for no.")]
+    asked = [i for i, l in enumerate(lines) if " now?" in l]
     for i, line in enumerate(lines):
-        m = ENDED.match(line) if asked and i > asked[0] else None
+        m = ENDED.match(line) if asked and i > asked[-1] else None
         if m:
             command = m.group(3) or lines[i + 1]
             got.append(re.sub(r" \d+ s(, .*)?$", "", command))
