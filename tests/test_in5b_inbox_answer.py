@@ -318,6 +318,82 @@ class ReviewOneTest(AnswerHome):
                           ["reply", "2", "--pick=-x", "--dry-run"]])
 
 
+class ReviewTwoTest(AnswerHome):
+    """The fix of review 2: the writer's path is joined to the folder and never normalised, so the
+    file run is the one the PATH search found, a `<link>/..` entry among them (F1)."""
+
+    def setUp(self):
+        AnswerHome.setUp(self)
+        self.marker = os.path.join(self.side, "planted-ran")
+        self.system = self.env()["PATH"].split(os.pathsep, 1)[1]
+
+    def plant(self, folder):
+        """An executable of the writer's name in `folder`, which writes the marker when run."""
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, "agentik-ledger")
+        with open(path, "w") as fh:
+            fh.write("#!/bin/sh\necho planted >> %s\necho 'not the writer'\n" % shlex.quote(self.marker))
+        os.chmod(path, 0o755)
+
+    def runs(self, entry, cwd, path=None):
+        """The answer with PATH `entry` then the system's (or `path` whole), from `cwd`: the stub
+        ran once, in the checkout, and no plant ran."""
+        before = len(self.replies())
+        path = entry + os.pathsep + self.system if path is None else path
+        got = self.answer("pear-hq", "2", "--pick", "North", "--yes", cwd=cwd, PATH=path)
+        self.assertEqual(got, (0, "the line after\n", "the writer's note\n"), path)
+        self.assertEqual([(c["argv"], c["cwd"]) for c in self.replies()[before:]],
+                         [(["reply", "2", "--pick=North", "--yes"], os.path.realpath(self.pear))], path)
+        self.assertFalse(os.path.exists(self.marker), path)
+
+    def link_entries(self):
+        """`<checkout>/ln/..`, absolute and relative to the caller's folder, where ln points into
+        the stubs' folder: the kernel reads ln/.. as the stubs' folder, the text folds it to the
+        checkout."""
+        os.makedirs(os.path.join(self.stubs, "sub"))
+        link = os.path.join(self.pear, "ln")
+        os.symlink(os.path.join(self.stubs, "sub"), link)
+        return os.path.join(link, ".."), os.path.join(os.path.relpath(link, self.side), "..")
+
+    def test_f1_a_link_and_dotdot_entry_runs_the_writer_found(self):
+        entries = self.link_entries()
+        self.plant(self.pear)  # where ln/.. folds to as text
+        for entry in entries:
+            self.runs(entry, self.side)
+        self.assertEqual(len(self.replies()), 2)
+
+    def test_f1_the_same_entry_with_no_plant(self):
+        for entry in self.link_entries():
+            self.runs(entry, self.side)
+        self.assertEqual(len(self.replies()), 2)
+
+    def test_f1_the_path_shapes_review_two_checked(self):
+        self.plant(self.pear)
+        sibling = os.path.join(self.home, ".config")
+        for entry, cwd in ((".", self.stubs), ("", self.stubs),
+                           (os.path.relpath(self.stubs, self.home), self.home),
+                           (os.path.join("..", os.path.basename(self.stubs)), sibling),
+                           (os.path.relpath(self.stubs, self.pear), self.pear)):
+            self.runs(entry, cwd)
+        # a trailing and a doubled empty entry, from the stubs' folder
+        for path in (self.system + os.pathsep, self.system.replace(os.pathsep, os.pathsep * 2, 1)):
+            self.runs(None, self.stubs, path)
+        # a relative entry that finds a copy of the writer from the caller's folder, while the
+        # checkout holds a plant under the same relative name
+        copy = os.path.join(self.side, "bin", "agentik-ledger")
+        os.makedirs(os.path.dirname(copy))
+        with open(os.path.join(self.stubs, "agentik-ledger")) as src, open(copy, "w") as dst:
+            dst.write(src.read())
+        os.chmod(copy, 0o755)
+        self.plant(os.path.join(self.pear, "bin"))
+        self.runs("bin" + os.pathsep + self.stubs, self.side)
+        # a symlinked entry, relative and absolute
+        os.symlink(self.stubs, os.path.join(self.side, "stublink"))
+        self.runs("stublink", self.side)
+        self.runs(os.path.join(self.side, "stublink"), self.side)
+        self.assertFalse(os.path.exists(self.marker))
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
