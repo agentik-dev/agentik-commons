@@ -49,6 +49,12 @@ if _s.argv[1:4] == ["plugin", "marketplace", "add"]:
 """
 
 
+def read(path):
+    """A file's text, the file closed (row sc16 R5.3)."""
+    with open(path) as fh:
+        return fh.read()
+
+
 def replay(text):
     """The screen the bytes leave, as lines: a carriage return to column 0, a line feed a new
     line, `ESC[2K` the line cleared, `ESC[K` and `ESC[J` cleared from the cursor, any other
@@ -351,7 +357,7 @@ class LiveLine(Base):
             self.slow()
             code, text, c = self.setup(self.term_env(), cols=cols)
             self.assertEqual(code, 0, text)
-            started = float(open(self.pidfile).read().split()[2])
+            started = float(read(self.pidfile).split()[2])
             market = [(at, CSI.sub("", piece)) for at, chunk in c.chunks
                       for piece in BARE_CR.split(chunk.decode("utf-8", "replace"))
                       if "2 marketplace" in piece and CSI.sub("", piece)[2:3] in tuple(SPIN)]
@@ -502,9 +508,9 @@ class Ends(Base):
             if what == "live":
                 self.assertTrue(c.until(lambda t: FIRST in "".join(frames(t))), c.text)  # the line shows
             else:
-                self.assertTrue(c.until(lambda t: os.path.exists(self.pidfile) and open(self.pidfile).read()))
+                self.assertTrue(c.until(lambda t: os.path.exists(self.pidfile) and read(self.pidfile)))
                 time.sleep(0.3)
-            pid, group = [int(v) for v in open(self.pidfile).read().split()[:2]]
+            pid, group = [int(v) for v in read(self.pidfile).split()[:2]]
             send(c)
             code = c.wait()
             text = got[what] = c.text
@@ -564,14 +570,26 @@ class Ends(Base):
             self.assertEqual(code, 1, text)
             got[what] = text
             for _ in range(50):
-                if not alive(int(open(pidfile).read())):
+                if not alive(int(read(pidfile))):
                     break
                 time.sleep(0.1)
-            self.assertFalse(alive(int(open(pidfile).read())))
+            self.assertFalse(alive(int(read(pidfile))))
         self.assertTrue(frames(got["live"]), got["live"])
         self.assertFalse(frames(got["pin"]))
         self.assertEqual(replay(got["live"]), replay(got["pin"]))  # the row and the closing lines
         self.assertIn(("FAIL", shlex.quote(stub), "stopped after 1 s"), rows_of(got["pin"]))
+
+
+class Closed(unittest.TestCase):
+    def test_sc16_r5_3_no_file_is_left_open(self):
+        """No bare `open(...).read()` in this module, which left two pid files open (row sc16 R5.3)."""
+        import ast
+        with open(__file__, encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        bare = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Call)
+                and getattr(n.func.value.func, "id", None) == "open"]
+        self.assertEqual(bare, [])
 
 
 class OtherVerbs(Base):
