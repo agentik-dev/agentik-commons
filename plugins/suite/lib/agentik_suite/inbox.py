@@ -590,14 +590,15 @@ def _answer(cmd, nouns):
         raise Refusal("no_writer", "err.inbox.answer.writer", cmd.say("update"), tool="agentik-" + found["tool"])
     if not (o["yes"] or o["dry_run"]) and not (os.isatty(0) and os.isatty(2)):
         raise Refusal("no_terminal", "err.inbox.answer.tty", cmd.say("help", "inbox"))
-    argv = [found["exe"], WRITER, n] + (["--pick", o["pick_label"]] if o["say"] is None else ["--say", o["say"]])
+    exe = os.path.abspath(found["exe"])  # before the chdir: a relative PATH entry reads from here (review 1 F3)
+    argv = [exe, WRITER, n] + (["--pick", o["pick_label"]] if o["say"] is None else ["--say", o["say"]])
     argv += (["--dry-run"] if o["dry_run"] else []) + (["--yes"] if o["yes"] else [])
     t.flush()
     try:
         os.chdir(path)
-        os.execve(found["exe"], argv, dict(cmd.env))
+        os.execve(exe, argv, dict(cmd.env))
     except OSError:
-        raise Refusal("no_run", "err.inbox.answer.exec", None, path=found["exe"])
+        raise Refusal("no_run", "err.inbox.answer.exec", None, path=exe)
 
 
 def _inbox(cmd, nouns):
