@@ -205,6 +205,28 @@ class Breaks(Copy):
         self.assertEqual(probe.count(rows), 3)
         self.assertEqual(probe.replay("a\nb\nc\x1b[2A\rX\x1b[1BY\n", 80), ["X", "bY", "c"])
 
+    def test_f3_plain_words_past_the_width_are_red_as_sc8_has_it(self):
+        """Review 1 F3: a lone path or command as sc8's `lone()` has it, and nothing looser."""
+        words = ["claude is missing on this machine, so setup cannot go on past its first step",
+                 "/x/agentik-suite is where this command lives and where setup places it from",
+                 "undo ~/.local/bin/agentik remove, which takes back each step that setup ran here",
+                 "check ~/.local/bin/agentik doctor --and-a-flag-long-enough-to-pass-fifty",
+                 "  claude plugin marketplace add agentik-dev/agentik-commons-long-name",
+                 "      claude plugin install session@agentik 0 s and more words past it",
+                 "      /x/y/agentik-suite install-cli failed after it ran a little while"]
+        for line in words:  # W1, W2 and W4 of the review, then the heads it drops and the lead
+            self.assertEqual(len(probe.check_width([line], 50)), 1, line)
+        lone = ["next: /x/y/plugins/suite/bin/agentik-suite config loom.mode",
+                "other plugins: /x/y/plugins/suite/bin/agentik-suite setup --pick",
+                "same as: /x/y/plugins/suite/bin/agentik-suite config loom.mode=fast",
+                "from a list: /x/y/plugins/suite/bin/agentik-suite config loom --json",
+                "usage: /x/y/plugins/suite/bin/agentik-suite <verb> [<name>...] [flags]",
+                "      claude plugin marketplace add agentik-dev/agentik-commons",
+                "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli"]
+        self.assertEqual([probe.check_width([line], 50) for line in lone], [[]] * len(lone))
+        apply_py = (SUITE / "lib" / "agentik_suite" / "apply.py").read_text(encoding="utf-8")
+        self.assertIn("\nLEAD = %d " % probe.LEAD, apply_py)
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)
