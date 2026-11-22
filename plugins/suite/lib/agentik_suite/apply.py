@@ -66,7 +66,7 @@ def path_close(t, command):
     """The close where the door stands and only PATH lacks its folder: the reason, then the line
     that mends this terminal, a command that runs as printed (ic1-close review 1)."""
     t.flush()  # the plan's add line above it, where both streams share one pipe
-    t.line("setup.path.why", err=True)
+    t.wrapped("setup.path.why", err=True)  # at the window's width (row sc17-narrow-screens R5)
     t.hint("hint.setup.path", command=command)
 
 

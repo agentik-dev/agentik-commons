@@ -324,7 +324,9 @@ class Term:
         staying on the row's first line. A path that does not fit its column and is not the row's
         last stays whole at its column's start, unpadded, and each cell after it goes under the
         row at its indent plus 4, dim, wrapped to W (review 1 F1); a last path, or an `after`
-        line, that does not fit goes whole there; a last cell with under 24 columns left, or with
+        line, that does not fit goes whole there, but an `after` of a label and a command, which
+        breaks after the label's `: ` (row sc17-narrow-screens R5); a last cell with under 24
+        columns left, or with
         a word longer than its room, goes there too and wraps to W. Each line of a cell is
         painted on its own; nothing is cut but a `cut` cell, which ends at its room with `…`
         (row sc7 R2)."""
@@ -384,7 +386,14 @@ class Term:
             if after:
                 start = starts[len(cells) - 1]
                 lead = " " * start if start + columns(after) <= width else fixed
-                stream.write(lead + stream.paint(after, dim))
+                label, colon, rest = after.partition(": ")
+                if len(lead) + columns(after) > width and colon and label.strip() and rest.strip():
+                    # a label and its command that fit at neither: the label keeps its line, the
+                    # command, whole, goes under it at the lead (row sc17-narrow-screens R5)
+                    stream.write(lead + stream.paint(label + ":", dim))
+                    stream.write(fixed + stream.paint(rest.strip(), dim))
+                else:
+                    stream.write(lead + stream.paint(after, dim))
 
     def grid(self, status, label, rows, err=False):
         """One part of a status screen (packet su2-screen R4): the mark, or its blank when the

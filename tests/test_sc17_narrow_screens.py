@@ -2,6 +2,7 @@
 
 Each run is the plugin's launcher in a temp HOME (test_agentik_suite's `Home`) with a stub
 `claude`; nothing here starts the real `claude` or writes outside its temp folder."""
+import io
 import os
 import re
 import sys
@@ -11,7 +12,7 @@ from importlib.util import module_from_spec, spec_from_loader
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import Home  # noqa: E402
-from agentik_suite import term  # noqa: E402
+from agentik_suite import apply, term  # noqa: E402
 
 SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r")
 
@@ -149,6 +150,57 @@ class ConfigTitleTest(Narrow):
     def test_at_80_one_line(self):
         code, rows = self.rows("config", "loom", cols=80)
         self.assertEqual(rows[:2], ["loom: 24 keys, 3 changed (*). Layers, lowest first: default, user.", ""])
+
+
+
+class Fake(io.StringIO):
+    """A stream that answers isatty, as sc3's table tests have it."""
+
+    def isatty(self):
+        return True
+
+    @property
+    def encoding(self):
+        return "utf-8"
+
+    def fileno(self):
+        raise io.UnsupportedOperation("fileno")
+
+
+ADD = 'add to your shell profile: export PATH="$HOME/.local/bin:$PATH"'
+PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
+WHY = "The line below mends this terminal; the line marked add mends each new one."
+
+
+class CloseTest(unittest.TestCase):
+    """R5: doctor's profile row keeps its label and puts its command under it where the two do
+    not fit; the sentence above `next:` wraps; at 80 both read as before."""
+
+    def drawn(self, cols, tty=True):
+        out, err = Fake(), Fake()
+        if not tty:
+            out.isatty = err.isatty = lambda: False
+        t = term.Term(env={"COLUMNS": str(cols), "NO_COLOR": "1"}, out=out, err=err)
+        t.table([("warn", ["path", "not on PATH: ~/.local/bin"], ADD)], indent=4)
+        apply.path_close(t, PROFILE)
+        return out.getvalue().splitlines(), err.getvalue().splitlines()
+
+    def test_at_50_the_label_keeps_its_line_and_the_command_goes_under(self):
+        out, err = self.drawn(50)
+        self.assertEqual(out[1:], ["        add to your shell profile:", "        " + PROFILE])
+        self.assertEqual(" ".join(err[:-1]), WHY)
+        self.assertLessEqual(max(term.columns(r) for r in out + err), 50)
+        self.assertEqual(err[-1], "next: " + PROFILE)
+
+    def test_at_80_as_before(self):
+        out, err = self.drawn(80)
+        self.assertEqual(out[1:], [" " * 13 + ADD])
+        self.assertEqual(err, [WHY, "next: " + PROFILE])
+
+    def test_off_a_terminal_one_line_each(self):
+        out, err = self.drawn(40, tty=False)
+        self.assertEqual(len(out), 2)
+        self.assertEqual(err[0], WHY)
 
 
 if __name__ == "__main__":
