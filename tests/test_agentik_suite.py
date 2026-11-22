@@ -541,7 +541,9 @@ class StreamTest(Home):
             for byte in (ESC, "\x9b", "\\u001b", "\\u009b"):
                 self.assertNotIn(byte, out + err, args)
         # an ok step is one line of names (row sc8 R1): the version, cleaned, is in its detail
-        self.assertIn("1.02J", [s["detail"] for s in self.plan("alpha")["steps"] if s["n"] == 3][0])
+        # the 8-bit CSI goes whole too (sc17-narrow-screens review 1 L1), its `2J` with it
+        detail = [s["detail"] for s in self.plan("alpha")["steps"] if s["n"] == 3][0]
+        self.assertTrue(detail.endswith("version 1.0"), detail)
         self.assertNotIn(ESC, "".join(self.run_cli("setup", "--dry-run", "alpha")[1:]))
 
 
