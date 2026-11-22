@@ -176,6 +176,7 @@ class Remove:
         self.guard = []  # every path R7 names, standing or not: the cache walk reaches none (F1)
         self.soft = set()  # kept rows named only where they stand: gone after the run, no fault
         self.remedy = cmd.say("remove")  # every word the close prints, filled before step 5 (R6)
+        self.retry = self.again()  # the screen's `next:`: the remove this run named (sc18 review 1 L4)
 
     # ---- which tools (R3), what they keep (R7) ------------------------------------------------
 
@@ -645,7 +646,7 @@ class Remove:
         t.table(rows)
         if failure:
             t.flush()
-            t.error(mid, self.remedy if mid in AGAIN else None, whole=said, **dict(self.slots, **failure[1]))
+            t.error(mid, self.retry if mid in AGAIN else None, whole=said, **dict(self.slots, **failure[1]))
         elif lines:
             t.flush()
             for mid, paths in lines:

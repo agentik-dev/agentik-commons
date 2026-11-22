@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -168,6 +169,22 @@ class RemoveTest(Shape, up.Base):
         self.assertEqual((error["code"], error["exit"]), ("step_failed", 3))
         self.assertIn(SAID, error["message"])
         self.assertIsNone(WORD.search(bare(error["message"])))
+
+    def test_l4_next_names_what_the_run_named(self):
+        """review 1 L4: the stopped run's `next:` is the remove this run named, and runs as printed
+        where the bare `remove` met its own usage refusal."""
+        h, env = self.x()
+        wrap(h, "plugin uninstall")
+        for argv, tail in ((["remove", "--all", "--yes"], " remove --all"), (["remove", "x", "--yes"], " remove x")):
+            code, out, err = h.go(*argv)
+            self.assertEqual(code, 1, err)
+            rows = self.clean(out + err, again="remove")
+            self.assertTrue(rows[-1].endswith(tail), rows[-1])
+            line = [r for r in (out + err).splitlines() if r.strip()][-1]  # as printed, paths and all
+            p = subprocess.run(["/bin/sh", "-c", line[len("next: "):].strip()], env=env, cwd=h.home,
+                               stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(p.returncode, 127, p.stderr)
+            self.assertNotIn("takes plugin names or --all", p.stdout + p.stderr, rows[-1])
 
     def test_r3_the_wall_and_the_start(self):
         h, env = self.x()
