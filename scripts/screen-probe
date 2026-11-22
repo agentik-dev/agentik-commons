@@ -556,7 +556,8 @@ RESULT = re.compile(r" \d+ s\b|\bfailed\b|\bstopped\b|could not start")
 def lone(line):
     """A line that is one path or one command and nothing more, which cannot be broken, as sc8's
     `lone` has it (review 1 F3): after one of LONE_HEADS at column 0, a path or `claude `; else, on
-    a line indented by LEAD, a path, `claude ` or an `https://` address (sc17 R6) and nothing more:
+    a line indented by LEAD, a path, `claude ` or an `https://` address (sc17 R6; nothing after
+    it, review 1 L3) and nothing more:
     no gap of a table's cells and no result words; or, at EXAMPLES, `help <verb>`'s example by the path typed and nothing more
     (row sc17-narrow-screens R3). A line of plain words, at column 0 or indented otherwise, is not
     lone."""
@@ -571,6 +572,8 @@ def lone(line):
         starts = ("/", "~/", "./", "claude ", "https://")
     else:
         return False
+    if "https://" in starts and rest.startswith("https://"):  # alone, nothing after it (review 1 L3)
+        return " " not in rest
     return rest.startswith(starts) and "  " not in rest and not RESULT.search(rest)
 
 

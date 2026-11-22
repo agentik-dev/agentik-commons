@@ -217,8 +217,11 @@ class Breaks(Copy):
                  "      claude plugin install session@agentik 0 s and more words past it",
                  "      /x/y/agentik-suite install-cli failed after it ran a little while",
                  "  /x/y/plugins/suite/bin/agentik-suite config  one tool's keys, its gloss beside",
-                 "   /x/y/plugins/suite/bin/agentik-suite config suite.kind, one column too deep"]
-        for line in words:  # W1, W2 and W4 of the review, then the heads it drops and the lead
+                 "   /x/y/plugins/suite/bin/agentik-suite config suite.kind, one column too deep",
+                 "      https://example.org/murmur#install and the words that follow it here"]
+        # W1, W2 and W4 of the review, then the heads it drops and the lead; sc17 review 1 L3, an
+        # address is lone only where nothing follows it
+        for line in words:
             self.assertEqual(len(probe.check_width([line], 50)), 1, line)
         lone = ["next: /x/y/plugins/suite/bin/agentik-suite config loom.mode",
                 "other plugins: /x/y/plugins/suite/bin/agentik-suite setup --pick",
@@ -228,7 +231,8 @@ class Breaks(Copy):
                 "      claude plugin marketplace add agentik-dev/agentik-commons",
                 "      ~/.claude/plugins/cache/agentik/session/1.0.0/bin/agentik-session install-cli",
                 "  /x/y/plugins/suite/bin/agentik-suite config suite.kind",  # an example (sc17 R3)
-                "  ~/.local/bin/agentik-suite-with-a-long-name config suite.kind --changed"]
+                "  ~/.local/bin/agentik-suite-with-a-long-name config suite.kind --changed",
+                "      https://example.org/murmur/a/very/long/path/to/the/page#install"]  # sc17 R6
         self.assertEqual([probe.check_width([line], 50) for line in lone], [[]] * len(lone))
         apply_py = (SUITE / "lib" / "agentik_suite" / "apply.py").read_text(encoding="utf-8")
         self.assertIn("\nLEAD = %d " % probe.LEAD, apply_py)
