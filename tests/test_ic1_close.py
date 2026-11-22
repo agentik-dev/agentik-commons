@@ -44,7 +44,8 @@ NO_DOOR = re.sub(r' &&\n    printf [^\n]*/agentik" ;;', " ;;", PLUGIN_BIN)
 MESSAGES = catalogue.load()
 # review 1's ruling: the PATH close is a command, its reason on the line above
 PATH_CLOSE = "next: " + PROFILE
-PATH_WHY = "Not needed by Claude Code; to type agentik here, run the line below."  # doctor's (sc8 R8)
+# doctor's, byte for byte as on main: row sc8 does not own doctor's lines (sc8 review 1 L1)
+PATH_WHY = "The line below mends this terminal; the line marked add mends each new one."
 PATH_ROW = "  PATH   not needed by Claude Code; to type agentik, add to "  # setup's report row (sc8 R2)
 
 

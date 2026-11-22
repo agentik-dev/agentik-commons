@@ -347,7 +347,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.doctor.none`: no plugin is in the plan, so no doctor runs
 - `hint.setup.next`: next: `{command}`
 - `hint.setup.blocked.old`: Python `{version}` is older than `{floor}`. Set AGENTIK_PYTHON to a newer one.
-- `setup.path.why`: Not needed by Claude Code; to type agentik here, run the line below.
+- `setup.path.why`: The line below mends this terminal; the line marked add mends each new one.
 - `hint.setup.path`: next: `{command}`
 - `hint.setup.rest`: next: claude
 - `hint.setup.done`: next: claude
