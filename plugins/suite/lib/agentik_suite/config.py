@@ -239,9 +239,12 @@ def path(nouns):
 
 
 def _again(cmd, dotted):
-    """`config` as typed with its words as the one path `dotted`, none where it is empty."""
+    """`config` as typed with its words as the one path `dotted`, none where it is empty; where
+    none was typed (a key gone at a bare `--pick`'s Enter), `dotted` after them."""
     at = cmd.at[1:]
     swap = {i: [] for i in at[1:]}
+    if not at:
+        return cmd.again(swap, [dotted] if dotted else [])
     swap[at[0]] = [dotted] if dotted else []
     return cmd.again(swap)
 
@@ -738,8 +741,9 @@ def _pick(cmd, r, found, flat):
     `found`, [(tool, config, setting)] in the flat list's order. A row's label is `tool.key`, its
     note the value, `*` where changed, then the summary. Enter prints that key's card, as `config
     tool.key` does; Esc and Ctrl-C print nothing on stdout and exit 0. Where `pick` may not ask,
-    or under --json, `flat()` prints what --all prints for the same path. Nothing is written, and
-    no `change` line runs: the card is where it ends."""
+    or under --json, `flat()` prints what --all prints for the same path. The list's read is the
+    list's alone: the card is read again at Enter. Nothing is written, and no `change` line runs:
+    the card is where it ends."""
     t, o = cmd.t, cmd.opts
     if o["json"] or not found:
         o["config_all"] = True
@@ -747,12 +751,11 @@ def _pick(cmd, r, found, flat):
     values = {name + "." + s["key"]: shown_value(s.get("value")) + ("*" if differs(s) else "")
               for name, _, s in found}
     room = min(VALUE_ROOM, max(map(term.columns, values.values())))
-    options, by = [], {}
+    options = []
     for name, cfg, s in found:
         dotted, value = name + "." + s["key"], values[name + "." + s["key"]]
         note = value + " " * max(1, room + 1 - term.columns(value)) + str(s.get("summary") or "")
         options.append({"value": dotted, "label": dotted, "note": note.rstrip()})
-        by[dotted] = (name, cfg, s)
     home = cmd.env.get("HOME") or ""
 
     def command(answers):  # the hint's words split, as an argv: a `~/` word is given whole (sc15)
@@ -770,8 +773,8 @@ def _pick(cmd, r, found, flat):
         if isinstance(e, KeyboardInterrupt):
             t.blank(err=True)
         return 0
-    name, cfg, s = by[str(got["key"])]
-    return _card(cmd, r, name, cfg, s)
+    o["config_pick"] = False  # Enter: the key read again, as `config <tool>.<key>` reads it, its
+    return do_config(cmd, [str(got["key"])])  # own wall and lookup (review 1 F1)
 
 
 def _changed(cmd, r, rows):

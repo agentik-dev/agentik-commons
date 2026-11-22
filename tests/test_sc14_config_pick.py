@@ -6,6 +6,7 @@ XDG_CACHE_HOME, TERM and LANG, with the made-up tool `loom` (row sc6's fixture, 
 changed), its command wrapped so each argv it is given is logged under HOME. A pty run uses
 sc15's `Child`, the pty the child's controlling terminal, and sends a key only once the list
 shows, since a key typed ahead is dropped. No test reads the live home or the real terminal."""
+import json
 import os
 import re
 import shlex
@@ -180,6 +181,101 @@ class Pick(unittest.TestCase):
             ran = fh.read().splitlines()
         self.assertTrue(ran)
         self.assertEqual([line for line in ran if not line.startswith("describe ")], [], ran)
+
+
+FRAY = r"""#!/usr/bin/python3
+import json, os, sys
+SPEC = json.load(open(os.path.join(os.environ["HOME"], "fray.json")))
+def row(k):
+    value = k.get("value", "d")
+    return {"key": k["key"], "value": value, "default": k.get("default", value), "type": "string",
+            "choices": None, "summary": k.get("summary", "A key."),
+            "source": {"layer": "user" if k.get("default", value) != value else "default", "path": None,
+                       "line": None},
+            "change": {"kind": "command", "command": "agentik-fray set %s <value>" % k["key"], "path": None,
+                       "block": None, "note": None},
+            "live": True, "values": [{"layer": "default", "value": k.get("default", value)}]}
+args = sys.argv[1:]
+if args == ["describe", "--json"]:
+    print(json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": "fray", "version": "1.0.0",
+        "summary": "A made-up tool.", "repo": "example/fray", "plugin": "fray@agentik", "needs": [],
+        "verbs": [{"name": "set", "summary": "Set one.", "top": True}],
+        "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}))
+elif args[:3] == ["describe", "config", "--json"]:
+    rows = [row(k) for k in SPEC["keys"]]
+    if args[3:]:  # the key read: its rows, each with what the spec says a key read answers
+        rows = [dict(r, **SPEC.get("per_key", {})) for r in rows if r["key"] == args[3]]
+    print(json.dumps({"schema": "agentik.config/1", "ok": True, "tool": "fray", "settings": rows,
+        "layers": [{"name": "default", "path": None, "present": True, "travels": False}], "warnings": []}))
+else:
+    sys.exit(2)
+"""
+
+
+def fray(home, keys, per_key=None):
+    """A second made-up tool, `fray`, beside loom in `home`: its keys, and what its key read
+    answers that its whole read does not, from `fray.json` under HOME, so a test edits it."""
+    with open(os.path.join(home, "fray.json"), "w") as fh:
+        json.dump({"keys": keys, "per_key": per_key or {}}, fh)
+    with open(os.path.join(home, "fray.py"), "w") as fh:
+        fh.write(FRAY)
+    path = os.path.join(home, "stubs", "agentik-fray")
+    with open(path, "w") as fh:
+        fh.write('#!/bin/sh\nexec /usr/bin/python3 -B "%s" "$@"\n' % os.path.join(home, "fray.py"))
+    os.chmod(path, 0o755)
+
+
+class Review1(unittest.TestCase):
+    """Review 1's block and lead, and the coordinator's ruling on bare `--pick` off a terminal."""
+    setUp, tearDown, pipe, same_as = Pick.setUp, Pick.tearDown, Pick.pipe, Pick.same_as
+
+    def enter(self, args, down=0, edit=None, typed=b""):
+        """(exit, stdout, the pty's text) of Enter on the list's row `down` once `typed` filters
+        it, `edit` run first."""
+        c = Child(dict(self.tty_env), args, pipe_out=True, exe=LAUNCHER)
+        try:
+            self.assertTrue(c.until(LISTED), text(c.seen))
+            if edit:
+                edit()
+            for k in ([typed] if typed else []) + [b"\x1b[B"] * down + [ENTER]:
+                c.send(k)
+                c.read(0.3)
+            return c.wait(), c.out, text(c.seen)
+        finally:
+            c.close()
+
+    def rerun(self, seen):
+        return subprocess.run(shlex.split(self.same_as(seen)), env=self.env, capture_output=True,
+                              cwd=self.home, timeout=60, stdin=subprocess.DEVNULL)
+
+    def test_f1_the_card_is_read_at_enter_as_the_key_path_reads_it(self):
+        cases = (("a summary the key read gives", [{"key": "k", "summary": "Short."}],
+                  {"summary": "From the key read: longer."}, 0),
+                 ("a value the key read gives", [{"key": "k", "value": "a"}], {"value": "b"}, 0),
+                 ("one key listed twice, the second picked", [{"key": "k", "value": "one"},
+                                                              {"key": "k", "value": "two"}], {}, 1))
+        for title, keys, per_key, down in cases:
+            fray(self.home, keys, per_key)
+            code, out, seen = self.enter(["config", "fray", "--pick"], down)
+            card = self.pipe("config", "fray.k")
+            self.assertEqual((code, out), (0, card.stdout), (title, seen))
+            self.assertEqual(self.rerun(seen).stdout, out, title)
+
+    def test_f1_a_value_changed_while_the_list_is_open(self):
+        fray(self.home, [{"key": "k", "value": "old", "default": "d"}])
+        code, out, seen = self.enter(["config", "fray", "--pick"], edit=lambda: fray(
+            self.home, [{"key": "k", "value": "new", "default": "d"}]))
+        self.assertEqual(code, 0, seen)
+        self.assertTrue(out.startswith(b"fray.k = new"), out)
+        self.assertEqual(out, self.pipe("config", "fray.k").stdout)
+        self.assertEqual(self.rerun(seen).stdout, out)
+        for args in (["config", "fray", "--pick"], ["config", "--pick"]):  # a key gone at Enter
+            fray(self.home, [{"key": "k"}])
+            code, out, seen = self.enter(args, edit=lambda: fray(self.home, [{"key": "j"}]), typed=b"fray")
+            gone = self.pipe("config", "fray.k")
+            self.assertEqual((code, out), (gone.returncode, gone.stdout), seen)
+            self.assertEqual(code, 2, seen)
+            self.assertIn("next: ", seen)
 
 
 if __name__ == "__main__":
