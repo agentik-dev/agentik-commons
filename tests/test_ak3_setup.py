@@ -205,7 +205,8 @@ class SetupHome(Home):
         for path in ("~/.local/bin/agentik-alpha", "~/.local/bin/agentik-beta", "~/.local/bin/agentik",
                      "~/.local/state/agentik-suite/setup.jsonl"):
             self.assertIn(os.path.join(self.home, path[2:]), wrote)
-        self.assertIn("\n  wrote  %d files, each named in the log\n" % len(wrote), out)
+        # the row counts what the commands wrote, the log itself left out (sc8 review 1 L2)
+        self.assertIn("\n  wrote  %d files, each named in the log\n" % (len(wrote) - 1), out)
         self.assertEqual(len(self.journal()), 1)
         steps = self.plan("alpha", "beta")["steps"]
         self.assertEqual({s["state"] for s in steps if 2 <= s["n"] <= 5}, {"ok"}, steps)

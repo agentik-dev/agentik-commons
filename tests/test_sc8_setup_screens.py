@@ -179,7 +179,9 @@ class Screens(Home):
             code, out2, err2 = other.screen("setup", "--yes")
         finally:
             other.doCleanups()
-        self.assertIn("  wrote  %d files, each named in the log" % len(wrote), out2)
+        log = os.path.join(self.home, ".local", "state", "agentik-suite", "setup.jsonl")
+        self.assertIn(log, wrote)  # the log is a path written; the row counts the commands' (review 1 L2)
+        self.assertIn("  wrote  %d files, each named in the log" % (len(wrote) - 1), out2)
         done = re.compile(r"^Steps 2 to 5 are done: %d commands in \d+ s\.$" % len(json.loads(out)["ran"]))
         at = [i for i, l in enumerate(out2) if done.match(l)]  # the seconds are the clock's, 1 s under load
         self.assertEqual(len(at), 1, out2)
@@ -408,6 +410,41 @@ class Screens(Home):
         for line in err:  # no command's row holds more seconds than the run took
             m = re.search(r" (\d+) s$", line)
             self.assertTrue(not m or int(m.group(1)) <= int(wall) + 1, line)
+
+    def test_l2_wrote_counts_the_commands_files_never_the_log(self):
+        code, out, err = self.run_cli("setup", "--yes", "--json")
+        log = os.path.join(self.home, ".local", "state", "agentik-suite", "setup.jsonl")
+        made = [p for p in json.loads(out)["wrote"] if p != log]
+        self.assertIn(log, json.loads(out)["wrote"])  # the document still holds every path
+        other = Screens("test_l2_wrote_counts_the_commands_files_never_the_log")
+        other.setUp()
+        try:
+            code, shown, err2 = other.screen("setup", "--yes")
+            other.stub("claude", "#!/bin/sh\nexit 1\n")
+            shutil.rmtree(os.path.join(other.home, ".claude"))
+            code2, failed, err3 = other.screen("setup", "--yes")
+        finally:
+            other.doCleanups()
+        self.assertIn("  wrote  %d files, each named in the log" % len(made), shown)
+        self.assertEqual(code2, 1, failed + err3)  # the first command failed and wrote nothing
+        self.assertFalse([l for l in failed + err3 if l.startswith("  wrote ")], failed + err3)
+
+    def test_l3_a_dry_run_on_path_prints_no_path_row(self):
+        on = "%s:%s:/usr/bin:/bin" % (os.path.join(self.home, ".local", "bin"), self.stubs)
+        self.screen("setup", "--yes", PATH=on)
+        code, out, err = self.screen("setup", "--dry-run", PATH=on)
+        self.assertEqual((code, err[-1]), (0, "next: claude"), out + err)
+        self.assertTrue([l for l in out if re.match(r"  ok 6 PATH +~/\.local/bin$", l)], out)  # the plan's step
+        self.assertFalse([l for l in out + err if l.startswith("  PATH ") or plan.PROFILE_LINE in l
+                          or "not needed by Claude Code" in l], out)
+
+    def test_l4_a_failed_report_has_no_log_row(self):
+        open(self.flag, "w").close()
+        code, out, err = self.screen("setup", "--yes")
+        self.assertEqual(code, 1, err)
+        self.assertFalse([l for l in out + err if re.match(r"  (log|check|PATH) ", l)], out + err)
+        self.assertEqual([l for l in out + err if l.startswith("  wrote ")],
+                         ["  wrote  %d files, each named in the log" % len(self.journal()[-1]["wrote"][:-1])])
 
     # ---- R4, R6, R8: units ---------------------------------------------------------------
     def test_r4_undo_has_a_place_and_prints_none(self):

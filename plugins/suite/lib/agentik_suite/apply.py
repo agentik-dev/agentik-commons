@@ -696,6 +696,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
     failure = failure and (tuple(failure) + (1, "step_failed"))[:4]  # (id, values, exit, JSON code)
     code = failure[2] if failure else 0
     journal_error = None
+    made = [p for p in wrote if p != journal]  # what the commands wrote, the `wrote` row's count (review 1 L2)
     if ran:
         wrote = wrote + ([journal] if journal not in wrote else [])
         entry = {"at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -735,13 +736,13 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
         count = len(ran)
         t.line("setup.done.one" if count == 1 else "setup.done", count=count, seconds=seconds)
     rows = []
-    if ran and wrote and journal_error:  # the log took no line: each path on the screen (review 1 F3)
-        rows.append(("setup.tail.wrote", t.text("setup.wrote.here.one") if len(wrote) == 1
-                     else t.text("setup.wrote.here", count=len(wrote)), False))
-        rows.extend((None, plan.shown(p, home), True) for p in wrote)
-    elif ran and wrote:
-        rows.append(("setup.tail.wrote", t.text("setup.wrote.one") if len(wrote) == 1
-                     else t.text("setup.wrote.count", count=len(wrote)), False))
+    if ran and made and journal_error:  # the log took no line: each path on the screen (review 1 F3)
+        rows.append(("setup.tail.wrote", t.text("setup.wrote.here.one") if len(made) == 1
+                     else t.text("setup.wrote.here", count=len(made)), False))
+        rows.extend((None, plan.shown(p, home), True) for p in made)
+    elif ran and made:
+        rows.append(("setup.tail.wrote", t.text("setup.wrote.one") if len(made) == 1
+                     else t.text("setup.wrote.count", count=len(made)), False))
     if ran and journal and not failure:
         rows.append(("setup.tail.log", plan.shown(journal, home), True))
     if not failure:
