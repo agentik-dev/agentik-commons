@@ -227,6 +227,20 @@ class Breaks(Copy):
         apply_py = (SUITE / "lib" / "agentik_suite" / "apply.py").read_text(encoding="utf-8")
         self.assertIn("\nLEAD = %d " % probe.LEAD, apply_py)
 
+    def test_known_is_ruled_and_a_stale_entry_says_take_it_off(self):
+        """Review 1's ruling: each entry owed by sc17-narrow-screens, the usage line off the list;
+        an entry whose red has gone prints a note to take it off (L10)."""
+        for key, (pattern, why) in probe.KNOWN.items():
+            self.assertIn("sc17-narrow-screens", why, key)
+            self.assertNotIn("usage", pattern + why, key)
+        shown = io.StringIO()
+        with contextlib.redirect_stdout(shown):
+            red = probe.verdict("width", "made-up", [], "width: made-up fits",
+                                {"width:made-up": (r"line 1 ", "a row owes it")})
+        self.assertEqual((red, probe.FAILS), ([], []))
+        self.assertEqual(shown.getvalue(), "note width:made-up is in KNOWN and red no more; "
+                                           "take it off KNOWN\n")
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)

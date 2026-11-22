@@ -69,25 +69,26 @@ V9_LIST = {
 }
 
 # KNOWN: what is red on the pin's screens (main 6c60098), by "<check>:<screen>": a pattern that
-# each excused line matches, and the finding in a few words. A line it matches prints as `note` and
-# keeps the probe at go; any other red line of the screen is a FAIL. The coordinator rules each.
+# each excused line matches, and the finding in a few words with the row that owes it. A line it
+# matches prints as `note` and keeps the probe at go; any other red line of the screen is a FAIL;
+# an entry with no red line left prints a note to take it off. Ruled by review 1 of sc0: each
+# entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
+OWED = "; owed by sc17-narrow-screens"
 KNOWN = {
-    "width:bare-empty": (r"^pty50 line 1 .*one command for", "the title is not cut at 50"),
-    "width:help": (r"^pty50 line 1 .*one command for|^(pty80|pty50|nocolor) line 2 .*usage: /",
-                   "the title at 50; the usage line holds the path typed and does not break"),
-    "width:help-config": (r"^(pty80|pty50|nocolor) line 1 .*usage: /|^pty50 line 2 .*Show each tool"
-                          r"|^(pty80|pty50|nocolor) line [468] \(\d+\):   /",
-                          "the usage line holds the path typed; the summary does not wrap at 50; "
-                          "each example holds the path typed at column 2, not under the lead"),
-    "width:help-config-door": (r"^pty50 line 2 .*Show each tool", "the summary does not wrap at 50"),
-    "width:config-loom": (r"^pty50 line 1 .*24 keys, 3 changed", "the title does not wrap at 50"),
+    "width:bare-empty": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
+    "width:help": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
+    "width:help-config": (r"^pty50 line 2 .*Show each tool|^(pty80|pty50|nocolor) line [468] \(\d+\):   /",
+                          "the summary does not wrap at 50; each example holds the path typed at "
+                          "column 2, not under the lead" + OWED),
+    "width:help-config-door": (r"^pty50 line 2 .*Show each tool", "the summary does not wrap at 50" + OWED),
+    "width:config-loom": (r"^pty50 line 1 .*24 keys, 3 changed", "the title does not wrap at 50" + OWED),
     "width:doctor-applied": (r"^pty50 line \d+ .*(add to your shell profile|The line below mends)",
-                             "the profile row and the closing sentence do not wrap at 50"),
+                             "the profile row and the closing sentence do not wrap at 50" + OWED),
     "width:err-uninstalled": (r"^(pty80|pty50|nocolor) line 1 .*relay has no command here yet",
-                              "the refusal is one line of 130 (design/23 section 7's row 2)"),
+                              "the refusal is one line of 130 (design/23 section 7's row 2)" + OWED),
     "name:setup-door": (r"^(pty80|pty50|pipe|nocolor) line \d+: .*5 agentik +agentik-suite, agentik",
-                        "step 5's row names the launcher it placed"),
-    "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8"),
+                        "step 5's row names the launcher it placed" + OWED),
+    "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8" + OWED),
 }
 
 # The budget: each screen's most lines on a pty at 80 columns, a command or path spilled onto its
@@ -215,7 +216,7 @@ def say(kind, text):
 
 def verdict(check, screen, bad, text, known=None):
     """One line for a check of a screen: ok, else FAIL naming its red lines, else `note` where
-    each red line is one KNOWN rules."""
+    each red line is one KNOWN rules, or where KNOWN rules a red that is gone (review 1 L10)."""
     known = KNOWN if known is None else known
     pattern, why = known.get("%s:%s" % (check, screen), (None, None))
     kept = [b for b in bad if pattern and re.search(pattern, b)]
@@ -224,6 +225,8 @@ def verdict(check, screen, bad, text, known=None):
         say("FAIL", "%s: %s" % (text, "; ".join(red[:3])))
     elif kept:
         say("note", "known: %s: %s (%d lines)" % (text, why, len(kept)))
+    elif pattern:
+        say("note", "%s:%s is in KNOWN and red no more; take it off KNOWN" % (check, screen))
     else:
         say("ok", text)
     return red
