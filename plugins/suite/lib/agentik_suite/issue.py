@@ -346,8 +346,10 @@ def _counts(data, only=None):
 
 # ---- new (R4) ------------------------------------------------------------------------------
 
-def _tool(cmd, public, named, found):
-    tools = public["tools"]
+def _tool(cmd, public, named, found, rows=None):
+    """The tool the issue is about: the one named, else the one public tool failing, a tool from
+    another source passed over (row fk6 R3), else the one asked for, else the suite."""
+    tools, rows = public["tools"], rows or {}
     if named is not None:
         if named not in tools:
             raise _usage(cmd, "unknown_tool", "err.issue.tool", tool=named,
@@ -355,7 +357,7 @@ def _tool(cmd, public, named, found):
         return named
     failing = []
     for g in (found or {}).get("tools") or []:
-        if isinstance(g, dict) and g.get("name") in tools and any(
+        if isinstance(g, dict) and g.get("name") in tools and not gather.foreign(rows.get(g["name"])) and any(
                 isinstance(c, dict) and c.get("status") == "fail" for c in g.get("checks") or []):
             failing.append(g["name"])
     if len(failing) == 1:
@@ -365,6 +367,12 @@ def _tool(cmd, public, named, found):
         if got in tools:
             return got
     return "suite" if "suite" in tools else sorted(tools)[0]
+
+
+def _foreign(cmd, rows, tool):
+    """Row fk6 R3, R4: an issue about a tool from another source is not made here, in one line."""
+    if gather.foreign(rows.get(tool)):
+        raise _usage(cmd, "another_source", "err.issue.source", False, exit_code=1, tool=tool)
 
 
 def _new(cmd, nouns):
@@ -383,8 +391,12 @@ def _new(cmd, nouns):
             raise _usage(cmd, "bad_exit", "err.issue.exit", value=o["exit"], flag="--exit")
     if nouns and nouns[0] not in public["tools"]:
         _tool(cmd, public, nouns[0], None)
+    rows = gather.found(env, public, cmd.cwd)
+    if nouns:
+        _foreign(cmd, rows, nouns[0])
     found = _doctor(cmd)
-    tool = _tool(cmd, public, nouns[0] if nouns else None, found)
+    tool = _tool(cmd, public, nouns[0] if nouns else None, found, rows)
+    _foreign(cmd, rows, tool)
     ran, expected = o["ran"], o["expected"]
     if ran is None and _terminal(cmd):
         ran = _ask(cmd, "issue.ask.ran")

@@ -43,8 +43,9 @@ _NAME = r"[a-z][a-z0-9-]*"
 NAME = re.compile(_NAME)
 VERSION = re.compile(_VERU)
 FINGERPRINT = re.compile(r"[0-9a-f]{12}")
-VERSION_ITEM = re.compile(r"(%s) %s(?: \((?:[0-9a-f]{12}|unreadable)\))?(?: launcher %s)?"
-                          % (_NAME, _VERU, _VERU))
+ANOTHER = "another source"  # row fk6 R2: gather.ANOTHER, the row of a tool from another source
+VERSION_ITEM = re.compile(r"(%s) (?:%s|%s(?: \((?:[0-9a-f]{12}|unreadable)\))?(?: launcher %s)?)"
+                          % (_NAME, ANOTHER, _VERU, _VERU))
 SYSTEM_ITEM = re.compile(r"Claude Code %s|(?:Darwin|Linux|other) (?:[0-9.]+|unreadable) "
                          r"(?:arm64|x86_64|aarch64|other)|Python (?:[0-9]+\.[0-9]+\.[0-9]+|unreadable)"
                          r"|in Claude Code|at a terminal" % _VERU)
@@ -518,6 +519,9 @@ def draft(facts, tool, title, happened, fingerprint):
     ran = out.get("ran")
     versions, version = [], "unreadable"
     for v in facts.get("versions") or []:
+        if v.get("source") == ANOTHER:  # row fk6 R2: the closed words, and the footer unreadable
+            versions.append("%s %s" % (v["name"], ANOTHER))
+            continue
         shown = v.get("plugin") or v.get("launcher")
         if not shown:
             continue

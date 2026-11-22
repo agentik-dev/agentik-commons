@@ -946,6 +946,7 @@ The picker's fixed words (row sc12-picker); a refusal's `!` is the writer's mark
 - `err.issue.public`: the table of public tools at `{path}` cannot be read, so no draft was written
 - `err.issue.private`: the private list exists and cannot be read, so nothing was written or sent
 - `err.issue.tool`: `{tool}` is no tool an issue can name; one of `{tools}`
+- `err.issue.source`: `{tool}` is from another source here, so report to its keepers; other drafts mark it
 - `err.issue.exit`: `{flag}` takes a number from 0 to 255, not `{value}`
 - `err.issue.form`: the draft `{id}` does not read back as the form at line `{line}`
 - `err.issue.unreadable`: `{path}` cannot be read as a regular file

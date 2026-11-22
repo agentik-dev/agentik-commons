@@ -27,6 +27,8 @@ DOCTOR = "agentik.doctor/1"
 PUBLIC = "public.json"
 DOOR = "door"
 UNREADABLE = "unreadable"
+ANOTHER = "another source"  # row fk6 R2: the closed words of a tool that is not the public one
+FOREIGN = ("plugin", "folder", "undecided")
 NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 REPO = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+\Z")
 VERSION = re.compile(r"[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}(?:-(?:alpha|beta|rc)\.[0-9]{1,9})?\Z")
@@ -188,10 +190,45 @@ def _suite():
     return plan.SUITE[len("agentik-"):]
 
 
-def versions(env, public, table, raw):
+def foreign(row):
+    """Row fk6 R3: the finder's row of a tool whose standing source is another's: a plugin of
+    another marketplace, a folder, or undecided between several."""
+    return isinstance(row, dict) and row.get("kind") in FOREIGN
+
+
+def elsewhere(row):
+    """Row fk6 R2: a tool that is not the public one: foreign, or the suite's own marketplace
+    when it is a mirror."""
+    return foreign(row) or (isinstance(row, dict) and row.get("kind") == "own" and bool(row.get("mirror")))
+
+
+def found(env, public, cwd=None):
+    """{name: the finder's row} for the suite and each public tool; {} when the config folder is
+    no absolute path, so the working folder is never read. A tool's id in public.json's own
+    marketplace reads `own`, as the finder reads it in the suite's."""
+    if not os.path.isabs(tools._config_dir(env)):
+        return {}
+    names, market = sorted(set(public["tools"]) | {_suite()}), public["marketplace"]
+    try:
+        rows = tools.rows(env, None, cwd, names)
+    except (OSError, ValueError):
+        return {}
+    return {name: dict(row, kind="own") if row.get("kind") == "plugin" and
+            row.get("plugin") == "%s@%s" % (name, market) else row for name, row in rows.items()}
+
+
+def versions(env, public, table, raw, elsewhere=()):
+    """The suite's, the door's and each public tool's row; a tool of `elsewhere` gives the closed
+    words ANOTHER and no version, commit or launcher (row fk6 R2), its launcher still read into
+    `raw` so a word of it in a doctor row reads `unreadable`."""
     suite, market = _suite(), public["marketplace"]
     rows = []
     for name in [suite, DOOR] + sorted(t for t in public["tools"] if t != suite):
+        if name in elsewhere:
+            _launcher(env, "agentik-" + name, raw)
+            rows.append({"name": name, "plugin": None, "commit": None, "launcher": None,
+                         "source": ANOTHER})
+            continue
         if name == DOOR:
             rows.append({"name": DOOR, "plugin": None, "commit": None,
                          "launcher": _launcher(env, agentik_install.DOOR, raw)})
@@ -223,9 +260,9 @@ def system(env):
             "where": "in Claude Code" if "CLAUDECODE" in env else "at a terminal"}
 
 
-def checks(found, public, unread=None):
+def checks(found, public, unread=None, elsewhere=()):
     """The doctor's fail and warn rows of the suite and of each public tool, fail first; every
-    other check counted in `passed`. Only the keys the schema lists are read; a detail's word
+    other check counted in `passed`, a tool of `elsewhere`'s with them (row fk6 R2). Only the keys the schema lists are read; a detail's word
     that `unread` matches reads `unreadable`."""
     rows = {"read": False, "rows": [], "failed": 0, "warned": 0, "passed": 0}
     if not isinstance(found, dict) or found.get("schema") != DOCTOR or \
@@ -237,7 +274,7 @@ def checks(found, public, unread=None):
         if not isinstance(group, dict) or not isinstance(group.get("checks"), list):
             continue
         tool = group.get("name")
-        tool = tool if isinstance(tool, str) and tool in named else None
+        tool = tool if isinstance(tool, str) and tool in named and tool not in elsewhere else None
         for c in group["checks"]:
             if not isinstance(c, dict):
                 continue
@@ -322,14 +359,15 @@ def facts(env, lib, given, read_doctor):
     public = load_public(lib)
     table, raw = _installed(env), []
     try:
-        found = read_doctor()
+        doctor = read_doctor()
     except Exception:  # a doctor that cannot be read reads as none
-        found = None
-    tool, rows = given.get("tool"), versions(env, public, table, raw)
+        doctor = None
+    other = {n for n, row in found(env, public).items() if elsewhere(row)}
+    tool, rows = given.get("tool"), versions(env, public, table, raw, other)
     return {"schema": SCHEMA, "tool": tool if isinstance(tool, str) and tool in public["tools"] else None,
             "versions": rows,
             "system": system(env),
-            "checks": checks(found, public, _unread(raw)),
+            "checks": checks(doctor, public, _unread(raw), other),
             "plugins": plugins(public, table),
             "output": {"ran": _free(given.get("ran")), "exit": _exit(given.get("exit")),
                        "lines": _tail(given.get("output"))},
