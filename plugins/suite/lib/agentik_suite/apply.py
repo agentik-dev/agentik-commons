@@ -351,7 +351,10 @@ def plan_screen(cmd, steps, names, dry=False):
         title = t.text("setup.title.none.dry" if dry else "setup.title.none")
     _say(t.out, title)
     t.blank()
-    runs = runnable(steps)
+    # a blocked step runs nothing on a yes: no `Would run` and no count of commands to come, and
+    # step 6's line prints here, since a blocked run never reaches the report (review 1 F1)
+    blocked = any(s["state"] == "blocked" for s in steps)
+    runs = [] if blocked else runnable(steps)
     top, would, yours = [], [], []
     for n in range(1, 7):
         group = [s for s in steps if s["n"] == n]
@@ -362,15 +365,19 @@ def plan_screen(cmd, steps, names, dry=False):
             if s in runs or s["state"] == "ok" or s["mid"] in COVERED or s["mid"] == "setup.launcher.wait":
                 continue
             if n == 6 and s["state"] == "todo" and s["line"] == "add":
-                yours.append((None, 6, label(6), t.text("setup.yours.path"), False))
+                if blocked and s["command"]:
+                    yours.append((None, 6, label(6), t.text("setup.path.row", profile=profile(cmd.env)), False))
+                    yours.append((None, "", "", s["command"], True))
+                else:
+                    yours.append((None, 6, label(6), t.text("setup.yours.path"), False))
                 continue
             top.append((STATUS[s["state"]], n, label(n), "%s: %s" % (s["subject"], s["detail"]), False))
             if s["id"] == "prereqs" and s["subject"] == "claude" and s["state"] == "blocked":
                 top.append((None, "", "", t.text("setup.cmd.get"), True))  # where Claude Code comes from
             if s["line"] == "page" and s.get("page"):
                 top.append((None, "", "", t.text("setup.page", command=s["page"]), True))  # whole, as a command
-    waiting = [s for s in steps if s["n"] == 4 and s["state"] == "todo" and not s["command"]
-               and s["mid"] == "setup.launcher.wait"]
+    waiting = [] if blocked else [s for s in steps if s["n"] == 4 and s["state"] == "todo"
+                                  and not s["command"] and s["mid"] == "setup.launcher.wait"]
     shown = set()
     for n in (2, 3, 4, 5):
         for s in [r for r in runs if r["n"] == n]:

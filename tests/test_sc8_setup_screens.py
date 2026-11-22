@@ -5,17 +5,20 @@ stub, whose plugins' own install-cli places only the plugin's command, so the su
 install-cli places the door; the default set is planned. A pty run answers once the question
 shows (`test_ak3_setup.on_pty`). Nothing here starts the real `claude` or writes outside its temp
 folder."""
+import io
 import json
 import os
 import re
 import shutil
 import sys
+import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_agentik_suite import CLAUDE_STUB, LAUNCHER, Home  # noqa: E402
 from test_ak3_setup import on_pty  # noqa: E402
-from agentik_suite import apply, catalogue, plan  # noqa: E402
+from agentik_suite import apply, catalogue, cli, plan, term  # noqa: E402
 
 DEFAULT = plan.default_set(str(LAUNCHER.parent.parent / "lib"))  # read from the plugin, never named here
 SECOND = DEFAULT[1] + "@agentik"  # the plugin whose install the failing stub refuses
@@ -277,6 +280,41 @@ class Screens(Home):
                           for i in range(3, 8)])
         self.assertEqual(err[-2], "FAIL  setup stopped at step 3; steps 1 and 2 stand")
         self.assertTrue(err[-1].startswith("next: ") and err[-1].endswith(" setup"), err)
+
+    # ---- review 1: F1 to F4, L1 to L4 ----------------------------------------------------
+    def blocked_plan(self, out, err):
+        """A blocked plan: what blocks, no `Would run` and no count of commands to come, step 6's
+        line with its command, since a blocked run never reaches the report (review 1 F1)."""
+        self.assertNotIn("Would run, in this order:", out)
+        self.assertFalse([l for l in out + err if " more: " in l or "once step 3 is done" in l], out)
+        self.assertFalse([l for l in out + err if "prints at the end" in l], out)
+        six = [i for i, l in enumerate(out) if re.match(r" +6 PATH +", l)]
+        self.assertEqual(len(six), 1, out)
+        self.assertEqual(out[six[0] + 1].strip(), plan.PROFILE_LINE, out)
+        self.assertLess(out.index("Yours, after:"), six[0], out)
+        self.assertTrue(err[-1].startswith("next: ") and err[-1].endswith(" setup"), err)
+
+    def test_f1_a_blocked_plan_says_no_would_run(self):
+        os.remove(os.path.join(self.stubs, "claude"))
+        for args in (("setup", "--yes"), ("setup",), ("setup", "--dry-run")):
+            code, out, err = self.screen(*args)
+            self.assertEqual(code, 0 if "--dry-run" in args else 2, out + err)
+            self.assertTrue([l for l in out if re.match(r" +warn 1 needs +claude: not on PATH", l)], out)
+            self.blocked_plan(out, err)
+        self.assertFalse(os.path.exists(os.path.join(self.home, ".local", "bin")))
+
+    def test_f1_a_python_under_the_floor_says_no_would_run(self):
+        for args in (["setup", "--yes"], ["setup"]):
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(plan, "FLOOR", (3, 99)):
+                code = cli.main(args, env=self.env(COLUMNS="80"), out=out, err=err)
+            out, err = lines_of(out.getvalue()), lines_of(err.getvalue())
+            self.assertEqual(code, 2, out + err)
+            self.assertTrue([l for l in out if "older than the 3.99 minimum" in l], out)
+            self.assertNotIn("Would run, in this order:", out)
+            self.assertFalse([l for l in out + err if " more: " in l or "prints at the end" in l], out)
+            six = [i for i, l in enumerate(out) if re.match(r" +6 PATH +", l)]
+            self.assertTrue(six and out[six[0] + 1].strip() == plan.PROFILE_LINE, out)
 
     # ---- R4, R6, R8: units ---------------------------------------------------------------
     def test_r4_undo_has_a_place_and_prints_none(self):
