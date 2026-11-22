@@ -1,0 +1,782 @@
+#!/usr/bin/python3
+"""screen-probe: every screen of the suite's command, rendered four ways and held to five checks.
+
+Usage: screen-probe [--root DIR] [--only NAME,...] [--wall S] [--keep]
+
+--only names screens of SCREENS, or `catalogue` for the catalogue's check alone.
+
+Row sc0-screen-probe (design/23 sections 3 to 9). Under a fresh temp dir T it builds the homes of
+SCREENS' table, each a HOME with a stub `claude` and made-up tools, and renders each screen of the
+table there four ways: on a pty at 80 columns, on a pty at 50, in a pipe, and on a pty at 80 under
+NO_COLOR=1. The suite is the one under DIR (--root, else this checkout): its launcher by the path
+typed, or the door `agentik` that an applied setup placed. Then five checks, each a function a test
+calls alone:
+
+  1. width: no line of a pty run past its columns, but a lone path or command (`lone`); a pipe's
+     row is one line and takes no width check;
+  2. name: no line of a screen run through the door holds `agentik-suite`, but a path ending in it;
+  3. V9, read from the catalogue and never from a screen: no message holds a word that opens with
+     `exit` (`exits`, `exited`, `exiting`) or a placeholder of a code (`{exit}`, `{code}`,
+     `{exit_code}`, `{rc}`, `{returncode}`, `{status_code}`), but the ids of V9_LIST, each with
+     its reason;
+  4. budget: each screen's line count on a pty at 80 is at most BUDGET's number for it;
+  5. paste: each `next:`, `check` and `undo` command of each screen, run by `sh -c` in that
+     screen's home with stdin at /dev/null, exits neither 127 nor past the wall (--wall, 20 s).
+
+A failure on KNOWN's list prints as `note` and keeps the probe at go; the coordinator rules each.
+Nothing is written outside T, no real `claude` starts, and no child outlives the probe: each runs
+in a process group of its own, stopped when it returns. On SIGTERM or SIGINT the probe stops its
+children, removes T, prints `screen-probe: stop: <signal>` and exits 128 plus the signal's number.
+T is removed unless --keep.
+
+Output: one line per check, `ok`, `FAIL` or `note`, and last `screen-probe: go` or
+`screen-probe: stop: <n> failed`. Exit 0 go, 1 a check failed, 2 usage. Stdlib only.
+"""
+import fcntl
+import os
+import re
+import select
+import shutil
+import signal
+import struct
+import subprocess
+import sys
+import tempfile
+import termios
+import time
+import unicodedata
+from pathlib import Path
+
+USAGE = "usage: screen-probe [--root DIR] [--only NAME,...] [--wall S] [--keep]"
+HERE = Path(__file__).resolve().parents[1]
+SYSTEM = "/usr/bin:/bin"
+WAYS = ("pty80", "pty50", "pipe", "nocolor")
+WALL = 20.0
+FAILS = []
+LIVE = set()  # each child started and not yet stopped, for a stop from outside (review 1 L5)
+
+# V9's list: the pin's ids (main 6c60098) that hold the word or a code, each with its reason in a
+# word. `flag`: a flag's help says the code a script reads. `owed`: a later row rewrites it.
+V9_LIST = {
+    "flag.config_pick": "flag",
+    "flag.check": "flag",
+    "flag.exit": "flag",
+    "err.update.step": "owed",
+    "err.update.step.silent": "owed",
+    "err.update.todo": "owed",
+    "remove.market.stands": "owed",
+    "err.remove.step": "owed",
+    "err.remove.step.silent": "owed",
+    "inbox.read.no_answer": "owed",
+    "err.issue.send.failed": "owed",
+    "err.issue.exit": "owed",
+    "issue.render.exit": "owed",
+}
+
+# KNOWN: what is red on the pin's screens (main 6c60098), by "<check>:<screen>": a pattern that
+# each excused line matches, and the finding in a few words with the row that owes it. A line it
+# matches prints as `note` and keeps the probe at go; any other red line of the screen is a FAIL;
+# an entry with no red line left prints a note to take it off. Ruled by review 1 of sc0: each
+# entry stays until sc17-narrow-screens mends it; the `usage:` line is a head over a command.
+OWED = "; owed by sc17-narrow-screens"
+KNOWN = {
+    "width:bare-empty": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
+    "width:help": (r"^pty50 line 1 .*one command for", "the title is not cut at 50" + OWED),
+    "width:help-config": (r"^pty50 line 2 .*Show each tool|^(pty80|pty50|nocolor) line [468] \(\d+\):   /",
+                          "the summary does not wrap at 50; each example holds the path typed at "
+                          "column 2, not under the lead" + OWED),
+    "width:help-config-door": (r"^pty50 line 2 .*Show each tool", "the summary does not wrap at 50" + OWED),
+    "width:config-loom": (r"^pty50 line 1 .*24 keys, 3 changed", "the title does not wrap at 50" + OWED),
+    "width:doctor-applied": (r"^pty50 line \d+ .*(add to your shell profile|The line below mends)",
+                             "the profile row and the closing sentence do not wrap at 50" + OWED),
+    "width:err-uninstalled": (r"^(pty80|pty50|nocolor) line 1 .*relay has no command here yet",
+                              "the refusal is one line of 130 (design/23 section 7's row 2)" + OWED),
+    "name:setup-door": (r"^(pty80|pty50|pipe|nocolor) line \d+: .*5 agentik +agentik-suite, agentik",
+                        "step 5's row names the launcher it placed" + OWED),
+    "budget:doctor-empty": (r"^9 lines, budget 8 ", "9 lines in an empty HOME, sc10's 8" + OWED),
+}
+
+# The budget: each screen's most lines on a pty at 80 columns, a command or path spilled onto its
+# own line uncounted (`spill`, as sc8 counts its plan), with where the number comes from: a row of
+# design/23 section 9 that gives it, else `measured` at the pin (main 6c60098).
+BUDGET = {
+    "bare-empty": (10, "sc5"), "bare-three": (10, "sc5"), "bare-off": (10, "sc5"),
+    "bare-door": (10, "sc5"),
+    "help": (18, "measured"), "help-door": (20, "measured"),
+    "help-config": (14, "measured"), "help-config-door": (14, "measured"),
+    "config": (6, "measured"), "config-door": (8, "measured"),
+    "config-loom": (20, "sc6"), "config-card": (8, "measured"),
+    "setup-plan": (14, "sc8: the plan's 13, then next:"),
+    "setup-applied": (30, "sc8: 13, 8 commands, a tail of 8, one more"),
+    "setup-second": (6, "measured"), "setup-door": (11, "measured"),
+    "setup-no": (17, "measured"), "setup-blocked": (23, "measured"),
+    "setup-failed": (24, "measured"),
+    "doctor-empty": (8, "sc10"), "doctor-applied": (20, "measured"),
+    "doctor-door": (14, "measured"),
+    "err-typo": (2, "measured"), "err-uninstalled": (2, "measured"),
+    "err-config-uninstalled": (2, "measured"), "err-tool-not-verb": (2, "measured"),
+    "err-flag": (2, "measured"), "err-extra": (2, "measured"),
+    "err-help-version": (2, "measured"), "err-typo-door": (2, "measured"),
+    "err-case-door": (2, "measured"),
+}
+
+# ---- the stub `claude` and the made-up tools ------------------------------------------------
+
+# claude, as far as setup's lines need it: marketplace add, plugin install, each plugin's launcher
+# a copy of PLUGIN_BIN beside it; the second install fails, saying seven lines, while `fail-second`
+# is in its folder. Any other argv says nothing and exits 2.
+CLAUDE = r'''#!/usr/bin/python3
+import json, os, shutil, sys
+here = os.path.dirname(os.path.abspath(__file__))
+d = os.path.join(os.environ["HOME"], ".claude", "plugins")
+a = sys.argv[1:]
+if a[:3] == ["plugin", "marketplace", "add"] and len(a) == 4:
+    os.makedirs(d, exist_ok=True)
+    json.dump({"agentik": {}}, open(os.path.join(d, "known_marketplaces.json"), "w"))
+elif a[:2] == ["plugin", "install"] and len(a) == 3 and a[2].endswith("@agentik"):
+    if not os.path.exists(os.path.join(d, "known_marketplaces.json")):
+        sys.exit(1)
+    count = os.path.join(here, "installs")
+    n = (int(open(count).read()) if os.path.exists(count) else 0) + 1
+    open(count, "w").write(str(n))
+    if n == 2 and os.path.exists(os.path.join(here, "fail-second")):
+        for i in range(1, 8):
+            print("resolver line %d of the plugin, said whole" % i, flush=True)
+        sys.exit(1)
+    name = a[2].split("@")[0]
+    root = os.path.join(d, "cache", "agentik", name, "1.0.0")
+    os.makedirs(os.path.join(root, "bin"), exist_ok=True)
+    shutil.copy(os.path.join(here, "plugin-bin"), os.path.join(root, "bin", "agentik-" + name))
+    path = os.path.join(d, "installed_plugins.json")
+    table = json.load(open(path)) if os.path.exists(path) else {"version": 2, "plugins": {}}
+    table["plugins"][a[2]] = [{"scope": "user", "version": "1.0.0", "installPath": root}]
+    json.dump(table, open(path, "w"))
+else:
+    sys.exit(2)
+'''
+# a plugin's launcher whose install-cli places its own command alone, so the door is the suite's
+PLUGIN_BIN = """#!/bin/sh
+case "$1" in
+install-cli)
+    exe="$HOME/.local/bin/$(basename "$0")"
+    mkdir -p "$HOME/.local/bin" || exit 1
+    printf '#!/bin/sh\\nVERSION=1.0.0\\nexec "%s" "$@"\\n' "$0" > "$exe" && chmod 755 "$exe" ;;
+doctor) exit 0 ;;
+*) exit 2 ;;
+esac
+"""
+MURMUR = ('{"schema": "agentik.describe/1", "ok": true, "tool": "murmur", "version": "1.7.1", '
+          '"summary": "Whisper each change to the log.", "repo": "example/murmur", '
+          '"plugin": "murmur@agentik", "needs": [], "verbs": [], "reads": []}')
+# loom, a made-up tool of 24 keys in five groups and three lone keys, four of them changed
+LOOM_KEYS = ["mode", "speed", "voice", "ink.colour", "ink.weight", "ink.flow", "ink.dry",
+             "page.width", "page.height", "page.margin", "page.gutter", "page.bleed",
+             "spool.size", "spool.wind", "spool.tension", "spool.brake",
+             "weave.warp", "weave.weft", "weave.twill", "weave.satin", "weave.plain",
+             "weave.density", "feed.rate", "feed.pause"]
+LOOM_FILE = "mode: fast\nink:\n  colour: black\n  weight: bold\npage:\n  width: 90\n"
+LOOM = r'''#!/usr/bin/python3
+import json, os, sys
+home = os.environ["HOME"]
+user = os.path.join(home, ".config", "loom", "config.yaml")
+KEYS = %r
+SET = {"mode": ("fast", user, 1), "ink.weight": ("bold", user, 4), "page.width": ("90", user, None)}
+def s(key):
+    value, path, line = SET.get(key, ("d-" + key, None, None))
+    layer = "user" if path else "default"
+    values = [{"layer": "default", "value": "d-" + key}]
+    if path:
+        values.append({"layer": "user", "value": value, "path": path, "line": line})
+    return {"key": key, "value": value, "default": "d-" + key, "type": "string",
+            "choices": ["fast", "slow"] if key == "mode" else None,
+            "summary": "The %%s of the loom." %% key,
+            "source": {"layer": layer, "path": path, "line": line},
+            "change": {"kind": "command", "command": "agentik-loom set %%s <value>" %% key,
+                       "path": None, "block": None, "note": None},
+            "live": True, "values": values}
+a = sys.argv[1:]
+if a == ["describe", "--json"]:
+    print(json.dumps({"schema": "agentik.describe/1", "ok": True, "tool": "loom", "version": "1.0.0",
+        "summary": "A made-up tool.", "repo": "example/loom", "plugin": "loom@agentik", "needs": [],
+        "verbs": [{"name": "set", "summary": "Set one.", "top": True}],
+        "reads": [{"kind": "config", "name": "settings", "argv": ["describe", "config", "--json"]}]}))
+elif a[:3] == ["describe", "config", "--json"]:
+    rows = [s(k) for k in KEYS if not a[3:] or k == a[3]]
+    print(json.dumps({"schema": "agentik.config/1", "ok": True, "tool": "loom", "settings": rows,
+        "layers": [{"name": "default", "path": None, "present": True, "travels": False},
+                   {"name": "user", "path": user, "present": True, "travels": True}],
+        "warnings": []}))
+elif a[:1] == ["doctor"]:
+    sys.exit(0)
+else:
+    sys.exit(2)
+''' % LOOM_KEYS
+
+
+def say(kind, text):
+    print("%-4s %s" % (kind, text), flush=True)
+    if kind == "FAIL":
+        FAILS.append(text)
+
+
+def verdict(check, screen, bad, text, known=None):
+    """One line for a check of a screen: ok, else FAIL naming its red lines, else `note` where
+    each red line is one KNOWN rules, or where KNOWN rules a red that is gone (review 1 L10)."""
+    known = KNOWN if known is None else known
+    pattern, why = known.get("%s:%s" % (check, screen), (None, None))
+    kept = [b for b in bad if pattern and re.search(pattern, b)]
+    red = [b for b in bad if b not in kept]
+    if red:
+        say("FAIL", "%s: %s" % (text, "; ".join(red[:3])))
+    elif kept:
+        say("note", "known: %s: %s (%d lines)" % (text, why, len(kept)))
+    elif pattern:
+        say("note", "%s:%s is in KNOWN and red no more; take it off KNOWN" % (check, screen))
+    else:
+        say("ok", text)
+    return red
+
+
+def executable(path, body):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write(body)
+    os.chmod(path, 0o755)
+    return path
+
+
+# ---- the homes ------------------------------------------------------------------------------
+
+class Home:
+    """A temp HOME: `stubs` (claude, the made-up tools), `work` (the folder each command runs
+    in, no repository), and the env of exactly HOME, PATH, XDG_CACHE_HOME and TMPDIR, the last
+    two inside the home, so a child writes nothing outside T."""
+
+    def __init__(self, top, label, path=None):
+        self.label = label
+        self.home = os.path.join(top, label)
+        self.stubs = os.path.join(self.home, "stubs")
+        self.work = os.path.join(self.home, "work")
+        self.bindir = os.path.join(self.home, ".local", "bin")
+        self.path = path or "%s:%s" % (self.stubs, SYSTEM)
+        os.makedirs(self.work, exist_ok=True)
+        if not os.path.exists(os.path.join(self.stubs, "claude")):
+            executable(os.path.join(self.stubs, "claude"), CLAUDE)
+            executable(os.path.join(self.stubs, "plugin-bin"), PLUGIN_BIN)
+
+    def env(self, **more):
+        os.makedirs(os.path.join(self.home, ".tmp"), exist_ok=True)
+        env = {"HOME": self.home, "PATH": self.path.replace("<bin>", self.bindir),
+               "XDG_CACHE_HOME": os.path.join(self.home, ".cache"),
+               "TMPDIR": os.path.join(self.home, ".tmp")}
+        env.update(more)
+        return env
+
+    def copy(self, label):
+        """A copy of this home, for a screen that writes in it."""
+        other = os.path.join(os.path.dirname(self.home), label)
+        shutil.copytree(self.home, other, symlinks=True)
+        return Home(os.path.dirname(self.home), label, self.path)
+
+
+def build_homes(top, launcher, labels=None):
+    """The homes SCREENS names, by label; the two that run a setup only where `labels` holds one."""
+    labels = {s[1] for s in SCREENS} if labels is None else set(labels)
+    homes = {"empty": Home(top, "empty")}
+    three = Home(top, "three")
+    tools = os.path.join(three.home, "tools")
+    three.path = "<bin>:%s:%s:%s" % (tools, three.stubs, SYSTEM)
+    executable(os.path.join(tools, "agentik-murmur"),
+               "#!/bin/sh\n[ \"$1\" = describe ] && cat <<'EOF'\n%s\nEOF\nexit 0\n" % MURMUR)
+    executable(os.path.join(tools, "agentik-paint"), "#!/bin/sh\nexit 0\n")
+    executable(os.path.join(tools, "agentik-quill"), "#!/bin/sh\nexit 0\n")
+    homes["three"] = three
+    loom = Home(top, "loom")
+    os.makedirs(os.path.join(loom.home, ".config", "loom"))
+    with open(os.path.join(loom.home, ".config", "loom", "config.yaml"), "w") as fh:
+        fh.write(LOOM_FILE)
+    executable(os.path.join(loom.stubs, "agentik-loom"), LOOM)
+    homes["loom"] = loom
+    blocked = Home(top, "blocked")
+    os.remove(os.path.join(blocked.stubs, "claude"))
+    homes["blocked"] = blocked
+    failing = Home(top, "failing")
+    open(os.path.join(failing.stubs, "fail-second"), "w").close()
+    homes["failing"] = failing
+    if not labels & {"applied-off", "applied-on", "three"}:
+        return homes
+    # an applied setup, then the same home with ~/.local/bin off PATH and on it (sc2's homes)
+    applied = Home(top, "applied")
+    code, _, err = run_child([launcher, "setup", "--yes"], applied.env(), applied.work, 300)
+    if code != 0:
+        say("FAIL", "the applied home: setup --yes gave %d: %s" % (code, last(err)))
+    homes["applied-off"] = applied
+    homes["applied-on"] = Home(top, "applied", "<bin>:%s:%s" % (applied.stubs, SYSTEM))
+    homes["applied-on"].label = "applied-on"
+    # three made-up tools beside the default set, the door placed (sc5's finished home)
+    code, _, err = run_child([launcher, "setup", "--yes"], three.env(), three.work, 300)
+    if code != 0:
+        say("FAIL", "the home of three tools: setup --yes gave %d: %s" % (code, last(err)))
+    return homes
+
+
+# ---- the screens ----------------------------------------------------------------------------
+
+# name, home, how it is typed (`launcher`: the suite's launcher by its path; `door`: `agentik` on
+# PATH), its words, and `fresh` where the screen writes in its home, so each way gets a copy
+SCREENS = [
+    ("bare-empty", "empty", "launcher", [], False),
+    ("bare-three", "three", "door", [], False),
+    ("help", "empty", "launcher", ["help"], False),
+    ("help-config", "empty", "launcher", ["help", "config"], False),
+    ("config", "loom", "launcher", ["config"], False),
+    ("config-loom", "loom", "launcher", ["config", "loom"], False),
+    ("config-card", "loom", "launcher", ["config", "loom.mode"], False),
+    ("setup-plan", "empty", "launcher", ["setup", "--dry-run"], False),
+    ("setup-applied", "empty", "launcher", ["setup", "--yes"], True),
+    ("setup-second", "applied-off", "launcher", ["setup", "--yes"], False),
+    ("setup-no", "empty", "launcher", ["setup"], True),
+    ("setup-blocked", "blocked", "launcher", ["setup", "--dry-run"], False),
+    ("setup-failed", "failing", "launcher", ["setup", "--yes"], True),
+    ("doctor-empty", "empty", "launcher", ["doctor"], False),
+    ("doctor-applied", "applied-off", "launcher", ["doctor"], False),
+    # sc2's homes after an applied setup: off PATH by the path typed, on PATH through the door
+    ("bare-off", "applied-off", "launcher", [], False),
+    ("bare-door", "applied-on", "door", [], False),
+    ("help-door", "applied-on", "door", ["help"], False),
+    ("help-config-door", "applied-on", "door", ["help", "config"], False),
+    ("setup-door", "applied-on", "door", ["setup", "--dry-run"], False),
+    ("doctor-door", "applied-on", "door", ["doctor"], False),
+    ("config-door", "applied-on", "door", ["config"], False),
+    # each mistake of design/23 section 7's table
+    ("err-typo", "empty", "launcher", ["confg"], False),
+    ("err-uninstalled", "empty", "launcher", ["relay"], False),
+    ("err-config-uninstalled", "empty", "launcher", ["config", "relay"], False),
+    ("err-tool-not-verb", "three", "launcher", ["murmur"], False),
+    ("err-flag", "empty", "launcher", ["config", "--jsno"], False),
+    ("err-extra", "empty", "launcher", ["config", "suite", "extra"], False),
+    ("err-help-version", "empty", "launcher", ["--help", "--version"], False),
+    ("err-typo-door", "applied-on", "door", ["confg"], False),
+    ("err-case-door", "applied-on", "door", ["Config"], False),
+]
+
+
+def argv_of(how, home, words, launcher):
+    return ([launcher] if how == "launcher" else [os.path.join(home.bindir, "agentik")]) + words
+
+
+SGR = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r")
+
+
+def lines_of(text):
+    """A pipe's lines, any escape or carriage return dropped."""
+    return [SGR.sub("", line) for line in text.replace("\r\n", "\n").split("\n")]
+
+
+TOKEN = re.compile(r"\x1b\[([0-9;?<=>]*)[ -/]*([@-~])"     # a control sequence
+                   r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?"  # an operating system command
+                   r"|\x1b[^\[\]]?"                        # any other escape
+                   r"|([\r\n\b])|([^\x1b\r\n\b]+)")
+
+
+def replay(text, cols, height=24):
+    """The rows a terminal of `cols` columns and `height` rows shows once a pty's `text` is drawn
+    (review 1 F2): a carriage return, erase line (`K`), erase down (`J`), the cursor's moves
+    (`A`, `B`, `C`, `D`, `G`, `H`) and a clear of the window are applied, colour and the cursor's
+    hide and show dropped. A line is never wrapped, so a row past `cols` stays one row for the
+    width check to see; a line feed also returns the carriage, as a pty's onlcr does. Trailing
+    blanks of a row and blank rows at the end are dropped."""
+    rows, top, y, x = [[]], 0, 0, 0
+    for m in TOKEN.finditer(text):
+        params, final, ctl, chars = m.groups()
+        while len(rows) <= y:
+            rows.append([])
+        row = rows[y]
+        if chars is not None:
+            if x > len(row):
+                row.extend(" " * (x - len(row)))
+            row[x:x + len(chars)] = list(chars)
+            x += len(chars)
+        elif ctl == "\r":
+            x = 0
+        elif ctl == "\n":
+            y, x = y + 1, 0
+            top = max(top, y - height + 1)
+        elif ctl == "\b":
+            x = max(0, x - 1)
+        elif final and not params.startswith(("?", "<", "=", ">")):
+            nums = [int(n) if n.isdigit() else 0 for n in params.split(";")]
+            n = max(1, nums[0])
+            if final == "A":
+                y = max(top, y - n)
+            elif final == "B":
+                y = min(top + height - 1, y + n)
+            elif final == "C":
+                x += n
+            elif final == "D":
+                x = max(0, x - n)
+            elif final == "G":
+                x = n - 1
+            elif final in "Hf":
+                y, x = top + n - 1, max(1, nums[1] if len(nums) > 1 else 1) - 1
+            elif final == "K":
+                if nums[0] == 0:
+                    del row[x:]
+                elif nums[0] == 1:
+                    row[:x + 1] = list(" " * min(len(row), x + 1))
+                else:
+                    del row[:]
+            elif final == "J":
+                if nums[0] == 0:
+                    del row[x:]
+                    del rows[y + 1:]
+                elif nums[0] in (2, 3):
+                    for i in range(top, len(rows)):
+                        rows[i] = []
+    out = ["".join(r).rstrip() for r in rows]
+    while out and not out[-1].strip():
+        out.pop()
+    return out
+
+
+def last(text):
+    rows = [ln for ln in (text or "").splitlines() if ln.strip()]
+    return rows[-1][:160] if rows else ""
+
+
+def on_pty(argv, env, cwd, cols, answer=None, wall=60):
+    """argv on a pty of `cols` columns, `answer` typed once the question shows: (exit, text)."""
+    master, slave = os.openpty()
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, cols, 0, 0))
+    try:
+        p = spawn(argv, stdin=slave, stdout=slave, stderr=slave, env=env, cwd=cwd, close_fds=True)
+    finally:
+        os.close(slave)
+    chunks, sent, end = [], answer is None, time.monotonic() + wall
+    try:
+        while time.monotonic() < end:
+            if not sent and b"now?" in b"".join(chunks):
+                time.sleep(0.2)
+                os.write(master, answer.encode() + b"\n")
+                sent = True
+            ready, _, _ = select.select([master], [], [], 1)
+            if not ready:
+                if p.poll() is not None:
+                    break
+                continue
+            try:
+                data = os.read(master, 65536)
+            except OSError:
+                break
+            if not data:
+                break
+            chunks.append(data)
+    finally:
+        os.close(master)
+        stop(p)
+    return p.returncode, b"".join(chunks).decode("utf-8", "replace")
+
+
+def spawn(argv, **kw):
+    """A child in a session and process group of its own, kept in LIVE until `stop`."""
+    p = subprocess.Popen(argv, start_new_session=True, **kw)
+    LIVE.add(p)
+    return p
+
+
+def descendants(pid):
+    """The pids under `pid`, read from ps: a child a command started in a session of its own
+    leaves the group, not the tree."""
+    ps = subprocess.run(["/bin/ps", "-axo", "pid=,ppid="], capture_output=True, text=True).stdout
+    under, out = {}, []
+    for row in ps.splitlines():
+        kid, parent = (int(n) for n in row.split())
+        under.setdefault(parent, []).append(kid)
+    todo = list(under.get(pid, []))
+    while todo:
+        kid = todo.pop()
+        out.append(kid)
+        todo += under.get(kid, [])
+    return out
+
+
+def stop(p):
+    """The child and its process group gone, waited for, whether it ended or not, so a child it
+    put in the background does not outlive it (review 1 L4); while it runs, its tree first."""
+    kids = descendants(p.pid) if p.poll() is None else []
+    for kid in kids:
+        for kill in (os.killpg, os.kill):
+            try:
+                kill(kid, signal.SIGKILL)
+            except OSError:
+                pass
+    try:
+        os.killpg(p.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    p.wait()
+    LIVE.discard(p)
+
+
+def run_child(argv, env, cwd, wall):
+    """argv in a pipe, stdin at /dev/null: (exit, stdout, stderr); stopped with its group at the
+    wall or when it returns."""
+    p = spawn(argv, env=env, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+              stderr=subprocess.PIPE, text=True)
+    try:
+        out, err = p.communicate(timeout=wall)
+    except subprocess.TimeoutExpired:
+        out, err = "", "still running at %g s" % wall
+    finally:
+        stop(p)
+    return p.returncode, out, err
+
+
+def render(argv, env, cwd, way, answer):
+    """The screen's lines one way: on a pty, the rows its terminal shows at the end (`replay`);
+    in a pipe, stdout's lines then stderr's."""
+    if way == "pipe":
+        code, out, err = run_child(argv, dict(env, COLUMNS="80"), cwd, 120)
+        text = out + err
+    else:
+        cols = 50 if way == "pty50" else 80
+        more = {"NO_COLOR": "1"} if way == "nocolor" else {}
+        _, text = on_pty(argv, dict(env, TERM="xterm-256color", **more), cwd, cols, answer)
+        return replay(text, cols)
+    rows = lines_of(text)
+    while rows and not rows[-1].strip():
+        rows.pop()
+    return rows
+
+
+# ---- the five checks ------------------------------------------------------------------------
+
+def cells(line):
+    """The columns a line takes: a wide or full-width character two, a combining one none."""
+    n = 0
+    for ch in line:
+        if unicodedata.combining(ch):
+            continue
+        n += 2 if unicodedata.east_asian_width(ch) in "WF" else 1
+    return n
+
+
+# design/23's heads over a command that is never cut, each at column 0 (sc8's two, then
+# `same as:`, `from a list:` and `usage:`); a `check` or `undo` row puts its command under its label
+LONE_HEADS = ("next: ", "other plugins: ", "same as: ", "from a list: ", "usage: ")
+LEAD = 6  # apply.LEAD: a command that does not fit its row stands at this column under it
+RESULT = re.compile(r" \d+ s\b|\bfailed\b|\bstopped\b|could not start")
+
+
+def lone(line):
+    """A line that is one path or one command and nothing more, which cannot be broken, as sc8's
+    `lone` has it (review 1 F3): after one of LONE_HEADS at column 0, a path or `claude `; else, on
+    a line indented by LEAD, a path or `claude ` and nothing more: no gap of a table's cells and
+    no result words. A line of plain words, at column 0 or indented otherwise, is not lone."""
+    for head in LONE_HEADS:
+        if line.startswith(head):
+            rest = line[len(head):]
+            return rest.startswith(("/", "~/", "./", "claude ")) and not RESULT.search(rest)
+    if not re.match(" {%d}[^ ]" % LEAD, line):
+        return False
+    rest = line.strip()
+    return (rest.startswith(("/", "~/", "./", "claude ")) and "  " not in rest
+            and not RESULT.search(rest))
+
+
+def check_width(rows, cols):
+    """Check 1: each line past `cols` that is not lone, as `line <n> (<cells>): <text>`."""
+    return ["line %d (%d): %s" % (i + 1, cells(r), r[:60]) for i, r in enumerate(rows)
+            if cells(r) > cols and not lone(r)]
+
+
+def check_name(rows):
+    """Check 2: each line through the door that holds `agentik-suite` but as a path ending in it."""
+    bad = []
+    for i, row in enumerate(rows):
+        for word in row.split():
+            word = word.strip("`'\",;:()")
+            if "agentik-suite" in word and not ("/" in word and word.endswith("/agentik-suite")):
+                bad.append("line %d: %s" % (i + 1, row[:60]))
+                break
+    return bad
+
+
+V9_WORD = re.compile(r"\bexit", re.I)  # exit, exits, exited, and exiting or exitcode (review 1 L1)
+V9_CODE = re.compile(r"\{(exit|code|exit_code|rc|returncode|status_code)\}")
+MESSAGE = re.compile(r"- `([^`]+)`: (.*)$")
+
+
+def check_v9(text, allowed=None):
+    """Check 3, over the catalogue's text: ([each id outside `allowed` whose message holds the
+    word or a code], [each id of `allowed` whose message holds neither])."""
+    allowed = V9_LIST if allowed is None else allowed
+    held, red = set(), []
+    for line in text.splitlines():
+        m = MESSAGE.match(line)
+        if not m:
+            continue
+        mid, body = m.groups()
+        if V9_WORD.search(body) or V9_CODE.search(body):
+            held.add(mid)
+            if mid not in allowed:
+                red.append(mid)
+    return red, sorted(set(allowed) - held)
+
+
+def spill(line):
+    """A command or path that did not fit beside its row, on its own indented line."""
+    rest = line.strip()
+    return (line.startswith(" ") and rest.startswith(("/", "~/", "./")) and "  " not in rest
+            and not rest.endswith(":") and not RESULT.search(rest))
+
+
+def count(rows):
+    """A screen's lines as its budget counts them: each line but a spill directly under a line
+    that is not one, so a row spills one line and a second spill in a row counts (review 1 L3)."""
+    return sum(1 for i, r in enumerate(rows)
+               if not (i and spill(r) and not spill(rows[i - 1])))
+
+
+def check_budget(screen, rows, budget=None):
+    """Check 4: the screen's count on a pty at 80 past its budget, as a list of one."""
+    budget = BUDGET if budget is None else budget
+    if screen not in budget:
+        return ["no budget for %s" % screen]
+    most, why = budget[screen]
+    n = count(rows)
+    return ["%d lines, budget %d (%s)" % (n, most, why)] if n > most else []
+
+
+PASTE = re.compile(r"^\s*(?:next:|check|undo)\s+(\S.*)$")
+
+
+def pastes(rows):
+    """Each command a `next:`, `check` or `undo` line of the screen gives, in order."""
+    return [m.group(1).strip() for m in map(PASTE.match, rows) if m]
+
+
+def check_paste(command, env, cwd, wall=WALL):
+    """Check 5: the command by `sh -c` with stdin at /dev/null, in a process group of its own
+    that is stopped when it returns or the wall falls: [] when it returns in the wall with an exit
+    other than 127, else [why]. A line that holds a backtick or `$(` is red and is not run (review
+    1 L6): a screen's command is pasted as it reads."""
+    if "`" in command or "$(" in command:
+        return ["not a line to paste: it holds a backtick or $("]
+    start = time.monotonic()
+    p = spawn(["/bin/sh", "-c", command], env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        code = p.wait(timeout=wall)
+    except subprocess.TimeoutExpired:
+        stop(p)
+        return ["waits: still running at %g s" % wall]
+    finally:
+        stop(p)
+    if code == 127:
+        return ["not found: exit 127 after %.1f s" % (time.monotonic() - start)]
+    return []
+
+
+# ---- the run --------------------------------------------------------------------------------
+
+def run(root, only, wall, keep):
+    launcher = str(Path(root) / "plugins" / "suite" / "bin" / "agentik-suite")
+    catalogue = Path(root) / "plugins" / "suite" / "lib" / "agentik_suite" / "messages.md"
+    if not os.access(launcher, os.X_OK) or not catalogue.is_file():
+        print("screen-probe: no suite under %s" % root, file=sys.stderr)
+        return 2
+    red, stale = check_v9(catalogue.read_text(encoding="utf-8"))
+    verdict("v9", "catalogue", ["%s holds the word or a code" % m for m in red],
+            "v9: no message outside the list of %d holds exit or a code" % len(V9_LIST))
+    for mid in stale:
+        say("note", "v9: %s is listed and holds neither; take it off V9_LIST" % mid)
+    chosen = [s for s in SCREENS if only is None or s[0] in only]
+    top = os.path.realpath(tempfile.mkdtemp(prefix="screen-probe-"))
+    try:
+        homes = build_homes(top, launcher, {s[1] for s in chosen}) if chosen else {}
+        pasted, n = {}, 0
+        for name, label, how, words, fresh in chosen:
+            shown = {}
+            for way in WAYS:
+                home = homes[label]
+                if fresh:
+                    n += 1
+                    home = home.copy("%s-%d" % (label, n))
+                answer = "n" if name == "setup-no" and way != "pipe" else None
+                shown[way] = render(argv_of(how, home, words, launcher), home.env(), home.work,
+                                    way, answer)
+                for command in pastes(shown[way]):  # once in each home that printed it
+                    pasted.setdefault((home.home, command), (name, label, home))
+            bad = []
+            for way in ("pty80", "pty50", "nocolor"):
+                bad += ["%s %s" % (way, b) for b in check_width(shown[way], 50 if way == "pty50" else 80)]
+            verdict("width", name, bad, "width: %s fits 80 and 50 columns" % name)
+            if how == "door":
+                bad = ["%s %s" % (w, b) for w in WAYS for b in check_name(shown[w])]
+                verdict("name", name, bad, "name: %s through the door names no agentik-suite" % name)
+            verdict("budget", name, check_budget(name, shown["pty80"]),
+                    "budget: %s is %d lines at 80, at most %s" % (
+                        name, count(shown["pty80"]), BUDGET.get(name, ("?",))[0]))
+        for (_, command), (name, label, home) in pasted.items():
+            verdict("paste", name, check_paste(command, home.env(), home.work, wall),
+                    "paste: %s, in %s: %s" % (name, label, command))
+    finally:
+        for p in list(LIVE):  # a stop from outside: each child still running, then T
+            stop(p)
+        if keep:
+            say("note", "kept " + top)
+        else:
+            shutil.rmtree(top, ignore_errors=True)
+    if FAILS:
+        print("screen-probe: stop: %d failed" % len(FAILS))
+        return 1
+    print("screen-probe: go")
+    return 0
+
+
+class Stopped(BaseException):
+    """SIGTERM or SIGINT from outside, raised where the probe stands so each `finally` runs."""
+
+
+def stopped(signum, frame):
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, signal.SIG_IGN)  # the cleanup is not cut by a second one
+    raise Stopped(signum)
+
+
+def main(argv):
+    root, only, wall, keep = str(HERE), None, WALL, False
+    args = list(argv)
+    try:
+        while args:
+            a = args.pop(0)
+            if a == "--root":
+                root = os.path.realpath(args.pop(0))
+            elif a == "--only":
+                only = set(args.pop(0).split(","))
+            elif a == "--wall":
+                wall = float(args.pop(0))
+            elif a == "--keep":
+                keep = True
+            else:
+                raise ValueError(a)
+    except (IndexError, ValueError):
+        print(USAGE, file=sys.stderr)
+        return 2
+    if only:
+        only.discard("catalogue")  # the catalogue's check alone, no screen
+    if only is not None and not only <= {s[0] for s in SCREENS}:
+        print(USAGE, file=sys.stderr)
+        return 2
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, stopped)
+    try:
+        return run(root, only, wall, keep)
+    except Stopped as e:
+        print("screen-probe: stop: %s" % signal.Signals(e.args[0]).name, flush=True)
+        return 128 + e.args[0]
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
