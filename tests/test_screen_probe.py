@@ -241,6 +241,15 @@ class Breaks(Copy):
         self.assertEqual(shown.getvalue(), "note width:made-up is in KNOWN and red no more; "
                                            "take it off KNOWN\n")
 
+    def test_l1_a_code_under_another_name_is_red(self):
+        """Review 1 L1: a word that opens with `exit`, and the placeholders of a code by name."""
+        held = ["Exiting now", "it gave exitcode 3", "gave `{exit_code}`", "gave `{rc}`",
+                "gave `{returncode}`", "gave `{status_code}`", "it exited", "gave `{code}`"]
+        text = "\n".join("- `m.%d`: %s" % (i, body) for i, body in enumerate(held))
+        self.assertEqual(probe.check_v9(text, {}), (["m.%d" % i for i in range(len(held))], []))
+        clean = "- `m.a`: the existing file\n- `m.b`: gave `{status}`\n- `m.c`: the exhibit"
+        self.assertEqual(probe.check_v9(clean, {}), ([], []))
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)

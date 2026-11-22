@@ -15,8 +15,10 @@ calls alone:
   1. width: no line of a pty run past its columns, but a lone path or command (`lone`); a pipe's
      row is one line and takes no width check;
   2. name: no line of a screen run through the door holds `agentik-suite`, but a path ending in it;
-  3. V9, read from the catalogue and never from a screen: no message holds `exit`, `exits` or
-     `exited` or a placeholder `{exit}` or `{code}`, but the ids of V9_LIST, each with its reason;
+  3. V9, read from the catalogue and never from a screen: no message holds a word that opens with
+     `exit` (`exits`, `exited`, `exiting`) or a placeholder of a code (`{exit}`, `{code}`,
+     `{exit_code}`, `{rc}`, `{returncode}`, `{status_code}`), but the ids of V9_LIST, each with
+     its reason;
   4. budget: each screen's line count on a pty at 80 is at most BUDGET's number for it;
   5. paste: each `next:`, `check` and `undo` command of each screen, run by `sh -c` in that
      screen's home with stdin at /dev/null, exits neither 127 nor past the wall (--wall, 20 s).
@@ -554,8 +556,8 @@ def check_name(rows):
     return bad
 
 
-V9_WORD = re.compile(r"\bexit(s|ed)?\b", re.I)
-V9_CODE = re.compile(r"\{(exit|code)\}")
+V9_WORD = re.compile(r"\bexit", re.I)  # exit, exits, exited, and exiting or exitcode (review 1 L1)
+V9_CODE = re.compile(r"\{(exit|code|exit_code|rc|returncode|status_code)\}")
 MESSAGE = re.compile(r"- `([^`]+)`: (.*)$")
 
 
