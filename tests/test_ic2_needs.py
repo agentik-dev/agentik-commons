@@ -158,7 +158,8 @@ class NeedTest(Home):
         self.assertTrue(self.need_lines(text[:ask]), text)
         code, text = self.run_both(["./setup", "--yes", "respeak"])
         self.assertEqual(code, 0, text)
-        self.assertIn("ran: claude plugin install respeak@agentik, exit 0", text)
+        # a command that ended is one row, its mark ok (row sc8 R7)
+        self.assertRegex(text, r"(?m)^  ok 3 plugins +claude plugin install respeak@agentik \d+ s$")
         self.assertTrue(self.need_lines(text), text)
 
     def test_r1_with_the_module_there_no_row(self):
