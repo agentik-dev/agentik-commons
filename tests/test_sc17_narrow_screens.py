@@ -6,7 +6,9 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import unittest
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
@@ -244,7 +246,8 @@ class StepFiveTest(unittest.TestCase):
 
     def test_its_ok_line_names_the_door(self):
         group = [row(5, "suite", "ok", "~/.local/bin/agentik-suite"), row(5, "door", "ok", "~/.local/bin/agentik")]
-        self.assertEqual(apply._summary(5, group), "agentik")
+        self.assertEqual(apply._summary(5, group, door=True), "agentik")
+        self.assertEqual(apply._summary(5, group), "agentik-suite, agentik")  # typed by its path (review 1 F1)
 
     def test_with_no_door_row_the_names_as_before(self):
         self.assertEqual(apply._summary(5, [row(5, "suite", "ok", "~/.local/bin/agentik-suite")]), "agentik-suite")
@@ -254,6 +257,39 @@ class StepFiveTest(unittest.TestCase):
     def test_json_keeps_the_launcher(self):
         s = dict(row(5, "suite", "ok", "~/.local/bin/agentik-suite"), detail="", command=None)
         self.assertEqual(apply.step_json(s)["subject"], "~/.local/bin/agentik-suite")
+
+
+class StepFiveScreenTest(unittest.TestCase):
+    """Review 1 F1: the one word `agentik` prints only on the screen typed through the door; a
+    plan typed by the launcher's path in an applied home, ~/.local/bin on PATH or off, names the
+    launcher and the door as at the pin."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.top = os.path.realpath(tempfile.mkdtemp(prefix="sc17-f1-"))
+        cls.p = probe()
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        cls.launcher = os.path.realpath(os.path.join(root, "plugins", "suite", "bin", "agentik-suite"))
+        cls.homes = cls.p.build_homes(cls.top, cls.launcher, {"applied-off", "applied-on"})
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.top, ignore_errors=True)
+
+    def step5(self, label, how):
+        h = self.homes[label]
+        argv = self.p.argv_of(how, h, ["setup", "--dry-run"], self.launcher)
+        rows = self.p.render(argv, h.env(), h.work, "pty80", None)
+        got = [r for r in rows if re.match(r"^\s*\S* 5 ", r)]
+        self.assertEqual(len(got), 1, rows)
+        return got[0]
+
+    def test_by_the_launcher_as_at_the_pin(self):
+        for label in ("applied-off", "applied-on"):
+            self.assertRegex(self.step5(label, "launcher"), r" 5 agentik +agentik-suite, agentik$", label)
+
+    def test_through_the_door_one_word(self):
+        self.assertRegex(self.step5("applied-on", "door"), r" 5 agentik +agentik$")
 
 
 

@@ -273,6 +273,16 @@ class Command:
         return prog.start(self.env, self.lib, self.tool, self.typed, self.cwd, words,
                           full=self.opts["json"])
 
+    def by_door(self):
+        """True where this run came through the door (sc17 review 1 F1): `agentik` on PATH reaches
+        the suite, and the suite was started by no word, as the launcher install-cli writes hands
+        none on, or by the file the door hands a verb to; never by the launcher's other path or
+        the root setup."""
+        if prog.form(self.env, self.tool)[0] != prog.DOOR:
+            return False
+        return self.typed is None or prog._names(self.typed, self.cwd, self.env,
+                                                 prog._on_path(self.env, self.tool))
+
     def again(self, swap, tail=()):
         """The line as typed, each argv index in `swap` replaced by its words, then `tail`; the
         switches of the answer's form (--json, -q, --no-color) left out, so a screen and its
