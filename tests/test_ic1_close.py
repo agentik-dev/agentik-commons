@@ -10,6 +10,10 @@ The fix of review 1: F2, an installed Python under the floor is called older, wi
 the minimum, in setup's `--json` refusal and in update's and setup's closes, never "install", and
 no close sends him into the same refusal; the PATH close is `next: export PATH=...`, which runs.
 
+Row sc8 moved setup's facts to its new screens: the doctor command stands in the report's `check`
+row and the PATH line under its `PATH` row, each run as printed, and setup's close, the dry run's
+with nothing to run too, is `next: claude`; doctor's own PATH close is as review 1 left it.
+
 Each screen runs in a temp HOME, PATH a folder with a stub `claude` (the plan tests' stub, which
 installs the made-up plugin files) then /usr/bin:/bin, the suite started as `./setup` from the
 clone's folder; two tests run in process. Nothing here starts the real `claude` or writes outside
@@ -40,7 +44,8 @@ NO_DOOR = re.sub(r' &&\n    printf [^\n]*/agentik" ;;', " ;;", PLUGIN_BIN)
 MESSAGES = catalogue.load()
 # review 1's ruling: the PATH close is a command, its reason on the line above
 PATH_CLOSE = "next: " + PROFILE
-PATH_WHY = "The line below mends this terminal; the line marked add mends each new one."
+PATH_WHY = "Not needed by Claude Code; to type agentik here, run the line below."  # doctor's (sc8 R8)
+PATH_ROW = "  PATH   not needed by Claude Code; to type agentik, add to "  # setup's report row (sc8 R2)
 
 
 class Home(unittest.TestCase):
@@ -75,7 +80,24 @@ class Home(unittest.TestCase):
     def paste(self, line, env):
         """A `next:` line pasted into sh -c from the clone's folder, stdin closed: (exit, output)."""
         self.assertTrue(line.startswith("next: "), line)
-        return self.run_both(["/bin/sh", "-c", line[len("next: "):]], env)
+        return self.typed(line[len("next: "):], env)
+
+    def typed(self, command, env):
+        """A command typed as the screen prints it, into sh -c from the clone's folder."""
+        return self.run_both(["/bin/sh", "-c", command], env)
+
+    def row(self, text, label):
+        """The text of the report's one row under `label` (row sc8 R2: `check`, `PATH`)."""
+        rows = [l for l in text.splitlines() if l.startswith("  %s " % label)]
+        self.assertEqual(len(rows), 1, text)
+        return rows[0][2 + len(label):].strip()
+
+    def path_line(self, text):
+        """The line under the report's PATH row (row sc8 R2)."""
+        lines = text.splitlines()
+        at = [i for i, l in enumerate(lines) if l.startswith(PATH_ROW)]
+        self.assertEqual(len(at), 1, text)
+        return lines[at[0] + 1].strip()
 
     def last(self, text):
         return text.splitlines()[-1]
@@ -88,14 +110,16 @@ class DoctorCloseTest(Home):
             code, text = self.run_both(["./setup", "--yes"], env)
             self.assertEqual(code, 0, text)
             if round_ == "nothing to do":
-                self.assertIn("Setup has nothing to do", text)
-            line = self.last(text)
-            self.assertEqual(line, "next: agentik doctor", (round_, text))
-            code, out = self.paste(line, env)
+                self.assertIn(MESSAGES["setup.nothing"], text)  # "Nothing to do: steps 1 to 5 are done." (sc8 R8)
+            self.assertEqual(self.last(text), "next: claude", (round_, text))  # sc8 R3
+            check = self.row(text, "check")  # the doctor stands in the report's check row (sc8 R2)
+            self.assertEqual(check, "agentik doctor", (round_, text))
+            code, out = self.typed(check, env)
             self.assertIn(code, (0, 1), (round_, out))
 
     def test_r1_the_message_is_a_command_alone(self):
-        self.assertEqual(MESSAGES["hint.setup.doctor"], "next: {doctor}")
+        self.assertEqual(MESSAGES["setup.tail.check"], "check")  # the row's label, its text the command (sc8 R2)
+        self.assertEqual(MESSAGES["hint.setup.done"], "next: claude")  # the close (sc8 R3)
 
     def test_r1_the_typed_path_runs_too(self):
         """No door on PATH and none placed (a link not ours stands there): the launcher's own path."""
@@ -107,9 +131,10 @@ class DoctorCloseTest(Home):
         os.symlink("/nonexistent/agentik", door)
         code, text = self.run_both(["./setup", "--yes"], env)
         self.assertEqual(code, 0, text)
-        line = self.last(text)
-        self.assertTrue(line.endswith("agentik-suite doctor"), line)
-        code, out = self.paste(line, env)
+        self.assertEqual(self.last(text), "next: claude", text)  # sc8 R3
+        check = self.row(text, "check")  # sc8 R2
+        self.assertTrue(check.endswith("agentik-suite doctor"), text)
+        code, out = self.typed(check, env)
         self.assertIn(code, (0, 1), out)
 
 
@@ -119,14 +144,13 @@ class PathLineTest(Home):
         for round_ in ("applied", "nothing to do"):
             code, text = self.run_both(["./setup", "--yes"], env)
             self.assertEqual(code, 0, text)
-            self.assertIn("add to your shell profile: " + PROFILE, text)
-            self.assertEqual(self.last(text), PATH_CLOSE, (round_, text))
-            self.assertEqual(text.splitlines()[-2], PATH_WHY, (round_, text))
-            self.assertEqual(self.paste(self.last(text), env)[0], 0, text)
+            self.assertEqual(self.path_line(text), PROFILE, (round_, text))  # the PATH rows (sc8 R2)
+            self.assertEqual(self.last(text), "next: claude", (round_, text))  # sc8 R3
+            self.assertEqual(self.typed(self.path_line(text), env)[0], 0, text)
         self.assertTrue(os.path.isfile(os.path.join(self.bindir, "agentik")))
         code, text = self.run_both(["./setup", "--dry-run"], env)
-        self.assertEqual(self.last(text), PATH_CLOSE, text)  # the dry run's close too
-        self.assertEqual(text.splitlines()[-2], PATH_WHY, text)
+        self.assertEqual(self.path_line(text), PROFILE, text)  # the dry run's close too: the second
+        self.assertEqual(self.last(text), "next: claude", text)  # run's (sc8 R3, build 3's ruling)
         code, text = self.run_both([os.path.join(self.bindir, "agentik"), "doctor"], env)
         self.assertEqual(code, 0, text)
         self.assertEqual(self.last(text), PATH_CLOSE, text)
@@ -185,7 +209,7 @@ class BlockedTest(Home):
             self.assertEqual(code, 2, text)
             lines = text.splitlines()
             self.assertEqual(sum(GET in line for line in lines), 1, text)
-            row = [i for i, line in enumerate(lines) if " claude " in line and "not on PATH" in line]
+            row = [i for i, line in enumerate(lines) if " claude: not on PATH" in line]  # sc8 R1's row
             self.assertEqual(len(row), 1, text)
             self.assertEqual(lines[row[0] + 1].strip(), GET)
             self.assertEqual(self.last(text), want, argv)
@@ -224,8 +248,7 @@ class BlockedTest(Home):
         out = subprocess.run(["./setup", "--json"], cwd=str(ROOT), env=self.env(path=SYSTEM),
                              stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120).stdout
         error = json.loads(out)["error"]
-        self.assertEqual(error["message"], "Setup ran nothing, since step 1 needs claude. "
-                                           "Install it, then run ./setup again.")
+        self.assertEqual(error["message"], "nothing ran: step 1 needs claude")  # sc8 R8's voice
         self.assertEqual(error["remedy"], "./setup --dry-run")
 
     def test_f2_plain_setup_closes_on_the_older_line_and_no_loop(self):
@@ -295,7 +318,7 @@ class OrderTest(Home):
         code, text = self.run_both(["./setup"], self.env())
         self.assertEqual(code, 2, text)
         lines = text.splitlines()
-        title = [i for i, l in enumerate(lines) if l.startswith("Setup plan for")]
+        title = [i for i, l in enumerate(lines) if l.startswith("Setup for ")]  # sc8 R1's title
         fail = [i for i, l in enumerate(lines) if l.startswith("FAIL")]
         self.assertEqual(len(title), 1, text)
         self.assertEqual(len(fail), 1, text)
@@ -307,7 +330,8 @@ class OrderTest(Home):
         code, text = self.run_both(["./setup", "--yes"], self.env())
         self.assertEqual(code, 0, text)
         lines = text.splitlines()
-        again = lines.index(MESSAGES["setup.after"])
+        again = [i for i, l in enumerate(lines) if l.startswith("  check ")][0]  # no plan read again:
+        # the report's check row stands above the close (sc8 R2)
         nexts = [i for i, l in enumerate(lines) if l.startswith("next: ")]
         self.assertEqual(nexts, [len(lines) - 1], text)
         self.assertLess(again, nexts[0])
@@ -323,9 +347,9 @@ class OrderTest(Home):
         ask = [i for i, (_, text) in enumerate(log) if "commands now?" in text]
         plan_at = [i for i, (where, _) in enumerate(log) if where == "out"]
         self.assertEqual(len(ask), 1, log)
-        self.assertTrue(plan_at and "Setup plan for" in log[plan_at[0]][1], log)
+        self.assertTrue(plan_at and log[plan_at[0]][1].startswith("Setup for "), log)  # sc8 R1
         self.assertLess(max(plan_at), ask[0], log)  # every byte of the plan above the question
-        refusal = [i for i, (_, text) in enumerate(log) if "Setup ran nothing" in text]
+        refusal = [i for i, (_, text) in enumerate(log) if MESSAGES["setup.declined"] in text]  # sc8 R5
         self.assertGreater(refusal[0], ask[0], log)
 
 
