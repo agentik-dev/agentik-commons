@@ -211,33 +211,29 @@ def records_why(t, found, start):
     return t.text("records.why.broken", why=why, value=", ".join(v if v else '""' for v in held))
 
 
-def records_row(cmd):
-    """The repo the command stands in: where its working records are (packet rr2-records-resolver
-    R8). ok in own and out, warn in unset, fail in broken, the state named but in own; no row
-    where the working folder is in no git checkout."""
-    try:
-        found = agentik_records.resolve(cmd.cwd)
-    except agentik_records.NoRepo:
-        return []
-    t, home, state = cmd.t, cmd.env.get("HOME"), found["state"]
-    if state in ("own", "out"):
-        mid = "doctor.records.out_loose" if state == "out" and found["holder"] is None else "doctor.records." + state
-        return [_check("records", "ok", t.text(mid, repo=plan.shown(found["repo"], home),
-                                              records=plan.shown(found["records"], home)))]
-    why = records_why(t, found, cmd.cwd)
-    return [_check("records", "warn" if state == "unset" else "fail", t.text("doctor.records." + state, why=why))]
+def home_folder(env):
+    """The folder the doctor asks from (packet dr2-doctor-machine R1): HOME where it is an absolute
+    path to a folder that can be entered, else `/`, so a tool's answer is the machine's and reads
+    the same from every folder; a relative HOME names a different folder from each (that packet's
+    fix of review 1, R2)."""
+    home = env.get("HOME")
+    ok = home and os.path.isabs(home) and os.path.isdir(home) and os.access(home, os.X_OK)
+    return home if ok else "/"
 
 
-def source_settings(cmd):
+def source_settings(cmd, at=None):
     """The warns of the `sources` lines (R4, R5): each config-read warning of a reason in SAID,
     with its file and line; and, while the user file holds a line and is on no gate list, the
     gate warn, the line to add kept under `add`, which --json cuts away. A file that does not
-    parse is user_settings' fail, so nothing here."""
+    parse is user_settings' fail, so nothing here. `at` is the folder it resolves from, the
+    working folder where None."""
     t, env, home = cmd.t, cmd.env, cmd.env.get("HOME")
-    try:
-        cwd = os.getcwd()
-    except OSError:
-        cwd = None
+    cwd = at
+    if cwd is None:
+        try:
+            cwd = os.getcwd()
+        except OSError:
+            cwd = None
     try:
         lines, _ = settings.declared(env)
         body = settings.resolve(env, cwd, _Blank())
@@ -271,20 +267,20 @@ def _tool_of(step, names):
     return None
 
 
-def planned(cmd):
+def planned(cmd, at=None):
     """The plugins the doctor plans: the default set's installed, in its order, then each other
     the suite knows installed, sorted, the suite's own aside; the default ones not installed; and
     the words after `setup` in the line that mends a row of theirs: none for the default set or
     none installed, else their names, so it installs nothing not chosen (row ic2-needs review 1 F1)."""
     defaults = plan.default_set(cmd.lib)
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
-    on = [n for n in tools.installed(cmd.env, cmd.lib) if n != suite]
+    on = [n for n in tools.installed(cmd.env, cmd.lib, at) if n != suite]
     names = [n for n in defaults if n in on] + sorted(n for n in on if n not in defaults)
     absent = [n for n in defaults if n not in on]
     return names, absent, tuple(names) if names and names != defaults else ()
 
 
-def plan_rows(cmd):
+def plan_rows(cmd, at=None):
     """Steps 1 to 6, a check a row: an ok row keeps the plan's message, one not ok takes
     doctor's own fact (R6). A step of a source not the marketplace's own is named by its tool and
     holds no word of the source (row fk2b-reads R1); a held row's remedy is the source's card.
@@ -292,10 +288,11 @@ def plan_rows(cmd):
     the default set's, in its order, then each other the suite knows, the suite's own aside; the
     default ones not installed are one note, `absent`, with no remedy (row ic2-needs R3). A need's
     row is the tool's own doctor's to name, with its fix (R1). A row's remedy is `setup` with
-    `planned`'s words (review 1 F1)."""
-    names, absent, setup = planned(cmd)
-    steps = plan.build(names, cmd.env, cmd.lib, cmd.tool, cmd.version)
-    rows = tools.rows(cmd.env, cmd.lib, None, names=names)
+    `planned`'s words (review 1 F1). `at` is the folder of the finder's reads, the working folder
+    where None."""
+    names, absent, setup = planned(cmd, at)
+    steps = plan.build(names, cmd.env, cmd.lib, cmd.tool, cmd.version, cwd=at)
+    rows = tools.rows(cmd.env, cmd.lib, at, names=names)
     order, found = iter(names), []
     for s in steps:
         tool = _tool_of(s, order)
@@ -500,10 +497,11 @@ def last_line(err):
     return lines[-1] if lines else None
 
 
-def own_doctors(cmd, entries, described=None):
+def own_doctors(cmd, entries, described=None, at=None):
     """[group] for each listed tool but the suite, in the list's order. A group is {name,
     checks, one, nocmd, exe}; `one` marks a group of a single check the suite wrote (R2).
-    `described` is the describes `read` made for the claims (row ak9c R3), else read here."""
+    `described` is the describes `read` made for the claims (row ak9c R3), else read here. Each
+    doctor process starts in `at`, the working folder where None."""
     t = cmd.t
     exes = {e["name"]: e["exe"] for e in entries if e["exe"]}
     described = describes(cmd, entries) if described is None else described
@@ -530,7 +528,7 @@ def own_doctors(cmd, entries, described=None):
 
     errs = {}  # each job's stderr: a silent doctor's last line (row up1-tree-gone R3)
     results = tools.run_all(jobs, cmd.env, then=then, errs=errs,
-                            deadline=time.monotonic() + DEADLINE) if jobs else {}
+                            deadline=time.monotonic() + DEADLINE, cwd=at) if jobs else {}
     groups = []
     for e in entries:
         name = e["name"]
@@ -789,19 +787,20 @@ def screen(cmd, groups, failed, warned, total, entries=()):
         t.hint("hint.doctor.next", command=hint)
 
 
-def read(cmd, records=False):
-    """(groups, failed, warned, total, entries): the one read `doctor` prints and `update` closes on;
-    the records row only where `records` is true, doctor's own call, so update's close runs no git
-    (packet rr2-records-resolver R8)."""
+def read(cmd, at=None):
+    """(groups, failed, warned, total, entries): the one read `doctor` prints and `update` closes on.
+    `at` is the folder of every lookup and every tool's doctor process: doctor's own call gives the
+    home folder, so the read is the machine's from every folder (packet dr2-doctor-machine R1, R2);
+    update's close gives none and keeps the working folder."""
     on_path = cmd._on_path()
     suite = cmd.tool[len("agentik-"):] if cmd.tool.startswith("agentik-") else cmd.tool
-    entries = tools.listed(suite, on_path, cmd.env)
+    entries = tools.listed(suite, on_path, cmd.env, cwd=at)
     described = describes(cmd, entries[1:])
     own = [door(cmd, on_path)] + shadow(cmd, on_path) + twice(cmd, claims(cmd, entries[1:], described)) \
-        + user_settings(cmd) + (records_row(cmd) if records else []) + source_settings(cmd) + plan_rows(cmd) + process_list(cmd)
+        + user_settings(cmd) + source_settings(cmd, at) + plan_rows(cmd, at) + process_list(cmd)
     groups = [{"name": entries[0]["name"], "checks": own, "one": False, "nocmd": False, "exe": None,
                "source": None, "suite": True}]
-    groups += own_doctors(cmd, entries[1:], described)
+    groups += own_doctors(cmd, entries[1:], described, at)
     checks = [c for g in groups for c in g["checks"]]
     failed = sum(c["status"] == "fail" for c in checks)
     warned = sum(c["status"] == "warn" for c in checks)
@@ -810,7 +809,7 @@ def read(cmd, records=False):
 
 def do_doctor(cmd, nouns):
     cmd._no_nouns(nouns)
-    groups, failed, warned, total, entries = read(cmd, records=True)
+    groups, failed, warned, total, entries = read(cmd, at=home_folder(cmd.env))
     if cmd.opts["json"]:
         cmd.t.json({"schema": SCHEMA, "ok": True, "failed": failed, "warned": warned,
                     "tools": [{"name": g["name"], "checks": [{k: c[k] for k in KEYS} for c in g["checks"]],

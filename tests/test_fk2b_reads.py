@@ -164,7 +164,12 @@ class Fk2bTest(Reads):
         h = self.made("hJ")
         obj = self.json_of(h, "doctor", cwd=h.repo)
         said = [c for c in self.checks(obj, "suite") if c["name"] == "settings" and c["status"] == "warn"]
-        self.assertTrue([c for c in said if "~/repo/.claude/agentik/config.yaml:2" in c["detail"]], said)
+        # the doctor reads the machine alone: the repo's file is no warn of it, from the repo or the
+        # home folder (packet dr2-doctor-machine R2); `agentik config` in the repo still reads it
+        self.assertFalse([c for c in said if "~/repo/.claude/agentik/config.yaml" in c["detail"]], said)
+        self.assertEqual(self.json_of(h, "doctor", cwd=h.home), obj)
+        code, out, err = self.go(h, "config", "suite", "--json", cwd=h.repo)
+        self.assertIn("~/repo/.claude/agentik/config.yaml", out, err)
         for text, extra, at in (("sources:\n  suite: suite@agentik\n", {}, 2),
                                 ("sources:\n  %s: ./fork\n" % T, {}, 2),
                                 ("sources:\n  %s: %s\n" % (T, U), {"XDG_CONFIG_HOME": "rel"}, 1)):

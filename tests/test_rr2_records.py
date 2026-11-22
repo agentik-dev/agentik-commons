@@ -192,8 +192,8 @@ class SyncTest(unittest.TestCase):
 
 
 class SuiteTest(unittest.TestCase):
-    """R8: the suite's copy, `records` from the worktree's own launcher, and the doctor's row, each
-    in a temp clone with HOME a temp folder."""
+    """R8: the suite's copy and `records` from the worktree's own launcher, each in a temp clone
+    with HOME a temp folder; the doctor's row left the doctor (packet dr2-doctor-machine R2)."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -249,9 +249,7 @@ class SuiteTest(unittest.TestCase):
         self.assertEqual(out.splitlines()[-1], "why: this clone sets agentik.records more than once; agentik.records is "
                          + os.path.join(self.root, "a", "widget") + ", x/widget")  # the whole CSI gone (sc17 R9)
         code, rows = self.doctor_row(self.clone)
-        self.assertEqual([r["status"] for r in rows], ["fail"])
-        self.assertNotIn("\x1b", rows[0]["detail"])
-        self.assertIn("; agentik.records is ", rows[0]["detail"])
+        self.assertEqual(rows, [])  # the doctor reads the machine alone (dr2-doctor-machine R2)
 
     def test_out_with_no_holder_says_nothing_is_committed(self):
         os.makedirs(os.path.join(self.root, "recs", "widget"))
@@ -271,28 +269,25 @@ class SuiteTest(unittest.TestCase):
         suite = json.loads(out)["tools"][0]["checks"]
         return code, [c for c in suite if c["name"] == "records"]
 
+    def state(self, cwd):
+        return json.loads(self.suite(cwd, "records", "--json")[1])["state"]
+
     def test_doctor_row_by_state(self):
-        code, rows = self.doctor_row(self.clone)
-        self.assertEqual([r["status"] for r in rows], ["ok"])
-        self.assertTrue(rows[0]["detail"].startswith("the records of "), rows[0]["detail"])  # own is not named
+        """dr2-doctor-machine R2: in each state `records` reads, the doctor gives no `records`
+        row and exits as it does in a folder of no repo; the state stays `records`' to print."""
+        loose = os.path.join(self.root, "loose")
+        os.mkdir(loose)
+        want = self.doctor_row(loose)
+        self.assertEqual(want[1], [])
+        self.assertEqual((self.state(self.clone), self.doctor_row(self.clone)), ("own", want))
         Path(self.clone, ".hygiene-allow").write_text("records: out\n")
         git(self.env, self.clone, "add", ".hygiene-allow")
         git(self.env, self.clone, "commit", "-q", "-m", "declare")
-        code, rows = self.doctor_row(self.clone)
-        self.assertEqual([(r["status"], r["detail"].split(":")[0]) for r in rows], [("warn", "unset")])
+        self.assertEqual((self.state(self.clone), self.doctor_row(self.clone)), ("unset", want))
         git(self.env, self.clone, "config", "--local", "agentik.records", "relative/widget")
-        code, rows = self.doctor_row(self.clone)
-        self.assertEqual([(r["status"], r["detail"]) for r in rows],
-                         [("fail", "broken: agentik.records is not an absolute path; agentik.records is relative/widget")])
-        self.assertEqual(code, 1)
+        self.assertEqual((self.state(self.clone), self.doctor_row(self.clone)), ("broken", want))
         os.makedirs(os.path.join(self.root, "hq", "widget"))
         git(self.env, self.clone, "config", "--local", "agentik.records", os.path.join(self.root, "hq", "widget"))
-        code, rows = self.doctor_row(self.clone)
-        self.assertEqual([(r["status"], r["detail"].split(":")[0]) for r in rows], [("ok", "out")])
-        self.assertTrue(rows[0]["detail"].endswith(", in no git repo, so nothing is committed"), rows[0]["detail"])
+        self.assertEqual((self.state(self.clone), self.doctor_row(self.clone)), ("out", want))
         git(self.env, os.path.join(self.root, "hq"), "init", "-q", "-b", "main")
-        code, rows = self.doctor_row(self.clone)
-        self.assertNotIn("nothing is committed", rows[0]["detail"])
-        loose = os.path.join(self.root, "loose")
-        os.mkdir(loose)
-        self.assertEqual(self.doctor_row(loose)[1], [])
+        self.assertEqual((self.state(self.clone), self.doctor_row(self.clone)), ("out", want))

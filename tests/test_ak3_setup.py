@@ -530,7 +530,8 @@ class InProcessTest(SetupHome):
         self.assertEqual([r[:2] for r in ended(err)], [("ok", "%s install-cli" % stub)])
         # doctor is never run: the plan names it under Yours, after:, the report its check row (row sc8 R1, R2)
         self.assertFalse([r for r in ended(err) if "doctor" in r[1]], err)
-        self.assertEqual([l.split()[0] for l in out.splitlines() if "doctor" in l], ["7", "check"], out)
+        # "doctor" as a word: a checkout's path may hold it (dr2-doctor-machine's worktree)
+        self.assertEqual([l.split()[0] for l in out.splitlines() if "doctor" in l.split()], ["7", "check"], out)
         with open(self.ran) as fh:
             self.assertEqual(fh.read(), "install-cli\n")
 
