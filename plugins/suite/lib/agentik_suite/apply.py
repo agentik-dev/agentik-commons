@@ -68,6 +68,13 @@ def path_close(t, command):
     t.hint("hint.setup.path", command=command)
 
 
+def path_rows(cmd, command):
+    """The report's two PATH rows (row sc8 R2), as `_tail` takes them: the reason and the login
+    file, then the line itself. The dry run whose plan runs nothing closes on them too."""
+    return [("setup.tail.path", cmd.t.text("setup.path.row", profile=profile(cmd.env)), False),
+            (None, command, True)]
+
+
 def page_close(steps):
     """The close where a page row is left and no step holds a command setup would run, or None
     (row fh13 R7): each such tool in the plan's order."""
@@ -721,8 +728,7 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
         if undo(cmd):
             rows.append(("setup.tail.undo", undo(cmd), True))
         if add:  # only while ~/.local/bin is off PATH (row sc8 R2; D23-4)
-            rows.append(("setup.tail.path", t.text("setup.path.row", profile=profile(cmd.env)), False))
-            rows.append((None, add[0]["command"], True))
+            rows.extend(path_rows(cmd, add[0]["command"]))
     if rows:
         if not failure:
             t.blank()

@@ -697,13 +697,18 @@ class Command:
             return 0
         apply.plan_screen(self, steps, names, dry=True)  # the run's plan, no question (row sc8 R1)
         mid, values = self._closing(steps, nouns)
-        if mid == "hint.setup.path":  # a command, its reason above it (ic1-close review 1)
-            apply.path_close(t, values["command"])
-        elif mid == "hint.setup.page":  # a note, since its line is no command (row sc8 R8)
-            apply._note(t, mid, **values)
-            t.hint("hint.setup.done")
-        else:
+        if mid in ("hint.setup.next", "hint.setup.done"):  # setup while a yes runs a command
             t.hint(mid, values, **self.slots())
+            return 0
+        # nothing a yes would run: the second run's close, its PATH rows and next: claude (row
+        # sc8 R3); no screen of setup ends on next: export
+        add = [s for s in steps if s["n"] == 6 and s["state"] == "todo" and s["command"]]
+        if add:
+            t.blank()
+            apply._tail(t, apply.path_rows(self, add[0]["command"]))
+        if mid == "hint.setup.page":  # a note, since its line is no command (row sc8 R8)
+            apply._note(t, mid, **values)
+        t.hint("hint.setup.done")
         return 0
 
     def _closing(self, steps, nouns):

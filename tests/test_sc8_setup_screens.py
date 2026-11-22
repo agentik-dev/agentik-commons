@@ -189,6 +189,39 @@ class Screens(Home):
         self.assertFalse([l for l in out + err if "PATH" in l or "not needed by Claude Code" in l], out)
         self.assertEqual(err[-1], "next: claude")
 
+    # ---- the dry run's close (R3, as ruled for sc8's build 3) ------------------------------
+    @staticmethod
+    def path_rows(out):
+        """The report's PATH row and the line under it."""
+        at = [i for i, l in enumerate(out) if l.startswith("  PATH ")]
+        return [out[i:i + 2] for i in at]
+
+    def test_r3_a_dry_run_that_runs_nothing_closes_as_the_second_run(self):
+        """Steps 1 to 5 done, ~/.local/bin off PATH: the PATH rows as the report prints them, then
+        next: claude; no screen of setup ends on next: export."""
+        code, out, err = self.screen("setup", "--yes", SHELL="/bin/zsh")
+        self.assertEqual(code, 0, err)
+        code, again, again_err = self.screen("setup", "--yes", SHELL="/bin/zsh")
+        self.assertEqual((code, again_err[-1]), (0, "next: claude"), again + again_err)
+        code, out, err = self.screen("setup", "--dry-run", SHELL="/bin/zsh")
+        self.assertEqual(code, 0, out + err)
+        rows = self.path_rows(out)
+        self.assertEqual(rows, [["  PATH   not needed by Claude Code; to type agentik, add to ~/.zshrc:",
+                                 '         export PATH="$HOME/.local/bin:$PATH"']], out)
+        self.assertEqual(rows, self.path_rows(again), again)
+        self.assertEqual(err[-1], "next: claude", out + err)
+        self.assertFalse([l for l in out + err if l.startswith("next: export")], out + err)
+
+    def test_r3_a_dry_run_whose_plan_holds_commands_closes_on_setup(self):
+        """A fresh home: the plan holds commands, so the dry run's next: is setup, as at the pin,
+        and no PATH row prints, since the run's report holds them."""
+        code, out, err = self.screen("setup", "--dry-run", SHELL="/bin/zsh")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("Would run, in this order:", out)
+        self.assertTrue(err[-1].startswith("next: ") and err[-1].endswith(" setup"), out + err)
+        self.assertEqual(self.path_rows(out), [], out)
+        self.assertFalse([l for l in out + err if l.startswith("next: export")], out + err)
+
     # ---- A6: what a yes runs -------------------------------------------------------------
     def test_a6_would_run_is_what_a_yes_runs(self):
         code, out, err = self.screen("setup", "--dry-run")
