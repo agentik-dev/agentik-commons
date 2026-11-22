@@ -283,6 +283,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `setup.tail.path`: PATH
 - `setup.wrote.count`: `{count}` files, each named in the log
 - `setup.wrote.one`: 1 file, named in the log
+- `setup.wrote.here`: `{count}` files:
+- `setup.wrote.here.one`: 1 file:
 - `setup.path.row`: not needed by Claude Code; to type agentik, add to `{profile}`:
 - `err.setup.step.one`: setup stopped at step `{n}`; step 1 stands
 - `setup.run`: would run: `{command}`

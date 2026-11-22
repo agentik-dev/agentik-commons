@@ -735,7 +735,11 @@ def report(cmd, names, steps, ran, wrote, failure, journal, home, seconds=0):
         count = len(ran)
         t.line("setup.done.one" if count == 1 else "setup.done", count=count, seconds=seconds)
     rows = []
-    if ran and wrote:
+    if ran and wrote and journal_error:  # the log took no line: each path on the screen (review 1 F3)
+        rows.append(("setup.tail.wrote", t.text("setup.wrote.here.one") if len(wrote) == 1
+                     else t.text("setup.wrote.here", count=len(wrote)), False))
+        rows.extend((None, plan.shown(p, home), True) for p in wrote)
+    elif ran and wrote:
         rows.append(("setup.tail.wrote", t.text("setup.wrote.one") if len(wrote) == 1
                      else t.text("setup.wrote.count", count=len(wrote)), False))
     if ran and journal and not failure:

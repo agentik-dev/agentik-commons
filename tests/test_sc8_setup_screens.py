@@ -354,6 +354,39 @@ class Screens(Home):
                 for line in lines:
                     self.assertTrue(len(line) <= cols or self.lone(line, cols), (cols, line))
 
+    def shut_the_log(self):
+        state = os.path.join(self.home, ".local", "state", "agentik-suite")
+        os.makedirs(state)
+        log = os.path.join(state, "setup.jsonl")
+        open(log, "w").close()
+        os.chmod(log, 0o400)
+        return log
+
+    def test_f3_a_log_that_took_no_line_is_never_pointed_to(self):
+        """The log cannot take the run's line: the report says so and names each path written on
+        the screen, as at the pin; `--json` holds them all (review 1 F3)."""
+        log = self.shut_the_log()
+        code, out, err = self.screen("setup", "--yes")
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(os.path.getsize(log), 0)
+        self.assertFalse([l for l in out + err if "named in the log" in l or l.startswith("  log ")], out)
+        self.assertTrue([l for l in err if "did not take this run's line" in l], err)
+        at = [i for i, l in enumerate(out) if l.startswith("  wrote  ")]
+        self.assertEqual(len(at), 1, out)
+        count = int(re.match(r"  wrote  (\d+) files?:$", out[at[0]]).group(1))
+        listed = [l.strip() for l in out[at[0] + 1:at[0] + 1 + count]]
+        self.assertTrue(all(p.startswith(("~/", "/")) and " " not in p for p in listed), listed)
+        other = Screens("test_f3_a_log_that_took_no_line_is_never_pointed_to")
+        other.setUp()
+        try:
+            other.shut_the_log()
+            wrote = json.loads(other.run_cli("setup", "--yes", "--json")[1])["wrote"]
+            shown = [plan.shown(p, other.home) for p in wrote]
+        finally:
+            other.doCleanups()
+        self.assertEqual(listed, shown)
+        self.assertIn("~/.local/bin/agentik", listed)
+
     # ---- R4, R6, R8: units ---------------------------------------------------------------
     def test_r4_undo_has_a_place_and_prints_none(self):
         self.assertIsNone(apply.undo(None))
