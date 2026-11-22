@@ -11,12 +11,14 @@ list names, or where that list is there but cannot be read. An interrupt (SIGINT
 the first command, the question's included, declines, exit 2; during a command it stops the
 command's group and ends the run, exit 130, the journal written. What each command wrote is found
 by lstat over a fixed set of places; a run that ran a command appends one line to its journal,
-through term.
+through term. A command's output is read as it comes (row sc9-setup-live R5); on a terminal setup
+draws one live line on stderr while it runs, cleared before its ended row (R1 to R4).
 """
 import datetime
 import fnmatch
 import json
 import os
+import select
 import shlex
 import signal
 import subprocess
@@ -124,9 +126,138 @@ def _interrupt(signum, frame):
     raise KeyboardInterrupt
 
 
-def execute(command, env):
+SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"  # the live line's frames: no message (row sc9-setup-live R8)
+CUT = "…"
+TICK = 0.125  # the least time between two draws of the live line: at most eight a second (R1)
+CLEAR, HIDE, SHOW = "\r\x1b[2K", "\x1b[?25l", "\x1b[?25h"
+NEWEST = 4096  # the bytes of output read back for its newest line
+
+
+def drawn(cmd):
+    """Whether setup draws a live line (row sc9-setup-live R4): stderr a terminal whose TERM is
+    set and not dumb (pick's rule), no -q, no --json, and a stream that encodes the frames."""
+    t = cmd.t
+    stream = t.err
+    if not stream.tty or t.quiet or cmd.opts.get("json"):
+        return False
+    if stream.env.get("TERM", "dumb") in ("", "dumb"):
+        return False
+    try:
+        (SPIN + CUT).encode(stream.encoding)
+    except (LookupError, UnicodeEncodeError):
+        return False
+    return True
+
+
+def _room(stream):
+    """The columns a live line may take: the window's, read at each draw, the smaller of the
+    stream's width and the terminal's own size, less one, so no line reaches the last column."""
+    width = stream.width()
+    try:
+        real = os.get_terminal_size(stream.raw.fileno()).columns
+    except (AttributeError, ValueError, OSError):
+        real = 0
+    return (real if 0 < real < width else width) - 1
+
+
+def newest(chunks):
+    """The newest line of a command's output so far, cleaned, or ""."""
+    tail = b"".join(chunks[-8:])[-NEWEST:].decode("utf-8", "replace")
+    lines = [l for l in (term.clean(l).strip() for l in tail.splitlines()) if l]
+    return lines[-1] if lines else ""
+
+
+def live_text(stream, room, frame, n, label, command, seconds, last):
+    """One live line in `room` columns (row sc9-setup-live R1, R2): the frame, the step and its
+    label in the ended row's columns, the command, the seconds, the newest output line, dim. Where
+    the room is short the output gives way first, then the command is cut; the seconds stay."""
+    head = "  %s %s %s  " % (frame, n, term.clean(label).ljust(LABEL))
+    command = term.clean(command)
+    space = room - term.columns(head) - 2 - term.columns(seconds)
+    if space < 2:  # a window too narrow for any command: the head and the seconds, cut
+        return term._cut_to(head + seconds, room)
+    line = head + term._cut_to(command, space) + "  " + seconds
+    spare = room - term.columns(line) - 2
+    if last and spare >= 2:
+        line += "  " + stream.paint(term._cut_to(last, spare), "2")
+    return line
+
+
+class Live:
+    """setup's live line for one command, drawn through the term stream's put without waiting,
+    so a stopped screen holds up neither the wall nor an interrupt (design/23 4a.5)."""
+
+    def __init__(self, cmd, row):
+        self.t, self.row = cmd.t, row
+        self.label = cmd.t.text("setup.step.%d" % row["n"])
+        self.at, self.frame, self.left, self.shown = None, 0, b"", False
+
+    def draw(self, elapsed, chunks):
+        now = time.monotonic()
+        if self.at is not None and now - self.at < TICK:
+            return
+        stream = self.t.err
+        if self.left:  # the frame in flight goes first; a newer one waits for it
+            self.left = stream.put(self.left, wait=False)
+            if self.left:
+                return
+        self.at = now
+        text = live_text(stream, _room(stream), SPIN[self.frame % len(SPIN)], self.row["n"],
+                         self.label, self.row["command"],
+                         self.t.text("setup.took", seconds=int(elapsed)), newest(chunks))
+        self.left = stream.put(("" if self.shown else HIDE) + CLEAR + text, wait=False)
+        self.shown, self.frame = True, self.frame + 1
+
+    def close(self):
+        """The line cleared and the cursor shown, before the ended row; a second call does
+        nothing. A frame still in flight is dropped: the clear starts at the line's column 0."""
+        if not self.shown:
+            return
+        self.shown, self.left = False, b""
+        self.t.err.put(CLEAR + SHOW)
+        self.t.err.flush()
+
+
+def _read(p, fd, wall, live):
+    """All a command printed on `fd` and why it ended, read as it comes (row sc9-setup-live R5):
+    to its end of output and its exit; past the wall its group killed and 5 s more given, then the
+    head killed, as `communicate` did at the pin. The live line is drawn between reads."""
+    chunks, start, why, reading = [], time.monotonic(), None, True
+    deadline = start + wall
+    while True:
+        now = time.monotonic()
+        if live:
+            live.draw(now - start, chunks)
+        if not reading and p.poll() is not None:
+            break
+        if now >= deadline:
+            if why:  # a process outside the group holds the pipe
+                p.kill()
+                p.wait()
+                break
+            why, deadline = "wall", now + 5
+            _kill(p.pid)
+            continue
+        wait = min(deadline - now, TICK) if live else deadline - now
+        if reading:
+            if select.select([fd], [], [], wait)[0]:
+                chunk = os.read(fd, 65536)
+                if chunk:
+                    chunks.append(chunk)
+                else:
+                    reading = False
+        else:
+            try:
+                p.wait(timeout=wait)
+            except subprocess.TimeoutExpired:
+                pass
+    return b"".join(chunks), why
+
+
+def execute(command, env, live=None):
     """{exit, last, why, wall}: why is None, "wall" or "start"; exit is None unless it exited. An
-    interrupt stops the command's group and goes on up."""
+    interrupt stops the command's group and goes on up. `live`, setup's alone, draws while it
+    runs and is closed at every end."""
     try:
         words = shlex.split(command)
     except ValueError as e:
@@ -134,28 +265,29 @@ def execute(command, env):
     wall = CLAUDE_WALL if words and words[0] == "claude" else WALL
     if not words:
         return {"exit": None, "last": "", "why": "start", "wall": wall}
+    fd, mouth = os.pipe()  # both streams on one pipe, read here; the child holds the write end
     try:
-        p = subprocess.Popen(words, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, env=dict(env), start_new_session=True)
+        p = subprocess.Popen(words, stdin=subprocess.DEVNULL, stdout=mouth, stderr=subprocess.STDOUT,
+                             env=dict(env), start_new_session=True)
     except (OSError, ValueError) as e:
+        os.close(fd)
         return {"exit": None, "last": getattr(e, "strerror", None) or str(e), "why": "start",
                 "wall": wall}
-    why = None
+    finally:
+        os.close(mouth)
     try:
         try:
-            data, _ = p.communicate(timeout=wall)
-        except subprocess.TimeoutExpired as e:
-            why, data = "wall", e.output or b""
-            _kill(p.pid)
-            try:
-                data, _ = p.communicate(timeout=5)  # all it printed, what came before the kill too
-            except subprocess.TimeoutExpired as again:  # a process outside the group holds the pipe
-                data = again.output or data
-                p.kill()
-                p.wait()
-    except BaseException:
-        _stop(p)
-        raise
+            data, why = _read(p, fd, wall, live)
+        except BaseException:
+            if live:
+                live.close()
+            _stop(p)
+            raise
+        finally:
+            if live:
+                live.close()
+    finally:
+        os.close(fd)
     lines = [l.strip() for l in data.decode("utf-8", "replace").splitlines() if l.strip()]
     return {"exit": None if why else p.returncode, "last": lines[-1] if lines else "",
             "why": why, "wall": wall, "tail": lines[-TAIL:]}
@@ -661,7 +793,7 @@ def _run(cmd, names):
             before = look(home, config)
             old = install_root(env, row["subject"], getattr(cmd, "cwd", None)) if row["n"] == 3 else None
             current = (row, before, old)
-            result = execute(command, env)
+            result = execute(command, env, Live(cmd, row) if drawn(cmd) else None)
             current = None
             record(row, before, old, result)
             if result["why"] or result["exit"] != 0:
