@@ -24,7 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, add_public, version  # noqa: E402
+from test_agentik_suite import CLAUDE_STUB, PLUGIN, PLUGIN_BIN, SYSTEM, Home, add_public  # noqa: E402
 from agentik_suite import cli, plan  # noqa: E402
 
 # Setup refuses a name the suite does not know (row ic2-needs R2), so these tests run a copy of the
@@ -34,6 +34,13 @@ atexit.register(shutil.rmtree, _COPY, True)
 shutil.copytree(str(PLUGIN), os.path.join(_COPY, "suite"), ignore=shutil.ignore_patterns("__pycache__"))
 LAUNCHER = Path(_COPY) / "suite" / "bin" / "agentik-suite"
 add_public(os.path.join(_COPY, "suite", "lib"), {"alpha": {}, "beta": {}})
+
+
+def version():
+    """The copy's version, read from the copy, never the tree's: a manifest bumped while a run
+    goes on left a launcher placed at the tree's version newer than the copy, so step 5 ran the
+    placed one, which places nothing (row sc8's build 4: sm1's plan of two, exit 1)."""
+    return json.loads((Path(_COPY) / "suite" / ".claude-plugin" / "plugin.json").read_text())["version"]
 
 def on_pty(argv, answer, env, cwd=None):
     """`argv` on a pty, `answer` typed once the question shows, since one typed ahead is dropped

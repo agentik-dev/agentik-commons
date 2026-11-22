@@ -77,7 +77,7 @@ class DoorTest(unittest.TestCase):
         self.assertIn(version, flag[1])
         code, out, err = self.run_door("setup", "--dry-run", path=path)
         self.assertEqual(code, 0, err)
-        self.assertRegex(out, r"(?m)^\S*\s*1\s")  # the plan's first step
+        self.assertRegex(out, r"(?m)^ +\S+ 1 \S")  # the plan's first step: its mark, then 1 (row sc8 R1)
         code, out, err = self.run_door(path=path)
         self.assertEqual(code, 0, err)
         self.assertRegex(out, r"(?m)^  setup  ")
