@@ -298,24 +298,34 @@ def _rows(t, rows, err=False):
     """Setup's rows (row sc8 R1, R6, R7): (status or None, step or "", label, text, whole).
     The mark column is as wide as the widest mark shown; a `whole` text is a command, never
     broken: on a terminal, where it does not fit after its head it stands on the next line at LEAD,
-    and other text wraps under its own column; off one a row is one line (sc3's table, R9)."""
+    and other text wraps under its own column; off one a row is one line (sc3's table, R9).
+    An ended command's row carries a sixth item, its result words: they follow the command where
+    both fit, else they stand on the head's line and the command alone at LEAD (review 1 F2)."""
     stream = t._stream(err)
     width = max((term.columns(stream.mark(r[0])[0]) for r in rows if r[0]), default=1)
-    for status, n, label, text, whole in rows:
+    for status, n, label, text, whole, *after in rows:
         shown, painted = stream.mark(status) if status else ("", "")
         step = str(n) or " "
         head = "  %s%s %s %s  " % (painted, " " * (width - term.columns(shown)), step,
                                    term.clean(label).ljust(LABEL))
         room = 2 + width + 1 + len(step) + 1 + LABEL + 2
         text = term.clean(text)
+        after = term.clean(after[0]) if after and after[0] else ""
+        joined = text + " " + after if after else text
         if not whole:
             _say(stream, text, room, head)
-        elif not stream.tty or room + term.columns(text) <= stream.width():
-            stream.put(head + text + "\n")
+        elif not stream.tty or room + term.columns(joined) <= stream.width():
+            stream.put(head + joined + "\n")
+        elif after and LEAD + term.columns(joined) > stream.width():
+            beside = room + term.columns(after) <= stream.width()
+            stream.put((head + after if beside else head.rstrip(" ")) + "\n")
+            stream.put(" " * LEAD + text + "\n")
+            if not beside:  # a third line, where the head's line has no room for them either
+                stream.put(" " * LEAD + after + "\n")
         else:
             if n or label or status:
                 stream.put(head.rstrip(" ") + "\n")
-            stream.put(" " * LEAD + text + "\n")
+            stream.put(" " * LEAD + joined + "\n")
 
 
 def _summary(n, group):
@@ -443,7 +453,7 @@ def _ended(cmd, row, result, seconds):
         after = t.text("setup.took", seconds=seconds)
     t.out.flush()
     _rows(t, [("fail" if failed else "ok", row["n"], t.text("setup.step.%d" % row["n"]),
-               row["command"] + " " + after, True)], err=True)
+               row["command"], True, after)], err=True)
     if failed and why != "interrupted":
         for line in result.get("tail") or []:
             t.err.put(" " * LEAD + term.clean(line) + "\n")

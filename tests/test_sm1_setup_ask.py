@@ -58,6 +58,8 @@ def ended(text):
         m = ENDED.match(line) if asked and i > asked[-1] else None
         if m:
             command = m.group(3) or lines[i + 1]
+            if re.match(r"\d+ s\b|stopped after |could not start", command):  # the words alone (sc8 F2)
+                command = lines[i + 1]
             got.append(re.sub(r" \d+ s(, .*)?$", "", command))
     return got
 

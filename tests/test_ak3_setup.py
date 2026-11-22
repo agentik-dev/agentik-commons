@@ -82,18 +82,28 @@ PROFILE = 'export PATH="$HOME/.local/bin:$PATH"'
 PATH_CLOSE = 'next: export PATH="$HOME/.local/bin:$PATH"'  # a command since ic1-close review 1
 ENDED = re.compile(r"^  (ok|FAIL|✓|✗) +(\d) (\S+)(?: {2,}(.*))?$")
 AFTER = re.compile(r"^(.*) (\d+ s(?:, .*)?|stopped after \d+ s|could not start)$")
+RESULT = re.compile(r"^(\d+ s(?:, .*)?|stopped after \d+ s|could not start)$")  # the words alone (sc8 F2)
 
 
 def ended(text):
     """(mark, command, after) of each command that ended (row sc8 R7), below the question where
-    one shows; a command too long for its row stands whole on the next line."""
+    one shows; a command too long for its row stands whole on the next line, its result words on
+    the row's line where the two do not fit there together, else on a third (review 1 F2)."""
     lines = [re.sub(r"\x1b\[[0-9;?]*[A-Za-z]", "", l).replace("\r", "") for l in text.splitlines()]
     asked = [i for i, l in enumerate(lines) if " now?" in l]
     got = []
     for i, line in enumerate(lines):
         m = ENDED.match(line) if not asked or i > asked[-1] else None
         if m:
-            command, after = AFTER.match(m.group(4) or lines[i + 1].strip()).groups()
+            rest = m.group(4)
+            if rest and not RESULT.match(rest):
+                command, after = AFTER.match(rest).groups()
+            elif rest:
+                command, after = lines[i + 1].strip(), rest
+            elif AFTER.match(lines[i + 1].strip()):
+                command, after = AFTER.match(lines[i + 1].strip()).groups()
+            else:
+                command, after = lines[i + 1].strip(), lines[i + 2].strip()
             got.append((m.group(1), command, after))
     return got
 # the plan tests' stub, after two lines: record the call, and fail beta's install on the flag

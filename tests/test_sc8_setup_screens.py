@@ -79,7 +79,10 @@ class Screens(Home):
         for head in ("next: ", "other plugins: "):  # a command after its head, whole by design/23 V3
             if line.startswith(head):
                 return line[len(head):].startswith(("/", "~/", "./"))
-        return bool(re.match(" {%d}[^ ]" % apply.LEAD, line)) and line.strip().startswith(("/", "~/", "claude "))
+        if not (re.match(" {%d}[^ ]" % apply.LEAD, line) and line.strip().startswith(("/", "~/", "claude "))):
+            return False
+        # the command or path and nothing more: no result words after it (review 1 F2)
+        return not re.search(r" \d+ s\b|\bfailed\b|\bstopped\b|could not start", line)
 
     def screen(self, *args, **more):
         code, out, err = self.run_cli(*args, COLUMNS="80", **more)
@@ -315,6 +318,41 @@ class Screens(Home):
             self.assertFalse([l for l in out + err if " more: " in l or "prints at the end" in l], out)
             six = [i for i, l in enumerate(out) if re.match(r" +6 PATH +", l)]
             self.assertTrue(six and out[six[0] + 1].strip() == plan.PROFILE_LINE, out)
+
+    def test_f2_a_failed_command_stays_in_the_width_on_a_pty(self):
+        silent, loud = "#!/bin/sh\nexit 1\n", "#!/bin/sh\necho 'Error: the network is unreachable from here'\nexit 1\n"
+        for body, cols in ((silent, 80), (loud, 80), (silent, 50)):
+            self.stub("claude", body)
+            code, text = on_pty([str(LAUNCHER), "setup", "--yes"], "n", self.env(COLUMNS=str(cols), TERM="dumb"),
+                                cwd=self.work)
+            shown = lines_of(text)
+            self.assertEqual(code, 1, text)
+            row = [i for i, l in enumerate(shown) if "2 marketplace" in l][-1]
+            self.assertIn("failed", " ".join(shown[row:row + 3]), text)
+            for line in shown:
+                if len(line) > cols:
+                    self.assertTrue(self.lone(line, cols) or len(line.split()) == 1, (cols, line))
+
+    def test_f2_an_ended_row_at_the_width_unit(self):
+        """`_ended` on a terminal of 80 and 50: a wall stop, a silent failure and one with output
+        each keep their result words inside the width, the command whole."""
+        class Tty(io.StringIO):
+            def isatty(self):
+                return True
+        command = "claude plugin marketplace add agentik-dev/agentik-commons"
+        results = ({"why": "wall", "wall": 600, "exit": None, "last": "", "tail": []},
+                   {"why": None, "wall": 600, "exit": 1, "last": "", "tail": []},
+                   {"why": None, "wall": 600, "exit": 1, "last": "Error: no", "tail": ["Error: no"]})
+        for cols in (80, 50):
+            for result in results:
+                err = Tty()
+                t = term.Term(env={"COLUMNS": str(cols), "NO_COLOR": "1"}, out=Tty(), err=err)
+                apply._ended(type("C", (), {"t": t})(), {"n": 2, "command": command}, result, 3)
+                lines = lines_of(err.getvalue())
+                self.assertTrue([l for l in lines if l.strip().startswith(command)], lines)  # whole, at LEAD
+                self.assertTrue(re.search(r"failed|stopped after 600 s", " ".join(lines)), lines)
+                for line in lines:
+                    self.assertTrue(len(line) <= cols or self.lone(line, cols), (cols, line))
 
     # ---- R4, R6, R8: units ---------------------------------------------------------------
     def test_r4_undo_has_a_place_and_prints_none(self):
