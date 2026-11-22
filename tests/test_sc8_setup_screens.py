@@ -8,6 +8,7 @@ folder."""
 import json
 import os
 import re
+import shutil
 import sys
 import unittest
 
@@ -72,8 +73,9 @@ class Screens(Home):
 
     def lone(self, line, cols):
         """A line past `cols` that is a lone command or path, which cannot be broken (A8)."""
-        if line.startswith("next: "):  # a `next:` command, whole by design/23 V3
-            return line[6:].startswith(("/", "~/", "./"))
+        for head in ("next: ", "other plugins: "):  # a command after its head, whole by design/23 V3
+            if line.startswith(head):
+                return line[len(head):].startswith(("/", "~/", "./"))
         return bool(re.match(" {%d}[^ ]" % apply.LEAD, line)) and line.strip().startswith(("/", "~/", "claude "))
 
     def screen(self, *args, **more):
@@ -119,13 +121,46 @@ class Screens(Home):
         for code, out, err in screens:
             for line in out + err:
                 self.assertIsNone(BANNED.search(words(line)), line)
-                if len(line) > 80:
-                    self.assertTrue(self.lone(line, 80), line)
+        os.remove(self.flag)
+        shutil.rmtree(os.path.join(self.home, ".claude"))
+        shutil.rmtree(os.path.join(self.home, ".local"))
+        for cols, answer in (("50", "n"), ("50", "y"), ("80", "y")):  # A8 is measured on a pty
+            code, text = on_pty([str(LAUNCHER), "setup"], answer, self.env(COLUMNS=cols), cwd=self.work)
+            for line in lines_of(text):
+                self.assertIsNone(BANNED.search(words(line)), line)
+                if len(line) > int(cols) and "Run these" not in line:
+                    self.assertTrue(self.lone(line, int(cols)) or len(line.split()) == 1, (cols, line))
+
+    def test_a8_a_pipe_row_is_one_line_a_pty_row_fits(self):
+        """Off a terminal a row is one line, as sc3's table, so a pipe is searched by line; on a
+        pty of 50 the same row stands within the width, its command on a line of its own."""
+        code, out, err = self.screen("setup", "--dry-run")
+        door = [l for l in out if re.match(r" +5 agentik +/.*install-cli$", l)]
+        self.assertEqual(len(door), 1, out)
+        self.assertGreater(len(door[0]), 80, door)
+        self.assertFalse([l for l in out + err if re.match(" {%d}[/~]" % apply.LEAD, l)], out + err)
         code, text = on_pty([str(LAUNCHER), "setup"], "n", self.env(COLUMNS="50"), cwd=self.work)
-        for line in lines_of(text):
-            self.assertIsNone(BANNED.search(words(line)), line)
-            if len(line) > 50 and "Run these" not in line:
-                self.assertTrue(self.lone(line, 50) or len(line.split()) == 1, line)
+        shown = lines_of(text)
+        at = [i for i, l in enumerate(shown) if re.fullmatch(r" +5 agentik", l)]
+        self.assertTrue(at and shown[at[0] + 1].strip().endswith("install-cli"), text)
+        self.assertTrue(self.lone(shown[at[0] + 1], 50), text)
+
+    def test_a1_on_a_pty_with_the_answer(self):
+        """A1's sum where the answer is typed: the plan, one line for the answer, the commands,
+        the tail."""
+        code, text = on_pty([str(LAUNCHER), "setup"], "y", self.env(COLUMNS="80"), cwd=self.work)
+        shown = lines_of(text)
+        self.assertEqual((code, shown[-1]), (0, "next: claude"), text)
+        ask = [i for i, l in enumerate(shown) if l.endswith("now? y for yes, n or Enter for no.")][0]
+        ended = [i for i, l in enumerate(shown) if l.startswith("Steps 2 to 5 are done")][0]
+        lone = lambda part: sum(1 for l in part if self.lone(l, 80))
+        plan, answer, ran, tail = shown[:ask], shown[ask:ask + 2], shown[ask + 2:ended], shown[ended:]
+        self.assertEqual(answer[1], "y", text)  # sm1's typed question and the pty's echo of the answer
+        self.assertEqual(len(plan), 13 + lone(plan), plan)
+        self.assertEqual(len(ran), 8 + lone(ran), ran)
+        self.assertLessEqual(len(tail), 8, tail)
+        print("\nA1 on a pty: plan %d (%d lone), answer %d, commands %d (%d lone), tail %d: %d lines"
+              % (len(plan), lone(plan), len(answer), len(ran), lone(ran), len(tail), len(shown)), file=sys.stderr)
 
     # ---- A2, A5: what the report holds ---------------------------------------------------
     def test_a2_every_path_in_the_json_and_the_log_and_a_count_on_screen(self):

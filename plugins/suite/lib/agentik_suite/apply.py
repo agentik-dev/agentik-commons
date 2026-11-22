@@ -275,7 +275,11 @@ def profile(env):
 
 
 def _say(stream, text, indent=0, first=""):
-    """`first`, then `text` wrapped at the stream's width, each next line at `indent`."""
+    """`first`, then `text`: on a terminal wrapped at its width, each next line at `indent`; off
+    one a single line, so a pipe is searched by line."""
+    if not stream.tty:  # off a terminal one row is one line, as sc3's table (build 2's ruling)
+        stream.write((first + term.clean(text)).rstrip(" "))
+        return
     room = max(stream.width() - max(indent, term.columns(first)), 20)
     lines = term._wrap(term.clean(text), room) if text else [""]
     stream.write((first + lines[0]).rstrip(" "))
@@ -286,8 +290,8 @@ def _say(stream, text, indent=0, first=""):
 def _rows(t, rows, err=False):
     """Setup's rows (row sc8 R1, R6, R7): (status or None, step or "", label, text, whole).
     The mark column is as wide as the widest mark shown; a `whole` text is a command, never
-    broken: where it does not fit after its head it stands on the next line at LEAD. Other text
-    wraps under its own column."""
+    broken: on a terminal, where it does not fit after its head it stands on the next line at LEAD,
+    and other text wraps under its own column; off one a row is one line (sc3's table, R9)."""
     stream = t._stream(err)
     width = max((term.columns(stream.mark(r[0])[0]) for r in rows if r[0]), default=1)
     for status, n, label, text, whole in rows:
@@ -299,7 +303,7 @@ def _rows(t, rows, err=False):
         text = term.clean(text)
         if not whole:
             _say(stream, text, room, head)
-        elif room + term.columns(text) <= stream.width():
+        elif not stream.tty or room + term.columns(text) <= stream.width():
             stream.write(head + text)
         else:
             if n or label or status:
@@ -396,7 +400,7 @@ def _tail(t, rows):
         text = term.clean(text)
         if not whole:
             _say(stream, text, room, head)
-        elif room + term.columns(text) <= stream.width():
+        elif not stream.tty or room + term.columns(text) <= stream.width():
             stream.write(head + text)
         else:
             if mid:
