@@ -212,10 +212,13 @@ def records_why(t, found, start):
 
 
 def home_folder(env):
-    """The folder the doctor asks from (packet dr2-doctor-machine R1): HOME where it names a
-    folder, else `/`, so a tool's answer is the machine's and reads the same from every folder."""
+    """The folder the doctor asks from (packet dr2-doctor-machine R1): HOME where it is an absolute
+    path to a folder that can be entered, else `/`, so a tool's answer is the machine's and reads
+    the same from every folder; a relative HOME names a different folder from each (that packet's
+    fix of review 1, R2)."""
     home = env.get("HOME")
-    return home if home and os.path.isdir(home) else "/"
+    ok = home and os.path.isabs(home) and os.path.isdir(home) and os.access(home, os.X_OK)
+    return home if ok else "/"
 
 
 def source_settings(cmd, at=None):

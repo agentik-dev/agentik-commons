@@ -169,5 +169,143 @@ class RecordsStaysTest(Machine):
         return self.run_cli(*args)
 
 
+def where_of(obj):
+    return [c["detail"] for g in obj["tools"] if g["name"] == T for c in g["checks"]]
+
+
+class PathEntryTest(Machine):
+    """Review 1's F1: a tool found through a relative or an empty PATH entry is still asked, in the
+    home folder, as it was before the row (brief 2 R1)."""
+
+    def test_6_a_relative_path_entry(self):
+        path = self.ready()
+        w = os.path.join(self.top, "w")
+        os.makedirs(os.path.join(w, "bin"))
+        os.rename(self.quill(), os.path.join(w, "bin", "agentik-" + T))
+        code, out, err = self.from_folder(w, "--json", PATH="bin:" + path)
+        self.assertEqual(where_of(json.loads(out)), [self.home], out)
+        self.assertEqual([s for s in self.started() if s[1].startswith("doctor")],
+                         [[self.home, "doctor --json"]], self.started())
+
+    def test_6_an_empty_path_entry(self):
+        path = self.ready()
+        w = os.path.join(self.top, "w")
+        os.makedirs(w)
+        os.rename(self.quill(), os.path.join(w, "agentik-" + T))
+        objs = {}
+        for shape in (path + ":", ":" + path, path.replace(":", "::", 1)):
+            os.remove(self.log) if os.path.exists(self.log) else None
+            code, out, err = self.from_folder(w, "--json", PATH=shape)
+            objs[shape] = json.loads(out)
+            self.assertEqual(where_of(objs[shape]), [self.home], (shape, out))
+            self.assertEqual([s for s in self.started() if s[1].startswith("doctor")],
+                             [[self.home, "doctor --json"]], (shape, self.started()))
+        self.assertEqual(len({json.dumps(o, sort_keys=True) for o in objs.values()}), 1)
+
+
+class HomeShapeTest(Machine):
+    """Review 1's F2: HOME counts only where it is an absolute path to a folder that can be entered;
+    else every doctor starts in `/` (brief 2 R2)."""
+
+    def launch(self, folder, home, path):
+        os.remove(self.log) if os.path.exists(self.log) else None
+        run = dict(self.env(PATH=path), HOME=home)
+        p = subprocess.run([str(LAUNCHER), "doctor", "--json"], capture_output=True, text=True,
+                           env=run, timeout=60, cwd=folder)
+        self.assertIn(p.returncode, (0, 1), (home, p.stderr))
+        self.assertNotIn("Traceback", p.stderr, home)
+        obj = json.loads(p.stdout)
+        self.assertEqual(where_of(obj), ["/"], (home, p.stdout))
+        self.assertEqual({s[0] for s in self.started() if s[1].startswith("doctor")}, {"/"}, home)
+        return obj
+
+    def test_7_a_relative_home_reads_the_same_from_two_folders(self):
+        path = self.ready()
+        self.quill()
+        x = os.path.join(self.top, "x")
+        y = os.path.join(self.top, "y")
+        os.makedirs(os.path.join(x, "h"))
+        os.makedirs(y)
+        self.assertEqual(self.launch(x, "h", path), self.launch(y, "h", path))
+
+    def test_7_a_home_that_is_no_folder_to_enter(self):
+        path = self.ready()
+        self.quill()
+        b = self.folders()["b"]
+        afile = os.path.join(self.top, "afile")
+        open(afile, "w").close()
+        loop = os.path.join(self.top, "loop1")
+        os.symlink(os.path.join(self.top, "loop2"), loop)
+        os.symlink(loop, os.path.join(self.top, "loop2"))
+        shut = os.path.join(self.top, "shut")
+        os.mkdir(shut)
+        self.launch(b, afile, path)
+        self.launch(b, loop, path)
+        os.chmod(shut, 0)
+        try:
+            self.launch(b, shut, path)
+        finally:
+            os.chmod(shut, 0o755)
+
+    def test_7_an_absolute_home_folder_is_the_start(self):
+        from agentik_suite import doctor
+        self.assertEqual(doctor.home_folder({"HOME": self.top}), self.top)
+        self.assertEqual(doctor.home_folder({"HOME": os.path.basename(self.top)}), "/")
+
+
+PWD_STUB = '''#!/usr/bin/python3
+import json, os, sys
+if sys.argv[1:] == ["doctor", "--json"]:
+    d = "getcwd=%%s PWD=%%s OLDPWD=%%s" %% (os.getcwd(), os.environ.get("PWD"), os.environ.get("OLDPWD"))
+    print(json.dumps({"schema": "agentik.doctor/1", "ok": True, "tool": "%s", "failed": 0, "warned": 1,
+                      "checks": [{"name": "where", "status": "warn", "detail": d, "remedy": None}]}))
+sys.exit(0)
+''' % T
+
+
+class PwdTest(Machine):
+    """Review 1's F3: a doctor started in the home folder sees PWD name it, and no OLDPWD; a job
+    given no folder keeps its environment (brief 2 R3)."""
+
+    def test_8_pwd_names_the_home(self):
+        path = self.ready()
+        self.stub("agentik-" + T, PWD_STUB)
+        f = self.folders()
+        for k in "ab":
+            code, out, err = self.from_folder(f[k], "--json", PATH=path, PWD=f[k], OLDPWD=self.top)
+            self.assertEqual(where_of(json.loads(out)),
+                             ["getcwd=%s PWD=%s OLDPWD=None" % (self.home, self.home)], k)
+
+    def test_8_run_all_given_no_folder_keeps_the_environment(self):
+        from agentik_suite import tools
+        env = {"PATH": "/usr/bin:/bin", "PWD": "/elsewhere", "OLDPWD": "/before", "LC_ALL": "C"}
+
+        def seen(**cwd):
+            out = tools.run_all([("k", ["/usr/bin/env"])], env, **cwd)["k"][1].decode()
+            return {l.split("=", 1)[0]: l.split("=", 1)[1] for l in out.splitlines() if "=" in l}
+
+        self.assertEqual(seen(), env)
+        self.assertEqual(seen(cwd=self.top), {"PATH": "/usr/bin:/bin", "PWD": self.top, "LC_ALL": "C"})
+        self.assertEqual(env["PWD"], "/elsewhere")
+
+    def test_8_run_all_starts_a_relative_file_in_the_folder_given(self):
+        from agentik_suite import tools
+        os.makedirs(os.path.join(self.top, "w", "bin"))
+        os.makedirs(os.path.join(self.top, "there"))
+        self.stub_at(os.path.join(self.top, "w", "bin", "pwd-of"), '#!/bin/sh\npwd -P\n')
+        here = os.getcwd()
+        os.chdir(os.path.join(self.top, "w"))
+        self.addCleanup(os.chdir, here)
+        there = os.path.join(self.top, "there")
+        got = tools.run_all([("k", ["bin/pwd-of"]), ("d", ["./bin/pwd-of"])], {"PATH": "/usr/bin:/bin"}, cwd=there)
+        self.assertEqual({k: v[:2] for k, v in got.items()}, {"k": (0, there.encode() + b"\n"), "d": (0, there.encode() + b"\n")})
+
+    @staticmethod
+    def stub_at(path, body):
+        with open(path, "w") as fh:
+            fh.write(body)
+        os.chmod(path, 0o755)
+
+
 if __name__ == "__main__":
     unittest.main()

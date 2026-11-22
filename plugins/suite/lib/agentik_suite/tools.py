@@ -205,17 +205,24 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
     not name), and the one deadline holds only when given. `errs`, a dict filled with each job's
     stderr up to ERR_CAP bytes. `times`, a dict filled with each job's seconds from this call's
     start to its end. `cwd`, the folder every process starts in, the caller's where None (packet
-    dr2-doctor-machine R1: the doctor's reads start in the home folder)."""
+    dr2-doctor-machine R1: the doctor's reads start in the home folder). Given one, a job's file
+    named by a relative path (found through a relative or empty PATH entry) is made absolute
+    against the caller's folder before any process starts, so it names the file the caller found,
+    and each process's `PWD` names `cwd`, with no `OLDPWD` (that packet's fix of review 1, R1, R3).
+    With no `cwd`, each job and the environment are as given."""
     t0 = time.monotonic()
     if walls is None:
         deadline = t0 + WALL if deadline is None else deadline
-    queue, live, results = list(jobs), {}, {}
+    place = lambda job: job  # noqa: E731
+    if cwd is not None:
+        place, cwd, env = _placed(cwd, env)
+    queue, live, results = [place(job) for job in jobs], {}, {}
 
     def finish(key, result):
         results[key] = result
         if times is not None:
             times[key] = time.monotonic() - t0
-        queue.extend(then(key, result) if then else ())
+        queue.extend(place(job) for job in (then(key, result) if then else ()))
 
     try:
         _run(queue, live, finish, env, deadline, walls, errs, cwd)
@@ -232,6 +239,29 @@ def run_all(jobs, env, then=None, deadline=None, walls=None, errs=None, times=No
     for key, _ in queue:
         results[key] = (None, b"", "timed out")
     return results
+
+
+def _placed(cwd, env):
+    """run_all's three for a job started in `cwd`: the step that makes a job's relative file
+    absolute against the caller's folder, `cwd` itself absolute, and the environment with `PWD`
+    naming it and no `OLDPWD`. A caller's folder that cannot be read leaves each path as given."""
+    try:
+        here = os.getcwd()
+    except OSError:
+        here = None
+
+    def place(job):
+        key, argv = job
+        exe = argv[0] if argv else ""
+        if here is None or os.path.isabs(exe) or os.sep not in exe:
+            return job
+        return key, [os.path.join(here, exe)] + list(argv[1:])
+
+    if here is not None and not os.path.isabs(cwd):
+        cwd = os.path.join(here, cwd)
+    env = {k: v for k, v in env.items() if k != "OLDPWD"}
+    env["PWD"] = cwd
+    return place, cwd, env
 
 
 def _run(queue, live, finish, env, deadline, walls, errs, cwd=None):
