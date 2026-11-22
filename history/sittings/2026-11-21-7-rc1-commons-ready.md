@@ -13,20 +13,21 @@
 | act | done-ness |
 |---|---|
 | 0 the packet and this charter | done |
-| 1 the scratch clone and the holder's copy | open |
-| 2 R2, the rehearsal with no key | open |
-| 3 R3, the rehearsal with the key set | open |
-| 4 R4, the reds mended in tests | open |
-| 5 the gate in this worktree | open |
+| 1 the scratch clone and the holder's copy | done; at 2cd5fc3, 189 record paths removed (`history/` 109, `design/packets/` 79, `NICE_TO_HAVE.md`), the copy a scratch repo `holder/repos/agentik-commons/` |
+| 2 R2, the rehearsal with no key | done; `state: unset`; the check green, 1436 tests OK, `records` 0 hits |
+| 3 R3, the rehearsal with the key set | done; `state: out`; the check green, 1436 tests OK, `records` 0 hits |
+| 4 R4, the reds mended in tests | done; nothing turned red |
+| 5 the gate in this worktree | queued on the head that carries this charter |
 
 ## Next act
 
-Act 1: clone this branch into the scratch folder, remove the records, declare `records: out`.
+None but the gate: `make check` in this worktree on the head that carries this charter.
 
 ## Handover
 
-- none yet.
+- choice: the holder's copy is a scratch git repository with the copy committed under `repos/agentik-commons/`, so `agentik records` names a holder as in the owner's clone. Consumer: review.
+- choice: R3 sets the key in R2's clone rather than a fresh one, since R2 left only ignored `__pycache__/` folders. Consumer: review.
 
 ## Exit
 
-Open.
+Build 1: every act built and committed; the gate's result on this head is the hand-back's.

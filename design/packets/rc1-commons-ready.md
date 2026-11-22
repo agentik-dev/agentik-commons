@@ -34,4 +34,7 @@ A move of another tool, unrehearsed, turned 31 of its tests red: a test that run
 
 ## 4. Findings
 
-- None yet.
+- The scratch clone at this branch's 2cd5fc3, one commit on top removing 189 record paths (`history/` 109, `design/packets/` 79, `NICE_TO_HAVE.md`) and adding `records: out`; the holder's copy a scratch repository holding them under `repos/agentik-commons/`.
+- R2: `agentik records` printed `state: unset` (`why: the repo keeps its records out, and this clone sets no agentik.records`); `make check` exit 0 in 18 min, 1436 tests OK, hygiene's `records` group 0 hits, recordlint `skip: no such file` for both tables.
+- R3: with the key set, `state: out`, `holder` the scratch repository, `prefix: repos/agentik-commons`; `make check` exit 0 in 17 min, 1436 tests OK, `records` 0 hits; the holder's tree and the clone's both clean after it.
+- Nothing turned red, so the branch holds this packet and the charter alone: the tests that run a verb in a folder already stand outside every repository (ak3d's and sc10's doctor runs, rr2's note).
