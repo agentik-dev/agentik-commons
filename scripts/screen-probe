@@ -586,8 +586,10 @@ def spill(line):
 
 
 def count(rows):
-    """A screen's lines as its budget counts them: each line but a spill."""
-    return sum(1 for r in rows if not spill(r))
+    """A screen's lines as its budget counts them: each line but a spill directly under a line
+    that is not one, so a row spills one line and a second spill in a row counts (review 1 L3)."""
+    return sum(1 for i, r in enumerate(rows)
+               if not (i and spill(r) and not spill(rows[i - 1])))
 
 
 def check_budget(screen, rows, budget=None):

@@ -250,6 +250,15 @@ class Breaks(Copy):
         clean = "- `m.a`: the existing file\n- `m.b`: gave `{status}`\n- `m.c`: the exhibit"
         self.assertEqual(probe.check_v9(clean, {}), ([], []))
 
+    def test_l3_a_spill_is_one_line_under_its_row(self):
+        """Review 1 L3: a spill is left out only directly under a line that is not one."""
+        self.assertEqual(probe.count(["    5 agentik", "      /x/agentik-suite install-cli"]), 1)
+        self.assertEqual(probe.count(["    5 agentik", "      /x/a", "      /x/b", "      /x/c"]), 3)
+        self.assertEqual(probe.count(["      /x/a"] * 40), 40)
+        self.assertEqual(probe.count(["a row", "      /x/a", "a row", "      /x/b"]), 2)
+        rows = ["a row"] * 14 + ["  /x/agentik-suite config suite"] * 10
+        self.assertEqual(probe.check_budget("help-config", rows), ["23 lines, budget 14 (measured)"])
+
     def test_usage(self):
         for args in (["--only", "no-such-screen"], ["--wall"], ["--spare"]):
             code, out, err = self.run_probe(*args)
