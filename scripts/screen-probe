@@ -61,7 +61,6 @@ V9_LIST = {
     "flag.config_pick": "flag",
     "flag.check": "flag",
     "flag.exit": "flag",
-    "inbox.read.no_answer": "owed",
     "err.issue.send.failed": "owed",
     "err.issue.exit": "owed",
     "issue.render.exit": "owed",

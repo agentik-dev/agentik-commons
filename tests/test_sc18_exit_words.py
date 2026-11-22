@@ -177,5 +177,26 @@ class RemoveTest(Shape, up.Base):
         self.assertIsNone(WORD.search(rows[0]))
 
 
+# ---- family: inbox ------------------------------------------------------------------------
+
+class InboxTest(Shape, unittest.TestCase):
+    def setUp(self):
+        import test_in4_inbox as inb
+        self.home = type("H", (inb.InboxHome,), {"runTest": lambda s: None})()
+        self.home.setUp()
+        self.addCleanup(self.home.doCleanups)
+
+    def test_r4_a_read_that_failed(self):
+        h = self.home
+        h.how("charter", exit=3)
+        code, out, err = h.inbox(h.pear, h.quince)
+        rows = [r for r in out.splitlines() if "not read" in r]
+        self.assertEqual(rows, ["note  not read  charter: agentik-bench charter show --json failed"], out)
+        self.clean(out + err, said=None)
+        code, out, err = h.inbox("--json", h.pear)
+        reads = [r for r in json.loads(out)["reads"] if r["name"] == "charter"]
+        self.assertEqual([(r["state"], r["exit"]) for r in reads], [("no_answer", 3)])
+
+
 if __name__ == "__main__":
     unittest.main()

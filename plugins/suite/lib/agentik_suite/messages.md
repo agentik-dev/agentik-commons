@@ -760,7 +760,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.age.today`: today
 - `inbox.read.where`: `{read}` in `{name}`
 - `inbox.read.no_tool`: `{read}`: no command on PATH gives that read
-- `inbox.read.no_answer`: `{read}`: `{command}` exited `{exit}`
+- `inbox.read.no_answer`: `{read}`: `{command}` failed
 - `inbox.read.unknown`: `{read}`: `{command}` answers in a shape the suite does not know
 - `inbox.read.timed_out`: `{read}`: `{command}` gave no answer in `{wall}` s
 - `inbox.check.question`: `{name}`: question `{n}`: `{title}`; recommended: `{label}`
