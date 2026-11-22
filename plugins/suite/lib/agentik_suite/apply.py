@@ -135,10 +135,11 @@ NEWEST = 4096  # the bytes of output read back for its newest line
 
 def drawn(cmd):
     """Whether setup draws a live line (row sc9-setup-live R4): stderr a terminal whose TERM is
-    set and not dumb (pick's rule), no -q, no --json, and a stream that encodes the frames."""
+    set and not dumb (pick's rule), no -q, no --json, no CI, as pick draws no list there (row
+    sc16-setup-undo R5.4), and a stream that encodes the frames."""
     t = cmd.t
     stream = t.err
-    if not stream.tty or t.quiet or cmd.opts.get("json"):
+    if not stream.tty or t.quiet or cmd.opts.get("json") or stream.env.get("CI"):
         return False
     if stream.env.get("TERM", "dumb") in ("", "dumb"):
         return False

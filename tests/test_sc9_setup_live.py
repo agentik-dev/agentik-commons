@@ -478,6 +478,21 @@ class WhereNothingIsRedrawn(Base):
         self.assert_plain(text.replace("\r\n", "\n"), "-q")
         self.assertEqual(rows_of(text), [])
 
+    def test_sc16_r5_4_under_ci_no_live_line(self):
+        """CI set: no live line on a pty, as the picker draws no list there; each command is its
+        ended row alone, with no carriage return (row sc16 R5.4)."""
+        self.slow(sleep=1)
+        code, text, _ = self.setup(self.term_env())
+        self.assertEqual(code, 0, text)
+        drawn = rows_of("\n".join(replay(text)))
+        self.fresh()
+        code, text, _ = self.setup(self.term_env(CI="1"))
+        self.assertEqual(code, 0, text)
+        self.assertFalse(BARE_CR.search(text), text)
+        self.assertFalse(set(text) & set(SPIN), text)
+        self.assertFalse(CURSOR.search(text), text)
+        self.assertEqual(rows_of(text), drawn)
+
     def test_r4_a_stream_that_cannot_encode_the_frames(self):
         class Ascii(io.StringIO):
             encoding = "ascii"
