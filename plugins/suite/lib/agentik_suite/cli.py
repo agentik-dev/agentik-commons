@@ -11,7 +11,7 @@ the declared watchers (status.py), install-cli, which places this command and th
 under a prefix's bin (install.py), doctor, the machine checked in one read (doctor.py), inbox,
 what waits on the owner across the checkouts, and `inbox answer`, the owner's answer handed to the
 writer verb `reply` of the tool that gives the `questions` read, run in the checkout as the
-suite's own process (inbox.py), and completion, a shell's script that calls `completion words` back
+suite's child, then a line sent to that checkout's sitting (inbox.py), and completion, a shell's script that calls `completion words` back
 at each Tab (completion.py).
 Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup, update and install-cli, the
 verbs that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes

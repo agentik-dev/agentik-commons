@@ -15,13 +15,17 @@ and contents reach it at run time, from the command line, the user file and the 
 `inbox answer <repo> N (--pick L | --say T) [--dry-run] [--yes]` (packet in5b-inbox-answer) writes
 nothing either: it finds the checkout (a path, or a name among those the bare `inbox` covers), the
 writer (the tool that gives the `questions` read, with a verb `reply` in its describe), and then
-replaces this process by that tool's `reply N`, run in the checkout, with the person's streams.
+runs that tool's `reply N` as this process's child, in the checkout, the person's terminal its
+three streams, and waits for it (packet in5c-answer-line). After a write, and only then, it sends
+that checkout's sitting one pointer line by the `line send --text` of the tool that gives the
+`charter` read, run as a read is run; where none is sent, one `warn` line on stderr says so.
 """
 import datetime
 import json
 import os
 import re
 import signal
+import subprocess
 import time
 
 from . import covers as covering, plan, settings, status, term, tools
@@ -45,6 +49,8 @@ def number(noun):
 
 ANSWER = "answer"  # the first noun that makes `inbox` the answer's front door (row in5b R1)
 WRITER = "reply"  # the verb the writer lists in its describe and runs (R4, R6)
+SENDER = "line"  # the verb the sender lists in its describe (row in5c-answer-line R4)
+SENTENCE = "question %s holds text on its answer line"  # the pointer's text, sent, never shown (R5)
 
 
 def _answer_fault(o, nouns):
@@ -562,9 +568,10 @@ def _is_path(word):
 
 
 def _answer(cmd, nouns):
-    """R2 to R7: refuse what the words, the checkout, the writer or the terminal do not allow, then
-    replace this process by the writer's `reply N`, its cwd the checkout; it returns only where
-    that fails."""
+    """R2 to R7 of in5b: refuse what the words, the checkout, the writer or the terminal do not
+    allow; then run the writer's `reply N` as this process's child in the checkout (row
+    in5c-answer-line R1, R2) and, after a write, send that checkout's sitting the pointer line
+    (R3 to R8). The exit is the writer's."""
     o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
     fault = _answer_fault(o, nouns)
     if fault:
@@ -583,23 +590,114 @@ def _answer(cmd, nouns):
         path = hits[0]
     if not os.path.isdir(path):
         raise Refusal("not_a_directory", "err.inbox.answer.notdir", cmd.say("help", "inbox"), path=word)
-    found = _reads(cmd).get("questions")
+    reads = _reads(cmd)  # the one pass: the writer here, the sender after the write (in5c R4)
+    found = reads.get("questions")
     if not found:
         raise Refusal("no_reads", "err.inbox.tools", cmd.say("setup"), exit_code=3)
     if WRITER not in found["verbs"]:
         raise Refusal("no_writer", "err.inbox.answer.writer", cmd.say("update"), tool="agentik-" + found["tool"])
     if not (o["yes"] or o["dry_run"]) and not (os.isatty(0) and os.isatty(2)):
         raise Refusal("no_terminal", "err.inbox.answer.tty", cmd.say("help", "inbox"))
-    exe = os.path.join(os.getcwd(), found["exe"])  # before the chdir, joined, never normalised (review 2 F1)
+    exe = os.path.join(os.getcwd(), found["exe"])  # joined, never normalised (review 2 F1)
     # the value rides its flag as one word, so one that opens with `-` is never the writer's option (N1)
     argv = [exe, WRITER, n, "--pick=" + o["pick_label"] if o["say"] is None else "--say=" + o["say"]]
     argv += (["--dry-run"] if o["dry_run"] else []) + (["--yes"] if o["yes"] else [])
-    t.flush()
+    real = os.path.realpath(path)  # the address, read before the writer runs; no walk to a git top (R5)
+    code = _write(cmd, argv, path)
+    if code != 0 or o["dry_run"]:  # R3
+        return code
+    unsent = _send(cmd, reads, real, n)
+    if unsent:  # R7: one line after the writer's; R8: nothing where it was sent
+        why = t.text(unsent[0], **unsent[1])
+        said = t.text("inbox.answer.unsent", name=os.path.basename(real) or real, why=why)
+        t.table([("warn", [said + " " + t.text("inbox.answer.still", n=n)], None)], err=True, indent=0)
+    return code
+
+
+def _write(cmd, argv, path):
+    """R1, R2: the writer run as this process's child, its cwd `path`, the person's environment and
+    this process's three descriptors, and waited for; its exit code. While it runs SIGINT and
+    SIGQUIT do nothing here (a handler, not SIG_IGN, so the writer starts with their defaults; one
+    the caller ignores stays ignored, so the writer inherits it, review 1 F2) and SIGTERM and SIGHUP
+    are passed on to it; a writer ended by a signal ends this process by it, one whose action
+    cannot be set (SIGKILL) as well (review 1 F1)."""
+    box, saved = {}, {}
+
+    def still(signum, frame):
+        pass
+
+    def forward(signum, frame):
+        if "proc" in box:
+            try:
+                os.kill(box["proc"].pid, signum)
+            except OSError:
+                pass
+        else:
+            box.setdefault("early", signum)
+
     try:
-        os.chdir(path)
-        os.execve(exe, argv, dict(cmd.env))
-    except OSError:
-        raise Refusal("no_run", "err.inbox.answer.exec", None, path=exe)
+        for sig, handler in ((signal.SIGINT, still), (signal.SIGQUIT, still),
+                             (signal.SIGTERM, forward), (signal.SIGHUP, forward)):
+            if handler is still and signal.getsignal(sig) == signal.SIG_IGN:
+                continue  # the caller's ignore, inherited by the writer as at the pin (review 1 F2)
+            saved[sig] = signal.signal(sig, handler)
+    except ValueError:  # not the main thread: the actions stay
+        pass
+    cmd.t.flush()
+    try:
+        try:
+            box["proc"] = proc = subprocess.Popen(argv, cwd=path, env=dict(cmd.env))
+        except OSError:
+            raise cmd.Refusal("no_run", "err.inbox.answer.exec", None, path=argv[0])
+        if "early" in box:
+            os.kill(proc.pid, box["early"])
+        code = proc.wait()
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+    if code < 0:  # the wait status its caller read when the writer was this process
+        cmd.t.flush()
+        if -code not in (signal.SIGKILL, signal.SIGSTOP):  # an action that cannot be set (review 1 F1)
+            signal.signal(-code, signal.SIG_DFL)
+        os.kill(os.getpid(), -code)
+        return 128 - code  # only where that signal did not end this process
+    return code
+
+
+def _send(cmd, reads, real, n):
+    """R4 to R6: the pointer line to the checkout at `real`, by the `line send --text` of the tool
+    that gives the `charter` read, run as a read is run under WALL seconds. None when it exited 0,
+    else (the cause's message id, its values) for R7's line."""
+    sender = reads.get("charter")
+    if not sender or SENDER not in sender["verbs"]:
+        return "inbox.answer.why.none", {}
+    exe = os.path.join(os.getcwd(), sender["exe"])  # joined, never normalised, as the writer's
+    argv = [exe, SENDER, "send", real, "--text=" + SENTENCE % n]
+    command = " ".join([os.path.basename(exe), SENDER, "send"])
+    saved = {}
+    try:
+        if signal.getsignal(signal.SIGQUIT) != signal.SIG_IGN:  # SIGQUIT stops it as SIGINT does (review 1 F3)
+            saved[signal.SIGQUIT] = signal.signal(signal.SIGQUIT, status._signalled)
+    except ValueError:  # not the main thread: the action stays
+        pass
+    try:
+        code, _, state = tools.run_all([("line", argv)], cmd.env, deadline=time.monotonic() + WALL)["line"]
+    except (KeyboardInterrupt, status.Signalled):
+        return "inbox.answer.why.stopped", {}
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+    if state == "timed out":
+        return "inbox.answer.why.wall", {"command": command, "wall": _wall()}
+    if state != "ran":
+        return "inbox.answer.why.run", {"command": command}
+    if code == 0:
+        return None
+    if code == 2:
+        return "inbox.answer.why.old", {"command": command, "update": cmd.say("update")}
+    if code < 0:
+        return "inbox.answer.why.signal", {"command": command}
+    return "inbox.answer.why.failed", {"command": command}  # no code on a screen line (sc18 R1)
 
 
 def _inbox(cmd, nouns):

@@ -43,12 +43,46 @@ REPLY = r'''if args[:1] == ["reply"]:
             json.dump(world, fh)
     sys.exit(code)
 '''
+# The made-up sender's `line send` (row in5c-answer-line): it records its argv, its cwd, whether fd 0
+# is a terminal, its pid and how many writer calls `reply-calls` held when it started; then, by the
+# world file's `line` key, sleeps, kills itself, exits 2 with argparse's usage as an older sender
+# does, exits another code, or prints an id and exits 0. Each end also writes words of its own on
+# both streams, which never reach the screen.
+LINE = r'''if args[:2] == ["line", "send"]:
+    with open(os.path.join(here, "world.json")) as fh:
+        world = json.load(fh)
+    try:
+        with open(os.path.join(here, "reply-calls")) as fh:
+            seen = len(fh.readlines())
+    except FileNotFoundError:
+        seen = 0
+    with open(os.path.join(here, "line-calls"), "a") as fh:
+        fh.write(json.dumps({"argv": args, "cwd": os.getcwd(), "tty0": os.isatty(0), "pid": os.getpid(),
+                             "replies": seen}) + "\n")
+    how = world.get("line", {})
+    sys.stdout.write("the sender's own words\n")
+    sys.stdout.flush()
+    sys.stderr.write("the sender's own note\n")
+    time.sleep(how.get("sleep", 0))
+    if how.get("kill"):
+        import signal
+        os.kill(os.getpid(), signal.SIGKILL)
+    if how.get("exit") == 2:
+        sys.stderr.write("usage: agentik-bench line send [-h] --file FILE checkout\n"
+                         "agentik-bench line send: error: unrecognized arguments: " + args[-1] + "\n")
+        sys.exit(2)
+    if "exit" in how:
+        sys.exit(how["exit"])
+    print("0123456789ab")
+    sys.exit(0)
+'''
 BLOCK2 = "## 2. Which way the gate opens\n\n- **North** (Recommended)\n- **South**\n\n**Your answer:**"
 SAY = "the \"west\" gate, at $HOME's end, café über alles"
 
 
 class AnswerHome(in4.InboxHome):
     verbs = [{"name": "reply", "summary": "the owner's answer", "top": False}]
+    lines = [{"name": "line", "summary": "a line to another sitting", "top": False}]  # row in5c-answer-line
 
     def setUp(self):
         in4.InboxHome.setUp(self)
@@ -57,6 +91,11 @@ class AnswerHome(in4.InboxHome):
         with open(os.path.join(self.side, "ledger.py"), "w") as fh:
             fh.write(tool)
         self.ledger_stub(self.verbs)
+        bench = in4.TOOL.replace('with open(os.path.join(here, "tools.json"))',
+                                 LINE + 'with open(os.path.join(here, "tools.json"))', 1)
+        with open(os.path.join(self.side, "bench.py"), "w") as fh:
+            fh.write(bench)
+        self.bench_stub(self.lines)
         real = os.path.realpath(self.pear)
         self.world["questions"][real]["questions"].append(
             {"n": 2, "title": "Which way the gate opens", "line": 12, "state": "open", "why": None,
@@ -72,6 +111,16 @@ class AnswerHome(in4.InboxHome):
             "describe": shlex.quote(json.dumps(answer)),
             "pyc": shlex.quote(os.path.join(self.side, "pyc")),
             "tool": shlex.quote(os.path.join(self.side, "ledger.py")), "name": "ledger"})
+
+    def bench_stub(self, verbs):
+        """The made-up tool that gives the `charter` read, its describe listing `verbs` (in5c)."""
+        answer = dict(in4.describe("bench"), verbs=verbs)
+        self.stub("agentik-bench", in4.STUB % {
+            "call": shlex.quote(json.dumps(["bench", "describe", "--json"])),
+            "calls": shlex.quote(os.path.join(self.side, "tool-calls")),
+            "describe": shlex.quote(json.dumps(answer)),
+            "pyc": shlex.quote(os.path.join(self.side, "pyc")),
+            "tool": shlex.quote(os.path.join(self.side, "bench.py")), "name": "bench"})
 
     def user(self, text):
         path = os.path.join(self.home, ".config", "agentik", "suite", "config.yaml")
