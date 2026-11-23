@@ -609,8 +609,8 @@ def _answer(cmd, nouns):
     unsent = _send(cmd, reads, real, n)
     if unsent:  # R7: one line after the writer's; R8: nothing where it was sent
         why = t.text(unsent[0], **unsent[1])
-        t.table([("warn", [t.text("inbox.answer.unsent", name=os.path.basename(real) or real, why=why, n=n)],
-                  None)], err=True, indent=0)
+        said = t.text("inbox.answer.unsent", name=os.path.basename(real) or real, why=why)
+        t.table([("warn", [said + " " + t.text("inbox.answer.still", n=n)], None)], err=True, indent=0)
     return code
 
 

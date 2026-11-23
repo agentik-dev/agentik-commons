@@ -39,7 +39,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.completion_bash`: add this line to ~/.bashrc, then open a new terminal
 - `help.eg.inbox`: what waits on you in every checkout
 - `help.eg.inbox_open`: question 1, as it is written
-- `help.eg.inbox_answer`: your answer, typed on that question's answer line after one question; its sitting is sent a line
+- `help.eg.inbox_answer`: your answer typed on its answer line, then a line sent to its sitting
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
@@ -802,9 +802,10 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.inbox.answer.writer`: `{tool}` gives the questions but has no reply verb, so nothing is written
 - `err.inbox.answer.tty`: no terminal to ask you on; give --yes, or --dry-run to see the line
 - `err.inbox.answer.exec`: `{path}` cannot be run, so nothing is written
-- `inbox.answer.unsent`: no line told `{name}`'s sitting, since `{why}`. It still finds question `{n}` answered, not entered, in its inbox and at its next ask
+- `inbox.answer.unsent`: no line told `{name}`'s sitting, since `{why}`.
+- `inbox.answer.still`: Its inbox and its next ask still show question `{n}` answered, not entered.
 - `inbox.answer.why.none`: no command on PATH sends a line
-- `inbox.answer.why.old`: `{command}` refused it, exit 2, as one older than its --text does (`{update}` brings it up to date)
+- `inbox.answer.why.old`: `{command}` refused it with exit 2, as one older than --text does (run `{update}`)
 - `inbox.answer.why.exit`: `{command}` exited `{code}`
 - `inbox.answer.why.signal`: `{command}` ended by a signal
 - `inbox.answer.why.wall`: `{command}` gave no answer in `{wall}` s

@@ -34,8 +34,8 @@ MORE = r'''    with open(os.path.join(here, "reply.pid"), "w") as fh:
 '''
 REPLY = in5b.REPLY.replace('    print("the line after")\n', MORE + '    print("the line after")\n', 1)
 SENTENCE = "--text=question 2 holds text on its answer line"
-UNSENT = ("warn  no line told %s's sitting, since %s. It still finds question 2 answered, not entered, "
-          "in its inbox and at its next ask\n")
+UNSENT = ("warn  no line told %s's sitting, since %s. Its inbox and its next ask still show question 2 "
+          "answered, not entered.\n")
 OUT, ERR = "the line after\n", "the writer's note\n"
 
 
@@ -253,8 +253,8 @@ class UnsentTest(LineHome):
 
     def test_7_the_send_fails(self):
         command = "agentik-bench line send"
-        for how, why in (({"exit": 2}, "%s refused it, exit 2, as one older than its --text does "
-                                       "(%s update brings it up to date)" % (command, self.L)),
+        for how, why in (({"exit": 2}, "%s refused it with exit 2, as one older than --text does "
+                                       "(run %s update)" % (command, self.L)),
                          ({"exit": 1}, "%s exited 1" % command), ({"exit": 3}, "%s exited 3" % command),
                          ({"kill": True}, "%s ended by a signal" % command)):
             self.set("line", **how)
@@ -274,7 +274,7 @@ class TextTest(LineHome):
         p = subprocess.run([self.L, "help", "inbox"], capture_output=True, text=True, env=self.env(), timeout=60,
                            cwd=self.side)
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn("its sitting is sent a line", p.stdout)
+        self.assertIn("your answer typed on its answer line, then a line sent to its sitting", p.stdout)
 
 
 if __name__ == "__main__":
