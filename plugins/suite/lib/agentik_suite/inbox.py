@@ -674,10 +674,19 @@ def _send(cmd, reads, real, n):
     exe = os.path.join(os.getcwd(), sender["exe"])  # joined, never normalised, as the writer's
     argv = [exe, SENDER, "send", real, "--text=" + SENTENCE % n]
     command = " ".join([os.path.basename(exe), SENDER, "send"])
+    saved = {}
+    try:
+        if signal.getsignal(signal.SIGQUIT) != signal.SIG_IGN:  # SIGQUIT stops it as SIGINT does (review 1 F3)
+            saved[signal.SIGQUIT] = signal.signal(signal.SIGQUIT, status._signalled)
+    except ValueError:  # not the main thread: the action stays
+        pass
     try:
         code, _, state = tools.run_all([("line", argv)], cmd.env, deadline=time.monotonic() + WALL)["line"]
     except (KeyboardInterrupt, status.Signalled):
         return "inbox.answer.why.stopped", {}
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
     if state == "timed out":
         return "inbox.answer.why.wall", {"command": command, "wall": _wall()}
     if state != "ran":

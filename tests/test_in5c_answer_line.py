@@ -291,6 +291,35 @@ class UnsentTest(LineHome):
         for c in self.sends():
             self.assertTrue(gone(c["pid"], group=True), c)
         self.assertEqual(len(self.sends()), 5)
+        p = subprocess.run([self.L, "inbox", "answer", "pear-hq", "2", "--pick", "North", "--yes"], input="",
+                           capture_output=True, text=True, env=self.env(TZ="UTC"), timeout=60, cwd=self.side)
+        ended = time.time()
+        self.assertEqual((p.returncode, p.stdout, p.stderr),
+                         (0, OUT, ERR + UNSENT % ("pear-hq", "%s gave no answer in 5 s" % command)))
+        # the wall and two seconds, from the writer's call (review 1 F6)
+        self.assertLess(ended - os.path.getmtime(os.path.join(self.side, "reply-calls")), 5 + 2)
+        self.assertTrue(gone(self.sends()[-1]["pid"], group=True))
+        self.plain()
+
+    def test_11_a_signal_to_the_suite_during_the_send(self):
+        """Review 1 F3: SIGINT, SIGTERM and SIGQUIT to the suite while the line is sent: the send
+        stopped, its group ended, R7's warn line, the writer's exit 0."""
+        self.set("line", sleep=30)
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
+            before = len(self.sends())
+            p = subprocess.Popen([self.L, "inbox", "answer", "pear-hq", "2", "--pick", "North", "--yes"],
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 env=self.env(TZ="UTC"), cwd=self.side, text=True)
+            end = time.monotonic() + 30
+            while len(self.sends()) == before and time.monotonic() < end:
+                time.sleep(0.05)
+            time.sleep(0.3)
+            os.kill(p.pid, signum)
+            out, err = p.communicate(timeout=30)
+            self.assertEqual((p.returncode, out, err), (0, OUT, ERR + UNSENT % ("pear-hq", "the send was stopped")),
+                             signum)
+            self.assertEqual(len(self.sends()), before + 1, signum)
+            self.assertTrue(gone(self.sends()[-1]["pid"], group=True), signum)
         self.plain()
 
 
