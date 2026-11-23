@@ -11,6 +11,11 @@ question, each line of a charter's Waits part, each build-order step waiting on 
 It is a read: it writes nothing but the describe cache, starts no process but a listed tool's,
 asks nothing, never loops, opens no file in a checkout and runs no git. A checkout's name, path
 and contents reach it at run time, from the command line, the user file and the tools' answers.
+
+`inbox answer <repo> N (--pick L | --say T) [--dry-run] [--yes]` (packet in5b-inbox-answer) writes
+nothing either: it finds the checkout (a path, or a name among those the bare `inbox` covers), the
+writer (the tool that gives the `questions` read, with a verb `reply` in its describe), and then
+replaces this process by that tool's `reply N`, run in the checkout, with the person's streams.
 """
 import datetime
 import json
@@ -36,6 +41,34 @@ INDENT = 3  # a block's rows
 
 def number(noun):
     return bool(NUMBER.match(noun))
+
+
+ANSWER = "answer"  # the first noun that makes `inbox` the answer's front door (row in5b R1)
+WRITER = "reply"  # the verb the writer lists in its describe and runs (R4, R6)
+
+
+def _answer_fault(o, nouns):
+    """R2: (message id, values) of the first word or flag `inbox answer` refuses before it runs
+    anything, else None; `nouns` are the words after `answer`."""
+    if not nouns:
+        return "err.inbox.answer.repo", {}
+    if len(nouns) < 2:
+        return "err.inbox.answer.nonumber", {}
+    if not number(nouns[1]):
+        return "err.inbox.answer.number", {"word": nouns[1]}
+    if len(nouns) > 2:
+        return "err.inbox.answer.extra", {"word": nouns[2]}
+    if o.get("answer_bare") or (o["pick_label"] is None) == (o["say"] is None):  # one seen bare is no answer
+        return "err.inbox.answer.how", {}
+    if o["check"]:
+        return "err.inbox.answer.check", {}
+    if o["json"]:
+        return "err.inbox.answer.json", {}
+    return None
+
+
+def answer_takes(o, nouns):
+    return _answer_fault(o, nouns) is None
 
 
 # ---- the two seams' work: which checkouts, and which reads --------------------------------------
@@ -82,6 +115,13 @@ def _listed(reads):
             yield read["name"], list(read["argv"])
 
 
+def _verbs(answer):
+    """The names of the verbs a counted describe lists, each a name or an object with one."""
+    verbs = answer.get("verbs")
+    return [v["name"] if isinstance(v, dict) else v for v in verbs if isinstance(v, str) or
+            isinstance(v, dict) and isinstance(v.get("name"), str)] if isinstance(verbs, list) else []
+
+
 def _reads(cmd):
     """{read: {tool, exe, argv}}: the `status` reads of the tools on PATH by name, from their
     describe answers (cache and wall: tools.describe_all), the first read of a name winning."""
@@ -97,7 +137,8 @@ def _reads(cmd):
             for read in answer.get("reads") or ():
                 name = read.get("name")
                 if read.get("kind") == "status" and name in READS and name not in found:
-                    found[name] = {"tool": entry["name"], "exe": entry["exe"], "argv": list(read["argv"])}
+                    found[name] = {"tool": entry["name"], "exe": entry["exe"], "argv": list(read["argv"]),
+                                   "verbs": _verbs(answer)}
     return found
 
 
@@ -495,22 +536,83 @@ def _flushed(t):
         raise BrokenPipeError("stdout closed")
 
 
+def _covered(cmd, paths, notes):
+    """_covers' list, refused where the user file is outside the subset or nothing is covered."""
+    t, home = cmd.t, cmd.env.get("HOME")
+    try:
+        cov = _covers(cmd, paths, notes)
+    except settings.Fault as f:
+        fault = t.text("config.fault" if f.line else "config.fault.noline",
+                       path=plan.shown(f.path, home), line=f.line, why=f.why)
+        raise cmd.Refusal("bad_file", "err.inbox.file", None, fault=fault)
+    if cov["rule"] == "none":
+        raise cmd.Refusal("no_checkout", "err.inbox.nowhere", cmd.say("help", "inbox"),
+                          path=plan.shown(settings.user_path(cmd.env), home))
+    return cov
+
+
+def _named(cmd, word):
+    """R3: the covered checkouts whose name is `word`, by the bare inbox's rule from this cwd."""
+    cov = _covered(cmd, [], [])
+    return cov, [co["repo"] for co in map(_checkout, cov["checkouts"]) if co["name"] == word]
+
+
+def _is_path(word):
+    return "/" in word or word in (".", "..")
+
+
+def _answer(cmd, nouns):
+    """R2 to R7: refuse what the words, the checkout, the writer or the terminal do not allow, then
+    replace this process by the writer's `reply N`, its cwd the checkout; it returns only where
+    that fails."""
+    o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
+    fault = _answer_fault(o, nouns)
+    if fault:
+        raise Refusal("usage", fault[0], cmd.say("help", "inbox"), **fault[1])
+    word, n = nouns[0], nouns[1]
+    if _is_path(word):
+        path = word
+    else:
+        cov, hits = _named(cmd, word)
+        if not hits:
+            names = ", ".join(_checkout(p)["name"] for p in cov["checkouts"])
+            raise Refusal("unknown_repo", "err.inbox.answer.unknown", cmd.say("inbox"), word=word, names=names)
+        if len(hits) > 1:
+            raise Refusal("two_repos", "err.inbox.answer.twice", cmd.say("inbox"), word=word,
+                          paths=", ".join(hits))
+        path = hits[0]
+    if not os.path.isdir(path):
+        raise Refusal("not_a_directory", "err.inbox.answer.notdir", cmd.say("help", "inbox"), path=word)
+    found = _reads(cmd).get("questions")
+    if not found:
+        raise Refusal("no_reads", "err.inbox.tools", cmd.say("setup"), exit_code=3)
+    if WRITER not in found["verbs"]:
+        raise Refusal("no_writer", "err.inbox.answer.writer", cmd.say("update"), tool="agentik-" + found["tool"])
+    if not (o["yes"] or o["dry_run"]) and not (os.isatty(0) and os.isatty(2)):
+        raise Refusal("no_terminal", "err.inbox.answer.tty", cmd.say("help", "inbox"))
+    exe = os.path.join(os.getcwd(), found["exe"])  # before the chdir, joined, never normalised (review 2 F1)
+    # the value rides its flag as one word, so one that opens with `-` is never the writer's option (N1)
+    argv = [exe, WRITER, n, "--pick=" + o["pick_label"] if o["say"] is None else "--say=" + o["say"]]
+    argv += (["--dry-run"] if o["dry_run"] else []) + (["--yes"] if o["yes"] else [])
+    t.flush()
+    try:
+        os.chdir(path)
+        os.execve(exe, argv, dict(cmd.env))
+    except OSError:
+        raise Refusal("no_run", "err.inbox.answer.exec", None, path=exe)
+
+
 def _inbox(cmd, nouns):
     o, t, Refusal = cmd.opts, cmd.t, cmd.Refusal
+    if nouns[:1] == [ANSWER]:
+        return _answer(cmd, nouns[1:])
     home = cmd.env.get("HOME")
     numbers = [k for k, noun in enumerate(nouns) if number(noun)]
     if o["check"] and numbers:
         raise Refusal("two_answers", "err.inbox.both", cmd.again({cmd.at[k + 1]: [] for k in numbers}))
     notes = []
-    try:
-        cov = _covers(cmd, [n for n in nouns if not number(n)], notes)
-    except settings.Fault as f:
-        fault = t.text("config.fault" if f.line else "config.fault.noline",
-                       path=plan.shown(f.path, home), line=f.line, why=f.why)
-        raise Refusal("bad_file", "err.inbox.file", None, fault=fault)
+    cov = _covered(cmd, [n for n in nouns if not number(n)], notes)
     user = plan.shown(settings.user_path(cmd.env), home)
-    if cov["rule"] == "none":
-        raise Refusal("no_checkout", "err.inbox.nowhere", cmd.say("help", "inbox"), path=user)
     found = _reads(cmd)
     if not found:
         raise Refusal("no_reads", "err.inbox.tools", cmd.say("setup"), exit_code=3)
@@ -605,6 +707,10 @@ def _opened(cmd, nouns, numbers, cos, obj, now):
         raise cmd.Refusal("unknown_number", "err.inbox.number", cmd.again({cmd.at[k + 1]: [] for k in missing}),
                           n=nouns[missing[0]])
     opened = [(co, q) for k in numbers for co, q in held[k]]
+    try:  # R9: the answer's line names a checkout as R3 would find it, else by its path
+        covered = [_checkout(p) for p in _covers(cmd, [], [])["checkouts"]]
+    except settings.Fault:
+        covered = []
     if cmd.opts["json"]:
         t.json(dict(obj, opened=[{"repo": co["repo"], "name": co["name"], "n": q["n"], "state": q["state"],
                                   "text": q["text"], "file": q["file"], "line": q["line"]} for co, q in opened]))
@@ -619,6 +725,10 @@ def _opened(cmd, nouns, numbers, cos, obj, now):
         for line in (q["text"] if isinstance(q["text"], str) else "").splitlines():
             t.line("inbox.open.line", text=line)
         t.blank()
+        named = [c for c in covered if c["name"] == co["name"]]
+        word = co["name"] if len(named) == 1 and _real(named[0]["repo"]) == _real(co["repo"]) \
+            and not _is_path(co["name"]) else co["repo"]
+        t.line("inbox.open.reply", command=cmd.say("inbox", ANSWER, word, str(q["n"])) + " --pick <label>")
         t.line("inbox.open.answer", file=_shown(q["file"]), line=_shown(q["line"]))
         t.line("inbox.open.sitting", name=co["name"])
     _flushed(t)

@@ -37,6 +37,9 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `help.eg.remove_all`: the plan for every tool, the marketplace and the suite; nothing is written
 - `help.eg.completion_zsh`: add this line to ~/.zshrc, then open a new terminal
 - `help.eg.completion_bash`: add this line to ~/.bashrc, then open a new terminal
+- `help.eg.inbox`: what waits on you in every checkout
+- `help.eg.inbox_open`: question 1, as it is written
+- `help.eg.inbox_answer`: your answer, typed on that question's answer line after one question
 - `hint.help`: next: `{setup}`
 - `hint.help.done`: next: `{doctor}`
 - `verb.help`: List the verbs, the flags and the agentik commands on PATH.
@@ -63,6 +66,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `usage.install_cli`: usage: `{install}` [--prefix <dir>] [flags]
 - `usage.doctor`: usage: `{doctor}` [flags]
 - `usage.inbox`: usage: `{prog}` inbox [<repo>...] [<number>...] [flags]
+- `usage.inbox_answer`: usage: `{prog}` inbox answer <repo> <number> --pick <label>|--say <text> [flags]
 - `usage.issue`: usage: `{issue}` [new|show|strike WORD|drop SECTION|edit|reword FILE|send|discard]
 - `usage.init`: usage: `{tool}` init --kind hq <dir> [flags]
 - `usage.records`: usage: `{prog}` records [<dir>] [flags]
@@ -93,6 +97,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `flag.expected`: What you expected that command to do.
 - `flag.as_login`: The gh account to send the issue as.
 - `flag.draft`: The draft to work on, by its id, where more than one waits.
+- `flag.pick_label`: The option to answer with, by its label (inbox answer).
+- `flag.say`: Your answer in your own words, one line (inbox answer).
 
 ## Version
 
@@ -771,6 +777,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.check.read`: not read: `{what}`
 - `inbox.open.title`: question `{n}`, `{state}`, asked `{age}`
 - `inbox.open.line`: `{text}`
+- `inbox.open.reply`: To answer from here, run `{command}`.
 - `inbox.open.answer`: To answer: type after "Your answer:" in the block at `{file}`:`{line}`.
 - `inbox.open.sitting`: Or start claude in `{name}` and ask for its open questions.
 - `inbox.note.entry`: `{entry}` in `{path}` is not read: a checkout is an absolute path or under ~/
@@ -782,6 +789,19 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.inbox.tools`: no command on PATH gives a read the inbox needs
 - `err.inbox.number`: no checkout read here holds a question `{n}`
 - `err.inbox.both`: give --check or a question's number, not both
+- `err.inbox.answer.repo`: inbox answer takes a repo, then a question's number
+- `err.inbox.answer.nonumber`: inbox answer takes a question's number after the repo
+- `err.inbox.answer.number`: `{word}` is no question's number; a number is 1, 2, 3 and so on
+- `err.inbox.answer.extra`: inbox answer takes one number; `{word}` is one more
+- `err.inbox.answer.how`: give the answer as --pick <label> or as --say <text>, one of the two
+- `err.inbox.answer.check`: inbox answer writes, so it takes no --check
+- `err.inbox.answer.json`: inbox answer prints its writer's own lines, so it takes no --json
+- `err.inbox.answer.notdir`: `{path}` is not a directory
+- `err.inbox.answer.unknown`: no checkout read here is named `{word}`; the ones read are `{names}`
+- `err.inbox.answer.twice`: `{word}` names two checkouts here, `{paths}`; give the path of the one you mean
+- `err.inbox.answer.writer`: `{tool}` gives the questions but has no reply verb, so nothing is written
+- `err.inbox.answer.tty`: no terminal to ask you on; give --yes, or --dry-run to see the line
+- `err.inbox.answer.exec`: `{path}` cannot be run, so nothing is written
 
 ## Init
 

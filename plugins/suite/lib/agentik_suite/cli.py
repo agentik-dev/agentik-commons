@@ -8,14 +8,19 @@ settings drilled down to one, describe, the suite's own answer to that read, sta
 on one screen (watchers, sessions, gate, backlog, runs; status_read.py reads them at once and
 status_screen.py draws each as it is read), the object alone with --json, and with --check only
 the declared watchers (status.py), install-cli, which places this command and the agentik door
-under a prefix's bin (install.py), doctor, the machine checked in one read (doctor.py), and
-completion, a shell's script that calls `completion words` back at each Tab (completion.py).
+under a prefix's bin (install.py), doctor, the machine checked in one read (doctor.py), inbox,
+what waits on the owner across the checkouts, and `inbox answer`, the owner's answer handed to the
+writer verb `reply` of the tool that gives the `questions` read, run in the checkout as the
+suite's own process (inbox.py), and completion, a shell's script that calls `completion words` back
+at each Tab (completion.py).
 Every verb takes --json, -q/--quiet, --no-color and -h/--help; setup, update and install-cli, the
 verbs that write, also take --dry-run and -y/--yes; config takes --changed and --user-files; doctor takes
 --all; status takes paths to cover, --check, and the test hooks --ps FILE and --now ISO;
 install-cli takes --prefix DIR; issue takes --check, --web and --not-a-duplicate, and --ran, --exit,
---output, --expected, --as and --draft, each with a value. Those nine are the only flags with a
-value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said
+--output, --expected, --as and --draft, each with a value; init takes --kind KIND; inbox takes paths,
+numbers and --check, and `inbox answer` takes --pick LABEL or --say TEXT, each with a value under
+inbox alone (setup's and config's --pick stay switches), and --dry-run and -y/--yes. Those twelve
+are the only flags with a value. stdout carries the answer alone; stderr the hints and errors. Exit 0 done, 1 a check said
 no or a step failed, 2 usage or a failed precondition, 3 not installed (a plugin's name with no
 command here). Nothing here loops; setup asks once on a terminal before its first command. config
 writes only its cache under ${XDG_CACHE_HOME:-~/.cache}/agentik/; status writes the same cache
@@ -55,6 +60,10 @@ REMOVE_FLAGS = (("--all", None, "remove_all"),)
 ISSUE_FLAGS = (("--check", None, "check"), ("--web", None, "web"),
                ("--not-a-duplicate", None, "not_a_duplicate"), ("--render", None, "render"))
 PICK_FLAGS = (("--pick", None, "pick"),)  # setup's list of plugins (row sc15-setup-pick R5)
+# `inbox answer`'s two flags with a value, read so only where the line's verb is `inbox` (row
+# in5b-inbox-answer R1): setup's and config's --pick stay switches. Not in VERB_FLAGS, so no Tab word.
+ANSWER_VALUES = (("--pick", None, "pick_label"), ("--say", None, "say"))
+ANSWER_FLAGS = WRITE_FLAGS + ANSWER_VALUES  # what `inbox answer` takes beyond inbox's own
 INSTALL_FLAGS = (("--force", None, "force"),)  # place over a newer command (row up3-forward-only R2)
 VERB_FLAGS = {verb: WRITE_FLAGS for verb in WRITES}
 VERB_FLAGS["setup"] = WRITE_FLAGS + PICK_FLAGS
@@ -76,7 +85,7 @@ ALL_FLAGS = {f: key for long, short, key in FLAGS + WRITE_FLAGS + CONFIG_FLAGS +
              + ISSUE_FLAGS + INSTALL_FLAGS + PICK_FLAGS
              for f in (long, short) if f}
 SWITCHES = ("--json", "--quiet", "-q", "--no-color")
-SKIPS = ("--yes", "-y", "--pick")  # answers a question for the person, or waits for one: never offered (sc4 review 1, sc15)
+SKIPS = ("--yes", "-y", "--pick", "--say")  # answers a question for the person, or waits for one: never offered (sc4 review 1, sc15)
 NEVER_MENDED = WRITES  # a word that is no verb is never mended into one of these
 NEAR = config.NEAR
 NOUN = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
@@ -102,6 +111,8 @@ EXAMPLES = {"setup": ((("setup",), "", "help.eg.setup"), (("setup", "--dry-run")
             "update": ((("update",), "", "help.eg.update"), (("update", "--dry-run"), "", "help.eg.update_dry")),
             "remove": ((("remove",), " <plugin>...", "help.eg.remove_names"),
                        (("remove", "--all", "--dry-run"), "", "help.eg.remove_all")),
+            "inbox": ((("inbox",), "", "help.eg.inbox"), (("inbox", "1"), "", "help.eg.inbox_open"),
+                      (("inbox", "answer"), " <repo> <number> --pick <label>", "help.eg.inbox_answer")),
             "completion": ((("completion", "zsh"), "", "help.eg.completion_zsh"),
                            (("completion", "bash"), "", "help.eg.completion_bash"))}
 WRAPS = {"completion": 'eval "$(%s)"'}  # an example's command inside the line a person adds
@@ -148,7 +159,9 @@ def _parse(argv):
     opts = {key: False for key in ALL_FLAGS.values()}
     opts["version"] = False
     opts.update({key: None for key, _ in VALUE_FLAGS.values()})
-    words, bad, rest, at, bad_at = [], None, False, [], None
+    opts.update({key: None for _, _, key in ANSWER_VALUES})
+    opts["answer_bare"] = ()  # inbox answer's --pick or --say given with no value (review 1 F1)
+    words, bad, rest, at, bad_at, bare = [], None, False, [], None, []
     args = iter(enumerate(argv))
     for i, arg in args:
         flag, eq, value = arg.partition("=")
@@ -157,6 +170,15 @@ def _parse(argv):
             at.append(i)
         elif arg == "--":
             rest = True
+        elif words[:1] == ["inbox"] and flag in ("--pick", "--say"):
+            # one value, after `=` or as the next word; a next word that opens with `-` is no
+            # value, and a flag with none is still seen: held in `bare`, read below
+            if not eq and i + 1 < len(argv) and not argv[i + 1].startswith("-"):
+                eq, value = True, next(args)[1]
+            if eq:
+                opts["pick_label" if flag == "--pick" else "say"] = value
+            else:
+                bare.append((i, arg))
         elif flag in VALUE_FLAGS:
             value = value if eq else next(args, (None, None))[1]
             if flag == "--prefix" and (value is None or value.startswith("-")):
@@ -171,6 +193,14 @@ def _parse(argv):
             opts[ALL_FLAGS[arg]] = True
         elif bad is None:
             bad, bad_at = arg, i
+    if words[:2] == ["inbox", "answer"]:
+        opts["answer_bare"] = tuple(flag for _, flag in bare)  # R2's one of the two (review 1 F1)
+    else:  # any other inbox reads it as before the row: --pick setup's switch, --say no flag (F2)
+        for i, flag in bare:
+            if flag == "--pick":
+                opts["pick"] = True
+            elif bad is None or i < bad_at:
+                bad, bad_at = flag, i
     opts["remove_all"] = opts["config_all"] = opts["all"]
     opts["config_pick"] = opts["pick"]  # config's --pick, setup's key and gloss kept (row sc14-config-pick R1)
     return opts, words, bad, at, bad_at
@@ -181,6 +211,11 @@ def _flag_fault(opts, words, verb):
     if opts["version"] and (words or opts["help"]):
         return "--version"
     takes = {f[0] for f in VERB_FLAGS.get(verb, ())}
+    answer = verb == "inbox" and words[1:2] == ["answer"]
+    if answer:
+        takes |= {f[0] for f in WRITE_FLAGS}  # --dry-run and --yes, here alone of inbox (R1)
+    elif opts["pick_label"] is not None or opts["say"] is not None:
+        return "--pick" if opts["pick_label"] is not None else "--say"
     for long, short, key in (WRITE_FLAGS + CONFIG_FLAGS + STATUS_FLAGS + DOCTOR_FLAGS + REMOVE_FLAGS + ISSUE_FLAGS
                              + INSTALL_FLAGS + PICK_FLAGS):
         if opts[key] and long not in takes:
@@ -210,6 +245,8 @@ def _takes(verb, o, nouns):
         return all(NOUN.match(n) for n in nouns) and bool(nouns) != bool(o["remove_all"])
     if verb == "status":
         return not (nouns and o["check"])
+    if verb == "inbox" and nouns[:1] == ["answer"]:  # row in5b-inbox-answer R2
+        return inbox.answer_takes(o, nouns[1:])
     if verb == "inbox":  # a number and --check are two answers (row in4-inbox R2)
         return not (o["check"] and any(inbox.number(n) for n in nouns))
     if verb == "issue":
@@ -313,8 +350,10 @@ class Command:
         writes = verb in WRITES and not opts["dry_run"] and not opts["help"]
         if verb == "issue" and not opts["help"]:
             writes = not issue.reads(words[1:])
+        if verb == "inbox" and words[1:2] == ["answer"] and not opts["help"]:
+            writes = not opts["dry_run"]  # it drives a writer verb (row in5b-inbox-answer R10)
         door = prog.form(self.env, self.tool)[0] != "typed"
-        if refused(line) or set(line) & set(SKIPS) or flags > typed or writes or \
+        if refused(line) or {w.partition("=")[0] for w in line} & set(SKIPS) or flags > typed or writes or \
                 door and not _door_takes(line):
             return self.say("help", verb) if verb and verb != "help" else self.say("help")
         return self.say(*line)
@@ -450,6 +489,7 @@ class Command:
         verb = self.verb if self.verb and self.verb != "help" else None
         known = [f for long, short, _ in FLAGS + VERB_FLAGS.get(verb, ()) for f in (long, short) if f]
         known += [f for f, (_, owner) in VALUE_FLAGS.items() if owner == verb]
+        known += ["--dry-run"] if verb == "inbox" and self.words[1:2] == ["answer"] else []
         known += [] if verb else ["--version"]
         known = [f for f in known if f != flag and f not in SKIPS]  # never --yes (review 1 F1)
         # a value flag typed rightly with no value after it is no other flag (review 1 F4)
@@ -646,7 +686,7 @@ class Command:
             t.table([(None, [gloss], None)], indent=6)
 
     def help_verb(self, verb):
-        flags = FLAGS + VERB_FLAGS.get(verb, ())
+        flags = FLAGS + VERB_FLAGS.get(verb, ()) + (ANSWER_FLAGS if verb == "inbox" else ())
         if self.opts["json"]:
             self.t.json({"schema": SCHEMA % "help", "ok": True, "tool": self.tool,
                          "version": self.version, "verb": verb,
@@ -656,6 +696,8 @@ class Command:
             return 0
         t = self.t
         t.line("usage." + verb.replace("-", "_"), **self.slots())
+        if verb == "inbox":  # the answer's form, a usage of its own (row in5b-inbox-answer R11)
+            t.line("usage.inbox_answer", **self.slots())
         t.wrapped("verb." + verb.replace("-", "_"))  # at the window's width (sc17 R2)
         t.blank()
         examples = self._examples(verb)
@@ -665,7 +707,8 @@ class Command:
         t.line("help.flags", style="name")
         shared = tuple(f for f in FLAGS if f[0] != "--help")
         plain = [(None, [term.name("AGENTIK_PLAIN=1"), t.text("help.plain")], None)] if verb == "setup" else []
-        t.table(self._flag_rows(VERB_FLAGS.get(verb, ())) + plain
+        own = VERB_FLAGS.get(verb, ()) + (ANSWER_FLAGS if verb == "inbox" else ())
+        t.table(self._flag_rows(own) + plain
                 + [(None, [term.name(t.text("help.also")), self._flag_words(shared)], None)])
         return 0
 
