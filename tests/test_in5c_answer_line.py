@@ -34,7 +34,7 @@ MORE = r'''    with open(os.path.join(here, "reply.pid"), "w") as fh:
 '''
 REPLY = in5b.REPLY.replace('    print("the line after")\n', MORE + '    print("the line after")\n', 1)
 SENTENCE = "--text=question 2 holds text on its answer line"
-UNSENT = ("warn  no line told %s's sitting, since %s; it still finds question 2 answered, not entered, "
+UNSENT = ("warn  no line told %s's sitting, since %s. It still finds question 2 answered, not entered, "
           "in its inbox and at its next ask\n")
 OUT, ERR = "the line after\n", "the writer's note\n"
 

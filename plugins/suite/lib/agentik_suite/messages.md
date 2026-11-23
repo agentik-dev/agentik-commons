@@ -802,7 +802,7 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `err.inbox.answer.writer`: `{tool}` gives the questions but has no reply verb, so nothing is written
 - `err.inbox.answer.tty`: no terminal to ask you on; give --yes, or --dry-run to see the line
 - `err.inbox.answer.exec`: `{path}` cannot be run, so nothing is written
-- `inbox.answer.unsent`: no line told `{name}`'s sitting, since `{why}`; it still finds question `{n}` answered, not entered, in its inbox and at its next ask
+- `inbox.answer.unsent`: no line told `{name}`'s sitting, since `{why}`. It still finds question `{n}` answered, not entered, in its inbox and at its next ask
 - `inbox.answer.why.none`: no command on PATH sends a line
 - `inbox.answer.why.old`: `{command}` refused it, exit 2, as one older than its --text does (`{update}` brings it up to date)
 - `inbox.answer.why.exit`: `{command}` exited `{code}`
