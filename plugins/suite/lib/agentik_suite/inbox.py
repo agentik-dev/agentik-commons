@@ -683,7 +683,7 @@ def _send(cmd, reads, real, n):
         return "inbox.answer.why.old", {"command": command, "update": cmd.say("update")}
     if code < 0:
         return "inbox.answer.why.signal", {"command": command}
-    return "inbox.answer.why.exit", {"command": command, "code": code}
+    return "inbox.answer.why.failed", {"command": command}  # no code on a screen line (sc18 R1)
 
 
 def _inbox(cmd, nouns):

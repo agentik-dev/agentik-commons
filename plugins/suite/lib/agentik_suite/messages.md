@@ -805,8 +805,8 @@ Each item below is one message the command prints, by its id; the writer in `ter
 - `inbox.answer.unsent`: no line told `{name}`'s sitting, since `{why}`.
 - `inbox.answer.still`: Its inbox and its next ask still show question `{n}` answered, not entered.
 - `inbox.answer.why.none`: no command on PATH sends a line
-- `inbox.answer.why.old`: `{command}` refused it with exit 2, as one older than --text does (run `{update}`)
-- `inbox.answer.why.exit`: `{command}` exited `{code}`
+- `inbox.answer.why.old`: `{command}` refused it, as one older than --text does (run `{update}`)
+- `inbox.answer.why.failed`: `{command}` failed
 - `inbox.answer.why.signal`: `{command}` ended by a signal
 - `inbox.answer.why.wall`: `{command}` gave no answer in `{wall}` s
 - `inbox.answer.why.run`: `{command}` could not be run

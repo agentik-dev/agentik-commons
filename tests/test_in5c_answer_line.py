@@ -253,9 +253,9 @@ class UnsentTest(LineHome):
 
     def test_7_the_send_fails(self):
         command = "agentik-bench line send"
-        for how, why in (({"exit": 2}, "%s refused it with exit 2, as one older than --text does "
+        for how, why in (({"exit": 2}, "%s refused it, as one older than --text does "
                                        "(run %s update)" % (command, self.L)),
-                         ({"exit": 1}, "%s exited 1" % command), ({"exit": 3}, "%s exited 3" % command),
+                         ({"exit": 1}, "%s failed" % command), ({"exit": 3}, "%s failed" % command),
                          ({"kill": True}, "%s ended by a signal" % command)):
             self.set("line", **how)
             self.unsent(why)
