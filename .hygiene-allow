@@ -102,4 +102,8 @@ tests/test_rr2_records.py: email
 # reserved `.invalid` domain, user and host whole, which the email group reads; six made-up
 # hosts in a test, no address (9a4df85 splits them)
 tests/test_records_cut.py: email
+# in5b-inbox-answer's test commit 4f1e828 named a sibling tool's repo in the regex that holds the
+# package to no tool's name, and c5ee9a6 spells it with a class; the fix's test hands the writer a
+# made-up ledger path, named as a ledger file is (the coordinator's ruling)
+tests/test_in5b_inbox_answer.py: sibling
 records: out
