@@ -167,22 +167,30 @@ class SendTest(LineHome):
         self.assertEqual(self.sends(), [])
         self.plain()
 
-    def signalled(self, signum):
-        """The writer waits for a file; `signum` goes to the suite's pid alone. (code, out, err)."""
+    def signalled(self, signum, ignored=False):
+        """The writer waits for a file; `signum` goes to the suite's pid alone, or, `ignored`, to the
+        group of a suite started in its own session with SIGINT and SIGQUIT ignored, as `sh` starts
+        a job with `&`. (code, out, err)."""
         mark = os.path.join(self.side, "go")
         self.set("reply", wait=mark)
         replies = os.path.join(self.side, "reply-calls")
         if os.path.exists(replies):
             os.remove(replies)
+
+        def ignore():
+            for sig in (signal.SIGINT, signal.SIGQUIT):
+                signal.signal(sig, signal.SIG_IGN)
+
         p = subprocess.Popen([self.L, "inbox", "answer", "pear-hq", "2", "--pick", "North", "--yes"],
                              stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                             env=self.env(TZ="UTC"), cwd=self.side, text=True)
+                             env=self.env(TZ="UTC"), cwd=self.side, text=True, start_new_session=ignored,
+                             preexec_fn=ignore if ignored else None)
         try:
             end = time.monotonic() + 30
             while not os.path.exists(replies) and time.monotonic() < end:
                 time.sleep(0.05)
             time.sleep(0.2)
-            os.kill(p.pid, signum)
+            (os.killpg if ignored else os.kill)(p.pid, signum)
             time.sleep(0.5)
             with open(mark, "w"):
                 pass
@@ -201,6 +209,23 @@ class SendTest(LineHome):
         for signum in (signal.SIGTERM, signal.SIGHUP):
             self.assertEqual(self.signalled(signum), (-signum, "", ""), signum)
             self.assertEqual(len(self.sends()), 1, signum)
+        self.plain()
+
+    def test_9_a_writer_killed_by_sigkill(self):
+        """Review 1 F1: a signal whose action cannot be set still ends the suite by it, no traceback."""
+        self.set("reply", kill=signal.SIGKILL)
+        code, out, err = self.answer("pear-hq", "2", "--pick", "North", "--yes")
+        self.assertEqual((code, err), (-signal.SIGKILL, ""))
+        self.assertEqual(self.sends(), [])
+        self.plain()
+
+    def test_10_a_caller_that_ignores_sigint_and_sigquit(self):
+        """Review 1 F2: the caller's ignore reaches the writer, so a ^C to the group leaves it to write."""
+        n = 0
+        for signum in (signal.SIGINT, signal.SIGQUIT):
+            self.assertEqual(self.signalled(signum, ignored=True), (0, OUT, ERR), signum)
+            self.sent_once(self.pear, self.side, n)
+            n += 1
         self.plain()
 
     def test_5_nothing_sent_where_nothing_was_written(self):

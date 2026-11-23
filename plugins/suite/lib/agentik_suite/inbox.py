@@ -617,8 +617,10 @@ def _answer(cmd, nouns):
 def _write(cmd, argv, path):
     """R1, R2: the writer run as this process's child, its cwd `path`, the person's environment and
     this process's three descriptors, and waited for; its exit code. While it runs SIGINT and
-    SIGQUIT do nothing here (a handler, not SIG_IGN, so the writer starts with their defaults) and
-    SIGTERM and SIGHUP are passed on to it; a writer ended by a signal ends this process by it."""
+    SIGQUIT do nothing here (a handler, not SIG_IGN, so the writer starts with their defaults; one
+    the caller ignores stays ignored, so the writer inherits it, review 1 F2) and SIGTERM and SIGHUP
+    are passed on to it; a writer ended by a signal ends this process by it, one whose action
+    cannot be set (SIGKILL) as well (review 1 F1)."""
     box, saved = {}, {}
 
     def still(signum, frame):
@@ -636,6 +638,8 @@ def _write(cmd, argv, path):
     try:
         for sig, handler in ((signal.SIGINT, still), (signal.SIGQUIT, still),
                              (signal.SIGTERM, forward), (signal.SIGHUP, forward)):
+            if handler is still and signal.getsignal(sig) == signal.SIG_IGN:
+                continue  # the caller's ignore, inherited by the writer as at the pin (review 1 F2)
             saved[sig] = signal.signal(sig, handler)
     except ValueError:  # not the main thread: the actions stay
         pass
@@ -653,7 +657,8 @@ def _write(cmd, argv, path):
             signal.signal(sig, handler)
     if code < 0:  # the wait status its caller read when the writer was this process
         cmd.t.flush()
-        signal.signal(-code, signal.SIG_DFL)
+        if -code not in (signal.SIGKILL, signal.SIGSTOP):  # an action that cannot be set (review 1 F1)
+            signal.signal(-code, signal.SIG_DFL)
         os.kill(os.getpid(), -code)
         return 128 - code  # only where that signal did not end this process
     return code
