@@ -108,7 +108,10 @@ PLAIN_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")  # row fk6 R1: a foreign v
 # digit, `_`, `.` or `-` beside it, but a sentence's `.` after it, and a lone `v` before a version
 WHOLE_BEFORE = r"(?<![\w.-])"
 WHOLE_AFTER = r"(?![\w-]|\.\w)"
-VERSION_BEFORE = r"(?:(?<![\w.-])|(?<=[vV])(?<![\w.-][vV]))"
+# row sv1: a named version has its own bounds: a `-` or `_` may come before it, and a file suffix
+# (`.tgz`) after it, but no letter, digit or `.` before it and no `-`, `_` or `.` and digit after it
+VERSION_BEFORE = r"(?:(?<![^\W_])(?<!\.)|(?<=[vV])(?<![\w.-][vV]))"
+VERSION_AFTER = r"(?![\w-]|\.\d)"
 
 SECRET_NAME = (r"[A-Za-z0-9_.-]*(?:password|passphrase|secret|token|api[_-]?key|credential"
                r"|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*")
@@ -274,7 +277,7 @@ def build(public, home=None, logins=(), hosts=(), names=(), emails=(), repos=(),
     plain = [v for v in kinds if v in words]
     m["weak"] = sorted({kinds[v] for v in plain})
     alts = ["(?<!%s)(?:%s)(?!%s)" % (L, _alts(inner), L)] if inner else []
-    alts += ["%s(?:%s)%s" % (VERSION_BEFORE, _alts(dotted), WHOLE_AFTER)] if dotted else []
+    alts += ["%s(?:%s)%s" % (VERSION_BEFORE, _alts(dotted), VERSION_AFTER)] if dotted else []
     alts += ["%s(?:%s)%s" % (WHOLE_BEFORE, _alts(short), WHOLE_AFTER)] if short else []
     m["_names"] = re.compile("|".join(alts), re.I) if alts else None
     m["_inner"] = re.compile(_alts(inner), re.I) if inner else None
