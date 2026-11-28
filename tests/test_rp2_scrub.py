@@ -794,5 +794,23 @@ class JoinTest(unittest.TestCase):
             self.assertEqual(form.build(form.parse(data, {"widget", "suite", "door"})), data)
 
 
+class JoinedVersionTest(unittest.TestCase):
+    """Row sv1: a named version joined to a word by `-` or `_`, or before a file suffix, is
+    replaced; a longer version-shaped run that only contains it is not."""
+
+    def scrubbed(self, text):
+        return scrub.scrub(text, scrub.build(PUBLIC, versions=["0.12.6-acme.1"]))[0]
+
+    def test_sv1_joined_is_replaced(self):
+        for text in ("zipkit-%s.tgz", "%s.tar.gz", "x_%s", "v%s."):
+            with self.subTest(text=text):
+                self.assertEqual(self.scrubbed(text % "0.12.6-acme.1"), text % "<source-1>")
+
+    def test_sv1_a_longer_run_stays(self):
+        for text in ("10.12.6-acme.1", "0.12.6-acme.1.2", "0.12.6-acme.12"):
+            with self.subTest(text=text):
+                self.assertEqual(self.scrubbed(text), text)
+
+
 if __name__ == "__main__":
     unittest.main()
